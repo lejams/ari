@@ -1,0 +1,278 @@
+id: ARI-FSP-001
+version: "1.0"
+mode: fsp
+validation_status: user_provided_test_unvalidated
+language: de-DE
+transcription_context: Fachsprachprüfung, Arzt-Patienten-Gespräch, rechtsseitige Oberbauchschmerzen
+unknown_response: Das weiß ich leider nicht genauer.
+out_of_scope_response: Darüber kann ich Ihnen nichts sagen. Bitte fragen Sie mich zu meinen Beschwerden.
+title: Rechtsseitige Oberbauchschmerzen
+public_summary: Eine 52-jährige Patientin stellt sich mit seit dem Vorabend bestehenden rechtsseitigen Oberbauchschmerzen vor.
+difficulty: beginner_intermediate
+educational_target:
+  exam: FSP
+  phase: Arzt-Patienten-Gespräch
+  duration_minutes: 20
+demographics:
+  name: Sabine Keller
+  age: 52
+  gender: weiblich
+  occupation: Bürokauffrau
+  height_cm: 165
+  weight_kg: 78
+demographic_responses:
+  name: Ich heiße Sabine Keller.
+  age: Ich bin 52 Jahre alt.
+  gender: Ich bin eine Frau.
+  occupation: Ich arbeite als Bürokauffrau.
+  height_cm: Ich bin 1,65 Meter groß.
+  weight_kg: Ich wiege 78 Kilogramm.
+source_revealed_fact_ids:
+  opening_statement:
+    - symptom.location
+opening_statement: Guten Morgen, Herr Doktor oder Frau Doktor. Ich habe seit gestern Abend ziemlich starke Schmerzen hier rechts oben im Bauch. Heute Nacht ist es deutlich schlimmer geworden.
+communication_style: Mäßig ängstlich, gut kooperativ und normal ausführlich. Alltagssprache statt medizinischer Fachbegriffe verwenden. Nur die gestellte Frage beantworten und meist ein bis zwei Informationen nennen. Nie den gesamten Fall aufsagen. Bei unklaren Fragen um Wiederholung oder Erklärung bitten. Gelegentlich Sorge wegen der Schmerzen äußern.
+facts:
+  - id: symptom.location
+    category: current_history
+    value: Schmerzen im rechten Oberbauch
+    patient_phrase: Die Schmerzen sind hier rechts oben unter den Rippen.
+    disclosure: spontaneous
+  - id: symptom.onset
+    category: current_history
+    value: Beginn gestern Abend gegen 21 Uhr
+    patient_phrase: Die Schmerzen haben gestern Abend gegen 21 Uhr angefangen.
+    disclosure: when_asked
+  - id: symptom.meal_context
+    category: current_history
+    value: Beginn ungefähr zwei Stunden nach einem großen Abendessen mit Schnitzel und Pommes
+    patient_phrase: Es fing ungefähr zwei Stunden nach einem großen Abendessen mit Schnitzel und Pommes an.
+    disclosure: when_asked_about_activity_or_food
+  - id: symptom.quality
+    category: current_history
+    value: Anhaltend, drückend und krampfartig
+    patient_phrase: Es drückt und zieht die ganze Zeit.
+    disclosure: when_asked
+  - id: symptom.intensity
+    category: current_history
+    value: Schmerzstärke 8 von 10
+    patient_phrase: Auf einer Skala von null bis zehn ist der Schmerz bei acht.
+    disclosure: when_explicitly_asked
+  - id: symptom.radiation
+    category: current_history
+    value: Ausstrahlung in die rechte Schulter und teilweise in den Rücken
+    patient_phrase: Manchmal zieht es bis in die rechte Schulter und ein bisschen nach hinten.
+    disclosure: when_asked
+  - id: symptom.progression
+    category: current_history
+    value: Zunächst mäßig, über Nacht zunehmend stark und am Morgen anhaltend
+    patient_phrase: Am Anfang war es noch mäßig, aber über Nacht wurde es immer stärker und heute Morgen ist es ständig da.
+    disclosure: when_asked
+  - id: symptom.aggravating_factors
+    category: current_history
+    value: Bewegung und tiefes Einatmen verstärken die Schmerzen etwas
+    patient_phrase: Bei Bewegung und wenn ich tief einatme, wird es etwas schlimmer.
+    disclosure: when_asked
+  - id: symptom.relieving_factors
+    category: current_history
+    value: Ruhiges Liegen hilft etwas; Paracetamol 500 mg in der vergangenen Nacht half kaum
+    patient_phrase: Wenn ich ruhig liege, wird es etwas besser. Eine Tablette Paracetamol mit 500 Milligramm hat letzte Nacht kaum geholfen.
+    disclosure: when_asked
+  - id: symptom.nausea
+    category: associated_symptoms
+    value: Anhaltende Übelkeit seit der vergangenen Nacht
+    patient_phrase: Mir ist seit letzter Nacht ständig übel.
+    disclosure: when_asked
+  - id: symptom.vomiting
+    category: associated_symptoms
+    value: Einmaliges Erbrechen von Nahrungsinhalt in der Nacht, ohne Blut
+    patient_phrase: Ich habe in der Nacht einmal Essen erbrochen, aber es war kein Blut dabei.
+    disclosure: when_asked
+  - id: symptom.fever
+    category: associated_symptoms
+    value: Heute Morgen gemessene Temperatur 38,2 Grad Celsius
+    patient_phrase: Heute Morgen habe ich 38,2 Grad Fieber gemessen.
+    disclosure: when_asked
+  - id: symptom.chills_absent
+    category: associated_symptoms
+    value: Kein Schüttelfrost
+    patient_phrase: Schüttelfrost hatte ich nicht.
+    disclosure: when_asked
+  - id: symptom.appetite
+    category: associated_symptoms
+    value: Deutlich verminderter Appetit
+    patient_phrase: Ich habe deutlich weniger Appetit als sonst.
+    disclosure: when_asked
+  - id: symptom.stool
+    category: associated_symptoms
+    value: Gestern normaler Stuhlgang; kein Durchfall, keine Verstopfung, kein Teerstuhl und kein Blut im Stuhl
+    patient_phrase: Der Stuhlgang war gestern normal. Ich habe weder Durchfall noch Verstopfung und auch keinen schwarzen oder blutigen Stuhl.
+    disclosure: when_asked
+  - id: symptom.urine
+    category: associated_symptoms
+    value: Kein Brennen, keine erhöhte Frequenz, kein Blut und kein dunkler Urin
+    patient_phrase: Beim Wasserlassen brennt nichts, ich muss nicht häufiger und der Urin ist weder blutig noch dunkel.
+    disclosure: when_asked
+  - id: symptom.jaundice_absent
+    category: associated_symptoms
+    value: Kein Ikterus
+    patient_phrase: Nein, gelb bin ich nicht geworden.
+    disclosure: when_asked
+  - id: symptom.chest_pain_absent
+    category: associated_symptoms
+    value: Keine Brustschmerzen
+    patient_phrase: Schmerzen in der Brust habe ich nicht.
+    disclosure: when_asked
+  - id: symptom.dyspnea_absent
+    category: associated_symptoms
+    value: Keine Atemnot
+    patient_phrase: Atemnot habe ich nicht.
+    disclosure: when_asked
+  - id: history.previous_episode
+    category: past_history
+    value: Zwei leichtere Episoden rechtsseitiger Oberbauchbeschwerden nach schweren Mahlzeiten in den letzten sechs Monaten; jeweils spontane Besserung nach ungefähr einer Stunde
+    patient_phrase: In den letzten sechs Monaten hatte ich nach schwerem Essen schon zweimal leichtere Schmerzen an derselben Stelle. Nach ungefähr einer Stunde waren sie von allein weg.
+    disclosure: when_asked
+  - id: history.hypertension
+    category: past_history
+    value: Arterielle Hypertonie seit sechs Jahren
+    patient_phrase: Ich habe seit sechs Jahren hohen Blutdruck.
+    disclosure: when_asked
+  - id: history.diabetes_absent
+    category: past_history
+    value: Kein Diabetes mellitus
+    patient_phrase: Diabetes habe ich nicht.
+    disclosure: when_asked
+  - id: history.cardiovascular_absent
+    category: past_history
+    value: Keine bekannte Herz-Kreislauf-Erkrankung
+    patient_phrase: Eine Herz-Kreislauf-Erkrankung ist bei mir nicht bekannt.
+    disclosure: when_asked
+  - id: history.liver_absent
+    category: past_history
+    value: Keine bekannte Lebererkrankung
+    patient_phrase: Eine Lebererkrankung ist bei mir nicht bekannt.
+    disclosure: when_asked
+  - id: history.gallstones_absent
+    category: past_history
+    value: Keine bekannten Gallensteine
+    patient_phrase: Bei mir sind keine Gallensteine bekannt.
+    disclosure: when_asked
+  - id: history.other_none
+    category: past_history
+    value: Keine weiteren relevanten Vorerkrankungen
+    patient_phrase: Sonst habe ich keine wichtigen Vorerkrankungen.
+    disclosure: when_asked
+  - id: surgery.caesarean_sections
+    category: past_surgical_history
+    value: Kaiserschnitte 2002 und 2005
+    patient_phrase: Ich hatte 2002 und 2005 jeweils einen Kaiserschnitt.
+    disclosure: when_asked
+  - id: medication.ramipril
+    category: medication
+    value: Ramipril 5 mg einmal täglich
+    patient_phrase: Ich nehme einmal täglich 5 Milligramm Ramipril.
+    disclosure: when_asked
+  - id: medication.paracetamol
+    category: medication
+    value: Einmalig Paracetamol 500 mg in der vergangenen Nacht
+    patient_phrase: Letzte Nacht habe ich einmal eine Tablette Paracetamol mit 500 Milligramm genommen.
+    disclosure: when_asked
+  - id: allergy.penicillin
+    category: allergy
+    value: Nicht-anaphylaktische Penicillinallergie mit juckendem Hautausschlag
+    patient_phrase: Von Penicillin bekomme ich einen juckenden Hautausschlag. Eine schwere allergische Reaktion hatte ich dabei nicht.
+    disclosure: when_asked
+  - id: allergy.food_none
+    category: allergy
+    value: Keine bekannten Lebensmittelallergien
+    patient_phrase: Lebensmittelallergien sind mir nicht bekannt.
+    disclosure: when_asked
+  - id: family.mother
+    category: family_history
+    value: Mutter 76 Jahre alt, arterielle Hypertonie und Gallensteine; Entfernung der Gallenblase in ihren Sechzigern
+    patient_phrase: Meine Mutter ist 76, hat hohen Blutdruck und hatte Gallensteine. Ihre Gallenblase wurde entfernt, als sie in ihren Sechzigern war.
+    disclosure: when_asked
+  - id: family.father
+    category: family_history
+    value: Vater im Alter von 72 Jahren an einem Herzinfarkt verstorben
+    patient_phrase: Mein Vater ist mit 72 Jahren an einem Herzinfarkt gestorben.
+    disclosure: when_asked
+  - id: family.sister
+    category: family_history
+    value: Eine gesunde Schwester
+    patient_phrase: Ich habe eine Schwester, die gesund ist.
+    disclosure: when_asked
+  - id: social.smoking
+    category: social_history
+    value: Nie geraucht
+    patient_phrase: Ich habe noch nie geraucht.
+    disclosure: when_asked
+  - id: social.alcohol
+    category: social_history
+    value: Ein bis zwei Gläser Wein am Wochenende
+    patient_phrase: Am Wochenende trinke ich ein bis zwei Gläser Wein.
+    disclosure: when_asked
+  - id: social.drugs
+    category: social_history
+    value: Keine Drogen
+    patient_phrase: Drogen nehme ich nicht.
+    disclosure: when_asked
+  - id: social.living_situation
+    category: social_history
+    value: Lebt mit ihrem Ehemann zusammen
+    patient_phrase: Ich lebe mit meinem Mann zusammen.
+    disclosure: when_asked
+  - id: social.children
+    category: social_history
+    value: Zwei erwachsene Kinder
+    patient_phrase: Ich habe zwei erwachsene Kinder.
+    disclosure: when_asked
+  - id: gynecology.menopause
+    category: gynecological_history
+    value: Menopause seit dem Alter von 50 Jahren
+    patient_phrase: Ich bin seit meinem 50. Lebensjahr in den Wechseljahren.
+    disclosure: when_asked
+  - id: gynecology.pregnancy_absent
+    category: gynecological_history
+    value: Schwangerschaft ausgeschlossen
+    patient_phrase: Schwanger bin ich nicht.
+    disclosure: when_asked
+  - id: gynecology.last_menstrual_period
+    category: gynecological_history
+    value: Letzte Menstruation vor ungefähr zwei Jahren
+    patient_phrase: Meine letzte Regelblutung war vor ungefähr zwei Jahren.
+    disclosure: when_asked
+  - id: concern.surgery
+    category: patient_concern
+    value: Sorge vor einer notwendigen Operation
+    patient_phrase: Ich mache mir langsam Sorgen. Muss ich deswegen operiert werden?
+    disclosure: after_5_to_8_minutes_or_when_next_steps_discussed
+  - id: concern.hospitalization
+    category: patient_concern
+    value: Sorge vor einem Krankenhausaufenthalt
+    patient_phrase: Muss ich denn im Krankenhaus bleiben?
+    disclosure: when_hospitalization_is_mentioned
+rubric:
+  version: fsp-anamnesis-v1
+  criteria:
+    - id: clinical_coverage
+      label: Clinical coverage
+      max_score: 5
+      description: Explores complaint, onset, food relationship, pain characteristics, associated symptoms, red flags, history, medication, allergy, family, social and gynecological history.
+    - id: structure
+      label: Interview structure
+      max_score: 5
+      description: Uses a clear, clinically useful sequence and summarizes key information.
+    - id: communication
+      label: Communication
+      max_score: 5
+      description: Introduces the consultation, listens actively, shows empathy, explores concerns and asks understandable questions.
+    - id: language
+      label: German language
+      max_score: 5
+      description: Uses clear German with appropriate grammar and understandable phrasing.
+    - id: vocabulary
+      label: Medical vocabulary
+      max_score: 5
+      description: Uses appropriate medical vocabulary while keeping patient-facing language accessible.

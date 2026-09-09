@@ -1,0 +1,62 @@
+name: Voice benchmark live preparation (manual, guarded)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_cost_usd:
+        description: "Strict maximum provider spend in USD"
+        required: true
+        type: number
+      stack:
+        description: "Versioned voice stack id"
+        required: true
+        default: "pipeline_economy"
+        type: choice
+        options:
+          - pipeline_economy
+          - pipeline_low_latency
+          - realtime_economy
+          - realtime_quality
+      confirm_live:
+        description: "I authorize billable provider calls for this run"
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  benchmark-live:
+    if: ${{ inputs.confirm_live }}
+    runs-on: ubuntu-latest
+    environment: benchmark-live-approval
+    permissions:
+      contents: read
+    env:
+      ARI_BENCHMARK_LIVE_ENABLED: "true"
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.lock
+      - name: Create virtual environment
+        run: python -m venv .venv
+      - name: Install locked dependencies
+        run: make install-locked
+      - name: Validate live safeguards only (provider adapter not implemented)
+        run: >-
+          PYTHONPATH=backend/src .venv/bin/python -m ari.benchmarks.voice
+          --suite benchmarks/voice/german_medical_smoke.v1.yaml
+          --mode live
+          --stack "${{ inputs.stack }}"
+          --max-cost-usd "${{ inputs.max_cost_usd }}"
+          --confirm-live
+          --validate-live-guard-only
+          --output-dir benchmark-results/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: voice-benchmark-live
+          path: benchmark-results/
+          if-no-files-found: ignore

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f5f2"><title>ARI — Votre pratique</title><link rel="stylesheet" href="/practice.css?v=20260909b"></head>
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+<aside class="sidebar">
+  <a class="brand" href="#home"><span class="brandmark" aria-hidden="true">A</span><span>ARI<small>ALLEMAND MÉDICAL</small></span></a>
+  <nav aria-label="Navigation principale">
+    <button data-view="home"><span aria-hidden="true">⌂</span>Accueil</button>
+    <button data-view="cases"><span aria-hidden="true">▦</span>Bibliothèque</button>
+    <button data-view="exam"><span aria-hidden="true">◐</span>Examen</button>
+    <button data-view="progress"><span aria-hidden="true">↗</span>Progression</button>
+    <button data-view="vocab"><span aria-hidden="true">▤</span>Vocabulaire</button>
+    <button data-view="history"><span aria-hidden="true">◷</span>Historique</button>
+  </nav>
+  <p class="sidefoot">Votre pratique, un jour à la fois.<br>Un entraînement, pas une certification.</p>
+</aside>
+<main id="main">
+  <div class="topline"><a href="#home">ARI</a><span id="today-label"></span></div>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <div id="error" class="error" role="alert" hidden><span id="error-text"></span><button id="retry">Réessayer</button></div>
+  <section id="onboarding" class="onboard" hidden>
+    <p id="onboarding-step" class="eyebrow">01 / 02 · Votre objectif</p>
+    <h1 id="onboarding-title">Quel est votre objectif ?</h1>
+    <p class="intro">Quelques repères pour préparer votre pratique. Ces préférences restent sur cet appareil ; votre objectif CEFR est sauvegardé dans votre profil ARI.</p>
+    <form id="profile-form" class="card" novalidate>
+      <div id="project-step">
+        <label for="draft-goal">Votre objectif</label><select id="draft-goal"><option value="fsp">FSP · Fachsprachprüfung</option><option value="kp">KP · Kenntnisprüfung</option><option value="job">Prise de poste</option></select>
+        <div class="form-grid"><div><label for="draft-date" id="date-label">Date prévue de l’examen</label><input id="draft-date" type="date"><p class="help">Date non fixée ? Laissez ce champ vide.</p></div><div><label for="draft-land">Land</label><select id="draft-land" required><option value="">Choisir un Land</option><option>Baden-Württemberg</option><option>Bayern</option><option>Berlin</option><option>Brandenburg</option><option>Bremen</option><option>Hamburg</option><option>Hessen</option><option>Mecklenburg-Vorpommern</option><option>Niedersachsen</option><option>Nordrhein-Westfalen</option><option>Rheinland-Pfalz</option><option>Saarland</option><option>Sachsen</option><option>Sachsen-Anhalt</option><option>Schleswig-Holstein</option><option>Thüringen</option></select></div></div>
+        <label for="draft-minutes">Temps disponible par jour</label><select id="draft-minutes"><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="30" selected>30 minutes</option><option value="45">45 minutes</option><option value="60">1 heure</option></select>
+        <div class="form-actions"><button type="button" id="next-profile" class="primary">Continuer →</button></div>
+      </div>
+      <div id="person-step" hidden>
+        <label for="draft-situation">Votre situation</label><select id="draft-situation"><option value="doctor">Médecin diplômé</option><option value="student">Étudiant en médecine</option></select>
+        <label for="draft-specialty">Spécialité visée</label><input id="draft-specialty" required maxlength="120" placeholder="Par exemple, médecine interne">
+        <fieldset class="level-options"><legend>Votre niveau d’allemand</legend><label><input type="radio" name="source" value="self" checked> Auto-évalué</label><label><input type="radio" name="source" value="official"> Officiel / certifié</label></fieldset>
+        <label for="draft-level">Niveau déclaré</label><select id="draft-level"><option>A1</option><option>A2</option><option>B1</option><option selected>B2</option><option>C1</option><option>C2</option></select>
+        <div id="self-note" class="availability"><strong>Consultation de positionnement indisponible</strong><p>Elle doit précéder un programme calibré. Le moteur actuel ne mesure pas votre niveau CEFR : vous pouvez commencer une pratique libre, sans programme calibré.</p></div>
+        <div id="official-note" class="availability" hidden><label for="proof-file">Justificatif du niveau d’allemand</label><input id="proof-file" type="file" accept=".pdf,.jpg,.jpeg,.png" disabled aria-describedby="proof-status"><p id="proof-status">Dépôt indisponible : aucun document déposé, aucun document vérifié. Le stockage et le processus de vérification ne sont pas encore disponibles.</p></div>
+        <label for="target">Objectif CEFR personnel dans ARI</label><select id="target"><option>B2</option><option selected>C1</option><option>C2</option></select><p class="help">Un objectif de travail, distinct du niveau déclaré ou mesuré.</p>
+        <div class="form-actions between"><button type="button" id="back-project">Retour</button><button class="primary" id="save-profile">Créer mon profil et pratiquer</button></div>
+      </div>
+    </form>
+  </section>
+  <section id="home" hidden>
+    <div class="pagehead"><p class="eyebrow">Votre pratique, un jour à la fois</p><h1>Faites une place<br>à votre allemand médical.</h1></div>
+    <article class="card calendar-card" aria-labelledby="calendar-title"><div class="row between"><div><h2 id="calendar-title">Votre régularité</h2><p class="help">21 jours · dates dans votre fuseau local</p></div><div class="row"><button id="cal-prev" aria-label="Jours précédents">←</button><button id="cal-next" aria-label="Jours suivants">→</button></div></div><div id="daytrack" class="daytrack" role="group" aria-label="Calendrier des 21 derniers jours"></div><p id="day-summary" class="daysummary" role="status"></p><div class="legend"><span>✓ Pratique terminée</span><span>— Sans pratique</span><span>○ Aujourd’hui</span></div></article>
+    <article id="recommendation" class="recommend card"></article>
+    <div class="grid"><article class="quiet-card"><h2>Une autre conversation ?</h2><p>Retrouvez les cas et exercices disponibles.</p><button data-view="cases">Explorer la bibliothèque →</button></article><article class="quiet-card"><h2>Votre parcours</h2><p id="profile-goal"></p><p id="local-profile-summary" class="help"></p><button id="edit-profile">Modifier mes préférences</button></article></div>
+    <details class="card profile-settings"><summary>Mon objectif CEFR</summary><form id="goal-form"><label for="goal-target">Objectif personnel ARI</label><select id="goal-target"><option>B2</option><option>C1</option><option>C2</option></select><button>Enregistrer l’objectif</button></form></details>
+  </section>
+  <section id="warmup" hidden><div class="steps">Échauffement <span>—</span> Consultation <span>—</span> Feedback</div><div class="pagehead"><h1>Préparez votre échange.</h1><p id="warmup-copy"></p></div><article class="card flashcard"><span class="eyebrow">Avant de commencer</span><h2 id="warmup-title" lang="de"></h2><p>Installez-vous au calme et prenez le temps de lire les consignes.</p><p class="help">Les formulations liées au cas sont disponibles pendant le Training via l’aide de la session. Aucune aide n’est affichée en Examen.</p></article><div class="form-actions between"><button data-view="cases">Retour aux cas</button><button id="warmup-start" class="primary">Commencer la session →</button></div></section>
+  <section id="cases" hidden><div class="pagehead"><p class="eyebrow">Bibliothèque</p><h1>Une conversation<br>à votre portée.</h1><p>Choisissez parmi les contenus réellement disponibles.</p></div><div class="form-grid"><div><label for="case-search">Rechercher un cas ou un exercice</label><input id="case-search" type="search" placeholder="Rechercher un titre…"></div><div><label for="case-filter">Type de pratique</label><select id="case-filter"><option value="all">Tous</option><option value="voice">Consultation vocale</option><option value="arzt_arzt">Arzt–Arzt</option><option value="fachbegriffe">Fachbegriffe</option></select></div></div><fieldset class="mode"><legend>Votre mode</legend><label><input type="radio" name="mode" value="training" checked> Training · avec aide</label><label><input type="radio" name="mode" value="exam"> Examen · retour à la fin</label></fieldset><div id="voice-cases" class="grid"></div><div id="catalog" class="grid"></div><p id="catalog-empty" class="availability" hidden>Aucun contenu ne correspond à votre recherche.</p></section>
+  <section id="exam" hidden><div class="pagehead"><p class="eyebrow">Examen · retour différé</p><h1>Un espace calme.<br>Votre allemand, seul.</h1><p>Sans aide, sous-titres ni correction pendant l’exercice. Ce mode d’entraînement ne constitue pas un examen officiel.</p></div><div id="exam-cases" class="grid"></div></section>
+  <section id="vocab" hidden><div class="pagehead"><p class="eyebrow">Vocabulaire</p><h1>Les mots à garder.</h1><p>Revenez sur les formulations observées dans vos échanges.</p></div><article class="card"><h2>Votre carnet personnel n’est pas encore disponible.</h2><p>Les formulations et leurs preuves restent accessibles dans le feedback de chaque session. La sauvegarde de favoris et le suivi des révisions nécessitent un service dédié.</p><button class="primary" data-view="history">Revoir mes sessions →</button></article></section>
+  <section id="exercise" hidden><div class="row between"><button data-view="cases">← Retour aux cas</button><p id="exercise-meta" class="eyebrow"></p></div><h1 id="exercise-title"></h1><p id="exercise-warning" class="availability"></p><div id="exercise-context" class="card"></div><div id="answer-history"></div><div id="training-feedback" class="card" hidden></div><form id="answer-form" class="card"><p id="question-step" class="eyebrow"></p><h2 id="question" lang="de"></h2><p id="coaching"></p><label for="answer">Votre réponse en allemand</label><textarea id="answer" lang="de" required maxlength="8000" rows="4"></textarea><button class="primary">Envoyer ma réponse</button></form><div class="row wrap"><button id="pause">Mettre en pause</button><button id="resume" hidden>Reprendre</button><button id="finish">Terminer et voir le feedback</button></div><p id="finish-note" class="help"></p><div id="feedback"></div></section>
+  <section id="history" hidden><div class="pagehead"><p class="eyebrow">Vos sessions</p><h1>Retrouver un échange.</h1></div><div id="history-list"></div></section>
+  <section id="progress" hidden><div class="pagehead"><p class="eyebrow">Progression</p><h1>Observez votre pratique.</h1><p id="progress-note"></p></div><button data-view="history">Voir tout mon historique →</button><div id="progress-list"></div></section>
+</main>
+<nav class="bottomnav" aria-label="Navigation mobile"><button data-view="home">Accueil</button><button data-view="cases">Cas</button><button data-view="exam">Examen</button><button data-view="progress">Progrès</button><button data-view="vocab">Mots</button></nav>
+<script type="module" src="/practice-ui.mjs?v=20260909b"></script>
+</body></html>

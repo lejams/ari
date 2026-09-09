@@ -1,0 +1,8 @@
+{
+  "name": "ari-browser-tests",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {"test:e2e": "node tests/practice-e2e.mjs"},
+  "devDependencies": {"playwright": "1.62.1"}
+}

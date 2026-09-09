@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ari-fsp"
+version = "0.1.0"
+description = "ARI voice-based FSP training vertical slice"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.19,<2",
+  "fastapi>=0.116,<1",
+  "httpx>=0.28,<1",
+  "openai>=1.99,<3",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "pyyaml>=6.0,<7",
+  "sqlalchemy>=2.0,<3",
+  "uvicorn[standard]>=0.35,<1",
+  "websockets>=15,<17",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.2,<4"]
+dev = [
+  "mypy>=1.17,<2",
+  "pytest>=8.4,<10",
+  "pytest-asyncio>=1.1,<2",
+  "ruff>=0.12,<1",
+  "types-PyYAML>=6.0,<7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ari"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["migrations"]

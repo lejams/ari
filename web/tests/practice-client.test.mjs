@@ -1,0 +1,54 @@
+import assert from "node:assert/strict";
+import {PracticeClient, dimensionText} from "../practice-client.mjs";
+
+const values = new Map();
+const storage = {getItem: key => values.get(key), setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key)};
+let ids = 0, failing = false;
+const calls = [];
+const fetcher = async (path, options) => {
+  calls.push({path, options});
+  if (failing) throw new TypeError("Network unavailable");
+  return {ok: true, status: 200, json: async () => ({id: "run", current_question: {id: "q1"}})};
+};
+const client = new PracticeClient(fetcher, storage, () => `id-${++ids}`);
+client.profile = {id: "alice"};
+const content = {scenario_id: "demo", scenario_version: "1"};
+failing = true;
+await assert.rejects(() => client.start(content, "exam"));
+const firstRequest = calls.at(-1).options.body;
+// The same key survives a lost HTTP response and a page reload.
+const reloaded = new PracticeClient(fetcher, storage, () => `id-${++ids}`);
+reloaded.profile = client.profile;
+failing = false;
+const run = await reloaded.start(content, "exam");
+assert.equal(calls.at(-1).options.body, firstRequest);
+assert.equal(values.size, 0);
+failing = true;
+await assert.rejects(() => reloaded.answer(run, "Durch den Mund."));
+const answerRequest = calls.at(-1).options.body;
+assert.equal(reloaded.pendingText(run), "Durch den Mund.");
+await assert.rejects(() => reloaded.answer(run, "Different"), /confirmation/);
+failing = false;
+await reloaded.answer(run, "Durch den Mund.");
+assert.equal(calls.at(-1).options.body, answerRequest);
+assert.equal(values.size, 0);
+await assert.rejects(() => reloaded.answer(run, "   "), /espaces/);
+assert.equal(values.size, 0);
+assert.equal(calls.at(-1).options.credentials, "same-origin");
+assert.equal(calls.at(-1).options.cache, "no-store");
+assert.throws(() => client.action(run, "publish"), /inconnue/);
+const noData = dimensionText({label: "Lexique", score: null, max_score: 5, state: "no_data", answered_weight: 0, expected_weight: 2});
+assert.match(noData, /—/); assert.doesNotMatch(noData, /0.00/);
+assert.match(dimensionText({label: "Lexique", score: 0, max_score: 5, state: "provisional", answered_weight: 1, expected_weight: 2}), /0.00/);
+const anonymous = new PracticeClient(async () => ({ok: false, status: 404, json: async () => ({})}), storage);
+assert.equal(await anonymous.restoreProfile(), null);
+const unavailable = new PracticeClient(async () => ({ok: false, status: 500, json: async () => ({})}), storage);
+await assert.rejects(() => unavailable.restoreProfile());
+// A different profile must not inherit another learner's request key.
+failing = true;
+await assert.rejects(() => client.start(content, "exam"));
+const aliceKey = JSON.parse(calls.at(-1).options.body).request_id;
+client.profile = {id: "bob"};
+await assert.rejects(() => client.start(content, "exam"));
+assert.notEqual(JSON.parse(calls.at(-1).options.body).request_id, aliceKey);
+console.log("Practice client: retry, reload, identity, no-data and errors passed");

@@ -1,0 +1,4 @@
+# Optional local/CI PostgreSQL driver; install alongside the base lock.
+-r requirements.lock
+psycopg==3.2.9
+psycopg-binary==3.2.9
