@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import asyncio
-import threading
-import time
 from collections.abc import AsyncIterator
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from typing import TypeVar
 
@@ -18,23 +14,18 @@ from ari.application.contracts import (
     ExecutionContext,
     LLMRequest,
     ProviderResult,
-    STTEvent,
     TranscriptionConfig,
 )
+from ari.application.ports.stt import Transcription
 from ari.application.prompting import load_prompt
 from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
 from ari.application.services.patient import PatientSimulator
-from ari.application.services.voice import TurnBasedVoiceEngine
 from ari.config import PROJECT_ROOT
 from ari.container import Container
 from ari.domain.errors import ProviderError
 from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
-from ari.infrastructure.providers.fake import (
-    FakeLLMProvider,
-    FakeSTTProvider,
-    FakeTTSProvider,
-)
+from ari.infrastructure.providers.fake import FakeLLMProvider
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -72,66 +63,20 @@ class FailingLLMProvider:
         )
 
 
-class AutomaticSTTConnection:
-    def __init__(self, context: ExecutionContext) -> None:
-        self.context = context
-
-    async def send_audio(self, pcm16: bytes) -> None:
-        del pcm16
-
-    async def events(self) -> AsyncIterator[STTEvent]:
-        yield STTEvent(type="speech_started", item_id="item-1")
-        yield STTEvent(
-            type="transcript_final",
-            text="Seit wann haben Sie Schmerzen?",
-            item_id="item-1",
-            execution=execution(self.context, "speech_to_text", ExecutionStatus.SUCCEEDED),
+class ScriptedTranscriber:
+    async def transcribe(
+        self,
+        pcm16: bytes,
+        *,
+        sample_rate: int,
+        context: ExecutionContext,
+        config: TranscriptionConfig,
+    ) -> Transcription:
+        del pcm16, sample_rate, config
+        return Transcription(
+            "Seit wann haben Sie Schmerzen?",
+            execution(context, "speech_to_text", ExecutionStatus.SUCCEEDED),
         )
-
-    async def close(self) -> None:
-        return None
-
-
-class AutomaticSTTProvider:
-    async def connect(
-        self, context: ExecutionContext, config: TranscriptionConfig
-    ) -> AutomaticSTTConnection:
-        del config
-        return AutomaticSTTConnection(context)
-
-
-class CloseFailingSTTConnection:
-    async def send_audio(self, pcm16: bytes) -> None:
-        del pcm16
-
-    async def events(self) -> AsyncIterator[STTEvent]:
-        if False:
-            yield STTEvent(type="speech_started")
-
-    async def close(self) -> None:
-        raise RuntimeError("close failed")
-
-
-class CloseFailingSTTProvider:
-    async def connect(
-        self, context: ExecutionContext, config: TranscriptionConfig
-    ) -> CloseFailingSTTConnection:
-        del context, config
-        return CloseFailingSTTConnection()
-
-
-class BlockingFailingSTTProvider:
-    def __init__(self) -> None:
-        self.started = threading.Event()
-        self.release = threading.Event()
-
-    async def connect(
-        self, context: ExecutionContext, config: TranscriptionConfig
-    ) -> AutomaticSTTConnection:
-        del context, config
-        self.started.set()
-        await asyncio.to_thread(self.release.wait)
-        raise RuntimeError("connection failed")
 
 
 class FailingTTSProvider:
@@ -181,7 +126,6 @@ def test_http_and_websocket_vertical_slice(container: Container) -> None:
                 "case_version": case["version"],
             },
         ).json()
-        assert session["interaction_mode"] == "guided"
 
         with client.websocket_connect(f"/ws/sessions/{session['id']}/voice") as socket:
             assert socket.receive_json()["type"] == "call.started"
@@ -233,29 +177,6 @@ def test_end_without_transcript_keeps_session_resumable(container: Container) ->
             assert resumed.receive_json()["type"] == "call.started"
             resumed.send_json({"type": "call.end"})
             assert resumed.receive_json()["type"] == "call.ended"
-
-
-def test_stt_initialization_failure_releases_concurrent_http_end(
-    container: Container,
-) -> None:
-    provider = BlockingFailingSTTProvider()
-    services = replace(
-        container,
-        voice=TurnBasedVoiceEngine(provider, FakeTTSProvider()),
-    )
-    app = create_app(services)
-    with TestClient(app) as client:
-        session = create_session(client)
-        session_id = str(session["id"])
-        with client.websocket_connect(f"/ws/sessions/{session_id}/voice") as socket:
-            assert provider.started.wait(timeout=1)
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                ending = executor.submit(client.post, f"/api/sessions/{session_id}/end", json={})
-                time.sleep(0.05)
-                provider.release.set()
-                response = ending.result(timeout=2)
-            assert response.status_code == 400
-            assert socket.receive_json()["type"] == "voice.error"
 
 
 def test_versioned_vocabulary_hints_are_bounded_and_usage_is_persisted(
@@ -388,11 +309,7 @@ def test_successful_stt_trace_survives_patient_failure(container: Container) -> 
         ),
         container.voice_stack,
     )
-    services = replace(
-        container,
-        orchestrator=orchestrator,
-        voice=TurnBasedVoiceEngine(AutomaticSTTProvider(), FakeTTSProvider()),
-    )
+    services = replace(container, orchestrator=orchestrator, transcriber=ScriptedTranscriber())
     app = create_app(services)
 
     with TestClient(app) as client:
@@ -400,6 +317,8 @@ def test_successful_stt_trace_survives_patient_failure(container: Container) -> 
         session_id = str(session["id"])
         with client.websocket_connect(f"/ws/sessions/{session_id}/voice") as socket:
             events = [socket.receive_json()]
+            socket.send_bytes(bytes(24_000))
+            socket.send_json({"type": "user.turn.finish"})
             while events[-1]["type"] != "voice.error":
                 events.append(socket.receive_json())
 
@@ -421,10 +340,7 @@ def test_successful_stt_trace_survives_patient_failure(container: Container) -> 
 
 
 def test_tts_failure_keeps_persisted_turn_available_for_analysis(container: Container) -> None:
-    services = replace(
-        container,
-        voice=TurnBasedVoiceEngine(FakeSTTProvider(), FailingTTSProvider()),
-    )
+    services = replace(container, tts=FailingTTSProvider())
     app = create_app(services)
 
     with TestClient(app) as client:
@@ -457,20 +373,3 @@ def test_tts_failure_keeps_persisted_turn_available_for_analysis(container: Cont
 
         completed = client.post(f"/api/sessions/{session_id}/end", json={}).json()
         assert completed["status"] == "completed"
-
-
-def test_stt_close_failure_does_not_leak_voice_lease(container: Container) -> None:
-    services = replace(
-        container,
-        voice=TurnBasedVoiceEngine(CloseFailingSTTProvider(), FakeTTSProvider()),
-    )
-    app = create_app(services)
-
-    with TestClient(app) as client:
-        session = create_session(client)
-        session_id = str(session["id"])
-        for _ in range(2):
-            with client.websocket_connect(f"/ws/sessions/{session_id}/voice") as socket:
-                assert socket.receive_json()["type"] == "call.started"
-                socket.send_json({"type": "call.end"})
-                assert socket.receive_json()["type"] == "call.ended"

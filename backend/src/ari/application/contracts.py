@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Any, Literal, TypeVar
+from typing import Literal, TypeVar
 
 from pydantic import BaseModel
 
@@ -70,12 +70,3 @@ class AudioStreamEvent:
     data: bytes | None = None
     mime_type: str = "audio/mpeg"
     execution: ExecutionRecord | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class STTEvent:
-    type: str
-    text: str | None = None
-    item_id: str | None = None
-    execution: ExecutionRecord | None = None
-    raw: dict[str, Any] | None = None

@@ -34,7 +34,6 @@ SESSION_FIELDS = (
     "case_id",
     "case_version",
     "case_hash",
-    "interaction_mode",
     "voice_stack_id",
     "voice_stack_version",
     "status",

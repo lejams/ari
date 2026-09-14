@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import math
 import struct
@@ -15,9 +14,9 @@ from ari.application.contracts import (
     ExecutionContext,
     LLMRequest,
     ProviderResult,
-    STTEvent,
     TranscriptionConfig,
 )
+from ari.application.ports.stt import Transcription
 from ari.application.schemas import (
     EvaluationOutputSchema,
     PatientResponseSchema,
@@ -294,38 +293,29 @@ class FakeLLMProvider:
         }
 
 
-class FakeSTTConnection:
-    def __init__(self) -> None:
-        self._queue: asyncio.Queue[STTEvent | None] = asyncio.Queue()
-
-    async def send_audio(self, pcm16: bytes) -> None:
-        del pcm16
-
-    async def emit_transcript(self, text: str, context: ExecutionContext) -> None:
-        await self._queue.put(STTEvent(type="speech_started"))
-        await self._queue.put(STTEvent(type="transcript_delta", text=text))
-        await self._queue.put(
-            STTEvent(
-                type="transcript_final",
-                text=text,
-                execution=_execution(context, "speech_to_text", 1, {"audio_seconds": 0}),
-            )
-        )
-
-    async def events(self) -> AsyncIterator[STTEvent]:
-        while (event := await self._queue.get()) is not None:
-            yield event
-
-    async def close(self) -> None:
-        await self._queue.put(None)
+FAKE_TRANSCRIPT = "Seit wann haben Sie Schmerzen?"
 
 
-class FakeSTTProvider:
-    async def connect(
-        self, context: ExecutionContext, config: TranscriptionConfig
-    ) -> FakeSTTConnection:
-        del context, config
-        return FakeSTTConnection()
+class FakeTranscriber:
+    """UTF-8 text sent as audio comes back verbatim; real audio yields a fixed question."""
+
+    async def transcribe(
+        self,
+        pcm16: bytes,
+        *,
+        sample_rate: int,
+        context: ExecutionContext,
+        config: TranscriptionConfig,
+    ) -> Transcription:
+        del config
+        try:
+            text = pcm16.decode("utf-8").strip()
+        except UnicodeDecodeError:
+            text = FAKE_TRANSCRIPT
+        if not text.isprintable() or not text:
+            text = FAKE_TRANSCRIPT
+        usage: dict[str, object] = {"audio_seconds": round(len(pcm16) / (sample_rate * 2), 3)}
+        return Transcription(text, _execution(context, "speech_to_text", 1, usage))
 
 
 class FakeTTSProvider:

@@ -35,7 +35,6 @@ const state = {
   patientTurnNodes: new Map(),
   vocabularyAsset: null,
   callConnected: false,
-  interactionMode: "guided",
   learningMode: "training",
   examActive: false,
   deferredTurns: [],
@@ -280,7 +279,6 @@ async function restoreSession() {
     localStorage.setItem("ari.learner_id", session.learner_id);
     applySessionVoice(session);
     renderCase(selectedCase);
-    state.interactionMode = session.interaction_mode || "immersive";
     state.learningMode = session.learning_mode || "unknown";
     $("learning-mode").value = state.learningMode;
     $("learning-mode").disabled = true;
@@ -289,9 +287,7 @@ async function restoreSession() {
     else setExamPresentation(false);
     renderPersistedTranscript(session.turns);
     state.persistedTurns = session.turns.length;
-    $("interaction-mode").value = state.interactionMode;
     $("case-select").disabled = true;
-    $("interaction-mode").disabled = true;
     await loadVocabularyHints();
     if (["created", "active"].includes(session.status)) {
       $("start").textContent = "Reprendre l’appel";
@@ -371,8 +367,6 @@ async function initialize() {
     showCallActions({canStart: false, canEnd: false, canRetry: false, canCreateNew: false});
     $("debug-form").classList.add("hidden");
     $("subtitles-toggle").hidden = true;
-    $("voice-profile-row").classList.add("hidden");
-    $("interaction-mode-row").classList.add("hidden");
     setStatus("Aucun contenu disponible");
     $("audio-state").textContent = "Retrouvez les exercices disponibles depuis l’accueil.";
   }
@@ -463,12 +457,33 @@ async function resetFailedCall() {
   await stopVoiceMedia();
   $("start").disabled = false;
   $("case-select").disabled = false;
-  if (!state.sessionId) $("interaction-mode").disabled = false;
+}
+
+function showTalkButton(ready) {
+  const talk = $("talk");
+  talk.classList.toggle("hidden", state.providerMode === "fake" || !state.callConnected || state.ending);
+  talk.disabled = !ready;
+  talk.textContent = state.sending ? "J’ai fini" : ready ? "Parler" : "Envoi…";
+}
+
+function toggleTalk() {
+  if (state.socket?.readyState !== WebSocket.OPEN) return;
+  if (!state.sending) {
+    state.sending = true;
+    showTalkButton(true);
+    setStatus("Je vous écoute — prenez votre temps", true);
+    return;
+  }
+  state.sending = false;
+  showTalkButton(false);
+  state.socket.send(JSON.stringify({ type: "user.turn.finish" }));
+  setStatus("Transcription en cours…", true);
 }
 
 function handleTerminalVoiceFailure(message) {
   setStatus(`Erreur : ${message}`);
   state.sending = false;
+  $("talk").classList.add("hidden");
   void stopVoiceMedia().then(() => {
     $("end").disabled = state.persistedTurns === 0;
     $("start").classList.remove("hidden");
@@ -483,8 +498,20 @@ function handleEvent(event) {
   if (event.type === "call.started") {
     $("start").classList.add("hidden");
     $("end").disabled = false;
-    state.sending = true;
-    setStatus("À vous de parler", true);
+    state.callConnected = true;
+    if (state.providerMode === "fake") setStatus("À vous de parler", true);
+    else {
+      showTalkButton(true);
+      setStatus("Appuyez sur « Parler » quand vous êtes prêt", true);
+    }
+  }
+  if (event.type === "user.turn.empty") {
+    showTalkButton(true);
+    setStatus("Je n’ai rien entendu — réessayez", true);
+  }
+  if (event.type === "user.turn.failed") {
+    showTalkButton(true);
+    setStatus(data.message || "Transcription indisponible — réessayez", true);
   }
   if (event.type === "user.speech_started") {
     state.userSpeaking = true;
@@ -564,11 +591,13 @@ function handleEvent(event) {
     }
   }
   if (event.type === "turn.delivered") {
-    pcmPlayback.forget(data.turn.id); state.sending=true;
+    pcmPlayback.forget(data.turn.id);
+    showTalkButton(true);
     setStatus("Audio entendu — à vous de parler", true);
   }
   if (event.type === "turn.tts_failed") {
     cancelPipelinePlayback();
+    showTalkButton(true);
     state.failedTtsTurnId=data.turn?.id || null;
     $("retry-audio").classList.toggle("hidden",!state.failedTtsTurnId);
     setStatus("Réponse générée, mais synthèse audio échouée");
@@ -581,6 +610,7 @@ function handleEvent(event) {
   if (event.type === "voice.error") {
     console.error(data);
     if (data.retryable && data.turn_id) {
+      showTalkButton(true);
       setStatus(data.message || "Erreur audio récupérable");
     } else {
       handleTerminalVoiceFailure(data.message || "voix");
@@ -592,17 +622,15 @@ async function startCall() {
   $("start").disabled = true;
   $("end").disabled = true;
   $("case-select").disabled = true;
-  $("interaction-mode").disabled = true;
   $("learning-mode").disabled = true;
   try {
-    state.interactionMode = $("interaction-mode").value;
     if (!state.sessionId) state.learningMode = $("learning-mode").value;
     setExamPresentation(state.learningMode === "exam");
     syncLearningModeButtons();
     await ensureLearner();
     await ensureAudioContext();
     if (!state.sessionId) {
-      const requestKey = `ari.voice.start:${state.learnerId}:${caseKey(state.case)}:${state.learningMode}:${state.interactionMode}`;
+      const requestKey = `ari.voice.start:${state.learnerId}:${caseKey(state.case)}:${state.learningMode}`;
       let requestId = sessionStorage.getItem(requestKey);
       if (!requestId) { requestId = crypto.randomUUID(); sessionStorage.setItem(requestKey, requestId); }
       const session = await api("/api/sessions", {
@@ -612,7 +640,6 @@ async function startCall() {
           request_id: requestId,
           case_id: state.case.id,
           case_version: state.case.version,
-          interaction_mode: state.interactionMode,
           learning_mode: state.learningMode,
           scenario_id: state.case.training_snapshot?.scenario_id || null,
           scenario_version: state.case.training_snapshot?.scenario_version || null,
@@ -634,7 +661,6 @@ async function startCall() {
         throw new Error("Cette session ne peut plus être reprise");
       }
       state.persistedTurns = session.turns.length;
-      state.interactionMode = session.interaction_mode || "immersive";
       applySessionVoice(session);
     }
     state.ending = false;
@@ -779,10 +805,8 @@ function newSession() {
   state.completedTurns = 0;
   state.ending = false;
   state.vocabularyAsset = null;
-  state.interactionMode = "guided";
   state.learningMode = "training";
   setExamPresentation(false);
-  $("interaction-mode").value = "guided";
   $("learning-mode").value = "training";
   syncLearningModeButtons();
   clearTranscript();
@@ -790,7 +814,6 @@ function newSession() {
   $("vocabulary-panel").classList.add("hidden");
   $("vocabulary-toggle").classList.add("hidden");
   $("case-select").disabled = false;
-  $("interaction-mode").disabled = false;
   $("learning-mode").disabled = false;
   $("learning-mode").value = "training";
   renderCase(state.cases[0]);
@@ -871,6 +894,7 @@ $("subtitles-toggle").addEventListener("click", () => {
   $("subtitles-toggle").textContent = off ? "Afficher les sous-titres" : "Masquer les sous-titres";
 });
 $("start").addEventListener("click", startCall);
+$("talk").addEventListener("click", toggleTalk);
 $("end").addEventListener("click", endCall);
 $("retry-analysis").addEventListener("click", retryAnalysis);
 $("retry-audio").addEventListener("click", retryAudio);

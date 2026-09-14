@@ -27,9 +27,10 @@ class Settings(BaseSettings):
     application_version: str | None = None
 
     openai_api_key: str | None = None
-    openai_realtime_url: str = "wss://api.openai.com/v1/realtime"
-    stt_model: str = "gpt-transcribe"
-    stt_handshake_timeout_seconds: float = 10.0
+    stt_api_key: str | None = None
+    stt_base_url: str = "https://api.groq.com/openai/v1"
+    stt_model: str = "whisper-large-v3"
+    stt_timeout_seconds: float = 30.0
     patient_model: str = "gpt-5.6-luna"
     evaluation_model: str = "gpt-5.6-terra"
     tts_model: str = "gpt-4o-mini-tts"
@@ -37,9 +38,6 @@ class Settings(BaseSettings):
     patient_timeout_seconds: float = 30.0
     evaluation_timeout_seconds: float = 60.0
     tts_timeout_seconds: float = 30.0
-    vad_threshold: float = 0.5
-    vad_prefix_padding_ms: int = 300
-    vad_silence_duration_ms: int = 700
     audio_sample_rate: int = 24_000
 
 

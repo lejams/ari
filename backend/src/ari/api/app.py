@@ -216,7 +216,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             body.learner_id,
             body.case_id,
             body.case_version,
-            body.interaction_mode,
             scenario_id=body.scenario_id,
             scenario_version=body.scenario_version,
             learning_mode=body.learning_mode,
@@ -348,18 +347,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             activate_if_created(session_id)
             session = services.repository.get_session(session_id)
             case = services.orchestrator._case_for_session(session)
-            context = ExecutionContext(
-                session_id=session.id,
-                learner_id=session.learner_id,
-                operation="speech_to_text",
-                case_version=case.version,
-                case_hash=case.content_hash,
-            )
-            voice_engine = services.voice
-            stt = await voice_engine.open_transcription(context, TranscriptionConfig.for_case(case))
         except Exception as exc:
-            if isinstance(exc, ProviderError):
-                services.repository.record_execution(cast(ExecutionRecord, exc.execution))
             with suppress(Exception):
                 await websocket.send_json({"type": "voice.error", "data": {"message": str(exc)}})
                 await websocket.close(code=1011)
@@ -378,8 +366,12 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             return True
 
         processing_lock = asyncio.Lock()
-        processed_item_ids: set[str] = set()
         voice_failed = asyncio.Event()
+        transcription_config = TranscriptionConfig.for_case(case)
+        sample_rate = services.settings.audio_sample_rate
+        audio_buffer = bytearray()
+        max_buffer_bytes = sample_rate * 2 * 300  # five minutes of PCM16 per turn
+        min_buffer_bytes = sample_rate * 2 // 4  # a quarter second
 
         async def stream_pipeline_audio(turn: ConversationTurn) -> ConversationTurn:
             audio_stream_id = new_id()
@@ -405,7 +397,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             all_sent = True
             pcm_remainder = b""
             try:
-                async for audio_event in voice_engine.stream_response(turn.patient_text, context):
+                async for audio_event in services.tts.stream(turn.patient_text, context):
                     mime_type = audio_event.mime_type
                     if audio_event.type == "chunk" and audio_event.data:
                         audio_bytes = pcm_remainder + audio_event.data
@@ -471,26 +463,13 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             await send("turn.completed", turn=public_turn(turn))
             return turn
 
-        async def process_final(
-            text: str,
-            stt_execution: ExecutionRecord | None = None,
-            item_id: str | None = None,
-        ) -> None:
-            if item_id is not None:
-                if item_id in processed_item_ids:
-                    return
-                processed_item_ids.add(item_id)
+        async def process_final(text: str, stt_execution: ExecutionRecord | None = None) -> None:
             async with processing_lock:
                 turn_id = new_id()
                 if stt_execution is not None:
                     stt_execution = replace(stt_execution, turn_id=turn_id)
                     services.repository.record_execution(stt_execution)
-                turn = services.orchestrator.reserve_transcript(
-                    session_id,
-                    text,
-                    turn_id=turn_id,
-                    provider_input_item_id=item_id,
-                )
+                turn = services.orchestrator.reserve_transcript(session_id, text, turn_id=turn_id)
                 await send("user.transcript_final", text=text)
                 await send("turn.persisted", turn=public_turn(turn))
                 try:
@@ -562,42 +541,43 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             except AriError as exc:
                 await send("audio.ack_rejected", turn_id=control.turn_id, message=str(exc))
 
-        async def pump_stt() -> None:
+        async def finish_turn() -> None:
+            pcm = bytes(audio_buffer)
+            audio_buffer.clear()
+            if len(pcm) < min_buffer_bytes:
+                await send("user.turn.empty")
+                return
+            context = ExecutionContext(
+                session_id=session.id,
+                learner_id=session.learner_id,
+                operation="speech_to_text",
+                case_version=case.version,
+                case_hash=case.content_hash,
+                prompt_version=transcription_config.prompt_version,
+                prompt_hash=transcription_config.prompt_hash,
+            )
             try:
-                async for event in stt.events():
-                    if event.type == "speech_started":
-                        await send("user.speech_started")
-                    elif event.type == "transcript_delta":
-                        await send("user.transcript_delta", text=event.text or "")
-                    elif event.type == "transcript_final" and event.text:
-                        await process_final(event.text, event.execution, event.item_id)
-                    elif event.type == "error":
-                        if event.execution is not None:
-                            services.repository.record_execution(event.execution)
-                        await send(
-                            "voice.error",
-                            message="Speech-to-text provider error",
-                            detail=event.raw or {},
-                        )
-                        with suppress(Exception):
-                            await websocket.close(code=1011)
-                        return
-            except Exception as exc:
-                voice_failed.set()
-                with suppress(Exception):
-                    await send("voice.error", message=str(exc))
-                    await websocket.close(code=1011)
+                transcription = await services.transcriber.transcribe(
+                    pcm, sample_rate=sample_rate, context=context, config=transcription_config
+                )
+            except ProviderError as exc:
+                services.repository.record_execution(cast(ExecutionRecord, exc.execution))
+                await send("user.turn.failed", message="La transcription a échoué", detail=str(exc))
+                return
+            if not transcription.text:
+                services.repository.record_execution(transcription.execution)
+                await send("user.turn.empty")
+                return
+            await process_final(transcription.text, transcription.execution)
 
         await send(
             "call.started",
             session_id=session_id,
             provider_mode=services.settings.provider_mode,
-            transport="pipeline",
             voice_stack_id=selected_stack.id,
             voice_stack_version=selected_stack.version,
             models=dict(selected_stack.models),
         )
-        pump = asyncio.create_task(pump_stt())
         finalized = asyncio.Event()
 
         async def drain_voice() -> None:
@@ -608,16 +588,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             try:
                 async with processing_lock:
                     pass
-                with suppress(Exception):
-                    await stt.close()
-                if not pump.done():
-                    with suppress(TimeoutError):
-                        async with asyncio.timeout(2):
-                            await pump
-                if not pump.done():
-                    pump.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await pump
             finally:
                 services.repository.mark_session_delivery_unconfirmed(session_id)
                 lifecycle.drained.set()
@@ -634,7 +604,10 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             while True:
                 message = await websocket.receive()
                 if message.get("bytes") is not None:
-                    await stt.send_audio(message["bytes"])
+                    if not audio_buffer:
+                        await send("user.speech_started")
+                    if len(audio_buffer) + len(message["bytes"]) <= max_buffer_bytes:
+                        audio_buffer.extend(message["bytes"])
                     continue
                 raw_text = message.get("text")
                 if raw_text is None:
@@ -649,6 +622,15 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                     await drain_voice()
                     await send("call.ended", session_id=session_id)
                     break
+                if control.type == "user.turn.finish":
+                    try:
+                        await finish_turn()
+                    except Exception as exc:
+                        voice_failed.set()
+                        await send("voice.error", message=str(exc))
+                        await websocket.close(code=1011)
+                        break
+                    continue
                 if control.type in {"audio.playback_started", "audio.playback_completed"}:
                     await acknowledge_pipeline_audio(control)
                     continue

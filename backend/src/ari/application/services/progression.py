@@ -157,7 +157,6 @@ def voice_progression(
                     evaluation.rubric_version,
                     provenance,
                     dict(session.voice_stack_config),
-                    session.interaction_mode,
                 ],
                 sort_keys=True,
             ).encode()

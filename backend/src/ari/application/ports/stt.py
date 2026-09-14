@@ -1,18 +1,24 @@
-from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Protocol
 
-from ari.application.contracts import ExecutionContext, STTEvent, TranscriptionConfig
+from ari.application.contracts import ExecutionContext, TranscriptionConfig
+from ari.domain.models import ExecutionRecord
 
 
-class StreamingSTTConnection(Protocol):
-    async def send_audio(self, pcm16: bytes) -> None: ...
-
-    def events(self) -> AsyncIterator[STTEvent]: ...
-
-    async def close(self) -> None: ...
+@dataclass(frozen=True, slots=True)
+class Transcription:
+    text: str
+    execution: ExecutionRecord
 
 
-class StreamingSTTProvider(Protocol):
-    async def connect(
-        self, context: ExecutionContext, config: TranscriptionConfig
-    ) -> StreamingSTTConnection: ...
+class UtteranceTranscriber(Protocol):
+    """Transcribes one complete learner utterance (PCM16 mono) after the turn ends."""
+
+    async def transcribe(
+        self,
+        pcm16: bytes,
+        *,
+        sample_rate: int,
+        context: ExecutionContext,
+        config: TranscriptionConfig,
+    ) -> Transcription: ...

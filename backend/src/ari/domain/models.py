@@ -47,11 +47,6 @@ class CaseMode(StrEnum):
     TECHNICAL_TEST = "technical_test"
 
 
-class InteractionMode(StrEnum):
-    GUIDED = "guided"
-    IMMERSIVE = "immersive"
-
-
 class AudioDeliveryStatus(StrEnum):
     PENDING = "pending"
     STARTED = "started"
@@ -298,7 +293,6 @@ class ConversationSession:
     case_version: str
     case_hash: str
     goal: LearningGoal
-    interaction_mode: InteractionMode = InteractionMode.GUIDED
     voice_stack_id: str = "pipeline_economy"
     voice_stack_version: str = "1"
     voice_stack_config: Mapping[str, Any] = field(default_factory=dict)

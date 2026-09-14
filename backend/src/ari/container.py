@@ -4,14 +4,13 @@ from dataclasses import dataclass
 from types import MappingProxyType
 
 from ari.application.ports.llm import LLMProvider
-from ari.application.ports.stt import StreamingSTTProvider
+from ari.application.ports.stt import UtteranceTranscriber
 from ari.application.ports.tts import StreamingTTSProvider
 from ari.application.prompting import load_prompt
 from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
 from ari.application.services.patient import PatientSimulator
 from ari.application.services.practice import PracticeService
-from ari.application.services.voice import TurnBasedVoiceEngine
 from ari.application.voice_stacks import VoiceStack
 from ari.config import Settings
 from ari.domain.errors import InvalidStateError
@@ -26,7 +25,7 @@ from ari.infrastructure.learning_aids.loader import (
 )
 from ari.infrastructure.persistence.practice import SqlPracticeRepository
 from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
-from ari.infrastructure.providers.fake import FakeLLMProvider, FakeSTTProvider, FakeTTSProvider
+from ari.infrastructure.providers.fake import FakeLLMProvider, FakeTranscriber, FakeTTSProvider
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +35,8 @@ class Container:
     cases: ClinicalCatalog
     vocabulary_hints: YamlVocabularyHintCatalog
     orchestrator: ConversationOrchestrator
-    voice: TurnBasedVoiceEngine
+    transcriber: UtteranceTranscriber
+    tts: StreamingTTSProvider
     voice_stack: VoiceStack
     practice: PracticeService
 
@@ -53,9 +53,7 @@ def _voice_stack(settings: Settings) -> VoiceStack:
         MappingProxyType(
             {
                 "sample_rate": settings.audio_sample_rate,
-                "vad_threshold": settings.vad_threshold,
-                "vad_prefix_padding_ms": settings.vad_prefix_padding_ms,
-                "vad_silence_duration_ms": settings.vad_silence_duration_ms,
+                "stt_base_url": settings.stt_base_url,
                 "tts_voice": settings.tts_voice,
             }
         ),
@@ -87,16 +85,18 @@ def build_container(settings: Settings) -> Container:
     )
     voice_stack = _voice_stack(settings)
     llm: LLMProvider
-    stt: StreamingSTTProvider
+    transcriber: UtteranceTranscriber
     tts: StreamingTTSProvider
     if settings.provider_mode == "openai":
         if not settings.openai_api_key:
             raise RuntimeError("ARI_OPENAI_API_KEY is required when ARI_PROVIDER_MODE=openai")
+        if not settings.stt_api_key:
+            raise RuntimeError("ARI_STT_API_KEY is required when ARI_PROVIDER_MODE=openai")
         from ari.infrastructure.providers.openai import (
             OpenAILLMProvider,
-            OpenAIStreamingSTTProvider,
             OpenAIStreamingTTSProvider,
         )
+        from ari.infrastructure.providers.whisper import WhisperTranscriber
 
         llm = OpenAILLMProvider(
             settings.openai_api_key,
@@ -105,15 +105,11 @@ def build_container(settings: Settings) -> Container:
             patient_timeout_seconds=settings.patient_timeout_seconds,
             evaluation_timeout_seconds=settings.evaluation_timeout_seconds,
         )
-        stt = OpenAIStreamingSTTProvider(
-            settings.openai_api_key,
+        transcriber = WhisperTranscriber(
+            settings.stt_api_key,
+            base_url=settings.stt_base_url,
             model=settings.stt_model,
-            realtime_url=settings.openai_realtime_url,
-            sample_rate=settings.audio_sample_rate,
-            silence_ms=settings.vad_silence_duration_ms,
-            prefix_padding_ms=settings.vad_prefix_padding_ms,
-            vad_threshold=settings.vad_threshold,
-            handshake_timeout_seconds=settings.stt_handshake_timeout_seconds,
+            timeout_seconds=settings.stt_timeout_seconds,
         )
         tts = OpenAIStreamingTTSProvider(
             settings.openai_api_key,
@@ -123,7 +119,7 @@ def build_container(settings: Settings) -> Container:
         )
     else:
         llm = FakeLLMProvider()
-        stt = FakeSTTProvider()
+        transcriber = FakeTranscriber()
         tts = FakeTTSProvider()
 
     orchestrator = ConversationOrchestrator(
@@ -145,7 +141,8 @@ def build_container(settings: Settings) -> Container:
         cases=cases,
         vocabulary_hints=vocabulary_hints,
         orchestrator=orchestrator,
-        voice=TurnBasedVoiceEngine(stt, tts),
+        transcriber=transcriber,
+        tts=tts,
         voice_stack=voice_stack,
         practice=practice_service,
     )

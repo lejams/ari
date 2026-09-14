@@ -2,7 +2,7 @@
 
 Revision ID: 0001_initial
 Revises:
-Create Date: 2026-09-14 21:41:34.510029
+Create Date: 2026-09-14 22:17:24.235822
 """
 
 from collections.abc import Sequence
@@ -171,7 +171,6 @@ def upgrade() -> None:
         sa.Column("case_version", sa.String(), nullable=False),
         sa.Column("case_hash", sa.String(), nullable=False),
         sa.Column("goal", sa.JSON(), nullable=False),
-        sa.Column("interaction_mode", sa.String(), nullable=False),
         sa.Column("voice_stack_id", sa.String(), nullable=False),
         sa.Column("voice_stack_version", sa.String(), nullable=False),
         sa.Column("voice_stack_config", sa.JSON(), nullable=False),

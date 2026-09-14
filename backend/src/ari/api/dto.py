@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ari.domain.clinical import Identifier
-from ari.domain.models import CEFRLevel, InteractionMode, LearningMode
+from ari.domain.models import CEFRLevel, LearningMode
 
 
 class ApiModel(BaseModel):
@@ -26,7 +26,6 @@ class CreateSessionRequest(ApiModel):
     learner_id: str
     case_id: str
     case_version: str
-    interaction_mode: InteractionMode = InteractionMode.GUIDED
     scenario_id: str | None = None
     scenario_version: str | None = None
     learning_mode: LearningMode | None = None

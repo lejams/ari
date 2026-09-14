@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from ari.api.app import create_app
 from ari.application.contracts import AudioStreamEvent, ExecutionContext
-from ari.application.services.voice import TurnBasedVoiceEngine
 from ari.container import Container
 from ari.domain.errors import ProviderError
 from ari.domain.models import (
@@ -15,7 +14,7 @@ from ari.domain.models import (
     ExecutionStatus,
     new_id,
 )
-from ari.infrastructure.providers.fake import FakeSTTProvider, FakeTTSProvider
+from ari.infrastructure.providers.fake import FAKE_TRANSCRIPT, FakeTTSProvider
 
 
 def create_session(client: TestClient) -> dict[str, object]:
@@ -123,7 +122,7 @@ class FragmentedPcmTTS:
 def test_pipeline_normalizes_odd_pcm_fragments_before_counting_chunks(
     container: Container,
 ) -> None:
-    services = replace(container, voice=TurnBasedVoiceEngine(FakeSTTProvider(), FragmentedPcmTTS()))
+    services = replace(container, tts=FragmentedPcmTTS())
     with TestClient(create_app(services)) as client:
         session = create_session(client)
         with client.websocket_connect(f"/ws/sessions/{session['id']}/voice") as socket:
@@ -147,7 +146,7 @@ def test_pipeline_normalizes_odd_pcm_fragments_before_counting_chunks(
 
 def test_tts_retry_reuses_transcript_and_turn(container: Container) -> None:
     tts = FailOnceTTS()
-    services = replace(container, voice=TurnBasedVoiceEngine(FakeSTTProvider(), tts))
+    services = replace(container, tts=tts)
     with TestClient(create_app(services)) as client:
         session = create_session(client)
         session_id = str(session["id"])
@@ -166,3 +165,25 @@ def test_tts_retry_reuses_transcript_and_turn(container: Container) -> None:
             receive(socket, "call.ended")
         assert len(client.get(f"/api/sessions/{session_id}").json()["turns"]) == 1
         assert tts.calls == 2
+
+
+def test_push_to_talk_transcribes_the_buffered_utterance(container: Container) -> None:
+    with TestClient(create_app(container)) as client:
+        session = create_session(client)
+        with client.websocket_connect(f"/ws/sessions/{session['id']}/voice") as socket:
+            socket.receive_json()
+            socket.send_json({"type": "user.turn.finish"})
+            assert socket.receive_json()["type"] == "user.turn.empty"
+            socket.send_bytes(b"Haben Sie Fieber?" + b" " * 12_000)
+            assert socket.receive_json()["type"] == "user.speech_started"
+            socket.send_json({"type": "user.turn.finish"})
+            assert receive(socket, "user.transcript_final")["text"] == "Haben Sie Fieber?"
+            receive(socket, "turn.completed")
+            socket.send_bytes(bytes(24_000))
+            socket.send_json({"type": "user.turn.finish"})
+            assert receive(socket, "user.transcript_final")["text"] == FAKE_TRANSCRIPT
+            socket.send_json({"type": "call.end"})
+            receive(socket, "call.ended")
+        stored = container.repository.get_session(str(session["id"]))
+        assert [turn.user_text for turn in stored.turns] == ["Haben Sie Fieber?", FAKE_TRANSCRIPT]
+        assert {e.operation for e in stored.executions} >= {"speech_to_text", "patient_simulation"}

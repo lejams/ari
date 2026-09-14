@@ -32,7 +32,6 @@ from ari.domain.models import (
     EvidenceObservation,
     ExecutionRecord,
     ExecutionStatus,
-    InteractionMode,
     LearnerProfile,
     LearningGoal,
     LearningMode,
@@ -70,7 +69,6 @@ class SessionRow(Base):
     case_version: Mapped[str] = mapped_column(String)
     case_hash: Mapped[str] = mapped_column(String)
     goal: Mapped[dict[str, Any]] = mapped_column(JSON)
-    interaction_mode: Mapped[str] = mapped_column(String, default=InteractionMode.GUIDED.value)
     voice_stack_id: Mapped[str] = mapped_column(String)
     voice_stack_version: Mapped[str] = mapped_column(String)
     voice_stack_config: Mapped[dict[str, Any]] = mapped_column(JSON)
@@ -298,7 +296,6 @@ class SqliteSessionRepository:
                     case_version=session.case_version,
                     case_hash=session.case_hash,
                     goal=_jsonable(session.goal),
-                    interaction_mode=session.interaction_mode.value,
                     voice_stack_id=session.voice_stack_id,
                     voice_stack_version=session.voice_stack_version,
                     voice_stack_config=_jsonable(dict(session.voice_stack_config)),
@@ -383,7 +380,6 @@ class SqliteSessionRepository:
                 start_request_id=start.request_id if start else None,
                 start_request_hash=start.request_hash if start else None,
                 goal=_goal(row.goal),
-                interaction_mode=InteractionMode(row.interaction_mode),
                 voice_stack_id=row.voice_stack_id,
                 voice_stack_version=row.voice_stack_version,
                 voice_stack_config=dict(row.voice_stack_config),
