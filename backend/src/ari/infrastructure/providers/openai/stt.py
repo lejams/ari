@@ -14,7 +14,6 @@ from websockets.asyncio.client import ClientConnection, connect
 from ari.application.contracts import ExecutionContext, STTEvent, TranscriptionConfig
 from ari.domain.errors import ProviderError
 from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
-from ari.infrastructure.providers.openai.pricing import PRICING_VERSION, calculate_stt_cost
 
 
 class RealtimeHandshakeError(Exception):
@@ -153,7 +152,6 @@ class OpenAIStreamingSTTConnection:
             "provider_speech_start_ms": audio_start_ms,
             "provider_speech_end_ms": audio_end_ms,
         }
-        cost = calculate_stt_cost(self._model, seconds)
         return ExecutionRecord(
             id=new_id(),
             session_id=self._context.session_id,
@@ -172,13 +170,6 @@ class OpenAIStreamingSTTConnection:
                 else int((time.perf_counter() - started) * 1000)
             ),
             usage=usage,
-            estimated_cost_usd=cost.amount_usd,
-            pricing_version=cost.pricing_version,
-            cost_status=cost.status,
-            cost_amount_usd=cost.amount_usd,
-            cost_units=dict(cost.units),
-            cost_assumptions=cost.assumptions,
-            cost_unknown_reason=cost.unknown_reason,
             provider_request_id=item_id,
         )
 
@@ -205,8 +196,6 @@ class OpenAIStreamingSTTConnection:
                     3,
                 )
             },
-            cost_unknown_reason="Provider error did not return authoritative billable usage",
-            pricing_version=PRICING_VERSION,
             error_code=str(details.get("code", "realtime_error")),
             error_message=str(details.get("message", "Realtime transcription failed"))[:1000],
             retryable=True,
@@ -304,8 +293,6 @@ class OpenAIStreamingSTTProvider:
                 case_hash=context.case_hash,
                 latency_ms=int((time.perf_counter() - started) * 1000),
                 usage={},
-                cost_unknown_reason="Connection failed before billable usage was available",
-                pricing_version=PRICING_VERSION,
                 provider_request_id=request_id,
                 error_code=error_code,
                 error_message=str(exc)[:1000],

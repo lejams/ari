@@ -79,8 +79,6 @@ class ClientControlMessage(BaseModel):
     response_id: str | None = None
     audio_stream_id: str | None = None
     last_index: int | None = Field(default=None, ge=0)
-    speech_end_to_audio_started_ms: int | None = Field(default=None, ge=0)
-    audio_sent_to_playback_started_ms: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def correlated_delivery_event(self) -> Self:

@@ -2,7 +2,7 @@
 
 Revision ID: 0001_initial
 Revises:
-Create Date: 2026-09-14 21:20:59.511162
+Create Date: 2026-09-14 21:41:34.510029
 """
 
 from collections.abc import Sequence
@@ -262,13 +262,6 @@ def upgrade() -> None:
         sa.Column("case_hash", sa.String(), nullable=False),
         sa.Column("latency_ms", sa.Integer(), nullable=False),
         sa.Column("usage", sa.JSON(), nullable=False),
-        sa.Column("estimated_cost_usd", sa.Float(), nullable=True),
-        sa.Column("pricing_version", sa.String(), nullable=False),
-        sa.Column("cost_status", sa.String(), nullable=False),
-        sa.Column("cost_amount_usd", sa.Float(), nullable=True),
-        sa.Column("cost_units", sa.JSON(), nullable=False),
-        sa.Column("cost_assumptions", sa.JSON(), nullable=False),
-        sa.Column("cost_unknown_reason", sa.Text(), nullable=True),
         sa.Column("provider_request_id", sa.String(), nullable=True),
         sa.Column("turn_id", sa.String(), nullable=True),
         sa.Column("error_code", sa.String(), nullable=True),
@@ -407,82 +400,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("learner_id", "request_id"),
         sa.UniqueConstraint("session_id"),
     )
-    op.create_table(
-        "voice_turn_metrics",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("session_id", sa.String(), nullable=False),
-        sa.Column("turn_id", sa.String(), nullable=False),
-        sa.Column("schema_version", sa.String(), nullable=False),
-        sa.Column("trace_id", sa.String(), nullable=False),
-        sa.Column("voice_stack_id", sa.String(), nullable=False),
-        sa.Column("voice_stack_version", sa.String(), nullable=False),
-        sa.Column("transport", sa.String(), nullable=False),
-        sa.Column("models", sa.JSON(), nullable=False),
-        sa.Column("provider_ids", sa.JSON(), nullable=False),
-        sa.Column("case_id", sa.String(), nullable=True),
-        sa.Column("case_version", sa.String(), nullable=True),
-        sa.Column("case_hash", sa.String(), nullable=True),
-        sa.Column("interaction_mode", sa.String(), nullable=True),
-        sa.Column("prompt_versions", sa.JSON(), nullable=False),
-        sa.Column("prompt_hashes", sa.JSON(), nullable=False),
-        sa.Column("delivery_status", sa.String(), nullable=False),
-        sa.Column("application_version", sa.String(), nullable=True),
-        sa.Column("clock_domains", sa.JSON(), nullable=False),
-        sa.Column("wall_timestamps_utc", sa.JSON(), nullable=False),
-        sa.Column("speech_end_to_transcript_final_ms", sa.Integer(), nullable=True),
-        sa.Column("transcript_final_to_llm_first_token_ms", sa.Integer(), nullable=True),
-        sa.Column("llm_total_ms", sa.Integer(), nullable=True),
-        sa.Column("llm_complete_to_tts_first_byte_ms", sa.Integer(), nullable=True),
-        sa.Column("tts_total_ms", sa.Integer(), nullable=True),
-        sa.Column("speech_end_to_first_audio_sent_ms", sa.Integer(), nullable=True),
-        sa.Column("speech_end_to_audio_started_ms", sa.Integer(), nullable=True),
-        sa.Column("audio_sent_to_playback_started_ms", sa.Integer(), nullable=True),
-        sa.Column("speech_end_to_transcript_ms", sa.Integer(), nullable=True),
-        sa.Column("transcript_to_first_token_ms", sa.Integer(), nullable=True),
-        sa.Column("first_token_to_first_audio_ms", sa.Integer(), nullable=True),
-        sa.Column("speech_end_to_first_audio_ms", sa.Integer(), nullable=True),
-        sa.Column("turn_total_ms", sa.Integer(), nullable=True),
-        sa.Column("interruption_count", sa.Integer(), nullable=False),
-        sa.Column("error_count", sa.Integer(), nullable=False),
-        sa.Column("retry_count", sa.Integer(), nullable=False),
-        sa.Column("status", sa.String(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint(
-            "status IN ('completed', 'failed')", name="ck_voice_turn_metrics_status"
-        ),
-        sa.CheckConstraint(
-            "transport IN ('realtime', 'pipeline')", name="ck_voice_turn_metrics_transport"
-        ),
-        sa.ForeignKeyConstraint(
-            ["session_id"],
-            ["sessions.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["turn_id"],
-            ["turns.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        op.f("ix_voice_turn_metrics_session_id"), "voice_turn_metrics", ["session_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_voice_turn_metrics_trace_id"), "voice_turn_metrics", ["trace_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_voice_turn_metrics_turn_id"), "voice_turn_metrics", ["turn_id"], unique=False
-    )
     _create_sqlite_triggers()
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f("ix_voice_turn_metrics_turn_id"), table_name="voice_turn_metrics")
-    op.drop_index(op.f("ix_voice_turn_metrics_trace_id"), table_name="voice_turn_metrics")
-    op.drop_index(op.f("ix_voice_turn_metrics_session_id"), table_name="voice_turn_metrics")
-    op.drop_table("voice_turn_metrics")
     op.drop_table("voice_start_requests")
     op.drop_table("voice_learning_context")
     op.drop_index(

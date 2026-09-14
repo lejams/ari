@@ -3,10 +3,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
-import time
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
-from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -27,18 +25,11 @@ from ari.api.practice import practice_router
 from ari.api.public_session import public_session, public_turn
 from ari.application.contracts import ExecutionContext, TranscriptionConfig
 from ari.application.schemas import ClientControlMessage
-from ari.application.services.telemetry import (
-    aggregate_voice_metrics,
-    merge_voice_metric,
-    new_voice_metric,
-    utc_timestamp,
-)
 from ari.application.voice_stacks import VoiceStack
 from ari.config import Settings, get_settings
 from ari.container import Container, build_container
 from ari.domain.errors import AriError, InvalidStateError, NotFoundError, ProviderError
 from ari.domain.models import (
-    ClockDomain,
     ConversationSession,
     ConversationTurn,
     ExecutionRecord,
@@ -48,8 +39,6 @@ from ari.domain.models import (
     MedicalCase,
     SessionStatus,
     TurnResponseState,
-    VoiceMetricTransport,
-    VoiceTurnMetricStatus,
     new_id,
 )
 from ari.infrastructure.persistence.identity import ProfileCredentials
@@ -111,43 +100,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     def session_payload(session: ConversationSession) -> dict[str, object]:
         return public_session(session)
 
-    def persist_client_playback_observation(
-        turn: ConversationTurn, control: ClientControlMessage
-    ) -> None:
-        metric = services.repository.get_voice_turn_metric(turn.id)
-        if metric is None:
-            return
-        durations = {
-            "speech_end_to_audio_started_ms": control.speech_end_to_audio_started_ms,
-            "audio_sent_to_playback_started_ms": (control.audio_sent_to_playback_started_ms),
-        }
-        available = {key: value for key, value in durations.items() if value is not None}
-        domains = {key: ClockDomain.BROWSER for key in available}
-        wall = (
-            {"playback_started_observed_at": utc_timestamp()}
-            if control.type == "audio.playback_started"
-            else {"playback_completed_observed_at": utc_timestamp()}
-        )
-        services.repository.record_voice_turn_metric(
-            merge_voice_metric(
-                metric,
-                delivery_status=turn.delivery_status,
-                durations=available,
-                clock_domains=domains,
-                wall_timestamps_utc=wall,
-            )
-        )
-
-    def sync_metric_delivery_status(session_id: str) -> None:
-        current = services.repository.get_session(session_id)
-        turns = {turn.id: turn for turn in current.turns}
-        for metric in services.repository.list_voice_turn_metrics(session_id):
-            turn = turns.get(metric.turn_id)
-            if turn is not None and turn.delivery_status is not metric.delivery_status:
-                services.repository.record_voice_turn_metric(
-                    merge_voice_metric(metric, delivery_status=turn.delivery_status)
-                )
-
     app = FastAPI(title="ARI FSP POC", version="0.1.0")
     app.state.container = services
     app.include_router(practice_router(services))
@@ -182,25 +134,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             "provider_mode": services.settings.provider_mode,
             "technical_test_enabled": services.settings.enable_english_technical_test,
         }
-
-    @app.get("/api/technical/voice-metrics")
-    async def technical_voice_metrics(
-        request: Request,
-        window_start: datetime | None = None,
-        window_end: datetime | None = None,
-    ) -> dict[str, object]:
-        if services.settings.environment == "production":
-            raise HTTPException(status_code=404, detail="Not found")
-        owned_sessions = {s.id for s in services.repository.list_sessions(request.state.learner_id)}
-        return aggregate_voice_metrics(
-            tuple(
-                m
-                for m in services.repository.list_voice_turn_metrics()
-                if m.session_id in owned_sessions
-            ),
-            window_start=window_start,
-            window_end=window_end,
-        )
 
     @app.get("/api/cases")
     async def list_cases(approved_only: bool = False) -> list[dict[str, object]]:
@@ -446,19 +379,9 @@ def create_app(container: Container | None = None, settings: Settings | None = N
 
         processing_lock = asyncio.Lock()
         processed_item_ids: set[str] = set()
-        pipeline_wall_timestamps: dict[str, dict[str, str]] = {}
         voice_failed = asyncio.Event()
 
-        async def stream_pipeline_audio(
-            turn: ConversationTurn,
-            *,
-            turn_started: float,
-            stt_execution: ExecutionRecord | None,
-            patient_execution: ExecutionRecord | None,
-            stage_wall_timestamps: dict[str, str] | None = None,
-            llm_completed_at: float | None = None,
-        ) -> ConversationTurn:
-            stage_wall_timestamps = dict(stage_wall_timestamps or {})
+        async def stream_pipeline_audio(turn: ConversationTurn) -> ConversationTurn:
             audio_stream_id = new_id()
             turn = services.repository.begin_audio_stream(session_id, turn.id, audio_stream_id)
             await send(
@@ -478,96 +401,9 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             )
             index = 0
             mime_type = "audio/pcm;rate=24000"
-            first_audio_ms: int | None = None
             tts_execution: ExecutionRecord | None = None
             all_sent = True
             pcm_remainder = b""
-            first_audio_ready_at: float | None = None
-            first_audio_sent_at: float | None = None
-            stage_wall_timestamps["tts_started_at"] = utc_timestamp()
-
-            def persist_metric(
-                current_turn: ConversationTurn,
-                *,
-                failed: bool,
-                error_increment: int = 0,
-            ) -> None:
-                endpoint_value = (
-                    stt_execution.usage.get("speech_end_to_transcript_final_ms")
-                    if stt_execution is not None
-                    else None
-                )
-                endpoint_ms = (
-                    int(endpoint_value)
-                    if isinstance(endpoint_value, int | float) and endpoint_value >= 0
-                    else None
-                )
-                now = time.perf_counter()
-                durations: dict[str, int | None] = {
-                    "speech_end_to_transcript_final_ms": endpoint_ms,
-                    "llm_total_ms": (
-                        patient_execution.latency_ms if patient_execution is not None else None
-                    ),
-                    "llm_complete_to_tts_first_byte_ms": (
-                        int((first_audio_ready_at - llm_completed_at) * 1000)
-                        if first_audio_ready_at is not None and llm_completed_at is not None
-                        else None
-                    ),
-                    "tts_total_ms": (
-                        tts_execution.latency_ms if tts_execution is not None else None
-                    ),
-                    "speech_end_to_first_audio_sent_ms": (
-                        endpoint_ms + int((first_audio_sent_at - turn_started) * 1000)
-                        if endpoint_ms is not None and first_audio_sent_at is not None
-                        else None
-                    ),
-                    "turn_total_ms": (
-                        endpoint_ms + int((now - turn_started) * 1000)
-                        if endpoint_ms is not None
-                        else None
-                    ),
-                }
-                available = {key: value for key, value in durations.items() if value is not None}
-                domains = {key: ClockDomain.SERVER for key in available}
-                existing = services.repository.get_voice_turn_metric(current_turn.id)
-                if existing is None:
-                    metric = new_voice_metric(
-                        services.repository.get_session(session_id),
-                        current_turn,
-                        transport=VoiceMetricTransport.PIPELINE,
-                        application_version=services.settings.application_version,
-                        durations=durations,
-                        clock_domains=domains,
-                        wall_timestamps_utc=stage_wall_timestamps,
-                        executions=tuple(
-                            item
-                            for item in (stt_execution, patient_execution, tts_execution)
-                            if item is not None
-                        ),
-                        status=(
-                            VoiceTurnMetricStatus.FAILED
-                            if failed
-                            else VoiceTurnMetricStatus.COMPLETED
-                        ),
-                        error_count=error_increment,
-                    )
-                else:
-                    metric = merge_voice_metric(
-                        existing,
-                        delivery_status=current_turn.delivery_status,
-                        durations=available,
-                        clock_domains=domains,
-                        wall_timestamps_utc=stage_wall_timestamps,
-                        error_count_increment=error_increment,
-                        retry_count=max(0, current_turn.audio_attempt - 1),
-                        status=(
-                            VoiceTurnMetricStatus.FAILED
-                            if failed
-                            else VoiceTurnMetricStatus.COMPLETED
-                        ),
-                    )
-                services.repository.record_voice_turn_metric(metric)
-
             try:
                 async for audio_event in voice_engine.stream_response(turn.patient_text, context):
                     mime_type = audio_event.mime_type
@@ -578,9 +414,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                         if complete_length == 0:
                             continue
                         audio_bytes = audio_bytes[:complete_length]
-                        if first_audio_ready_at is None:
-                            first_audio_ready_at = time.perf_counter()
-                            stage_wall_timestamps["tts_first_byte_at"] = utc_timestamp()
                         chunk_sent = await send(
                             "patient.audio_chunk",
                             turn_id=turn.id,
@@ -590,10 +423,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                             mime_type=mime_type,
                             index=index,
                         )
-                        if chunk_sent and first_audio_sent_at is None:
-                            first_audio_sent_at = time.perf_counter()
-                            first_audio_ms = int((first_audio_sent_at - turn_started) * 1000)
-                            stage_wall_timestamps["first_audio_chunk_sent_at"] = utc_timestamp()
                         all_sent = chunk_sent and all_sent
                         index += 1
                     elif audio_event.execution is not None:
@@ -602,8 +431,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                 tts_execution = cast(ExecutionRecord, exc.execution)
                 services.repository.record_execution(tts_execution)
                 failed = services.repository.mark_tts_failed(session_id, turn.id, audio_stream_id)
-                stage_wall_timestamps["turn_failed_at"] = utc_timestamp()
-                persist_metric(failed, failed=True, error_increment=1)
                 await send("turn.tts_failed", turn=public_turn(failed), retryable=True)
                 await send(
                     "voice.error",
@@ -623,23 +450,15 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                         retryable=True,
                     )
                 services.repository.record_execution(tts_execution)
-                stage_wall_timestamps["tts_completed_at"] = utc_timestamp()
             if index == 0 or pcm_remainder:
                 failed = services.repository.mark_tts_failed(session_id, turn.id, audio_stream_id)
-                stage_wall_timestamps["turn_failed_at"] = utc_timestamp()
-                persist_metric(failed, failed=True, error_increment=1)
                 await send("turn.tts_failed", turn=public_turn(failed), retryable=True)
                 return failed
             if not all_sent:
                 services.repository.mark_session_delivery_unconfirmed(session_id)
                 unconfirmed = services.repository.get_session(session_id).turns[turn.sequence - 1]
-                stage_wall_timestamps["turn_ended_at"] = utc_timestamp()
-                persist_metric(unconfirmed, failed=True, error_increment=1)
                 return unconfirmed
             turn = services.repository.mark_audio_sent(session_id, turn.id, audio_stream_id, index)
-            stage_wall_timestamps["audio_send_completed_at"] = utc_timestamp()
-            stage_wall_timestamps["turn_ended_at"] = utc_timestamp()
-            persist_metric(turn, failed=False)
             correlation = {
                 "turn_id": turn.id,
                 "response_id": turn.provider_response_id,
@@ -649,20 +468,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             }
             await send("patient.audio_sent", **correlation)
             await send("patient.audio_done", **correlation)
-            await send(
-                "turn.completed",
-                turn=public_turn(turn),
-                telemetry={
-                    "transport": "pipeline",
-                    "stt_final_ms": stt_execution.latency_ms if stt_execution else None,
-                    "patient_llm_ms": patient_execution.latency_ms if patient_execution else None,
-                    "turn_first_audio_ms": first_audio_ms,
-                    "tts_first_audio_ms": tts_execution.usage.get("first_audio_ms")
-                    if tts_execution
-                    else None,
-                    "tts_total_ms": tts_execution.latency_ms if tts_execution else None,
-                },
-            )
+            await send("turn.completed", turn=public_turn(turn))
             return turn
 
         async def process_final(
@@ -676,12 +482,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                 processed_item_ids.add(item_id)
             async with processing_lock:
                 turn_id = new_id()
-                turn_started = time.perf_counter()
-                wall_key = item_id or "anonymous"
-                stage_wall_timestamps = {
-                    **pipeline_wall_timestamps.pop(wall_key, {}),
-                    "transcript_final_at": utc_timestamp(),
-                }
                 if stt_execution is not None:
                     stt_execution = replace(stt_execution, turn_id=turn_id)
                     services.repository.record_execution(stt_execution)
@@ -693,63 +493,13 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                 )
                 await send("user.transcript_final", text=text)
                 await send("turn.persisted", turn=public_turn(turn))
-                stage_wall_timestamps["llm_started_at"] = utc_timestamp()
                 try:
                     await services.orchestrator.complete_turn(turn)
                     outcome_turn = services.repository.get_session(session_id).turns[
                         turn.sequence - 1
                     ]
-                    patient_execution = next(
-                        (
-                            execution
-                            for execution in services.repository.get_session(session_id).executions
-                            if execution.turn_id == turn.id
-                            and execution.operation == "patient_simulation"
-                        ),
-                        None,
-                    )
                 except ProviderError as exc:
                     failed = services.repository.get_session(session_id).turns[turn.sequence - 1]
-                    failed_execution = cast(ExecutionRecord, exc.execution)
-                    endpoint_value = (
-                        stt_execution.usage.get("speech_end_to_transcript_final_ms")
-                        if stt_execution is not None
-                        else None
-                    )
-                    endpoint_ms = (
-                        int(endpoint_value)
-                        if isinstance(endpoint_value, int | float) and endpoint_value >= 0
-                        else None
-                    )
-                    stage_wall_timestamps["llm_failed_at"] = utc_timestamp()
-                    services.repository.record_voice_turn_metric(
-                        new_voice_metric(
-                            services.repository.get_session(session_id),
-                            failed,
-                            transport=VoiceMetricTransport.PIPELINE,
-                            application_version=services.settings.application_version,
-                            durations={
-                                "speech_end_to_transcript_final_ms": endpoint_ms,
-                                "llm_total_ms": failed_execution.latency_ms,
-                            },
-                            clock_domains={
-                                key: ClockDomain.SERVER
-                                for key, value in {
-                                    "speech_end_to_transcript_final_ms": endpoint_ms,
-                                    "llm_total_ms": failed_execution.latency_ms,
-                                }.items()
-                                if value is not None
-                            },
-                            wall_timestamps_utc=stage_wall_timestamps,
-                            executions=tuple(
-                                item
-                                for item in (stt_execution, failed_execution)
-                                if item is not None
-                            ),
-                            status=VoiceTurnMetricStatus.FAILED,
-                            error_count=1,
-                        )
-                    )
                     await send("turn.response_failed", turn=public_turn(failed))
                     await send(
                         "voice.error",
@@ -759,8 +509,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                         turn_id=turn.id,
                     )
                     return
-                llm_completed_at = time.perf_counter()
-                stage_wall_timestamps["llm_completed_at"] = utc_timestamp()
                 await send(
                     "patient.response_selected",
                     text=outcome_turn.patient_text,
@@ -770,14 +518,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                 await send(
                     "patient.response_text", text=outcome_turn.patient_text, turn_id=outcome_turn.id
                 )
-                await stream_pipeline_audio(
-                    outcome_turn,
-                    turn_started=turn_started,
-                    stt_execution=stt_execution,
-                    patient_execution=patient_execution,
-                    stage_wall_timestamps=stage_wall_timestamps,
-                    llm_completed_at=llm_completed_at,
-                )
+                await stream_pipeline_audio(outcome_turn)
 
         async def retry_pipeline_tts(turn_id: str) -> None:
             async with processing_lock:
@@ -795,12 +536,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                 }:
                     await send("turn.retry_rejected", turn_id=turn_id)
                     return
-                retried = await stream_pipeline_audio(
-                    turn,
-                    turn_started=time.perf_counter(),
-                    stt_execution=None,
-                    patient_execution=None,
-                )
+                retried = await stream_pipeline_audio(turn)
                 await send("turn.retry_completed", turn=public_turn(retried))
 
         async def acknowledge_pipeline_audio(control: ClientControlMessage) -> None:
@@ -817,7 +553,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                     provider_response_id=control.response_id,
                     last_index=cast(int, control.last_index),
                 )
-                persist_client_playback_observation(turn, control)
                 await send(
                     "turn.audio_started"
                     if control.type == "audio.playback_started"
@@ -831,14 +566,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             try:
                 async for event in stt.events():
                     if event.type == "speech_started":
-                        pipeline_wall_timestamps.setdefault(event.item_id or "anonymous", {})[
-                            "speech_started_at"
-                        ] = utc_timestamp()
                         await send("user.speech_started")
-                    elif event.type == "speech_stopped":
-                        pipeline_wall_timestamps.setdefault(event.item_id or "anonymous", {})[
-                            "speech_ended_at"
-                        ] = utc_timestamp()
                     elif event.type == "transcript_delta":
                         await send("user.transcript_delta", text=event.text or "")
                     elif event.type == "transcript_final" and event.text:
@@ -892,7 +620,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                         await pump
             finally:
                 services.repository.mark_session_delivery_unconfirmed(session_id)
-                sync_metric_delivery_status(session_id)
                 lifecycle.drained.set()
 
         async def end_on_http_request() -> None:

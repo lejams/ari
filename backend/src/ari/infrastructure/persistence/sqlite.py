@@ -8,7 +8,6 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
-    CheckConstraint,
     DateTime,
     ForeignKey,
     Integer,
@@ -27,10 +26,8 @@ from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.models import (
     AudioDeliveryStatus,
     CEFRLevel,
-    ClockDomain,
     ConversationSession,
     ConversationTurn,
-    CostStatus,
     Evaluation,
     EvidenceObservation,
     ExecutionRecord,
@@ -45,9 +42,6 @@ from ari.domain.models import (
     VocabularyHintUsage,
     VocabularyObservation,
     VocabularyState,
-    VoiceMetricTransport,
-    VoiceTurnMetric,
-    VoiceTurnMetricStatus,
     utc_now,
 )
 from ari.infrastructure.persistence.base import Base
@@ -168,84 +162,12 @@ class ExecutionRow(Base):
     case_hash: Mapped[str] = mapped_column(String)
     latency_ms: Mapped[int] = mapped_column(Integer)
     usage: Mapped[dict[str, Any]] = mapped_column(JSON)
-    estimated_cost_usd: Mapped[float | None] = mapped_column(nullable=True)
-    pricing_version: Mapped[str] = mapped_column(String)
-    cost_status: Mapped[str] = mapped_column(String, default=CostStatus.UNKNOWN.value)
-    cost_amount_usd: Mapped[float | None] = mapped_column(nullable=True)
-    cost_units: Mapped[dict[str, float]] = mapped_column(JSON, default=dict)
-    cost_assumptions: Mapped[list[str]] = mapped_column(JSON, default=list)
-    cost_unknown_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     provider_request_id: Mapped[str | None] = mapped_column(String, nullable=True)
     turn_id: Mapped[str | None] = mapped_column(String, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     retryable: Mapped[bool]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-
-
-class VoiceTurnMetricRow(Base):
-    __tablename__ = "voice_turn_metrics"
-    __table_args__ = (
-        CheckConstraint(
-            "transport IN ('realtime', 'pipeline')",
-            name="ck_voice_turn_metrics_transport",
-        ),
-        CheckConstraint(
-            "status IN ('completed', 'failed')",
-            name="ck_voice_turn_metrics_status",
-        ),
-    )
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), index=True)
-    turn_id: Mapped[str] = mapped_column(ForeignKey("turns.id"), index=True)
-    schema_version: Mapped[str] = mapped_column(String)
-    trace_id: Mapped[str] = mapped_column(String, index=True)
-    voice_stack_id: Mapped[str] = mapped_column(String)
-    voice_stack_version: Mapped[str] = mapped_column(String)
-    transport: Mapped[str] = mapped_column(String)
-    models: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
-    provider_ids: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
-    case_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    case_version: Mapped[str | None] = mapped_column(String, nullable=True)
-    case_hash: Mapped[str | None] = mapped_column(String, nullable=True)
-    interaction_mode: Mapped[str | None] = mapped_column(String, nullable=True)
-    prompt_versions: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
-    prompt_hashes: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
-    delivery_status: Mapped[str] = mapped_column(String)
-    application_version: Mapped[str | None] = mapped_column(String, nullable=True)
-    clock_domains: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
-    wall_timestamps_utc: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
-    speech_end_to_transcript_final_ms: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
-    transcript_final_to_llm_first_token_ms: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
-    llm_total_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    llm_complete_to_tts_first_byte_ms: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
-    tts_total_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    speech_end_to_first_audio_sent_ms: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
-    speech_end_to_audio_started_ms: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
-    audio_sent_to_playback_started_ms: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
-    speech_end_to_transcript_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    transcript_to_first_token_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    first_token_to_first_audio_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    speech_end_to_first_audio_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    turn_total_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    interruption_count: Mapped[int] = mapped_column(Integer, default=0)
-    error_count: Mapped[int] = mapped_column(Integer, default=0)
-    retry_count: Mapped[int] = mapped_column(Integer, default=0)
-    status: Mapped[str] = mapped_column(String)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 def _goal(value: dict[str, Any]) -> LearningGoal:
@@ -869,68 +791,8 @@ class SqliteSessionRepository:
                 return
             values = asdict(execution)
             values["status"] = execution.status.value
-            values["cost_status"] = execution.cost_status.value
-            values["cost_assumptions"] = list(execution.cost_assumptions)
             db.add(ExecutionRow(**values))
             db.commit()
-
-    def record_voice_turn_metric(self, metric: VoiceTurnMetric) -> None:
-        with Session(self.engine) as db:
-            session = db.get(SessionRow, metric.session_id)
-            if session is None:
-                raise NotFoundError(f"Session {metric.session_id} was not found")
-            turn = db.get(TurnRow, metric.turn_id)
-            if turn is None:
-                raise NotFoundError(f"Turn {metric.turn_id} was not found")
-            if turn.session_id != metric.session_id:
-                raise InvalidStateError("Voice metric turn does not belong to its session")
-            if (
-                metric.voice_stack_id != session.voice_stack_id
-                or session.voice_stack_config.get("id") != session.voice_stack_id
-            ):
-                raise InvalidStateError("Voice metric stack does not match its session")
-            if metric.transport is not VoiceMetricTransport.PIPELINE:
-                raise InvalidStateError("Voice metric transport does not match its session stack")
-            values = asdict(metric)
-            values["transport"] = metric.transport.value
-            values["status"] = metric.status.value
-            values["interaction_mode"] = (
-                metric.interaction_mode.value if metric.interaction_mode is not None else None
-            )
-            values["delivery_status"] = metric.delivery_status.value
-            values["clock_domains"] = {
-                key: ClockDomain(value).value for key, value in metric.clock_domains.items()
-            }
-            existing = db.get(VoiceTurnMetricRow, metric.id)
-            if existing is None:
-                db.add(VoiceTurnMetricRow(**values))
-            else:
-                for key, value in values.items():
-                    if key != "id":
-                        setattr(existing, key, value)
-            db.commit()
-
-    def get_voice_turn_metric(self, turn_id: str) -> VoiceTurnMetric | None:
-        with Session(self.engine) as db:
-            row = db.scalar(
-                select(VoiceTurnMetricRow)
-                .where(VoiceTurnMetricRow.turn_id == turn_id)
-                .order_by(VoiceTurnMetricRow.created_at.desc())
-                .limit(1)
-            )
-            return self._voice_turn_metric(row) if row is not None else None
-
-    def list_voice_turn_metrics(
-        self, session_id: str | None = None
-    ) -> tuple[VoiceTurnMetric, ...]:
-        with Session(self.engine) as db:
-            statement = select(VoiceTurnMetricRow)
-            if session_id is not None:
-                statement = statement.where(VoiceTurnMetricRow.session_id == session_id)
-            rows = db.scalars(
-                statement.order_by(VoiceTurnMetricRow.created_at, VoiceTurnMetricRow.id)
-            )
-            return tuple(self._voice_turn_metric(row) for row in rows)
 
     def record_vocabulary_hint_usage(
         self, session_id: str, hint_id: str, asset_version: str
@@ -1011,54 +873,6 @@ class SqliteSessionRepository:
         )
 
     @staticmethod
-    def _voice_turn_metric(row: VoiceTurnMetricRow) -> VoiceTurnMetric:
-        return VoiceTurnMetric(
-            id=row.id,
-            session_id=row.session_id,
-            turn_id=row.turn_id,
-            schema_version=row.schema_version,
-            trace_id=row.trace_id,
-            voice_stack_id=row.voice_stack_id,
-            voice_stack_version=row.voice_stack_version,
-            transport=VoiceMetricTransport(row.transport),
-            models=dict(row.models),
-            provider_ids=dict(row.provider_ids),
-            case_id=row.case_id,
-            case_version=row.case_version,
-            case_hash=row.case_hash,
-            interaction_mode=(
-                InteractionMode(row.interaction_mode) if row.interaction_mode is not None else None
-            ),
-            prompt_versions=dict(row.prompt_versions),
-            prompt_hashes=dict(row.prompt_hashes),
-            delivery_status=AudioDeliveryStatus(row.delivery_status),
-            application_version=row.application_version,
-            clock_domains={key: ClockDomain(value) for key, value in row.clock_domains.items()},
-            wall_timestamps_utc=dict(row.wall_timestamps_utc),
-            speech_end_to_transcript_final_ms=row.speech_end_to_transcript_final_ms,
-            transcript_final_to_llm_first_token_ms=(
-                row.transcript_final_to_llm_first_token_ms
-            ),
-            llm_total_ms=row.llm_total_ms,
-            llm_complete_to_tts_first_byte_ms=row.llm_complete_to_tts_first_byte_ms,
-            tts_total_ms=row.tts_total_ms,
-            speech_end_to_first_audio_sent_ms=row.speech_end_to_first_audio_sent_ms,
-            speech_end_to_audio_started_ms=row.speech_end_to_audio_started_ms,
-            audio_sent_to_playback_started_ms=row.audio_sent_to_playback_started_ms,
-            speech_end_to_transcript_ms=row.speech_end_to_transcript_ms,
-            transcript_to_first_token_ms=row.transcript_to_first_token_ms,
-            first_token_to_first_audio_ms=row.first_token_to_first_audio_ms,
-            speech_end_to_first_audio_ms=row.speech_end_to_first_audio_ms,
-            turn_total_ms=row.turn_total_ms,
-            interruption_count=row.interruption_count,
-            error_count=row.error_count,
-            retry_count=row.retry_count,
-            status=VoiceTurnMetricStatus(row.status),
-            created_at=_dt(row.created_at),
-            updated_at=_dt(row.updated_at),
-        )
-
-    @staticmethod
     def _vocabulary(row: VocabularyRow) -> VocabularyObservation:
         return VocabularyObservation(
             id=row.id,
@@ -1120,13 +934,6 @@ class SqliteSessionRepository:
             case_hash=row.case_hash,
             latency_ms=row.latency_ms,
             usage=row.usage,
-            estimated_cost_usd=row.estimated_cost_usd,
-            pricing_version=row.pricing_version,
-            cost_status=CostStatus(row.cost_status),
-            cost_amount_usd=row.cost_amount_usd,
-            cost_units=dict(row.cost_units),
-            cost_assumptions=tuple(row.cost_assumptions),
-            cost_unknown_reason=row.cost_unknown_reason,
             provider_request_id=row.provider_request_id,
             turn_id=row.turn_id,
             error_code=row.error_code,

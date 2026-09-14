@@ -10,7 +10,6 @@ from ari.domain.models import (
     SessionStatus,
     VocabularyHintUsage,
     VocabularyObservation,
-    VoiceTurnMetric,
 )
 
 
@@ -97,14 +96,6 @@ class SessionRepository(Protocol):
     ) -> ConversationTurn | None: ...
 
     def record_execution(self, execution: ExecutionRecord) -> None: ...
-
-    def record_voice_turn_metric(self, metric: VoiceTurnMetric) -> None: ...
-
-    def get_voice_turn_metric(self, turn_id: str) -> VoiceTurnMetric | None: ...
-
-    def list_voice_turn_metrics(
-        self, session_id: str | None = None
-    ) -> tuple[VoiceTurnMetric, ...]: ...
 
     def record_vocabulary_hint_usage(
         self, session_id: str, hint_id: str, asset_version: str

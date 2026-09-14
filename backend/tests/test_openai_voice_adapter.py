@@ -12,7 +12,7 @@ from openai.types.realtime import RealtimeTranscriptionSessionCreateRequestParam
 
 from ari.application.contracts import ExecutionContext, TranscriptionConfig
 from ari.domain.errors import ProviderError
-from ari.domain.models import CostStatus, ExecutionStatus
+from ari.domain.models import ExecutionStatus
 from ari.infrastructure.providers.fake import FakeTTSProvider
 from ari.infrastructure.providers.openai import stt as stt_module
 from ari.infrastructure.providers.openai.stt import (
@@ -327,8 +327,6 @@ async def test_unsegmented_pcm_does_not_fabricate_billable_stt_duration() -> Non
     assert execution is not None
     assert execution.usage["observed_pcm_bytes"] == 48_000
     assert execution.usage["audio_seconds"] is None
-    assert execution.cost_status is CostStatus.UNKNOWN
-    assert execution.cost_amount_usd is None
 
 
 @pytest.mark.asyncio

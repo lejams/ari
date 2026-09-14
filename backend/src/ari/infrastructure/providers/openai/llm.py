@@ -9,12 +9,7 @@ from pydantic import BaseModel
 
 from ari.application.contracts import LLMRequest, ProviderResult
 from ari.domain.errors import ProviderError
-from ari.domain.models import CostStatus, ExecutionRecord, ExecutionStatus, new_id
-from ari.infrastructure.providers.openai.pricing import (
-    PRICING_VERSION,
-    CostResult,
-    calculate_llm_cost,
-)
+from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -66,7 +61,6 @@ class OpenAILLMProvider:
                 ExecutionStatus.SUCCEEDED,
                 usage,
                 response.id,
-                cost=calculate_llm_cost(model, usage),
             )
             return ProviderResult(value=parsed, execution=execution)
         except Exception as exc:
@@ -82,7 +76,6 @@ class OpenAILLMProvider:
         usage: dict[str, object],
         request_id: str | None,
         error: Exception | None = None,
-        cost: CostResult | None = None,
     ) -> ExecutionRecord:
         context = request.context
         return ExecutionRecord(
@@ -99,17 +92,6 @@ class OpenAILLMProvider:
             case_hash=context.case_hash,
             latency_ms=int((time.perf_counter() - started) * 1000),
             usage=usage,
-            estimated_cost_usd=cost.amount_usd if cost is not None else None,
-            pricing_version=cost.pricing_version if cost is not None else PRICING_VERSION,
-            cost_status=cost.status if cost is not None else CostStatus.UNKNOWN,
-            cost_amount_usd=cost.amount_usd if cost is not None else None,
-            cost_units=dict(cost.units) if cost is not None else {},
-            cost_assumptions=cost.assumptions if cost is not None else (),
-            cost_unknown_reason=(
-                cost.unknown_reason
-                if cost is not None
-                else "Provider call failed before billable usage was available"
-            ),
             provider_request_id=request_id,
             error_code=type(error).__name__ if error else None,
             error_message=str(error)[:1000] if error else None,

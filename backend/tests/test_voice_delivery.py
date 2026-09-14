@@ -1,14 +1,9 @@
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import replace
-from datetime import datetime
-from typing import Any
 
-import pytest
 from fastapi.testclient import TestClient
-from starlette.websockets import WebSocket
 
 from ari.api.app import create_app
 from ari.application.contracts import AudioStreamEvent, ExecutionContext
@@ -70,13 +65,7 @@ def test_pipeline_delivery_is_correlated_idempotent_and_controls_fact_credit(
             receive(socket, "audio.ack_rejected")
             socket.send_json({"type": "audio.playback_completed", **ack})
             receive(socket, "audio.ack_rejected")
-            socket.send_json(
-                {
-                    "type": "audio.playback_started",
-                    **ack,
-                    "speech_end_to_audio_started_ms": 321,
-                }
-            )
+            socket.send_json({"type": "audio.playback_started", **ack})
             assert "revealed_fact_ids" not in receive(socket, "turn.audio_started")["turn"]
             assert container.repository.get_session(session_id).turns[0].revealed_fact_ids == ()
             socket.send_json({"type": "audio.playback_completed", **ack})
@@ -88,55 +77,6 @@ def test_pipeline_delivery_is_correlated_idempotent_and_controls_fact_credit(
             socket.send_json({"type": "audio.playback_completed", **ack})
             second = receive(socket, "turn.delivered")["turn"]
             assert first["audio_delivered_at"] == second["audio_delivered_at"]
-            socket.send_json({"type": "call.end"})
-            receive(socket, "call.ended")
-        metric = container.repository.get_voice_turn_metric(str(sent["turn_id"]))
-        assert metric is not None
-        assert metric.speech_end_to_audio_started_ms == 321
-        assert metric.clock_domains["speech_end_to_audio_started_ms"].value == "browser"
-        assert metric.llm_total_ms is not None
-        assert metric.tts_total_ms is not None
-        aggregate = client.get("/api/technical/voice-metrics").json()
-        assert aggregate["groups"][0]["voice_stack_id"] == "pipeline_economy"
-        serialized = str(aggregate).casefold()
-        assert "user_text" not in serialized
-        assert "patient_text" not in serialized
-        assert "learner_id" not in serialized
-        assert "session_id" not in serialized
-        assert "turn_id" not in serialized
-
-
-def test_technical_metrics_endpoint_is_disabled_in_production(container: Container) -> None:
-    production = replace(
-        container,
-        settings=container.settings.model_copy(update={"environment": "production"}),
-    )
-    with TestClient(create_app(production)) as client:
-        assert client.get("/api/technical/voice-metrics").status_code == 404
-
-
-def test_first_audio_sent_timestamp_includes_websocket_send_time(
-    container: Container, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    original_send = WebSocket.send_json
-
-    async def delayed_send(self: WebSocket, data: Any, mode: str = "text") -> None:
-        if isinstance(data, dict) and data.get("type") == "patient.audio_chunk":
-            await asyncio.sleep(0.03)
-        await original_send(self, data, mode=mode)
-
-    monkeypatch.setattr(WebSocket, "send_json", delayed_send)
-    with TestClient(create_app(container)) as client:
-        session = create_session(client)
-        with client.websocket_connect(f"/ws/sessions/{session['id']}/voice") as socket:
-            socket.receive_json()
-            socket.send_json({"type": "debug.transcript", "transcript": "Seit wann?"})
-            completed = receive(socket, "turn.completed")
-            metric = container.repository.get_voice_turn_metric(completed["turn"]["id"])
-            assert metric is not None
-            ready = datetime.fromisoformat(metric.wall_timestamps_utc["tts_first_byte_at"])
-            sent = datetime.fromisoformat(metric.wall_timestamps_utc["first_audio_chunk_sent_at"])
-            assert (sent - ready).total_seconds() >= 0.03
             socket.send_json({"type": "call.end"})
             receive(socket, "call.ended")
 

@@ -328,7 +328,6 @@ def test_english_technical_vertical_slice(technical_container: Container) -> Non
                 event = socket.receive_json()
                 if event["type"] == "turn.completed":
                     completed_turn = event
-            assert completed_turn["data"]["telemetry"]["patient_llm_ms"] is not None  # type: ignore[index]
             socket.send_json({"type": "call.end"})
             assert socket.receive_json()["type"] == "call.ended"
 

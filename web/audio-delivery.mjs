@@ -1,8 +1,6 @@
 function ack(type, stream, lastIndex) {
   const value = {type, turn_id: stream.turnId, response_id: stream.responseId ?? null,
     audio_stream_id: stream.audioStreamId, last_index: lastIndex};
-  if (type === "audio.playback_started" && stream.audioSentToPlaybackStartedMs !== undefined)
-    value.audio_sent_to_playback_started_ms = stream.audioSentToPlaybackStartedMs;
   return value;
 }
 
@@ -50,10 +48,6 @@ export class PcmPlaybackTracker {
   #flush(stream) {
     if (!stream.sent || stream.cancelled || stream.lastIndex === null) return;
     if (stream.playbackStarted.size && !stream.started) { stream.started = true;
-      if (stream.sentAt !== null && stream.playbackStartedAt !== null &&
-          stream.playbackStartedAt >= stream.sentAt)
-        stream.audioSentToPlaybackStartedMs = Math.max(0,
-          Math.round(stream.playbackStartedAt - stream.sentAt));
       this.emit(ack("audio.playback_started", stream, Math.min(...stream.playbackStarted))); }
     const complete = Array.from({length: stream.lastIndex + 1}, (_, i) => i)
       .every((i) => stream.received.has(i) && stream.ended.has(i));

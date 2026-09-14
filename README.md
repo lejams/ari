@@ -135,8 +135,6 @@ SQLite also stores `voice_stack_transitions`. Sessions retain the exact voice-st
 
 User transcripts are persisted before the patient response arrives in both Realtime and fallback modes. A cancelled, missing, or failed response therefore cannot erase the learner's turn or block later turns. `POST /end` drains the active voice provider itself and is idempotent; the WebSocket `call.end` event is only an optimization. The browser stores the current session ID, reconstructs transcript and feedback after reload, and offers resume or analysis retry according to persisted state. The German training case also exposes a bounded, versioned German–French vocabulary asset; hint usage is stored separately and does not affect scoring.
 
-Realtime price assumptions, the measured 0.12 USD economy-session baseline, and known estimator limitations are recorded in [docs/AI_PRICING_BASELINE.md](docs/AI_PRICING_BASELINE.md).
-
 Pronunciation is deliberately persisted as `not_assessed`: no score is inferred from text.
 Vocabulary starts at `identified`, never `mastered` after one session. V2 voice
 progression uses weighted criteria and delivered-audio/doctor-quote evidence. Legacy
@@ -161,7 +159,6 @@ HTTP routes:
 - `POST /api/sessions/{id}/end`
 - `POST /api/sessions/{id}/analysis/retry`
 - `GET /api/learners/{id}/sessions`
-- `GET /api/technical/voice-metrics` (read-only, no sensitive fields, disabled in production)
 - `POST /api/sessions/{id}/voice/realtime` (`application/sdp`)
 - `GET /api/sessions/{id}/vocabulary-hints`
 - `POST /api/sessions/{id}/vocabulary-hints/{hint_id}/use`
@@ -179,7 +176,7 @@ make test
 make migration-check
 ```
 
-`make test` runs the backend suite plus JavaScript syntax checks and the PCM microphone resampler test for 44.1 and 48 kHz input. The tests cover case integrity and historical hashes, the migration on an empty database, foreign-key enforcement, voice-stack/delivery/metric round-trips, analysis idempotency/retry, and the complete HTTP/WebSocket vertical slice with provider fakes. All provider tests are offline.
+`make test` runs the backend suite plus JavaScript syntax checks and the PCM microphone resampler test for 44.1 and 48 kHz input. The tests cover case integrity and historical hashes, the migration on an empty database, foreign-key enforcement, voice-stack/delivery round-trips, analysis idempotency/retry, and the complete HTTP/WebSocket vertical slice with provider fakes. All provider tests are offline.
 
 ## Deliberate POC limits
 

@@ -9,7 +9,6 @@ from openai import AsyncOpenAI
 from ari.application.contracts import AudioStreamEvent, ExecutionContext
 from ari.domain.errors import ProviderError
 from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
-from ari.infrastructure.providers.openai.pricing import calculate_tts_cost
 
 
 class OpenAIStreamingTTSProvider:
@@ -65,7 +64,6 @@ class OpenAIStreamingTTSProvider:
             "characters": characters,
             "first_audio_ms": first_audio_ms,
         }
-        cost = calculate_tts_cost(self._model, usage)
         return ExecutionRecord(
             id=new_id(),
             session_id=context.session_id,
@@ -80,13 +78,6 @@ class OpenAIStreamingTTSProvider:
             case_hash=context.case_hash,
             latency_ms=int((time.perf_counter() - started) * 1000),
             usage=usage,
-            estimated_cost_usd=cost.amount_usd,
-            pricing_version=cost.pricing_version,
-            cost_status=cost.status,
-            cost_amount_usd=cost.amount_usd,
-            cost_units=dict(cost.units),
-            cost_assumptions=cost.assumptions,
-            cost_unknown_reason=cost.unknown_reason,
             error_code=type(error).__name__ if error else None,
             error_message=str(error)[:1000] if error else None,
             retryable=error is not None,

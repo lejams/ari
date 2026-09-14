@@ -22,7 +22,7 @@ from ari.application.schemas import (
     EvaluationOutputSchema,
     PatientResponseSchema,
 )
-from ari.domain.models import CostStatus, ExecutionRecord, ExecutionStatus, new_id
+from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -44,12 +44,6 @@ def _execution(
         case_hash=context.case_hash,
         latency_ms=latency_ms,
         usage=usage,
-        estimated_cost_usd=0.0,
-        pricing_version="fake-v1",
-        cost_status=CostStatus.EXACT,
-        cost_amount_usd=0.0,
-        cost_units={},
-        cost_assumptions=("deterministic fake provider performs no billable operation",),
     )
 
 

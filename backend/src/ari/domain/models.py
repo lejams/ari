@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -71,29 +70,6 @@ class TurnResponseState(StrEnum):
     RESPONSE_FAILED = "response_failed"
     TTS_FAILED = "tts_failed"
     DELIVERY_UNCONFIRMED = "delivery_unconfirmed"
-
-
-class VoiceMetricTransport(StrEnum):
-    REALTIME = "realtime"
-    PIPELINE = "pipeline"
-
-
-class VoiceTurnMetricStatus(StrEnum):
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-class ClockDomain(StrEnum):
-    SERVER = "server"
-    BROWSER = "browser"
-    PROVIDER = "provider"
-
-
-class CostStatus(StrEnum):
-    EXACT = "exact"
-    ESTIMATED = "estimated"
-    PARTIAL = "partial"
-    UNKNOWN = "unknown"
 
 
 class DisclosureRule(StrEnum):
@@ -306,136 +282,12 @@ class ExecutionRecord:
     case_hash: str
     latency_ms: int
     usage: dict[str, Any]
-    estimated_cost_usd: float | None = None
-    pricing_version: str = "unknown"
-    cost_status: CostStatus = CostStatus.UNKNOWN
-    cost_amount_usd: float | None = None
-    cost_units: dict[str, float] = field(default_factory=dict)
-    cost_assumptions: tuple[str, ...] = ()
-    cost_unknown_reason: str | None = None
     provider_request_id: str | None = None
     turn_id: str | None = None
     error_code: str | None = None
     error_message: str | None = None
     retryable: bool = False
     created_at: datetime = field(default_factory=utc_now)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "cost_status", CostStatus(self.cost_status))
-        for amount in (self.cost_amount_usd, self.estimated_cost_usd):
-            if amount is not None and (not math.isfinite(amount) or amount < 0):
-                raise ValueError("Execution cost must be finite and nonnegative")
-        if self.cost_status is CostStatus.UNKNOWN and self.cost_amount_usd is not None:
-            raise ValueError("Unknown cost cannot have an amount")
-        # Older callers only populated estimated_cost_usd. Keep that value while
-        # explicitly downgrading its precision instead of silently treating it as exact.
-        if self.cost_amount_usd is None and self.estimated_cost_usd is not None:
-            object.__setattr__(self, "cost_amount_usd", self.estimated_cost_usd)
-            if self.cost_status is CostStatus.UNKNOWN:
-                object.__setattr__(self, "cost_status", CostStatus.ESTIMATED)
-                object.__setattr__(
-                    self,
-                    "cost_assumptions",
-                    (*self.cost_assumptions, "legacy_estimated_cost_without_structured_units"),
-                )
-        if self.estimated_cost_usd is None and self.cost_amount_usd is not None:
-            object.__setattr__(self, "estimated_cost_usd", self.cost_amount_usd)
-        if self.cost_status is not CostStatus.UNKNOWN and self.cost_amount_usd is None:
-            raise ValueError("Known, estimated, or partial execution cost requires an amount")
-
-
-@dataclass(frozen=True, slots=True)
-class VoiceTurnMetric:
-    id: str
-    session_id: str
-    turn_id: str
-    voice_stack_id: str
-    transport: VoiceMetricTransport
-    trace_id: str = ""
-    voice_stack_version: str = "unknown"
-    schema_version: str = "voice-turn-metric-v2"
-    models: Mapping[str, str] = field(default_factory=dict)
-    provider_ids: Mapping[str, str] = field(default_factory=dict)
-    case_id: str | None = None
-    case_version: str | None = None
-    case_hash: str | None = None
-    interaction_mode: InteractionMode | None = None
-    prompt_versions: Mapping[str, str] = field(default_factory=dict)
-    prompt_hashes: Mapping[str, str] = field(default_factory=dict)
-    delivery_status: AudioDeliveryStatus = AudioDeliveryStatus.PENDING
-    application_version: str | None = None
-    clock_domains: Mapping[str, ClockDomain | str] = field(default_factory=dict)
-    wall_timestamps_utc: Mapping[str, str] = field(default_factory=dict)
-    speech_end_to_transcript_final_ms: int | None = None
-    transcript_final_to_llm_first_token_ms: int | None = None
-    llm_total_ms: int | None = None
-    llm_complete_to_tts_first_byte_ms: int | None = None
-    tts_total_ms: int | None = None
-    speech_end_to_first_audio_sent_ms: int | None = None
-    speech_end_to_audio_started_ms: int | None = None
-    audio_sent_to_playback_started_ms: int | None = None
-    speech_end_to_transcript_ms: int | None = None
-    transcript_to_first_token_ms: int | None = None
-    first_token_to_first_audio_ms: int | None = None
-    speech_end_to_first_audio_ms: int | None = None
-    turn_total_ms: int | None = None
-    interruption_count: int = 0
-    error_count: int = 0
-    retry_count: int = 0
-    status: VoiceTurnMetricStatus = VoiceTurnMetricStatus.COMPLETED
-    created_at: datetime = field(default_factory=utc_now)
-    updated_at: datetime = field(default_factory=utc_now)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "transport", VoiceMetricTransport(self.transport))
-        object.__setattr__(self, "status", VoiceTurnMetricStatus(self.status))
-        object.__setattr__(self, "trace_id", self.trace_id or self.id)
-        if self.interaction_mode is not None:
-            object.__setattr__(self, "interaction_mode", InteractionMode(self.interaction_mode))
-        object.__setattr__(self, "delivery_status", AudioDeliveryStatus(self.delivery_status))
-        normalized_domains = {
-            key: ClockDomain(value) for key, value in self.clock_domains.items()
-        }
-        object.__setattr__(self, "clock_domains", normalized_domains)
-        aliases = {
-            "speech_end_to_transcript_final_ms": self.speech_end_to_transcript_ms,
-            "transcript_final_to_llm_first_token_ms": self.transcript_to_first_token_ms,
-            "speech_end_to_first_audio_sent_ms": self.speech_end_to_first_audio_ms,
-        }
-        for field_name, legacy_value in aliases.items():
-            if getattr(self, field_name) is None and legacy_value is not None:
-                object.__setattr__(self, field_name, legacy_value)
-                normalized_domains.setdefault(field_name, ClockDomain.SERVER)
-        if (
-            self.turn_total_ms is not None
-            and "turn_total_ms" not in normalized_domains
-            and any(value is not None for value in aliases.values())
-        ):
-            normalized_domains["turn_total_ms"] = ClockDomain.SERVER
-        object.__setattr__(self, "clock_domains", normalized_domains)
-        duration_fields = (
-            "speech_end_to_transcript_final_ms",
-            "transcript_final_to_llm_first_token_ms",
-            "llm_total_ms",
-            "llm_complete_to_tts_first_byte_ms",
-            "tts_total_ms",
-            "speech_end_to_first_audio_sent_ms",
-            "speech_end_to_audio_started_ms",
-            "audio_sent_to_playback_started_ms",
-            "turn_total_ms",
-        )
-        for field_name in duration_fields:
-            value = getattr(self, field_name)
-            if value is not None and value < 0:
-                raise ValueError(f"{field_name} cannot be negative")
-            if (
-                value is not None
-                and field_name not in normalized_domains
-                and self.schema_version != "voice-turn-metric-legacy-v1"
-            ):
-                raise ValueError(f"{field_name} requires an explicit clock domain")
-        if min(self.interruption_count, self.error_count, self.retry_count) < 0:
-            raise ValueError("Telemetry counters cannot be negative")
 
 
 @dataclass(frozen=True, slots=True)
