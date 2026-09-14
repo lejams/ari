@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from ari.api.app import create_app
-from ari.api.public_session import public_session
+from ari.api.voice_session_dto import public_session
 from ari.container import Container
 
 

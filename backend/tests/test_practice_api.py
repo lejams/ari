@@ -255,7 +255,7 @@ def test_compatibility_separates_versions_modes_and_phases(practice_container: C
 
     series = practice_progression(practice_container.practice.repository.list(learner.id))["groups"]
     assert len(series) == 3
-    assert len({s["compatibility_key"] for s in series}) == 3
+    assert {s["kind"] for s in series} == {"practice"}
 
 
 @pytest.mark.parametrize("phase", ["arzt_arzt", "fachbegriffe"])

@@ -1,6 +1,5 @@
 """Conservative comparable series, never an invented aggregate/global score."""
 
-import hashlib
 import json
 from typing import Any
 
@@ -30,24 +29,15 @@ def practice_history(runs: tuple[PracticeRun, ...]) -> list[dict[str, Any]]:
 
 
 def practice_progression(runs: tuple[PracticeRun, ...]) -> dict[str, Any]:
-    groups: dict[str, dict[str, Any]] = {}
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
     for run in sorted(runs, key=lambda r: (r.created_at, r.id)):
         if run.feedback is None:
             continue  # Also prevents Exam feedback leaking through progression before completion.
-        # Exact content includes all dependency hashes, source hashes and provenance.
-        key = hashlib.sha256(
-            json.dumps(
-                [
-                    run.content.content_hash,
-                    run.mode,
-                    run.feedback.scoring_version,
-                ]
-            ).encode()
-        ).hexdigest()
+        # The content hash already covers every dependency hash, source and provenance.
         group = groups.setdefault(
-            key,
+            (run.content.content_hash, run.mode),
             {
-                "compatibility_key": key,
+                "kind": "practice",
                 "content": content_summary(run.content),
                 "mode": run.mode,
                 "scoring_version": run.feedback.scoring_version,
@@ -99,7 +89,7 @@ def voice_progression(
     sessions: tuple[ConversationSession, ...],
     cases: MedicalCaseCatalog,
 ) -> dict[str, Any]:
-    groups: dict[str, dict[str, Any]] = {}
+    groups: dict[tuple[str, ...], dict[str, Any]] = {}
     excluded = []
     for session in sorted(sessions, key=lambda s: (s.created_at, s.id)):
         evaluation = session.evaluation
@@ -146,26 +136,19 @@ def voice_progression(
             },
             key=str,
         )
-        key = hashlib.sha256(
-            json.dumps(
-                [
-                    session.case_hash,
-                    dict(session.training_snapshot),
-                    session.learning_mode,
-                    evaluation.schema_version,
-                    evaluation.prompt_version,
-                    evaluation.rubric_version,
-                    provenance,
-                    dict(session.voice_stack_config),
-                ],
-                sort_keys=True,
-            ).encode()
-        ).hexdigest()
+        key = (
+            session.case_hash,
+            json.dumps(dict(session.training_snapshot), sort_keys=True),
+            str(session.learning_mode),
+            evaluation.prompt_version,
+            evaluation.rubric_version,
+            json.dumps(provenance, sort_keys=True),
+            json.dumps(dict(session.voice_stack_config), sort_keys=True),
+        )
         state = "provisional"  # Automated voice evidence, never a human clinical approval.
         group = groups.setdefault(
             key,
             {
-                "compatibility_key": key,
                 "kind": "voice",
                 "mode": session.learning_mode or "unknown",
                 "content": {

@@ -9,7 +9,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
-from ari.api.app import _is_websocket_disconnect_runtime, create_app
+from ari.api.app import create_app
+from ari.api.voice_socket import is_websocket_disconnect_runtime
 from ari.application.contracts import (
     AudioStreamEvent,
     ExecutionContext,
@@ -109,10 +110,10 @@ def create_session(client: TestClient) -> dict[str, object]:
 
 
 def test_starlette_disconnect_runtime_is_recognized() -> None:
-    assert _is_websocket_disconnect_runtime(
+    assert is_websocket_disconnect_runtime(
         RuntimeError('Cannot call "receive" once a disconnect message has been received.')
     )
-    assert not _is_websocket_disconnect_runtime(RuntimeError("unexpected application failure"))
+    assert not is_websocket_disconnect_runtime(RuntimeError("unexpected application failure"))
 
 
 def test_http_and_websocket_vertical_slice(container: Container) -> None:
