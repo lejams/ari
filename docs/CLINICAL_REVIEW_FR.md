@@ -7,7 +7,7 @@ Les exemples synthétiques et les reviewers simulés servent uniquement aux test
 ## 1. Préparer et inspecter
 
 Faire une sauvegarde locale appropriée, puis `make migrate` explicitement. Valider
-et importer le bundle selon [le contrat](WORK_CASE_EXPORT_CONTRACT.md). La CLI utilise
+et importer le bundle (`import CHEMIN.yaml`, voir [le schéma](CLINICAL_CASES.md)). La CLI utilise
 SQLite local ; aucune route d'administration publique ni accès distant n'est ajouté.
 
 ```sh
@@ -60,8 +60,7 @@ déclarés, ni garantir deux personnes distinctes. Il ne génère pas de signatu
 
 Modifier le YAML sous un **nouveau numéro de version** (y compris pour un brouillon).
 Mettre à jour les références/hashes des scénarios correspondants ; leur modèle
-validé expose `.content_hash` pour les outils d'authoring. Un import Work recalcule
-ces références automatiquement. Ne pas retirer une incertitude faute de preuve.
+validé expose `.content_hash` pour les outils d'authoring. Ne pas retirer une incertitude faute de preuve.
 Une correction de source exige une nouvelle identité de source. Une correction
 du seul scénario peut garder le même cas, avec un nouveau scénario/version.
 
@@ -88,5 +87,5 @@ Publier exige schéma/références valides, aucun blocage critique, droits compa
 et les deux approbations exactes. Le successeur d'un scénario du même cas/version
 retire le scénario précédent atomiquement ; les anciennes sessions conservent leur
 pin et peuvent être reprises. Un retrait bloque seulement les nouveaux départs.
-Arzt–Arzt et Fachbegriffe exigent leur spécification textuelle complète (Goal 5).
+Arzt–Arzt et Fachbegriffe exigent leur spécification textuelle complète.
 Arztbrief reste indisponible.

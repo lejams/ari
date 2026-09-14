@@ -1,206 +1,148 @@
-# ARI — MVP d’entraînement à la communication médicale en allemand
+# ARI — entraînement à la communication médicale en allemand
 
-ARI provides onboarding, structured Arzt–Arzt and Fachbegriffe exercises, session
-history and evidence-based, version-separated progression. The existing voice path
-is retained behind published clinical content:
+ARI is a local-first trainer for the German medical language exam (FSP). A learner
+creates a local profile, then practises with published, versioned clinical content:
 
-`microphone → WebRTC speech-to-speech patient → transcript → structured evaluation → SQLite`
+- **Arzt–Patient**: a voice consultation with a simulated patient. The learner presses
+  *Parler*, speaks, presses *J’ai fini*; Whisper transcribes the utterance, an LLM picks
+  which case facts the patient may reveal, application code renders the exact patient
+  sentence, TTS plays it back, and the browser acknowledges playback before any fact is
+  credited as heard. A structured evaluation follows at the end of the session.
+- **Arzt–Arzt** and **Fachbegriffe**: deterministic text exercises with authored answer
+  variants. No AI call is involved.
+- History and progression, separated by content version, rubric, method and mode.
+  No overall score, no measured CEFR level, no certification.
 
-The default provider remains `fake`. Structured exercises are deterministic and make
-no AI calls. Synthetic demos are disabled by default, explicitly labeled unvalidated,
-and forbidden in production. Without published content the UI shows an empty state,
-not an unapproved case. 
-## Try the MVP safely, offline
+Without published content the catalogue is empty. Content enters through the clinical
+registry (import, two human reviews, publication), never through code.
 
-After installing Python dependencies, run from the repository root:
+## Try it offline
 
 ```sh
+python3 -m venv .venv
+make install-locked
 PYTHONPATH=backend/src .venv/bin/python -m ari.demo --port 8010
 ```
 
-Open [http://127.0.0.1:8010](http://127.0.0.1:8010). This creates a **fresh temporary
-database**, applies migrations only there, ignores `.env`, enables two synthetic
-text exercises and forces fake providers. No existing application database
-is read or changed. Stop with Ctrl+C: the demo history is temporary and removed.
-Create a local profile, choose Training or Exam, answer, pause/reload/resume, finish,
-then open History and Progression. See [Goal 5 details and limitations](docs/GOAL5_IMPLEMENTATION.md).
+Open <http://127.0.0.1:8010>. The demo creates a temporary database, runs the
+migration, imports `cases/demo/ari_demo_bundle.v1.yaml`, records **simulated** reviews,
+publishes one synthetic voice case and two synthetic exercises, and runs with fake
+providers. In fake mode the voice page offers a text field instead of the microphone.
+Nothing outside the temporary directory is read or written; Ctrl+C removes it.
 
 ## Run locally
 
-Python 3.12+ is required.
-
-```bash
-python3 -m venv .venv
-make install-locked
+```sh
 make migrate
-.venv/bin/uvicorn ari.main:app --app-dir backend/src --reload --port 8000
+make dev
 ```
 
-Open [http://localhost:8000](http://localhost:8000). The root is the learner home;
-`/voice.html` is the voice workspace. New voice sessions require a published scenario.
-The fake voice transcript field remains available for isolated integration tests.
-The commands above migrate the database you explicitly select; use the temporary
-demo command instead if an existing database must remain untouched.
+`make dev` serves <http://localhost:8000> against `var/ari.db` (override with
+`ARI_DATABASE_URL`). The root is the learner home; `/voice.html` is the voice page.
+The catalogue stays empty until you publish content with the registry CLI (below).
 
-For OpenAI-backed voice, copy `.env.example` to `.env`, set `ARI_PROVIDER_MODE=openai` and `ARI_OPENAI_API_KEY`. A deterministic internal registry selects and snapshots one versioned voice stack when a session is created:
+For live providers set, in `.env` or the environment:
 
-- `realtime_economy`: `gpt-realtime-2.1-mini` (default);
-- `realtime_quality`: `gpt-realtime-2.1`;
-- `pipeline_economy`: `gpt-transcribe → gpt-5.6-luna → gpt-4o-mini-tts`;
-- `pipeline_low_latency`: `gpt-live-transcribe → gpt-5.6-luna → gpt-4o-mini-tts`;
-- post-session evaluation with `gpt-5.6-terra`.
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `ARI_PROVIDER_MODE` | `fake` or `openai` | `fake` |
+| `ARI_OPENAI_API_KEY` | patient simulation, evaluation and TTS (OpenAI) | |
+| `ARI_STT_API_KEY` | Whisper transcription key (Groq by default) | |
+| `ARI_STT_BASE_URL` | any OpenAI-compatible `/audio/transcriptions` host | `https://api.groq.com/openai/v1` |
+| `ARI_STT_MODEL` | Whisper model | `whisper-large-v3` |
+| `ARI_PATIENT_MODEL`, `ARI_EVALUATION_MODEL`, `ARI_TTS_MODEL`, `ARI_TTS_VOICE` | OpenAI models | see `backend/src/ari/config.py` |
 
-`ARI_VOICE_TRANSPORT` remains a compatibility setting that chooses the default OpenAI stack when the API request does not provide `voice_stack_id`. Fake mode always selects `pipeline_economy`, because its deterministic test doubles implement the pipeline rather than Realtime. The setting never rewrites the stack already stored on an existing session.
+Every session pins the voice stack it was created with (`stt`, `llm`, `tts` model ids
+plus parameters). A session can only resume on exactly that configuration.
 
-The Realtime path retains:
-
-- guided two-click turns by default, with semantic-VAD immersive mode still selectable;
-- the `marin` voice and low reasoning effort;
-- no external tools.
-
-Set `ARI_VOICE_TRANSPORT=pipeline` to use the retained streaming STT → LLM → TTS fallback. The Realtime adapter receives a simulation specification compiled from the selected versioned case and has no external tools.
-
-### English technical test
-
-The product simulation remains German by default. To expose the English end-to-end test case locally, set:
-
-```dotenv
-ARI_ENABLE_ENGLISH_TECHNICAL_TEST=true
-```
-
-This flag retains the historical technical fixture for test tooling. The product
-catalog does not expose the unvalidated translation as approved content. Legacy
-unapproved API creation is retained only for isolated regression tests with
-`environment=test` and no explicit product learning mode.
-
-This MVP is intended for loopback development only. Local profiles use a secret
-HttpOnly/SameSite cookie, server-side expiration/revocation and HTTP/WebSocket
-ownership checks. This is not commercial authentication or account recovery.
-Rate limits and production spend controls are not implemented; do not expose it publicly.
+This is a loopback development build: cookie-based local profiles, no rate limits, no
+spend controls. Do not expose it publicly.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Browser["Browser · microphone + patient audio"] -->|"WebRTC"| Realtime["RealtimeVoiceEngine"]
-    API["FastAPI voice gateway"] -->|"SDP + sideband"| Realtime
+    Browser["Browser · PCM microphone + PCM playback"] -->|"WebSocket"| API["FastAPI voice gateway"]
+    API --> STT["UtteranceTranscriber (Whisper)"]
     API --> Orchestrator["ConversationOrchestrator"]
-    Orchestrator --> Patient["PatientSimulator fallback"]
-    Patient --> LLM["LLMProvider"]
-    Orchestrator --> Evaluator["Evaluator"]
-    Evaluator --> LLM
-    Orchestrator --> Repo["SessionRepository"]
-    Repo --> SQLite[("SQLite")]
-    Cases["Immutable versioned YAML cases"] --> Patient
-    Cases --> Evaluator
+    Orchestrator --> Patient["PatientSimulator"] --> LLM["LLMProvider"]
+    Orchestrator --> Evaluator["Evaluator"] --> LLM
+    API --> TTS["StreamingTTSProvider"]
+    Orchestrator --> Repo["SqliteSessionRepository"] --> DB[("SQLite")]
+    Registry["Clinical registry (SQLite tables)"] --> Orchestrator
 ```
 
 Dependencies point inward:
 
-- `domain`: entities/state and strict Pydantic clinical authoring contracts; no vendor SDKs;
-- `application`: ports, schemas, patient/evaluation/orchestration logic;
-- `infrastructure`: SQLite and vendor/fake adapters;
-- `api`: HTTP/WebSocket delivery and dependency composition;
-- `web`: dependency-free browser client.
+- `domain`: session and turn state, strict Pydantic clinical authoring contracts, the
+  practice (text exercise) rules; no vendor SDKs;
+- `application`: ports (`LLMProvider`, `UtteranceTranscriber`, `StreamingTTSProvider`,
+  `Evaluator`, `SessionRepository`), patient simulation, evaluation, orchestration,
+  progression;
+- `infrastructure`: SQLite persistence, the clinical registry and its CLI, OpenAI and
+  Whisper adapters, deterministic fakes;
+- `api`: HTTP routes, the voice WebSocket, cookie ownership middleware;
+- `web`: two dependency-free pages, `index.html` (practice) and `voice.html`.
 
-Vendor SDK imports only exist under `infrastructure/providers`. The application relies on explicit ports for `RealtimeVoiceEngine`, `LLMProvider`, `StreamingSTTProvider`, `StreamingTTSProvider`, `VoiceEngine`, `Evaluator`, `SessionRepository`, and the medical-case catalog.
+The patient never invents facts: the LLM returns source references only, and the
+application renders the authored patient phrases. Unknown references are rejected and
+traced. Prompt injection and off-topic requests are answered in character.
 
-Historical medical cases remain immutable YAML files with their original hashes. New v2 cases are authored in YAML, imported into a structured SQL registry (SQLite JSON / PostgreSQL JSONB), reviewed locally and published immutably. Sessions pin case/scenario/rubric/terminology versions and hashes. The patient model selects only versioned source references; application code constructs the spoken response from those exact fields. A changed hash with an unchanged version is rejected. Invalid structured output is rejected and traced.
+### Clinical registry
 
-### Clinical registry (Goal 4)
+Content is a YAML `ari-clinical-bundle-v1` document (see `docs/CLINICAL_CASES.md`)
+with sources, rubrics, terminology, cases and scenarios. `python -m
+ari.infrastructure.cases.cli --help` validates, imports, inspects, records human
+reviews, publishes and withdraws. Publication requires compatible source rights and one
+clinical plus one linguistic approval of the exact hashes. Content rows are immutable
+(SQLite triggers). See `docs/CLINICAL_REVIEW_FR.md` for the review procedure.
 
-Use the [clinical schema](docs/CLINICAL_CASES.md) and the [French human-review guide](docs/CLINICAL_REVIEW_FR.md). `python -m ari.infrastructure.cases.cli --help` exposes local validation, dry-run, import, inspection/diff, human review, publication and withdrawal. No administrative HTTP routes or automatic imports are added. Technical validation does not establish clinical validity.
+## Persistence
 
-### Patient containment boundary
+SQLite through SQLAlchemy Core-style models; one Alembic revision creates the schema
+(`docs/MIGRATIONS.md`). Turns record the facts the patient selected and, separately,
+the facts credited as heard once the browser confirms full playback. Learner
+transcripts are persisted before the patient answers, so a failed response never loses
+a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connection.
 
-Realtime uses a natural-but-controlled patient specification. The patient starts with a
-deterministic, localized introduction compiled from the case name and first spontaneous fact.
-It is persisted separately from learner turns, played once, and excluded from evaluation.
+## API
 
-- it receives no browsing, search, retrieval, code-execution, or other external tool;
-- the complete immutable case is its sole source of clinical truth;
-- ordinary anamnesis, short social exchanges, concerns, and clarifications remain in scope;
-- absent details produce varied, natural uncertainty rather than a repeated fixed phrase;
-- prompt injection, Internet, competitor, and role-exit requests are redirected in character;
-
-Case metadata and disclosure conditions are strictly typed. Time-gated facts are omitted from the initial Realtime specification, then released through a sideband update after five minutes or when the learner discusses next steps. The deterministic fallback continues to enforce disclosure through its application-owned selector.
-
-This mode accepts a small residual generation risk in exchange for conversational latency. The deterministic source-selector pipeline remains available when pre-playback guarantees matter more than natural speech.
-
-The case is also the source of truth for the simulation locale and transcription context. Provider adapters receive a generic transcription configuration and contain no FSP- or German-specific business rules.
-
-## Persistence and tracing
-
-SQLite also stores `voice_stack_transitions`. Sessions retain the exact voice-stack ID, version and snapshot. Turns separate facts selected for a response from facts credited as heard, and persist the response/audio state, stream correlation, attempt, expected chunk count, and observed delivery timestamps.
-
-User transcripts are persisted before the patient response arrives in both Realtime and fallback modes. A cancelled, missing, or failed response therefore cannot erase the learner's turn or block later turns. `POST /end` drains the active voice provider itself and is idempotent; the WebSocket `call.end` event is only an optimization. The browser stores the current session ID, reconstructs transcript and feedback after reload, and offers resume or analysis retry according to persisted state. The German training case also exposes a bounded, versioned German–French vocabulary asset; hint usage is stored separately and does not affect scoring.
-
-Pronunciation is deliberately persisted as `not_assessed`: no score is inferred from text.
-Vocabulary starts at `identified`, never `mastered` after one session. V2 voice
-progression uses weighted criteria and delivered-audio/doctor-quote evidence. Legacy
-fact-count evaluations remain historical but are excluded from comparable progression.
-Structured text exercises use explicitly authored whole-answer variants and show
-attempted/expected weights. Modes, methods, content hashes and versions separate all
-series. No overall score, measured CEFR level or certification is presented.
-
-Alembic creates and upgrades the database. Run `make migrate` before starting the application and `make migration-check` to verify that the database is at `head`. Application startup never alters the schema. Tests run the same migration against temporary databases. See [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
-
-Provider completion alone is not proof of playback. Pipeline facts are credited only after a correlated browser acknowledgement emitted when every scheduled PCM source has ended. Realtime WebRTC exposes observable playback start, but no reliable per-response playback completion, so those turns remain `delivery_unconfirmed` and do not credit facts. Connection fallback is proposed explicitly and changes the persisted stack only after client acceptance and before any transcript.
-
-## API and events
-
-HTTP routes:
-
+- `POST /api/learners`, `GET /api/profile`, `DELETE /api/profile`
+- `GET/PATCH /api/learners/{id}/goal`, `GET /api/learners/{id}/sessions`
 - `GET /api/cases`
-- `POST /api/learners`
-- `GET/PATCH /api/learners/{id}/goal`
-- `POST /api/sessions`
-- `GET /api/sessions/{id}`
-- `POST /api/sessions/{id}/end`
-- `POST /api/sessions/{id}/analysis/retry`
-- `GET /api/learners/{id}/sessions`
-- `POST /api/sessions/{id}/voice/realtime` (`application/sdp`)
-- `GET /api/sessions/{id}/vocabulary-hints`
-- `POST /api/sessions/{id}/vocabulary-hints/{hint_id}/use`
-
-Voice control and normalized sideband events: `WebSocket /ws/sessions/{session_id}/voice`. PCM audio only uses this socket in fallback mode.
-
-Voice events additionally distinguish `patient.response_selected`, `patient.audio_streaming`, `patient.audio_sent`, `turn.audio_started`, `turn.delivered`, `turn.tts_failed`, and `turn.response_failed`. Client controls `audio.playback_started` and `audio.playback_completed` carry the turn, response, stream, and last chunk correlation. `turn.retry_tts` retries synthesis on the same persisted turn.
+- `POST /api/sessions`, `GET /api/sessions/{id}`, `POST /api/sessions/{id}/end`,
+  `POST /api/sessions/{id}/analysis/retry`
+- `WebSocket /ws/sessions/{id}/voice`: binary PCM16 24 kHz frames, `user.turn.finish`,
+  `audio.playback_started`, `audio.playback_completed`, `turn.retry_tts`, `call.end`;
+  in fake mode `debug.transcript`.
+- `GET /api/exercises`, `POST /api/practice/runs`, `GET /api/practice/runs/{id}`,
+  `POST /api/practice/runs/{id}/{answers|pause|resume|finish}`
+- `GET /api/history`, `GET /api/progression`
 
 ## Quality checks
 
-```bash
-make test
-.venv/bin/ruff check backend
-.venv/bin/mypy backend/src
+```sh
+make test           # backend suite + JavaScript checks and unit tests
+make lint           # ruff + mypy --strict
 make migration-check
 ```
 
-`make test` runs the backend suite plus JavaScript syntax checks and the PCM microphone resampler test for 44.1 and 48 kHz input. The tests cover case integrity and historical hashes, the migration on an empty database, foreign-key enforcement, voice-stack/delivery round-trips, analysis idempotency/retry, and the complete HTTP/WebSocket vertical slice with provider fakes. All provider tests are offline.
-
-## Deliberate POC limits
-
-- local cookie possession only; lost/expired cookies cannot reclaim an old profile by ID;
-- no pronunciation scoring without a dedicated audio assessment provider;
-- no claim that a vocabulary item is learned from one observation;
-- no durable job queue or microservice;
-- latency and barge-in SLOs still require a 20-turn real-audio benchmark before they can be claimed.
-
-The bundled demonstration cases are synthetic and marked unvalidated. `ARI-FSP-001@1.0` is the user-provided test case and is also marked unvalidated. Every case must be clinically and linguistically reviewed before real learner use.
-
-### Browser acceptance tests
-
-Node 22+, pnpm 11.19.0, locked Playwright and a browser are needed only for E2E:
+Provider tests are offline. The browser acceptance test needs Node 22+, pnpm and
+Playwright:
 
 ```sh
 pnpm --dir web install --frozen-lockfile --ignore-scripts
 pnpm --dir web exec playwright install chromium
-# In another terminal, run the disposable demo command above.
+PYTHONPATH=backend/src .venv/bin/python -m ari.demo --port 8010   # in another terminal
 pnpm --dir web test:e2e
 ```
 
-The browser suite uses two fresh browser profiles and only synthetic local content.
-It covers both phases, Training/Exam, lost start/answer responses, retries, reload,
-feedback, history, progression, isolation and mobile overflow. `ARI_E2E_CHROME` can
-select an installed Chromium-compatible executable. CI is configured to run this
-suite and the real PostgreSQL tests; remote CI has not been run in this local task.
+## Known limits
+
+- The pipeline is single-process: voice connection state lives in memory, so run one
+  worker. SQLite has a single writer.
+- No pronunciation scoring; vocabulary entries are candidates, never "mastered".
+- Text exercises match whole answers after normalisation; unrecognised phrasings are
+  reported as unrecognised, not as wrong.
+- All shipped content is synthetic. Real cases require human clinical and linguistic
+  review before any learner use.

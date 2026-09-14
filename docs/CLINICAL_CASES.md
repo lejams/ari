@@ -1,18 +1,13 @@
-# Cas cliniques versionnés — Goal 4
+# Cas cliniques versionnés
 
-## Compatibilité et périmètre
+## Périmètre
 
-Les quatre fichiers historiques à la racine de `cases/` restent des actifs YAML
-compatibles, avec leurs identifiants, hashes et statuts non validés inchangés.
-Ils ne reçoivent aucune approbation humaine rétroactive. Le registre v2 interdit
-leurs identifiants. Les anciens scores ne sont ni migrés ni recalculés.
-
-Les nouveaux cas utilisent `clinical-case-v2`, stocké dans le registre SQL après
+Les cas utilisent `clinical-case-v2`, stocké dans le registre SQL après
 import explicite. Aucune migration/import/publication n'est exécuté au démarrage.
 Les brouillons n'apparaissent pas dans le catalogue. Une version retirée reste
 accessible aux sessions historiques mais ne peut plus servir à une nouvelle session.
 
-La phase `arzt_patient` est exécutable en voix. Depuis le Goal 5, `arzt_arzt` et
+La phase `arzt_patient` est exécutable en voix ; `arzt_arzt` et
 `fachbegriffe` le sont en texte uniquement avec une spécification `practice` valide
 incluse dans le hash revu. Sans cette spécification, leur publication reste refusée.
 `arztbrief` reste réservé et non exécutable. Les scénarios
@@ -30,9 +25,6 @@ bundles les utilisent. Les schémas exécutables sont dans `domain/clinical.py`.
 
 - `RawCaseSource` décrit le document immédiat, provenance, date avec fuseau,
   checksum SHA-256 disponible, référence privée et droits pour un usage explicite.
-  Un export Work n'atteste jamais une lecture du PDF déclaré : son checksum réel
-  est `immediate_source_checksum` ; `original_checksum` reste la valeur déclarée
-  non vérifiée du document original, si elle est fournie.
 - `ClinicalCaseVersion` contient langue, région, ville, phrases de réponse,
   sources/pages, faits, critères et questions non résolues.
 - `ClinicalFact` conserve valeur typée, unité contrôlée, temporalité, présence,
@@ -47,7 +39,7 @@ bundles les utilisent. Les schémas exécutables sont dans `domain/clinical.py`.
 - `TrainingScenarioVersion` référence les hashes exacts du cas, de la rubrique et
   du lexique, puis définit persona, difficulté, CEFR, ouverture et objectifs.
 
-### Exercices structurés du Goal 5
+### Exercices structurés
 
 Le scénario peut porter `practice: PracticeSpecification` (`practice-spec-v1`) :
 
@@ -103,19 +95,15 @@ reçoit un nouvel identifiant et les cas corrigés référencent cette nouvelle 
 
 L'import d'un bundle est une transaction unique, ressources avant scénarios.
 Les clés étrangères SQL protègent sources, ressources, scénarios, revues et pins de
-sessions. Des triggers de la migration 0004 interdisent UPDATE/DELETE du contenu.
+sessions. Des triggers SQLite de la migration initiale interdisent UPDATE/DELETE du contenu.
 Le statut du scénario peut changer sans altérer son contenu. La publication et le
 retrait sont sérialisés par verrou d'écriture du scénario (aussi sous SQLite),
-et l'événement d'audit est committé dans la même transaction. Sous PostgreSQL, un
-verrou de ligne sur le cas parent sérialise également deux successeurs distincts.
-Ils sont publiés dans l'ordre d'acquisition du verrou : le second retire le premier
-et les deux transitions sont auditées. Deux tentatives sur le même scénario donnent
+et l'événement d'audit est committé dans la même transaction. Deux tentatives sur le même scénario donnent
 un succès puis un refus métier « n'est plus un brouillon ».
 
 Les sessions v2 ont un pin séparé vers le scénario/hash immuable, donnant les
 versions/hashes exacts du cas, de la rubrique et du lexique. La création de session
-revérifie le statut sous verrou pour éviter une course avec un retrait. Les sessions
-legacy n'ont pas de pin inventé. Leur snapshot clinique est explicitement vide.
+revérifie le statut sous verrou pour éviter une course avec un retrait.
 
 ## Scoring `assessment-weighted-v1`
 

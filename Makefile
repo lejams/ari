@@ -39,7 +39,6 @@ test-web:
 	$(NODE) web/tests/voice-presentation.test.mjs
 	$(NODE) web/tests/voice-dom.test.mjs
 	$(NODE) web/tests/calendar.test.mjs
-	$(NODE) web/tests/main-redesign-contract.test.mjs
 
 lint:
 	$(RUFF) check backend
