@@ -18,7 +18,7 @@ def synthetic_practice(phase: str = "arzt_arzt") -> PracticeContent:
     bundle = synthetic_bundle()
     dimension = "lexical" if phase == "fachbegriffe" else "presentation"
     rubric = RubricVersion(
-        id="synthetic-practice-rubric",
+        id=f"synthetic-{phase}-rubric",
         version="1",
         scoring_version="practice-exact-answer-v1",
         dimensions=(
@@ -62,6 +62,7 @@ def synthetic_practice(phase: str = "arzt_arzt") -> PracticeContent:
     )
     scenario = bundle.scenarios[0].model_copy(
         update={
+            "id": f"synthetic-{phase}",
             "phase": phase,
             "case_hash": case.content_hash,
             "rubric": VersionRef(id=rubric.id, version=rubric.version),

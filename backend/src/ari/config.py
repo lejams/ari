@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{PROJECT_ROOT / 'var' / 'ari.db'}"
     prompt_directory: Path = PROJECT_ROOT / "backend" / "src" / "ari" / "prompts"
     frontend_origin: str = "http://localhost:5173"
-    enable_mvp_demos: bool = False
     feedback_language: str = "fr-FR"
     application_version: str | None = None
 

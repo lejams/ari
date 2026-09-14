@@ -19,8 +19,8 @@ def _date(value: datetime) -> datetime:
 
 
 class SqlPracticeRepository:
-    def __init__(self, engine: Engine, *, allow_synthetic: bool = False) -> None:
-        self.engine, self.allow_synthetic = engine, allow_synthetic
+    def __init__(self, engine: Engine) -> None:
+        self.engine = engine
 
     def _read(self, db: Session, row: PracticeRunRow) -> PracticeRun:
         content = PracticeContent.model_validate_json(json.dumps(row.content))
@@ -126,26 +126,20 @@ class SqlPracticeRepository:
             return self._same_request(existing, run)
         try:
             with Session(self.engine) as db, db.begin():
-                if run.content.provenance == "synthetic_demo":
-                    if not self.allow_synthetic:
-                        raise InvalidStateError("Démonstrations désactivées")
-                else:
-                    db.execute(
-                        update(ScenarioRow)
-                        .where(
-                            ScenarioRow.id == run.content.scenario_id,
-                            ScenarioRow.version == run.content.scenario_version,
-                        )
-                        .values(status=ScenarioRow.status)
+                db.execute(
+                    update(ScenarioRow)
+                    .where(
+                        ScenarioRow.id == run.content.scenario_id,
+                        ScenarioRow.version == run.content.scenario_version,
                     )
-                    row = db.get(
-                        ScenarioRow, (run.content.scenario_id, run.content.scenario_version)
-                    )
-                    if row is None or row.status != "published":
-                        raise InvalidStateError("Scénario non publié ou retiré")
-                    bundle = ClinicalStore(self.engine)._bundle(db, row)
-                    if bundle.content_hash != run.content.bundle.content_hash:
-                        raise InvalidStateError("Contenu différent de la publication")
+                    .values(status=ScenarioRow.status)
+                )
+                row = db.get(ScenarioRow, (run.content.scenario_id, run.content.scenario_version))
+                if row is None or row.status != "published":
+                    raise InvalidStateError("Scénario non publié ou retiré")
+                bundle = ClinicalStore(self.engine)._bundle(db, row)
+                if bundle.content_hash != run.content.bundle.content_hash:
+                    raise InvalidStateError("Contenu différent de la publication")
                 db.add(
                     PracticeRunRow(
                         id=run.id,

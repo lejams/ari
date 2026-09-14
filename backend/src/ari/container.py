@@ -13,11 +13,9 @@ from ari.application.services.patient import PatientSimulator
 from ari.application.services.practice import PracticeService
 from ari.application.voice_stacks import VoiceStack
 from ari.config import Settings
-from ari.domain.errors import InvalidStateError
 from ari.infrastructure.cases.clinical_catalog import ClinicalCatalog
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.practice_catalog import PublishedPracticeCatalog
-from ari.infrastructure.cases.practice_demos import synthetic_demos
 from ari.infrastructure.persistence.practice import SqlPracticeRepository
 from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
 from ari.infrastructure.providers.fake import FakeLLMProvider, FakeTranscriber, FakeTTSProvider
@@ -55,8 +53,6 @@ def _voice_stack(settings: Settings) -> VoiceStack:
 
 
 def build_container(settings: Settings) -> Container:
-    if settings.enable_mvp_demos and settings.environment == "production":
-        raise InvalidStateError("Synthetic MVP demos are forbidden in production")
     if settings.database_url.startswith("sqlite:///"):
         from pathlib import Path
 
@@ -116,10 +112,7 @@ def build_container(settings: Settings) -> Container:
         voice_stack,
     )
     practice_service = PracticeService(
-        PublishedPracticeCatalog(
-            cases.store, synthetic_demos() if settings.enable_mvp_demos else (),
-        ),
-        SqlPracticeRepository(repository.engine, allow_synthetic=settings.enable_mvp_demos),
+        PublishedPracticeCatalog(cases.store), SqlPracticeRepository(repository.engine)
     )
     return Container(
         settings=settings,

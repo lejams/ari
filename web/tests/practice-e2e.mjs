@@ -56,7 +56,7 @@ try {
   await page.getByRole("button", {name: "Envoyer ma réponse"}).click();
   await page.getByText("Toutes les réponses sont enregistrées.", {exact: false}).waitFor();
   await page.getByRole("button", {name: "Terminer et voir le feedback"}).click();
-  await page.getByRole("heading", {name: "Votre feedback · Provisoire"}).waitFor();
+  await page.getByRole("heading", {name: "Votre feedback · Évalué selon cette méthode"}).waitFor();
   assert.match(await page.locator("#feedback").innerText(), /Lexique : 5.00 \/ 5/);
   assert.match(await page.locator("#feedback").innerText(), /Durch den Mund/);
   await page.getByRole("button", {name: "Voir ma progression"}).click();
@@ -67,7 +67,7 @@ try {
   assert.match(await page.locator("#history-list").innerText(), /exam/);
   assert.equal(await page.locator("#history-list article").count(), 1);
   await page.getByRole("button", {name: "Voir le feedback", exact: true}).click();
-  await page.getByRole("heading", {name: "Votre feedback · Provisoire"}).waitFor();
+  await page.getByRole("heading", {name: "Votre feedback · Évalué selon cette méthode"}).waitFor();
   await page.getByRole("button", {name: "Choisir une autre session"}).click();
   await page.getByRole("radio", {name: /Training/}).check();
   await page.locator("#catalog article").filter({hasText: "Présenter Alex Exemple"}).getByRole("button", {name: "Préparer cette session →"}).click();
@@ -81,7 +81,7 @@ try {
   await page.getByRole("button", {name: "Envoyer ma réponse"}).click();
   await page.getByText("Toutes les réponses sont enregistrées.", {exact: false}).waitFor();
   await page.getByRole("button", {name: "Terminer et voir le feedback"}).click();
-  await page.getByRole("heading", {name: "Votre feedback · Provisoire"}).waitFor();
+  await page.getByRole("heading", {name: "Votre feedback · Évalué selon cette méthode"}).waitFor();
   assert.match(await page.locator("#feedback").innerText(), /Présentation structurée : 5.00/);
   // A second browser context cannot access the saved run or the first profile's history.
   const privateRunUrl = page.url();
@@ -96,7 +96,7 @@ try {
   await page.setViewportSize({width: 390, height: 844});
   await page.goto(base + "/#cases");
   await page.locator("#cases:not([hidden])").waitFor();
-  assert.equal(await page.locator("#voice-cases article").count(), 0);
+  assert.equal(await page.locator("#voice-cases article").count(), 1);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);
   await page.screenshot({path: process.env.ARI_E2E_SCREENSHOT || "/tmp/ari-mvp-mobile.png", fullPage: true});

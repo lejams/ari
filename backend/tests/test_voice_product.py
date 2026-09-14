@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from test_clinical_registry import approve
-from test_practice_api import demo_container as demo_container
 
 from ari.api.app import create_app
 from ari.application.services.assessment import weighted_assessment
@@ -24,14 +23,14 @@ from ari.domain.models import (
 
 @pytest.mark.parametrize("mode", ["training", "exam"])
 def test_published_voice_mode_history_hints_and_immutability(
-    demo_container: Container,
+    practice_container: Container,
     mode: str,
 ) -> None:
     bundle = synthetic_bundle()
-    store = demo_container.cases.store
+    store = practice_container.cases.store
     store.import_bundle(bundle)
     approve(store, bundle)
-    with TestClient(create_app(demo_container)) as client:
+    with TestClient(create_app(practice_container)) as client:
         learner = client.post("/api/learners", json={}).json()
         cases = client.get("/api/cases?approved_only=true").json()
         assert len(cases) == 1
@@ -49,7 +48,7 @@ def test_published_voice_mode_history_hints_and_immutability(
         assert result.status_code == 201
         run = result.json()
         assert run["learning_mode"] == mode
-        session = demo_container.repository.get_session(run["id"])
+        session = practice_container.repository.get_session(run["id"])
         assert session.learning_mode is LearningMode(mode)
         path = f"/api/sessions/{run['id']}"
         history = client.get("/api/history").json()["items"]
@@ -59,7 +58,7 @@ def test_published_voice_mode_history_hints_and_immutability(
         store.withdraw("synthetic-scenario", "1", actor="ISOLATED TEST")
         assert client.get(path).status_code == 200
         assert client.get("/api/cases?approved_only=true").json() == []
-        with pytest.raises(IntegrityError), demo_container.repository.engine.begin() as db:
+        with pytest.raises(IntegrityError), practice_container.repository.engine.begin() as db:
             db.execute(
                 text("UPDATE voice_learning_context SET mode=:mode"),
                 {"mode": "training" if mode == "exam" else "exam"},
@@ -67,16 +66,16 @@ def test_published_voice_mode_history_hints_and_immutability(
 
 
 def test_voice_progression_uses_weighted_evidence_and_separates_modes(
-    demo_container: Container,
+    practice_container: Container,
 ) -> None:
     from ari.domain.models import CEFRLevel
 
     bundle = synthetic_bundle()
-    demo_container.cases.store.import_bundle(bundle)
-    approve(demo_container.cases.store, bundle)
-    learner = demo_container.orchestrator.create_learner(CEFRLevel.C1)
-    case = demo_container.cases.get("SYNTHETIC-TEST", "1")
-    session = demo_container.orchestrator.create_session(
+    practice_container.cases.store.import_bundle(bundle)
+    approve(practice_container.cases.store, bundle)
+    learner = practice_container.orchestrator.create_learner(CEFRLevel.C1)
+    case = practice_container.cases.get("SYNTHETIC-TEST", "1")
+    session = practice_container.orchestrator.create_session(
         learner.id, case.id, case.version, learning_mode=LearningMode.EXAM
     )
     turn = ConversationTurn(
@@ -106,7 +105,7 @@ def test_voice_progression_uses_weighted_evidence_and_separates_modes(
     session = replace(session, evaluation=evaluation)
     progress = voice_progression(
         (session, replace(session, id="other", learning_mode=LearningMode.TRAINING)),
-        demo_container.cases,
+        practice_container.cases,
     )
     assert len(progress["groups"]) == 2
     dimension = progress["groups"][0]["points"][0]["dimensions"][0]
@@ -116,23 +115,23 @@ def test_voice_progression_uses_weighted_evidence_and_separates_modes(
     legacy = replace(
         session, evaluation=replace(evaluation, schema_version="session-evaluation-v1")
     )
-    assert voice_progression((legacy,), demo_container.cases)["groups"] == []
-    assert voice_progression((legacy,), demo_container.cases)["excluded"]
+    assert voice_progression((legacy,), practice_container.cases)["groups"] == []
+    assert voice_progression((legacy,), practice_container.cases)["excluded"]
     wrong_rubric = replace(session, evaluation=replace(evaluation, rubric_version="unrelated@9"))
-    assert voice_progression((wrong_rubric,), demo_container.cases)["groups"] == []
+    assert voice_progression((wrong_rubric,), practice_container.cases)["groups"] == []
     assert (
-        voice_progression((wrong_rubric,), demo_container.cases)["excluded"][0]["reason"]
+        voice_progression((wrong_rubric,), practice_container.cases)["excluded"][0]["reason"]
         == "Version de rubrique incohérente"
     )
 
 
 def test_concurrent_voice_start_retries_do_not_duplicate_or_change_mode(
-    demo_container: Container,
+    practice_container: Container,
 ) -> None:
     bundle = synthetic_bundle()
-    demo_container.cases.store.import_bundle(bundle)
-    approve(demo_container.cases.store, bundle)
-    app = create_app(demo_container)
+    practice_container.cases.store.import_bundle(bundle)
+    approve(practice_container.cases.store, bundle)
+    app = create_app(practice_container)
     with TestClient(app) as client:
         learner = client.post("/api/learners", json={}).json()
         body = {
@@ -159,5 +158,5 @@ def test_concurrent_voice_start_retries_do_not_duplicate_or_change_mode(
             client.post("/api/sessions", json={**body, "learning_mode": "training"}).status_code
             == 400
         )
-        demo_container.cases.store.withdraw("synthetic-scenario", "1", actor="ISOLATED TEST")
+        practice_container.cases.store.withdraw("synthetic-scenario", "1", actor="ISOLATED TEST")
         assert client.post("/api/sessions", json=body).json()["id"] == ids[0]

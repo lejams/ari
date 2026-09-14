@@ -78,8 +78,6 @@ def _public_case(case: MedicalCase) -> dict[str, object]:
 
 def create_app(container: Container | None = None, settings: Settings | None = None) -> FastAPI:
     services = container or build_container(settings or get_settings())
-    if services.settings.environment == "production" and services.settings.enable_mvp_demos:
-        raise InvalidStateError("Synthetic MVP demos are forbidden in production")
     voice_session_lock = asyncio.Lock()
     voice_lifecycles: dict[str, VoiceLifecycle] = {}
     analysis_locks: dict[str, asyncio.Lock] = {}

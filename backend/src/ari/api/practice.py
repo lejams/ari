@@ -42,7 +42,6 @@ def practice_router(services: Container) -> APIRouter:
     def exercises() -> dict[str, Any]:
         return {
             "items": [content_summary(c) for c in practice.catalog.list()],
-            "demo_enabled": services.settings.enable_mvp_demos,
             "empty_message": "Aucun exercice approuvé disponible. Les brouillons sont exclus.",
         }
 
