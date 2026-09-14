@@ -97,13 +97,6 @@ class SqlPracticeRepository:
                 raise NotFoundError("Exercice introuvable")
             return self._read(db, row)
 
-    def get_any(self, run_id: str) -> PracticeRun:
-        with Session(self.engine) as db:
-            row = db.get(PracticeRunRow, run_id)
-            if row is None:
-                raise NotFoundError("Exercice introuvable")
-            return self._read(db, row)
-
     def list(self, learner_id: str) -> tuple[PracticeRun, ...]:
         with Session(self.engine) as db:
             return tuple(

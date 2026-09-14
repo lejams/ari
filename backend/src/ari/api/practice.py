@@ -37,7 +37,6 @@ class AnswerPractice(PracticeRequest):
 def practice_router(services: Container) -> APIRouter:
     router = APIRouter()
     practice = services.practice
-    lifecycle = services.practice_lifecycle
 
     @router.get("/api/exercises")
     def exercises() -> dict[str, Any]:
@@ -49,63 +48,43 @@ def practice_router(services: Container) -> APIRouter:
 
     @router.post("/api/practice/runs", status_code=201)
     def start(body: StartPractice, request: Request) -> dict[str, Any]:
-        handle = lifecycle.start_practice(
-            "structured_text",
-            request.state.learner_id,
-            scenario_id=body.scenario_id,
-            scenario_version=body.scenario_version,
-            mode=body.mode,
-            request_id=body.request_id,
-        )
-        lifecycle.get_projection(handle)
         return public_practice_run(
-            practice.repository.get(handle.id, request.state.learner_id)
+            practice.start(
+                request.state.learner_id,
+                body.scenario_id,
+                body.scenario_version,
+                body.mode,
+                body.request_id,
+            )
         )
 
     @router.get("/api/practice/runs/{run_id}")
     def get(run_id: str, request: Request) -> dict[str, Any]:
-        handle = lifecycle.handle_for("structured_text", run_id, request.state.learner_id)
-        lifecycle.get_projection(handle)
-        lifecycle.get_feedback(handle)
         return public_practice_run(practice.repository.get(run_id, request.state.learner_id))
 
     @router.post("/api/practice/runs/{run_id}/answers")
-    async def answer(run_id: str, body: AnswerPractice, request: Request) -> dict[str, Any]:
-        handle = lifecycle.handle_for("structured_text", run_id, request.state.learner_id)
-        await lifecycle.submit_turn(
-            handle,
-            body.text,
-            question_id=body.question_id,
-            event_id=body.event_id,
-        )
+    def answer(run_id: str, body: AnswerPractice, request: Request) -> dict[str, Any]:
         return public_practice_run(
-            practice.repository.get(run_id, request.state.learner_id)
+            practice.answer(
+                request.state.learner_id, run_id, body.question_id, body.text, body.event_id
+            )
         )
 
     @router.post("/api/practice/runs/{run_id}/pause")
     def pause(run_id: str, request: Request) -> dict[str, Any]:
         return public_practice_run(
-            practice.repository.set_paused(
-                run_id,
-                request.state.learner_id,
-                True,
-            )
+            practice.repository.set_paused(run_id, request.state.learner_id, True)
         )
 
     @router.post("/api/practice/runs/{run_id}/resume")
     def resume(run_id: str, request: Request) -> dict[str, Any]:
-        handle = lifecycle.handle_for("structured_text", run_id, request.state.learner_id)
-        lifecycle.resume_practice(handle)
         return public_practice_run(
-            practice.repository.get(run_id, request.state.learner_id)
+            practice.repository.set_paused(run_id, request.state.learner_id, False)
         )
 
     @router.post("/api/practice/runs/{run_id}/finish")
-    async def finish(run_id: str, request: Request) -> dict[str, Any]:
-        handle = lifecycle.handle_for("structured_text", run_id, request.state.learner_id)
-        await lifecycle.end_practice(handle)
-        lifecycle.get_feedback(handle)
-        return public_practice_run(practice.repository.get(run_id, request.state.learner_id))
+    def finish(run_id: str, request: Request) -> dict[str, Any]:
+        return public_practice_run(practice.finish(request.state.learner_id, run_id))
 
     @router.get("/api/history")
     def history(request: Request) -> dict[str, Any]:

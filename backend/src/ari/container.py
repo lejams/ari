@@ -14,11 +14,6 @@ from ari.application.services.evaluation import LLMBackedEvaluator
 from ari.application.services.grounding import GroundingAuditor
 from ari.application.services.patient import PatientSimulator
 from ari.application.services.practice import PracticeService
-from ari.application.services.practice_lifecycle import (
-    PatientVoiceWorkflow,
-    PracticeLifecycle,
-    StructuredTextWorkflow,
-)
 from ari.application.services.realtime import PatientOpeningBuilder, RealtimeSimulationBuilder
 from ari.application.services.voice import TurnBasedVoiceEngine
 from ari.application.voice_stacks import VoiceStack, VoiceStackRegistry, VoiceTransport
@@ -54,14 +49,6 @@ class Container:
     pipeline_voices: Mapping[str, TurnBasedVoiceEngine]
     realtime_voices: Mapping[str, RealtimeVoiceEngine]
     practice: PracticeService
-
-    @property
-    def practice_lifecycle(self) -> PracticeLifecycle:
-        """Build a lifecycle from current dependencies (including ``replace()`` tests)."""
-        return PracticeLifecycle(
-            StructuredTextWorkflow(self.practice),
-            PatientVoiceWorkflow(self.orchestrator, self.repository),
-        )
 
     def voice_stack_available(self, stack: VoiceStack) -> bool:
         if stack.transport is VoiceTransport.REALTIME:

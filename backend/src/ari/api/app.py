@@ -120,6 +120,10 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     realtime_lock = asyncio.Lock()
     analysis_locks: dict[str, asyncio.Lock] = {}
 
+    def activate_if_created(session_id: str) -> None:
+        if services.repository.get_session(session_id).status is SessionStatus.CREATED:
+            services.orchestrator.activate(session_id)
+
     def voice_stack_for(session: ConversationSession) -> VoiceStack:
         return services.voice_stacks.resolve_persisted(
             session.voice_stack_id,
@@ -336,28 +340,23 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             services.settings.environment != "test" or body.learning_mode is not None
         ):
             raise InvalidStateError("Aucun scénario vocal approuvé disponible pour ce choix")
-        handle = services.practice_lifecycle.start_practice(
-            "patient_voice",
+        session = services.orchestrator.create_session(
             body.learner_id,
-            case_id=body.case_id,
-            case_version=body.case_version,
-            voice_profile=body.voice_profile,
-            interaction_mode=body.interaction_mode,
+            body.case_id,
+            body.case_version,
+            body.voice_profile,
+            body.interaction_mode,
             voice_stack_id=body.voice_stack_id,
             scenario_id=body.scenario_id,
             scenario_version=body.scenario_version,
             learning_mode=body.learning_mode,
-            request_id=body.request_id,
-            request_hash=request_hash if body.request_id else None,
+            start_request_id=body.request_id,
+            start_request_hash=request_hash if body.request_id else None,
         )
-        services.practice_lifecycle.get_projection(handle)
-        return session_payload(services.repository.get_session(handle.id))
+        return session_payload(services.repository.get_session(session.id))
 
     @app.get("/api/sessions/{session_id}")
     async def get_session(session_id: str) -> Any:
-        handle = services.practice_lifecycle.voice_handle(session_id)
-        services.practice_lifecycle.get_projection(handle)
-        services.practice_lifecycle.get_feedback(handle)
         return session_payload(services.repository.get_session(session_id))
 
     @app.post("/api/sessions/{session_id}/end")
@@ -376,8 +375,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             except TimeoutError as exc:
                 raise InvalidStateError("Voice session is still being finalized") from exc
         async with analysis_locks.setdefault(session_id, asyncio.Lock()):
-            handle = services.practice_lifecycle.voice_handle(session_id)
-            await services.practice_lifecycle.end_practice(handle)
+            await services.orchestrator.end_session(session_id)
             return session_payload(services.repository.get_session(session_id))
 
     @app.post("/api/sessions/{session_id}/analysis/retry")
@@ -390,9 +388,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         }:
             raise InvalidStateError(f"Cannot retry analysis for a {session.status} session")
         async with analysis_locks.setdefault(session_id, asyncio.Lock()):
-            handle = services.practice_lifecycle.voice_handle(session_id)
-            await services.practice_lifecycle.end_practice(handle)
-            services.practice_lifecycle.get_feedback(handle)
+            await services.orchestrator.end_session(session_id)
             return session_payload(services.repository.get_session(session_id))
 
     @app.get("/api/learners/{learner_id}/sessions")
@@ -496,9 +492,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             if lifecycle.end_requested.is_set():
                 raise InvalidStateError("The voice session is ending")
         session = services.repository.get_session(session_id)
-        services.practice_lifecycle.resume_practice(
-            services.practice_lifecycle.voice_handle(session_id)
-        )
+        activate_if_created(session_id)
         session = services.repository.get_session(session_id)
         case = services.orchestrator._case_for_session(session)
         # Realtime is a transport only. Patient simulation is performed by the
@@ -557,9 +551,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         lifecycle: VoiceLifecycle,
         selected_stack: VoiceStack,
     ) -> None:
-        services.practice_lifecycle.resume_practice(
-            services.practice_lifecycle.voice_handle(session_id)
-        )
+        activate_if_created(session_id)
         session = services.repository.get_session(session_id)
         case = services.orchestrator._case_for_session(session)
         simulation_trace = services.realtime_simulation.build_transport(case)
@@ -1269,9 +1261,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                         if current_turn is None:
                             raise InvalidStateError("Reserved practice turn was not found")
                         if not current_turn.patient_text:
-                            await services.practice_lifecycle.complete_reserved_turn(
-                                session_id, current_turn.id
-                            )
+                            await services.orchestrator.complete_turn(current_turn)
                             current_turn = next(
                                 candidate
                                 for candidate in services.repository.get_session(session_id).turns
@@ -1538,9 +1528,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             return
         send_lock = asyncio.Lock()
         try:
-            services.practice_lifecycle.resume_practice(
-                services.practice_lifecycle.voice_handle(session_id)
-            )
+            activate_if_created(session_id)
             session = services.repository.get_session(session_id)
             case = services.orchestrator._case_for_session(session)
             context = ExecutionContext(
@@ -1823,9 +1811,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                 await send("turn.persisted", turn=public_turn(turn))
                 stage_wall_timestamps["llm_started_at"] = utc_timestamp()
                 try:
-                    # All patient turns flow through the common lifecycle; the
-                    # pipeline still owns STT/TTS and delivery around it.
-                    await services.practice_lifecycle.complete_reserved_turn(session_id, turn.id)
+                    await services.orchestrator.complete_turn(turn)
                     outcome_turn = services.repository.get_session(session_id).turns[
                         turn.sequence - 1
                     ]
