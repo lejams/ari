@@ -122,7 +122,7 @@ def new_voice_metric(
         application_version=application_version,
         clock_domains=clock_domains,
         wall_timestamps_utc=wall_timestamps_utc,
-        interruption_count=1 if turn.interrupted else 0,
+        interruption_count=0,
         error_count=error_count,
         retry_count=max(0, turn.audio_attempt - 1),
         status=status,

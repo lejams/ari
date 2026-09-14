@@ -11,7 +11,6 @@ from ari.application.schemas import PatientResponseSchema
 from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
 from ari.application.services.patient import PatientSimulator
-from ari.application.voice_stacks import VoiceTransport
 from ari.config import PROJECT_ROOT
 from ari.container import Container
 from ari.domain.errors import ProviderError
@@ -90,8 +89,7 @@ async def test_invented_case_fact_is_rejected_and_traced(container: Container) -
             ),
             "fr-FR",
         ),
-        container.voice_stacks,
-        VoiceTransport.PIPELINE,
+        container.voice_stack,
     )
     learner = guarded.create_learner(CEFRLevel.C1)
     case = container.cases.list()[0]

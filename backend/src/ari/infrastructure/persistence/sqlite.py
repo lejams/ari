@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, datetime
 from enum import Enum
@@ -40,8 +39,6 @@ from ari.domain.models import (
     LearnerProfile,
     LearningGoal,
     LearningMode,
-    PatientOpening,
-    PatientOpeningStatus,
     SessionMetrics,
     SessionStatus,
     TurnResponseState,
@@ -49,11 +46,8 @@ from ari.domain.models import (
     VocabularyObservation,
     VocabularyState,
     VoiceMetricTransport,
-    VoiceProfile,
-    VoiceStackTransition,
     VoiceTurnMetric,
     VoiceTurnMetricStatus,
-    new_id,
     utc_now,
 )
 from ari.infrastructure.persistence.base import Base
@@ -82,7 +76,6 @@ class SessionRow(Base):
     case_version: Mapped[str] = mapped_column(String)
     case_hash: Mapped[str] = mapped_column(String)
     goal: Mapped[dict[str, Any]] = mapped_column(JSON)
-    voice_profile: Mapped[str] = mapped_column(String, default=VoiceProfile.ECONOMY.value)
     interaction_mode: Mapped[str] = mapped_column(String, default=InteractionMode.GUIDED.value)
     voice_stack_id: Mapped[str] = mapped_column(String)
     voice_stack_version: Mapped[str] = mapped_column(String)
@@ -109,8 +102,6 @@ class TurnRow(Base):
     selected_fact_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     provider_input_item_id: Mapped[str | None] = mapped_column(String, nullable=True)
     provider_response_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    interrupted: Mapped[bool] = mapped_column(default=False)
-    interruption_audio_end_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     provider_response_status: Mapped[str] = mapped_column(String, default="completed")
     response_state: Mapped[str] = mapped_column(
         String, default=TurnResponseState.TRANSCRIPT_RESERVED.value
@@ -126,19 +117,6 @@ class TurnRow(Base):
     audio_delivered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    normalized_user_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    canonical_response: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    observed_response_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-
-class PatientOpeningRow(Base):
-    __tablename__ = "patient_openings"
-    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
-    text: Mapped[str] = mapped_column(Text)
-    spoken_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String)
-    provider_response_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -270,30 +248,6 @@ class VoiceTurnMetricRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
-class VoiceStackTransitionRow(Base):
-    __tablename__ = "voice_stack_transitions"
-    __table_args__ = (
-        UniqueConstraint(
-            "session_id",
-            "from_stack_id",
-            "to_stack_id",
-            "failure_execution_id",
-            name="uq_voice_stack_transition_request",
-        ),
-    )
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), index=True)
-    from_stack_id: Mapped[str] = mapped_column(String)
-    from_stack_version: Mapped[str] = mapped_column(String)
-    from_stack_config: Mapped[dict[str, Any]] = mapped_column(JSON)
-    to_stack_id: Mapped[str] = mapped_column(String)
-    to_stack_version: Mapped[str] = mapped_column(String)
-    to_stack_config: Mapped[dict[str, Any]] = mapped_column(JSON)
-    reason: Mapped[str] = mapped_column(String)
-    failure_execution_id: Mapped[str] = mapped_column(ForeignKey("executions.id"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-
-
 def _goal(value: dict[str, Any]) -> LearningGoal:
     return LearningGoal(
         target_exam=str(value["target_exam"]),
@@ -422,7 +376,6 @@ class SqliteSessionRepository:
                     case_version=session.case_version,
                     case_hash=session.case_hash,
                     goal=_jsonable(session.goal),
-                    voice_profile=session.voice_profile.value,
                     interaction_mode=session.interaction_mode.value,
                     voice_stack_id=session.voice_stack_id,
                     voice_stack_version=session.voice_stack_version,
@@ -488,15 +441,6 @@ class SqliteSessionRepository:
             )
             evaluation_row = db.get(EvaluationRow, session_id)
             metrics_row = db.get(MetricsRow, session_id)
-            transitions = tuple(
-                self._voice_stack_transition(item)
-                for item in db.scalars(
-                    select(VoiceStackTransitionRow)
-                    .where(VoiceStackTransitionRow.session_id == session_id)
-                    .order_by(VoiceStackTransitionRow.created_at)
-                )
-            )
-            opening_row = db.get(PatientOpeningRow, session_id)
             learning = db.get(VoiceLearningRow, session_id)
             start = db.scalar(select(VoiceStartRow).where(VoiceStartRow.session_id == session_id))
             pin = db.get(ClinicalSessionPinRow, session_id)
@@ -517,7 +461,6 @@ class SqliteSessionRepository:
                 start_request_id=start.request_id if start else None,
                 start_request_hash=start.request_hash if start else None,
                 goal=_goal(row.goal),
-                voice_profile=VoiceProfile(row.voice_profile),
                 interaction_mode=InteractionMode(row.interaction_mode),
                 voice_stack_id=row.voice_stack_id,
                 voice_stack_version=row.voice_stack_version,
@@ -529,10 +472,6 @@ class SqliteSessionRepository:
                 vocabulary=vocab,
                 vocabulary_hint_usages=hint_usages,
                 executions=executions,
-                voice_stack_transitions=transitions,
-                patient_opening=(
-                    self._patient_opening(opening_row) if opening_row is not None else None
-                ),
                 created_at=_dt(row.created_at),
                 call_started_at=(_dt(row.call_started_at) if row.call_started_at else None),
                 ended_at=_dt(row.ended_at) if row.ended_at else None,
@@ -590,8 +529,6 @@ class SqliteSessionRepository:
                     selected_fact_ids=list(turn.selected_fact_ids),
                     provider_input_item_id=turn.provider_input_item_id,
                     provider_response_id=turn.provider_response_id,
-                    interrupted=turn.interrupted,
-                    interruption_audio_end_ms=turn.interruption_audio_end_ms,
                     provider_response_status=turn.provider_response_status,
                     response_state=turn.response_state.value,
                     delivery_status=turn.delivery_status.value,
@@ -602,9 +539,6 @@ class SqliteSessionRepository:
                     audio_started_at=turn.audio_started_at,
                     audio_delivered_at=turn.audio_delivered_at,
                     created_at=turn.created_at,
-                    normalized_user_text=turn.normalized_user_text,
-                    canonical_response=_jsonable(turn.canonical_response),
-                    observed_response_text=turn.observed_response_text,
                 )
             )
             db.commit()
@@ -633,8 +567,6 @@ class SqliteSessionRepository:
                         selected_fact_ids=list(turn.selected_fact_ids),
                         provider_input_item_id=turn.provider_input_item_id,
                         provider_response_id=turn.provider_response_id,
-                        interrupted=turn.interrupted,
-                        interruption_audio_end_ms=turn.interruption_audio_end_ms,
                         provider_response_status=turn.provider_response_status,
                         response_state=turn.response_state.value,
                         delivery_status=turn.delivery_status.value,
@@ -645,9 +577,6 @@ class SqliteSessionRepository:
                         audio_started_at=turn.audio_started_at,
                         audio_delivered_at=turn.audio_delivered_at,
                         created_at=turn.created_at,
-                        normalized_user_text=turn.normalized_user_text,
-                        canonical_response=_jsonable(turn.canonical_response),
-                        observed_response_text=turn.observed_response_text,
                     )
                 )
                 db.commit()
@@ -693,65 +622,38 @@ class SqliteSessionRepository:
         selected_fact_ids: tuple[str, ...],
         provider_response_id: str | None,
         provider_response_status: str,
-        interrupted: bool = False,
-        interruption_audio_end_ms: int | None = None,
-        normalized_user_text: str | None = None,
-        canonical_response: Mapping[str, Any] | None = None,
-        observed_response_text: str | None = None,
     ) -> ConversationTurn:
         with Session(self.engine) as db:
             row = db.get(TurnRow, turn_id)
             if row is None:
                 raise NotFoundError(f"Turn {turn_id} was not found")
+            failed = provider_response_status not in {"completed", "succeeded"}
             if row.response_state != TurnResponseState.TRANSCRIPT_RESERVED.value:
-                if (
-                    row.patient_text == patient_text
-                    and tuple(row.selected_fact_ids) == selected_fact_ids
-                    and (row.provider_response_id == provider_response_id
-                         or (row.response_state == TurnResponseState.RESPONSE_SELECTED.value
-                             and row.provider_response_id is None))
-                ):
-                    candidate_canonical = _jsonable(canonical_response)
-                    if (
-                        row.canonical_response is not None
-                        and canonical_response is not None
-                        and row.canonical_response != candidate_canonical
-                    ):
-                        raise InvalidStateError("Canonical response is immutable")
-                    if row.provider_response_id is None:
-                        row.provider_response_id = provider_response_id
-                        row.provider_response_status = provider_response_status
-                        row.normalized_user_text = normalized_user_text
-                        row.canonical_response = row.canonical_response or candidate_canonical
-                        row.observed_response_text = observed_response_text
-                        row.interrupted = interrupted
-                        row.interruption_audio_end_ms = interruption_audio_end_ms
-                        if interrupted:
-                            row.response_state = TurnResponseState.INTERRUPTED.value
-                            row.delivery_status = AudioDeliveryStatus.UNCONFIRMED.value
-                            row.revealed_fact_ids = []
-                        elif provider_response_status not in {"completed", "succeeded"}:
-                            row.response_state = TurnResponseState.RESPONSE_FAILED.value
-                            row.delivery_status = AudioDeliveryStatus.FAILED.value
-                            row.revealed_fact_ids = []
-                        db.commit()
-                        db.refresh(row)
-                    return self._turn(row)
-                raise InvalidStateError("Turn response has already been selected")
+                same_response = row.patient_text == patient_text and tuple(
+                    row.selected_fact_ids
+                ) == selected_fact_ids
+                same_provider = row.provider_response_id == provider_response_id or (
+                    row.response_state == TurnResponseState.RESPONSE_SELECTED.value
+                    and row.provider_response_id is None
+                )
+                if not (same_response and same_provider):
+                    raise InvalidStateError("Turn response has already been selected")
+                if row.provider_response_id is None:
+                    row.provider_response_id = provider_response_id
+                    row.provider_response_status = provider_response_status
+                    if failed:
+                        row.response_state = TurnResponseState.RESPONSE_FAILED.value
+                        row.delivery_status = AudioDeliveryStatus.FAILED.value
+                        row.revealed_fact_ids = []
+                    db.commit()
+                    db.refresh(row)
+                return self._turn(row)
             row.patient_text = patient_text
             row.selected_fact_ids = list(dict.fromkeys(selected_fact_ids))
             row.revealed_fact_ids = []
             row.provider_response_id = provider_response_id
             row.provider_response_status = provider_response_status
-            row.normalized_user_text = normalized_user_text
-            row.canonical_response = _jsonable(canonical_response)
-            row.observed_response_text = observed_response_text
-            row.interrupted = interrupted
-            row.interruption_audio_end_ms = interruption_audio_end_ms
-            if interrupted:
-                row.response_state = TurnResponseState.INTERRUPTED.value
-                row.delivery_status = AudioDeliveryStatus.UNCONFIRMED.value
-            elif provider_response_status not in {"completed", "succeeded"}:
+            if failed:
                 row.response_state = TurnResponseState.RESPONSE_FAILED.value
                 row.delivery_status = AudioDeliveryStatus.FAILED.value
             else:
@@ -774,139 +676,6 @@ class SqliteSessionRepository:
             row.delivery_status = AudioDeliveryStatus.FAILED.value
             row.selected_fact_ids = []
             row.revealed_fact_ids = []
-            db.commit()
-            db.refresh(row)
-            return self._turn(row)
-
-    def record_observed_response(
-        self, turn_id: str, observed_text: str, *, fidelity_matches: bool
-    ) -> ConversationTurn:
-        """Persist transport output and atomically revoke delivery on mismatch."""
-        with Session(self.engine) as db:
-            row = db.get(TurnRow, turn_id)
-            if row is None:
-                raise NotFoundError(f"Turn {turn_id} was not found")
-            if row.observed_response_text is not None:
-                if row.observed_response_text != observed_text:
-                    raise InvalidStateError("Observed response changed")
-                if (
-                    not fidelity_matches
-                    and row.response_state != TurnResponseState.RESPONSE_FAILED.value
-                ):
-                    row.response_state = TurnResponseState.RESPONSE_FAILED.value
-                    row.provider_response_status = "canonical_response_mismatch"
-                    row.delivery_status = AudioDeliveryStatus.FAILED.value
-                    row.revealed_fact_ids = []
-                    db.commit()
-                    db.refresh(row)
-                return self._turn(row)
-            row.observed_response_text = observed_text
-            if not fidelity_matches:
-                row.response_state = TurnResponseState.RESPONSE_FAILED.value
-                row.provider_response_status = "canonical_response_mismatch"
-                row.delivery_status = AudioDeliveryStatus.FAILED.value
-                row.revealed_fact_ids = []
-            db.commit()
-            db.refresh(row)
-            return self._turn(row)
-
-    def finalize_transport_response(
-        self,
-        turn_id: str,
-        *,
-        provider_response_id: str,
-        provider_response_status: str,
-        canonical_response: Mapping[str, Any] | None,
-        observed_response_text: str | None,
-        fidelity_matches: bool,
-        interrupted: bool = False,
-        interruption_audio_end_ms: int | None = None,
-    ) -> ConversationTurn:
-        """Atomically attach a transport response and settle its delivery state.
-
-        Realtime output is never authoritative: only the persisted canonical
-        response can populate ``patient_text``.  Repeated provider events are
-        idempotent, while a changed canonical response is rejected.
-        """
-        with Session(self.engine) as db:
-            row = db.get(TurnRow, turn_id)
-            if row is None:
-                raise NotFoundError(f"Turn {turn_id} was not found")
-            if row.provider_response_id not in {None, provider_response_id}:
-                raise InvalidStateError("Turn response has already been correlated")
-            candidate = _jsonable(canonical_response)
-            if row.provider_response_id == provider_response_id:
-                if row.canonical_response != candidate:
-                    raise InvalidStateError("Canonical response is immutable")
-                if row.observed_response_text != observed_response_text:
-                    raise InvalidStateError("Observed response changed")
-                if row.interrupted != interrupted:
-                    raise InvalidStateError("Transport interruption changed")
-                if row.interruption_audio_end_ms != interruption_audio_end_ms:
-                    raise InvalidStateError("Interruption metadata changed")
-                status_matches = row.provider_response_status == provider_response_status
-                # Mismatch/missing-canonical statuses are terminal classifications
-                # derived from the original provider status.  Accept replay of the
-                # same event while retaining that classification and state.
-                status_matches = status_matches or (
-                    row.provider_response_status
-                    in {"canonical_response_mismatch", "canonical_response_missing"}
-                    and provider_response_status in {"completed", "succeeded"}
-                )
-                if not status_matches:
-                    raise InvalidStateError("Provider response status changed")
-                if (
-                    row.response_state == TurnResponseState.RESPONSE_FAILED.value
-                    and row.provider_response_status
-                    in {"canonical_response_mismatch", "canonical_response_missing"}
-                    and fidelity_matches
-                ):
-                    raise InvalidStateError("Transport fidelity result changed")
-                return self._turn(row)
-            canonical_text = (
-                str(candidate.get("text", "")).strip()
-                if isinstance(candidate, dict)
-                else ""
-            )
-            if row.canonical_response is not None and candidate is not None:
-                if row.canonical_response != candidate:
-                    raise InvalidStateError("Canonical response is immutable")
-            elif row.canonical_response is not None:
-                candidate = row.canonical_response
-                canonical_text = str(candidate.get("text", "")).strip()
-
-            row.provider_response_id = provider_response_id
-            row.provider_response_status = provider_response_status
-            row.interrupted = interrupted
-            row.interruption_audio_end_ms = interruption_audio_end_ms
-            row.observed_response_text = observed_response_text
-            if candidate is not None and canonical_text:
-                row.canonical_response = candidate
-                row.patient_text = canonical_text
-
-            canonical_valid = candidate is not None and bool(canonical_text)
-            success = (
-                canonical_valid
-                and fidelity_matches
-                and not interrupted
-                and provider_response_status in {"completed", "succeeded"}
-            )
-            if interrupted:
-                row.response_state = TurnResponseState.INTERRUPTED.value
-                row.delivery_status = AudioDeliveryStatus.UNCONFIRMED.value
-                row.revealed_fact_ids = []
-            elif success:
-                row.response_state = TurnResponseState.RESPONSE_SELECTED.value
-                row.delivery_status = AudioDeliveryStatus.PENDING.value
-                row.revealed_fact_ids = []
-            else:
-                row.response_state = TurnResponseState.RESPONSE_FAILED.value
-                row.delivery_status = AudioDeliveryStatus.FAILED.value
-                row.revealed_fact_ids = []
-                if not canonical_valid and provider_response_status in {"completed", "succeeded"}:
-                    row.provider_response_status = "canonical_response_missing"
-                elif observed_response_text is not None and not fidelity_matches:
-                    row.provider_response_status = "canonical_response_mismatch"
             db.commit()
             db.refresh(row)
             return self._turn(row)
@@ -1024,8 +793,6 @@ class SqliteSessionRepository:
             session = db.get(SessionRow, session_id)
             if session is None:
                 raise NotFoundError(f"Session {session_id} was not found")
-            if session.voice_stack_config.get("transport") != "pipeline":
-                raise InvalidStateError("Full delivery is not observable for Realtime")
             row = self._validated_ack(
                 db, session_id, turn_id, audio_stream_id, provider_response_id, last_index, True
             )
@@ -1057,79 +824,6 @@ class SqliteSessionRepository:
                     row.delivery_status = AudioDeliveryStatus.UNCONFIRMED.value
                     row.revealed_fact_ids = []
             db.commit()
-
-    def switch_voice_stack_before_first_turn(
-        self,
-        session_id: str,
-        *,
-        expected_stack_id: str,
-        target_stack_id: str,
-        target_stack_version: str,
-        target_stack_config: Mapping[str, Any],
-        reason: str,
-    ) -> ConversationSession:
-        with Session(self.engine) as db:
-            session = db.get(SessionRow, session_id)
-            if session is None:
-                raise NotFoundError(f"Session {session_id} was not found")
-            if session.voice_stack_id == target_stack_id:
-                return self.get_session(session_id)
-            if session.voice_stack_id != expected_stack_id:
-                raise InvalidStateError("Session voice stack changed concurrently")
-            expected_model = str(
-                dict(session.voice_stack_config.get("models", {})).get("realtime", "")
-            )
-            failure = db.scalar(
-                select(ExecutionRow)
-                .where(
-                    ExecutionRow.session_id == session_id,
-                    ExecutionRow.operation == "realtime_voice.connect",
-                    ExecutionRow.status == ExecutionStatus.FAILED.value,
-                    ExecutionRow.model == expected_model,
-                )
-                .order_by(ExecutionRow.created_at.desc())
-                .limit(1)
-            )
-            if failure is None:
-                raise InvalidStateError("A recorded Realtime connection failure is required")
-            previous_id, previous_version = session.voice_stack_id, session.voice_stack_version
-            previous_config = dict(session.voice_stack_config)
-            result = db.connection().execute(
-                update(SessionRow)
-                .where(
-                    SessionRow.id == session_id,
-                    SessionRow.voice_stack_id == expected_stack_id,
-                    ~select(TurnRow.id).where(TurnRow.session_id == session_id).exists(),
-                )
-                .values(
-                    voice_stack_id=target_stack_id,
-                    voice_stack_version=target_stack_version,
-                    voice_stack_config=_jsonable(dict(target_stack_config)),
-                )
-            )
-            if result.rowcount != 1:
-                db.rollback()
-                current = self.get_session(session_id)
-                if current.voice_stack_id == target_stack_id:
-                    return current
-                raise InvalidStateError("Fallback raced with a transcript or stack change")
-            db.add(
-                VoiceStackTransitionRow(
-                    id=new_id(),
-                    session_id=session_id,
-                    from_stack_id=previous_id,
-                    from_stack_version=previous_version,
-                    from_stack_config=previous_config,
-                    to_stack_id=target_stack_id,
-                    to_stack_version=target_stack_version,
-                    to_stack_config=_jsonable(dict(target_stack_config)),
-                    reason=reason,
-                    failure_execution_id=failure.id,
-                    created_at=utc_now(),
-                )
-            )
-            db.commit()
-        return self.get_session(session_id)
 
     @staticmethod
     def _audio_row(db: Session, session_id: str, turn_id: str, audio_stream_id: str) -> TurnRow:
@@ -1195,7 +889,7 @@ class SqliteSessionRepository:
                 or session.voice_stack_config.get("id") != session.voice_stack_id
             ):
                 raise InvalidStateError("Voice metric stack does not match its session")
-            if metric.transport.value != session.voice_stack_config.get("transport"):
+            if metric.transport is not VoiceMetricTransport.PIPELINE:
                 raise InvalidStateError("Voice metric transport does not match its session stack")
             values = asdict(metric)
             values["transport"] = metric.transport.value
@@ -1237,30 +931,6 @@ class SqliteSessionRepository:
                 statement.order_by(VoiceTurnMetricRow.created_at, VoiceTurnMetricRow.id)
             )
             return tuple(self._voice_turn_metric(row) for row in rows)
-
-    def save_patient_opening(self, opening: PatientOpening) -> PatientOpening:
-        with Session(self.engine) as db:
-            if db.get(SessionRow, opening.session_id) is None:
-                raise NotFoundError(f"Session {opening.session_id} was not found")
-            row = db.get(PatientOpeningRow, opening.session_id)
-            if row is None:
-                row = PatientOpeningRow(
-                    session_id=opening.session_id,
-                    text=opening.text,
-                    spoken_text=opening.spoken_text,
-                    status=opening.status.value,
-                    provider_response_id=opening.provider_response_id,
-                    created_at=opening.created_at,
-                )
-                db.add(row)
-            else:
-                row.text = opening.text
-                row.spoken_text = opening.spoken_text
-                row.status = opening.status.value
-                row.provider_response_id = opening.provider_response_id
-            db.commit()
-            db.refresh(row)
-            return self._patient_opening(row)
 
     def record_vocabulary_hint_usage(
         self, session_id: str, hint_id: str, asset_version: str
@@ -1326,8 +996,6 @@ class SqliteSessionRepository:
             selected_fact_ids=tuple(row.selected_fact_ids),
             provider_input_item_id=row.provider_input_item_id,
             provider_response_id=row.provider_response_id,
-            interrupted=row.interrupted,
-            interruption_audio_end_ms=row.interruption_audio_end_ms,
             provider_response_status=row.provider_response_status,
             response_state=TurnResponseState(row.response_state),
             delivery_status=AudioDeliveryStatus(row.delivery_status),
@@ -1339,25 +1007,6 @@ class SqliteSessionRepository:
             audio_delivered_at=(
                 _dt(row.audio_delivered_at) if row.audio_delivered_at is not None else None
             ),
-            created_at=_dt(row.created_at),
-            normalized_user_text=row.normalized_user_text,
-            canonical_response=dict(row.canonical_response) if row.canonical_response else None,
-            observed_response_text=row.observed_response_text,
-        )
-
-    @staticmethod
-    def _voice_stack_transition(row: VoiceStackTransitionRow) -> VoiceStackTransition:
-        return VoiceStackTransition(
-            id=row.id,
-            session_id=row.session_id,
-            from_stack_id=row.from_stack_id,
-            from_stack_version=row.from_stack_version,
-            from_stack_config=dict(row.from_stack_config),
-            to_stack_id=row.to_stack_id,
-            to_stack_version=row.to_stack_version,
-            to_stack_config=dict(row.to_stack_config),
-            reason=row.reason,
-            failure_execution_id=row.failure_execution_id,
             created_at=_dt(row.created_at),
         )
 
@@ -1431,17 +1080,6 @@ class SqliteSessionRepository:
             usage_count=row.usage_count,
             first_used_at=_dt(row.first_used_at),
             last_used_at=_dt(row.last_used_at),
-        )
-
-    @staticmethod
-    def _patient_opening(row: PatientOpeningRow) -> PatientOpening:
-        return PatientOpening(
-            session_id=row.session_id,
-            text=row.text,
-            spoken_text=row.spoken_text,
-            status=PatientOpeningStatus(row.status),
-            provider_response_id=row.provider_response_id,
-            created_at=_dt(row.created_at),
         )
 
     @staticmethod

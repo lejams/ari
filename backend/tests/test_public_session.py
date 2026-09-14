@@ -10,7 +10,6 @@ from ari.api.public_session import public_session
 from ari.container import Container
 
 FORBIDDEN = {
-    "canonical_response",
     "selected_fact_ids",
     "revealed_fact_ids",
     "executions",
@@ -18,7 +17,6 @@ FORBIDDEN = {
     "configs",
     "prompts",
     "vocabulary_hint_usages",
-    "voice_stack_transitions",
 }
 
 
@@ -72,10 +70,8 @@ def test_public_session_allowlist_covers_http_and_websocket_payloads(container: 
             assert_public(socket.receive_json())
 
         active = container.repository.get_session(session_id)
-        sentinel_turn = replace(active.turns[0], canonical_response={"prompts": "private"})
         sentinel_session = replace(
             active,
-            turns=(sentinel_turn,),
             training_snapshot={"scenario_id": "s", "configs": "private"},
             voice_stack_config={
                 "transport": "pipeline",

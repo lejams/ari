@@ -16,7 +16,6 @@ class Settings(BaseSettings):
 
     environment: Literal["development", "test", "production"] = "development"
     provider_mode: Literal["fake", "openai"] = "fake"
-    voice_transport: Literal["realtime", "pipeline"] = "realtime"
     database_url: str = f"sqlite:///{PROJECT_ROOT / 'var' / 'ari.db'}"
     case_directory: Path = PROJECT_ROOT / "cases"
     learning_aid_directory: Path = PROJECT_ROOT / "learning_aids"
@@ -29,12 +28,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str | None = None
     openai_realtime_url: str = "wss://api.openai.com/v1/realtime"
-    openai_realtime_calls_url: str = "https://api.openai.com/v1/realtime/calls"
-    realtime_handshake_timeout_seconds: float = 15.0
-    realtime_quality_model: str = "gpt-realtime-2.1"
-    realtime_economy_model: str = "gpt-realtime-2.1-mini"
-    pipeline_economy_stt_model: str = "gpt-transcribe"
-    pipeline_low_latency_stt_model: str = "gpt-live-transcribe"
+    stt_model: str = "gpt-transcribe"
     stt_handshake_timeout_seconds: float = 10.0
     patient_model: str = "gpt-5.6-luna"
     evaluation_model: str = "gpt-5.6-terra"

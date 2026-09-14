@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ari.domain.clinical import Identifier
-from ari.domain.models import CEFRLevel, InteractionMode, LearningMode, VoiceProfile
+from ari.domain.models import CEFRLevel, InteractionMode, LearningMode
 
 
 class ApiModel(BaseModel):
@@ -26,18 +26,11 @@ class CreateSessionRequest(ApiModel):
     learner_id: str
     case_id: str
     case_version: str
-    voice_profile: VoiceProfile = VoiceProfile.ECONOMY
     interaction_mode: InteractionMode = InteractionMode.GUIDED
-    voice_stack_id: str | None = None
     scenario_id: str | None = None
     scenario_version: str | None = None
     learning_mode: LearningMode | None = None
     request_id: Identifier | None = None
-
-
-class VoiceFallbackRequest(ApiModel):
-    failed_voice_stack_id: str
-    target_voice_stack_id: str
 
 
 class EndSessionResponse(ApiModel):

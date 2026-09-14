@@ -1,18 +1,13 @@
+"""One versioned voice configuration, pinned on every session for traceability."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
-from ari.domain.errors import InvalidStateError, NotFoundError
-from ari.domain.models import InteractionMode, VoiceProfile
-
-
-class VoiceTransport(StrEnum):
-    REALTIME = "realtime"
-    PIPELINE = "pipeline"
+from ari.domain.errors import InvalidStateError
 
 
 def _freeze(value: Any) -> Any:
@@ -39,7 +34,6 @@ def _thaw(value: Any) -> Any:
 class VoiceStack:
     id: str
     version: str
-    transport: VoiceTransport
     provider: str
     models: Mapping[str, str]
     parameters: Mapping[str, Any]
@@ -58,65 +52,17 @@ class VoiceStack:
         return {
             "id": self.id,
             "version": self.version,
-            "transport": self.transport.value,
             "provider": self.provider,
             "models": _thaw(self.models),
             "parameters": _thaw(self.parameters),
         }
 
-
-class VoiceStackRegistry:
-    """Deterministic voice configuration selected once when a session is created."""
-
-    def __init__(self, stacks: tuple[VoiceStack, ...]) -> None:
-        self._stacks = {stack.id: stack for stack in stacks}
-        if len(self._stacks) != len(stacks):
-            raise ValueError("Voice stack ids must be unique")
-
-    def list(self) -> tuple[VoiceStack, ...]:
-        return tuple(self._stacks[stack_id] for stack_id in sorted(self._stacks))
-
-    def get(self, stack_id: str) -> VoiceStack:
-        try:
-            return self._stacks[stack_id]
-        except KeyError as exc:
-            raise NotFoundError(f"Unknown voice stack {stack_id}") from exc
-
     def resolve_persisted(
-        self,
-        stack_id: str,
-        version: str,
-        snapshot: Mapping[str, Any],
+        self, stack_id: str, version: str, snapshot: Mapping[str, Any]
     ) -> VoiceStack:
-        current = self.get(stack_id)
-        if current.version != version or current.snapshot() != dict(snapshot):
+        """A session may only resume on exactly the configuration it was created with."""
+        if stack_id != self.id or version != self.version or self.snapshot() != dict(snapshot):
             raise InvalidStateError(
                 f"Persisted voice stack {stack_id}@{version} is not available exactly"
             )
-        return current
-
-    def default_for(
-        self,
-        interaction_mode: InteractionMode,
-        voice_profile: VoiceProfile,
-        *,
-        preferred_transport: VoiceTransport,
-    ) -> VoiceStack:
-        if preferred_transport is VoiceTransport.PIPELINE:
-            stack_id = (
-                "pipeline_low_latency"
-                if interaction_mode is InteractionMode.IMMERSIVE
-                else "pipeline_economy"
-            )
-        else:
-            stack_id = (
-                "realtime_quality" if voice_profile is VoiceProfile.QUALITY else "realtime_economy"
-            )
-        return self.get(stack_id)
-
-    def pipeline_alternative_for(self, interaction_mode: InteractionMode) -> VoiceStack:
-        return self.get(
-            "pipeline_low_latency"
-            if interaction_mode is InteractionMode.IMMERSIVE
-            else "pipeline_economy"
-        )
+        return self

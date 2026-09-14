@@ -36,7 +36,6 @@ test-web:
 	$(NODE) --check web/pcm-worklet.js
 	$(NODE) web/tests/pcm-resampler.test.mjs
 	$(NODE) web/tests/audio-delivery.test.mjs
-	$(NODE) web/tests/session-voice.test.mjs
 	$(NODE) web/tests/voice-presentation.test.mjs
 	$(NODE) web/tests/voice-dom.test.mjs
 	$(NODE) web/tests/calendar.test.mjs

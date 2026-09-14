@@ -70,8 +70,6 @@ class ClientControlMessage(BaseModel):
         "call.start",
         "call.end",
         "debug.transcript",
-        "user.turn.start",
-        "user.turn.finish",
         "audio.playback_started",
         "audio.playback_completed",
         "turn.retry_tts",

@@ -1,5 +1,4 @@
-import { PcmPlaybackTracker, RealtimePlaybackObserver } from "./audio-delivery.mjs";
-import { acceptedFallbackRequest, persistedVoiceSelection } from "./session-voice.mjs";
+import { PcmPlaybackTracker } from "./audio-delivery.mjs";
 import { allowsInCallHelp, voiceLaunchIntent } from "./voice-presentation.mjs";
 
 const launchIntent = voiceLaunchIntent(location.search, localStorage.getItem("ari.current_session_id"));
@@ -22,9 +21,6 @@ const state = {
   startedAt: null,
   timer: null,
   providerMode: "fake",
-  voiceTransport: "pipeline",
-  peerConnection: null,
-  dataChannel: null,
   patientDraft: "",
   technicalTestEnabled: false,
   completedTurns: 0,
@@ -33,8 +29,6 @@ const state = {
   playbackEndTime: 0,
   playbackSources: new Set(),
   voiceStackId: null,
-  voiceStackAvailable: true,
-  fallbackOffer: null,
   failedTtsTurnId: null,
   userSpeaking: false,
   lastPatientTurnNode: null,
@@ -43,10 +37,6 @@ const state = {
   callConnected: false,
   interactionMode: "guided",
   learningMode: "training",
-  manualRecording: false,
-  patientSpeaking: false,
-  openingFinished: false,
-  guidedPhase: "opening",
   examActive: false,
   deferredTurns: [],
 };
@@ -59,7 +49,6 @@ function sendVoiceControl(event) {
     state.socket.send(JSON.stringify(event));
 }
 const pcmPlayback = new PcmPlaybackTracker(sendVoiceControl);
-const realtimePlayback = new RealtimePlaybackObserver(sendVoiceControl);
 
 function cancelPipelinePlayback() {
   pcmPlayback.cancelAll();
@@ -72,10 +61,7 @@ function cancelPipelinePlayback() {
 }
 
 function applySessionVoice(session) {
-  const selected = persistedVoiceSelection(session);
-  state.voiceStackId = selected.stackId;
-  state.voiceTransport = selected.transport;
-  state.voiceStackAvailable = true;
+  state.voiceStackId = session.voice_stack_id;
 }
 
 async function api(path, options = {}) {
@@ -157,20 +143,11 @@ function clearTranscript() {
   state.patientTurnNodes.clear();
 }
 
-function renderPersistedTranscript(turns, opening = null) {
+function renderPersistedTranscript(turns) {
   clearTranscript();
-  if (opening?.spoken_text) {
-    addTurn(
-      "patient",
-      opening.status === "completed"
-        ? opening.spoken_text
-        : `${opening.spoken_text} [ouverture non conforme au cas]`,
-    );
-  }
   turns.forEach((turn) => {
     addTurn("user", turn.user_text);
-    const incomplete =
-      turn.interrupted || turn.provider_response_status !== "completed";
+    const incomplete = turn.provider_response_status !== "completed";
     if (turn.patient_text) {
       addTurn(
         "patient",
@@ -249,11 +226,9 @@ function showCallActions({ canStart, canEnd, canRetry, canCreateNew }) {
 
 async function loadVocabularyHints() {
   state.vocabularyAsset = null;
-  state.fallbackOffer = null;
   state.failedTtsTurnId = null;
   $("vocabulary-toggle").classList.add("hidden");
   $("retry-audio").classList.add("hidden");
-  $("accept-fallback").classList.add("hidden");
   $("vocabulary-panel").classList.add("hidden");
   if (!state.sessionId || !allowsInCallHelp(state.learningMode)) return;
   try {
@@ -312,13 +287,11 @@ async function restoreSession() {
     syncLearningModeButtons();
     if (state.learningMode === "exam" && ["created", "active"].includes(session.status)) setExamPresentation(true);
     else setExamPresentation(false);
-    renderPersistedTranscript(session.turns, session.patient_opening);
+    renderPersistedTranscript(session.turns);
     state.persistedTurns = session.turns.length;
     $("interaction-mode").value = state.interactionMode;
-    $("voice-profile").value = session.voice_profile || "economy";
     $("case-select").disabled = true;
     $("interaction-mode").disabled = true;
-    $("voice-profile").disabled = true;
     await loadVocabularyHints();
     if (["created", "active"].includes(session.status)) {
       $("start").textContent = "Reprendre l’appel";
@@ -361,7 +334,6 @@ async function restoreSession() {
 async function initialize() {
   const [health, cases] = await Promise.all([api("/api/health"), api("/api/cases?approved_only=true")]);
   state.providerMode = health.provider_mode;
-  state.voiceTransport = health.voice_transport;
   state.technicalTestEnabled = health.technical_test_enabled;
   state.cases = cases;
 
@@ -392,10 +364,6 @@ async function initialize() {
 
   if (state.providerMode === "fake" && state.learningMode === "training" && defaultCase) $("debug-form").classList.remove("hidden");
   if (state.technicalTestEnabled && state.learningMode === "training") $("telemetry").classList.remove("hidden");
-  if (state.voiceTransport === "realtime") {
-    $("voice-profile-row").classList.remove("hidden");
-    $("interaction-mode-row").classList.remove("hidden");
-  }
   const restored = await restoreSession();
   if (!restored && !defaultCase) {
     $("case-title").textContent = "Aucun scénario vocal approuvé";
@@ -435,71 +403,6 @@ async function openMicrophone() {
   state.source.connect(state.worklet).connect(mute).connect(state.audioContext.destination);
 }
 
-async function openRealtimeVoice() {
-  state.stream = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-  });
-  const peer = new RTCPeerConnection();
-  state.peerConnection = peer;
-  state.dataChannel = peer.createDataChannel("ari-events");
-  state.stream.getTracks().forEach((track) => {
-    track.enabled = false;
-    peer.addTrack(track, state.stream);
-  });
-  peer.ontrack = ({ streams }) => {
-    $("remote-audio").srcObject = streams[0];
-  };
-  peer.onconnectionstatechange = () => {
-    if (["failed", "disconnected"].includes(peer.connectionState) && !state.ending) {
-      handleTerminalVoiceFailure("Connexion WebRTC interrompue");
-    }
-  };
-  const offer = await peer.createOffer();
-  await peer.setLocalDescription(offer);
-  await waitForIceGathering(peer);
-  const localSdp = peer.localDescription?.sdp;
-  if (!localSdp) throw new Error("Le navigateur n’a pas produit d’offre WebRTC");
-  const response = await fetch(`/api/sessions/${state.sessionId}/voice/realtime`, {
-    method: "POST",
-    headers: { "Content-Type": "application/sdp" },
-    body: localSdp,
-  });
-  if (!response.ok) {
-    let message = await response.text();
-    let fallback = null;
-    try {
-      const payload = JSON.parse(message);
-      message = payload.detail || message;
-      fallback = payload.fallback || null;
-    } catch (_) {
-      // The endpoint may return a plain-text protocol error.
-    }
-    const error = new Error(message || `HTTP ${response.status}`);
-    error.fallback = fallback;
-    throw error;
-  }
-  await peer.setRemoteDescription({ type: "answer", sdp: await response.text() });
-}
-
-function setMicrophoneEnabled(enabled) {
-  state.stream?.getAudioTracks().forEach((track) => {
-    track.enabled = enabled;
-  });
-}
-
-function waitForIceGathering(peer) {
-  if (peer.iceGatheringState === "complete") return Promise.resolve();
-  return new Promise((resolve) => {
-    const timeout = setTimeout(resolve, 2000);
-    peer.addEventListener("icegatheringstatechange", () => {
-      if (peer.iceGatheringState === "complete") {
-        clearTimeout(timeout);
-        resolve();
-      }
-    });
-  });
-}
-
 function queuePcmAudio(bytes) {
   if (!state.audioContext) return null;
   let combined = bytes;
@@ -533,23 +436,6 @@ function queuePcmAudio(bytes) {
 
 function showTelemetry(telemetry) {
   if (!telemetry) return;
-  if (telemetry.transport === "webrtc") {
-    $("latency-stt").textContent = "WebRTC";
-    $("latency-llm").textContent = telemetry.model || "—";
-    $("latency-tts-first").textContent = `${telemetry.response_start_ms} ms`;
-    $("latency-first-audio").textContent =
-      telemetry.estimated_cost_usd === null || telemetry.estimated_cost_usd === undefined
-        ? "—"
-        : `$${telemetry.estimated_cost_usd.toFixed(4)}`;
-    $("latency-tts").textContent = telemetry.interrupted ? "oui" : "non";
-    $("response-duration").textContent = `${telemetry.observed_response_ms ?? "—"} ms`;
-    $("response-words").textContent = telemetry.spoken_word_count ?? "—";
-    $("response-cost").textContent =
-      telemetry.estimated_cost_usd === null || telemetry.estimated_cost_usd === undefined
-        ? "—"
-        : `$${telemetry.estimated_cost_usd.toFixed(4)}`;
-    return;
-  }
   const value = (key) =>
     telemetry[key] === null || telemetry[key] === undefined ? "—" : `${telemetry[key]} ms`;
   $("latency-stt").textContent = value("stt_final_ms");
@@ -559,55 +445,17 @@ function showTelemetry(telemetry) {
   $("latency-tts").textContent = value("tts_total_ms");
 }
 
-function updateTalkButton() {
-  const visible =
-    state.voiceTransport === "realtime" &&
-    state.interactionMode === "guided" &&
-    state.callConnected &&
-    state.openingFinished &&
-    ["ready", "recording", "patient_speaking"].includes(state.guidedPhase) &&
-    !state.ending;
-  $("talk").classList.toggle("hidden", !visible);
-  if (!visible) return;
-  $("talk").disabled = false;
-  $("talk").textContent = state.manualRecording
-    ? "J’ai fini"
-    : state.patientSpeaking
-      ? "Prendre la parole"
-      : "Commencer à parler";
-}
-
-function toggleGuidedTurn() {
-  if (state.socket?.readyState !== WebSocket.OPEN) return;
-  if (state.manualRecording) {
-    setMicrophoneEnabled(false);
-    realtimePlayback.speechEnded();
-    state.manualRecording = false;
-    $("talk").disabled = true;
-    $("talk").textContent = "Envoi…";
-    state.socket.send(JSON.stringify({ type: "user.turn.finish" }));
-    return;
-  }
-  state.socket.send(JSON.stringify({ type: "user.turn.start" }));
-}
-
 async function stopVoiceMedia(closeSocket = true) {
   const socket = state.socket;
   if (closeSocket) state.socket = null;
   if (closeSocket) socket?.close();
   state.stream?.getTracks().forEach((track) => track.stop());
-  state.peerConnection?.close();
   cancelPipelinePlayback();
-  realtimePlayback.cancelAll();
   await state.audioContext?.close();
   clearInterval(state.timer);
   state.audioContext = null;
   state.stream = null;
-  state.peerConnection = null;
   state.callConnected = false;
-  state.manualRecording = false;
-  state.patientSpeaking = false;
-  updateTalkButton();
 }
 
 async function resetFailedCall() {
@@ -615,10 +463,7 @@ async function resetFailedCall() {
   await stopVoiceMedia();
   $("start").disabled = false;
   $("case-select").disabled = false;
-  if (!state.sessionId) {
-    $("interaction-mode").disabled = false;
-    $("voice-profile").disabled = false;
-  }
+  if (!state.sessionId) $("interaction-mode").disabled = false;
 }
 
 function handleTerminalVoiceFailure(message) {
@@ -638,65 +483,8 @@ function handleEvent(event) {
   if (event.type === "call.started") {
     $("start").classList.add("hidden");
     $("end").disabled = false;
-    if (state.voiceTransport !== "realtime") {
-      state.sending = true;
-      setStatus("À vous de parler", true);
-    } else {
-      setStatus("Connexion à la patiente…", true);
-    }
-  }
-  if (event.type === "realtime.connected") {
-    state.callConnected = true;
-    $("end").disabled = false;
-    state.interactionMode = data.interaction_mode || state.interactionMode;
-    setStatus("La patiente va se présenter…", true);
-  }
-  if (event.type === "patient.opening_started") {
-    state.guidedPhase = "opening";
-    state.openingFinished = false;
-    state.patientSpeaking = true;
-    setStatus("La patiente se présente…", true);
-    updateTalkButton();
-  }
-  if (event.type === "patient.opening_completed") {
-    state.patientDraft = "";
-    setPartial("");
-    addTurn("patient", data.spoken_text || data.text);
-    state.patientSpeaking = false;
-  }
-  if (event.type === "patient.opening_failed") {
-    state.patientDraft = "";
-    setPartial("");
-    state.patientSpeaking = false;
-    if (data.spoken_text) {
-      addTurn("patient", `${data.spoken_text} [ouverture non conforme au cas]`);
-    }
-  }
-  if (event.type === "user.turn.ready") {
-    state.guidedPhase = "ready";
-    state.openingFinished = true;
-    setMicrophoneEnabled(state.interactionMode === "immersive");
-    setStatus(
-      state.interactionMode === "guided"
-        ? "Cliquez sur « Commencer à parler » quand vous êtes prêt"
-        : "À vous de parler",
-      true,
-    );
-    updateTalkButton();
-  }
-  if (event.type === "user.turn.recording") {
-    state.guidedPhase = "recording";
-    state.manualRecording = true;
-    setMicrophoneEnabled(true);
-    setStatus("Je vous écoute — prenez votre temps", true);
-    updateTalkButton();
-  }
-  if (event.type === "user.turn.committed") {
-    state.guidedPhase = "processing";
-    state.manualRecording = false;
-    setMicrophoneEnabled(false);
-    setStatus("Transcription en cours…", true);
-    updateTalkButton();
+    state.sending = true;
+    setStatus("À vous de parler", true);
   }
   if (event.type === "user.speech_started") {
     state.userSpeaking = true;
@@ -705,31 +493,10 @@ function handleEvent(event) {
   if (event.type === "user.transcript_delta") setPartial(data.text);
   if (event.type === "user.transcript_final") {
     state.userSpeaking = false;
-    state.patientSpeaking = state.voiceTransport === "realtime";
     setPartial("");
     addTurn("user", data.text);
-    if (state.voiceTransport !== "realtime") state.sending = false;
+    state.sending = false;
     setStatus("Le patient réfléchit…", true);
-    updateTalkButton();
-  }
-  if (event.type === "patient.speech_started") {
-    state.guidedPhase = "patient_speaking";
-    state.patientSpeaking = true;
-    realtimePlayback.responseStarted(data.response_id);
-    setStatus("La patiente répond…", true);
-    updateTalkButton();
-  }
-  if (event.type === "patient.transcript_delta") {
-    state.patientDraft += data.text || "";
-    setPartial(`Patiente : ${state.patientDraft}`);
-  }
-  if (event.type === "patient.interrupted") {
-    state.patientSpeaking = false;
-    state.patientDraft = "";
-    setPartial("");
-    realtimePlayback.cancel(data.response_id);
-    setStatus("Je vous écoute…", true);
-    updateTalkButton();
   }
   if (event.type === "patient.response_text") {
     state.patientDraft = "";
@@ -780,19 +547,12 @@ function handleEvent(event) {
     setStatus("Audio reçu — lecture en cours", true);
   }
   if (event.type === "turn.completed") {
-    state.patientSpeaking = false;
-    if (state.interactionMode === "guided") state.guidedPhase = "ready";
     state.completedTurns += 1;
     showTelemetry(data.telemetry);
-    if (state.voiceTransport === "realtime" && data.turn?.provider_response_id)
-      realtimePlayback.bindTurn(data.turn.provider_response_id,data.turn.id,data.turn.audio_stream_id);
     const patientNode = data.turn?.provider_response_id
       ? state.patientTurnNodes.get(data.turn.provider_response_id)
       : state.lastPatientTurnNode;
-    if (
-      (data.turn?.interrupted || data.turn?.provider_response_status !== "completed") &&
-      patientNode
-    ) {
+    if (data.turn?.provider_response_status !== "completed" && patientNode) {
       const label = document.createElement("span");
       label.textContent = "Patient";
       patientNode.replaceChildren(
@@ -802,11 +562,6 @@ function handleEvent(event) {
         ),
       );
     }
-    if (state.voiceTransport === "realtime" && !state.userSpeaking) {
-      $("end").disabled = false;
-      setStatus("À vous de parler", true);
-    }
-    updateTalkButton();
   }
   if (event.type === "turn.delivered") {
     pcmPlayback.forget(data.turn.id); state.sending=true;
@@ -822,12 +577,6 @@ function handleEvent(event) {
     state.failedTtsTurnId = null;
     $("retry-audio").classList.add("hidden");
   }
-  if (event.type === "response.create_failed") {
-    state.patientSpeaking = false;
-    setStatus("Réponse indisponible — vous pouvez reformuler", true);
-    updateTalkButton();
-  }
-  if (event.type === "response.limit_failed") console.warn(data.message);
   if (event.type === "call.ended" && state.ending) setStatus("Analyse en cours…", true);
   if (event.type === "voice.error") {
     console.error(data);
@@ -844,7 +593,6 @@ async function startCall() {
   $("end").disabled = true;
   $("case-select").disabled = true;
   $("interaction-mode").disabled = true;
-  $("voice-profile").disabled = true;
   $("learning-mode").disabled = true;
   try {
     state.interactionMode = $("interaction-mode").value;
@@ -854,7 +602,7 @@ async function startCall() {
     await ensureLearner();
     await ensureAudioContext();
     if (!state.sessionId) {
-      const requestKey = `ari.voice.start:${state.learnerId}:${caseKey(state.case)}:${state.learningMode}:${state.interactionMode}:${$("voice-profile").value}`;
+      const requestKey = `ari.voice.start:${state.learnerId}:${caseKey(state.case)}:${state.learningMode}:${state.interactionMode}`;
       let requestId = sessionStorage.getItem(requestKey);
       if (!requestId) { requestId = crypto.randomUUID(); sessionStorage.setItem(requestKey, requestId); }
       const session = await api("/api/sessions", {
@@ -864,7 +612,6 @@ async function startCall() {
           request_id: requestId,
           case_id: state.case.id,
           case_version: state.case.version,
-          voice_profile: $("voice-profile").value,
           interaction_mode: state.interactionMode,
           learning_mode: state.learningMode,
           scenario_id: state.case.training_snapshot?.scenario_id || null,
@@ -893,10 +640,6 @@ async function startCall() {
     state.ending = false;
     state.userSpeaking = false;
     state.callConnected = false;
-    state.manualRecording = false;
-    state.patientSpeaking = false;
-    state.openingFinished = false;
-    state.guidedPhase = "opening";
     $("start").textContent = "Reprendre l’appel";
     $("retry-analysis").classList.add("hidden");
     $("new-session").classList.add("hidden");
@@ -919,39 +662,20 @@ async function startCall() {
       state.socket.onerror = () => reject(new Error("Connexion de contrôle interrompue"));
     });
     state.socket.onerror = () => setStatus("Connexion vocale interrompue");
-    if (state.providerMode !== "fake") {
-      if (state.voiceTransport === "realtime") await openRealtimeVoice();
-      else await openMicrophone();
-    }
+    if (state.providerMode !== "fake") await openMicrophone();
     if (state.providerMode === "fake") {
       state.callConnected = true;
       $("end").disabled = false;
     }
     startTimer();
   } catch (error) {
-    if (error.fallback?.available) {
-      state.fallbackOffer=error.fallback;
-      $("accept-fallback").classList.remove("hidden");
-      setStatus("Connexion Realtime impossible — fallback pipeline disponible avec votre accord");
-    } else setStatus(error.message);
-    if (state.socket || state.stream || state.peerConnection) await resetFailedCall();
+    setStatus(error.message);
+    if (state.socket || state.stream) await resetFailedCall();
     else {
       $("start").disabled = false;
       $("case-select").disabled = false;
     }
   }
-}
-
-async function acceptFallback() {
-  if (!state.fallbackOffer || !state.sessionId) return;
-  const session = await api(`/api/sessions/${state.sessionId}/voice/fallback`, {
-    method: "POST",
-    body: JSON.stringify(acceptedFallbackRequest(state.fallbackOffer, true)),
-  });
-  applySessionVoice(session);
-  state.fallbackOffer = null;
-  $("accept-fallback").classList.add("hidden");
-  await startCall();
 }
 
 function retryAudio() {
@@ -969,13 +693,6 @@ async function endCall() {
   $("end").disabled = true;
   setStatus("Finalisation et sauvegarde…", true);
   if (state.socket?.readyState === WebSocket.OPEN) {
-    if (state.manualRecording) {
-      setMicrophoneEnabled(false);
-      realtimePlayback.speechEnded();
-      state.manualRecording = false;
-      state.socket.send(JSON.stringify({ type: "user.turn.finish" }));
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
     state.socket.send(JSON.stringify({ type: "call.end" }));
   }
   try {
@@ -985,7 +702,7 @@ async function endCall() {
     });
     await stopVoiceMedia();
     setExamPresentation(false);
-    renderPersistedTranscript(session.turns, session.patient_opening);
+    renderPersistedTranscript(session.turns);
     showFeedback(session);
     showCallActions({ canStart: false, canEnd: false, canRetry: false, canCreateNew: true });
     $("vocabulary-toggle").classList.add("hidden");
@@ -1001,19 +718,19 @@ async function endCall() {
     }
     if (saved && ["analysis_pending", "analysis_failed"].includes(saved.status)) {
       setExamPresentation(false);
-      renderPersistedTranscript(saved.turns, saved.patient_opening);
+      renderPersistedTranscript(saved.turns);
       showCallActions({ canStart: false, canEnd: false, canRetry: true, canCreateNew: false });
       setStatus("Analyse échouée — le transcript est sauvegardé");
     } else if (saved?.status === "completed") {
       setExamPresentation(false);
-      renderPersistedTranscript(saved.turns, saved.patient_opening);
+      renderPersistedTranscript(saved.turns);
       showFeedback(saved);
       showCallActions({ canStart: false, canEnd: false, canRetry: false, canCreateNew: true });
       setStatus("Session terminée et sauvegardée");
     } else {
       state.ending = false;
       if (saved && ["created", "active"].includes(saved.status)) {
-        renderPersistedTranscript(saved.turns, saved.patient_opening);
+        renderPersistedTranscript(saved.turns);
         state.persistedTurns = saved.turns.length;
       }
       $("start").textContent = "Reprendre l’appel";
@@ -1042,7 +759,7 @@ async function retryAnalysis() {
       body: "{}",
     });
     setExamPresentation(false);
-    renderPersistedTranscript(session.turns, session.patient_opening);
+    renderPersistedTranscript(session.turns);
     showFeedback(session);
     showCallActions({ canStart: false, canEnd: false, canRetry: false, canCreateNew: true });
     setStatus("Session terminée et sauvegardée");
@@ -1065,9 +782,7 @@ function newSession() {
   state.interactionMode = "guided";
   state.learningMode = "training";
   setExamPresentation(false);
-  state.guidedPhase = "opening";
   $("interaction-mode").value = "guided";
-  $("voice-profile").value = "economy";
   $("learning-mode").value = "training";
   syncLearningModeButtons();
   clearTranscript();
@@ -1076,7 +791,6 @@ function newSession() {
   $("vocabulary-toggle").classList.add("hidden");
   $("case-select").disabled = false;
   $("interaction-mode").disabled = false;
-  $("voice-profile").disabled = false;
   $("learning-mode").disabled = false;
   $("learning-mode").value = "training";
   renderCase(state.cases[0]);
@@ -1157,11 +871,9 @@ $("subtitles-toggle").addEventListener("click", () => {
   $("subtitles-toggle").textContent = off ? "Afficher les sous-titres" : "Masquer les sous-titres";
 });
 $("start").addEventListener("click", startCall);
-$("talk").addEventListener("click", toggleGuidedTurn);
 $("end").addEventListener("click", endCall);
 $("retry-analysis").addEventListener("click", retryAnalysis);
 $("retry-audio").addEventListener("click", retryAudio);
-$("accept-fallback").addEventListener("click", acceptFallback);
 $("new-session").addEventListener("click", newSession);
 $("vocabulary-toggle").addEventListener("click", () => {
   if (!allowsInCallHelp(state.learningMode)) return;
@@ -1181,7 +893,5 @@ $("debug-form").addEventListener("submit", (event) => {
   }
 });
 
-$("remote-audio").addEventListener("playing", () => realtimePlayback.mediaAdvanced());
-$("remote-audio").addEventListener("timeupdate", () => realtimePlayback.mediaAdvanced());
 
 initialize().catch((error) => setStatus(error.message));

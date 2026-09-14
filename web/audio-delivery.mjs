@@ -1,8 +1,6 @@
 function ack(type, stream, lastIndex) {
   const value = {type, turn_id: stream.turnId, response_id: stream.responseId ?? null,
     audio_stream_id: stream.audioStreamId, last_index: lastIndex};
-  if (type === "audio.playback_started" && stream.speechEndToAudioStartedMs !== undefined)
-    value.speech_end_to_audio_started_ms = stream.speechEndToAudioStartedMs;
   if (type === "audio.playback_started" && stream.audioSentToPlaybackStartedMs !== undefined)
     value.audio_sent_to_playback_started_ms = stream.audioSentToPlaybackStartedMs;
   return value;
@@ -62,30 +60,4 @@ export class PcmPlaybackTracker {
     if (complete && stream.started && !stream.delivered) { stream.delivered = true;
       this.emit(ack("audio.playback_completed", stream, stream.lastIndex)); }
   }
-}
-
-export class RealtimePlaybackObserver {
-  constructor(emit, now = () => performance.now()) {
-    this.emit = emit; this.now = now; this.responses = new Map(); this.active = null;
-    this.lastSpeechEndedAt = null;
-  }
-  speechEnded() { this.lastSpeechEndedAt = this.now(); }
-  responseStarted(id) { if (!id) return; this.active = id;
-    const speechEndedAt = this.lastSpeechEndedAt; this.lastSpeechEndedAt = null;
-    this.responses.set(id, {responseId: id, observed: false, sent: false, cancelled: false,
-      speechEndedAt}); }
-  mediaAdvanced() { const value = this.responses.get(this.active); if (value && !value.cancelled) {
-    if (value.speechEndedAt !== null && value.speechEndToAudioStartedMs === undefined)
-      value.speechEndToAudioStartedMs = Math.max(0, Math.round(this.now() - value.speechEndedAt));
-    value.observed = true; this.#flush(value); } }
-  bindTurn(id, turnId, audioStreamId) { const value = this.responses.get(id) ||
-    {responseId: id, observed: false, sent: false, cancelled: false,
-      speechEndedAt: this.lastSpeechEndedAt};
-    if (!this.responses.has(id)) this.lastSpeechEndedAt = null;
-    Object.assign(value, {turnId, audioStreamId}); this.responses.set(id, value); this.#flush(value); }
-  cancel(id) { const value = this.responses.get(id); if (value) value.cancelled = true;
-    if (this.active === id) this.active = null; }
-  cancelAll() { this.responses.clear(); this.active = null; }
-  #flush(value) { if (value.observed && !value.sent && !value.cancelled && value.turnId && value.audioStreamId) {
-    value.sent = true; this.emit(ack("audio.playback_started", value, 0)); } }
 }

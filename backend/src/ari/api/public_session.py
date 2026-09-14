@@ -17,8 +17,6 @@ TURN_FIELDS = (
     "patient_text",
     "provider_input_item_id",
     "provider_response_id",
-    "interrupted",
-    "interruption_audio_end_ms",
     "provider_response_status",
     "response_state",
     "delivery_status",
@@ -36,7 +34,6 @@ SESSION_FIELDS = (
     "case_id",
     "case_version",
     "case_hash",
-    "voice_profile",
     "interaction_mode",
     "voice_stack_id",
     "voice_stack_version",
@@ -77,33 +74,15 @@ def public_session(session: ConversationSession) -> dict[str, Any]:
         for name in SNAPSHOT_FIELDS
         if name in session.training_snapshot
     }
-    # Keep only public transport/model metadata; never serialize provider configuration.
+    # Keep only public model metadata; never serialize provider configuration.
     models = session.voice_stack_config.get("models", {})
-    public_models = {
-        name: models[name]
-        for name in ("realtime", "stt", "llm", "tts")
-        if isinstance(models, dict) and isinstance(models.get(name), str)
-    }
     result["voice_stack_config"] = {
-        "transport": session.voice_stack_config.get("transport", "unknown"),
-        "models": public_models,
+        "models": {
+            name: models[name]
+            for name in ("stt", "llm", "tts")
+            if isinstance(models, dict) and isinstance(models.get(name), str)
+        }
     }
-    opening = session.patient_opening
-    result["patient_opening"] = (
-        _fields(
-            opening,
-            (
-                "session_id",
-                "text",
-                "status",
-                "spoken_text",
-                "provider_response_id",
-                "created_at",
-            ),
-        )
-        if opening
-        else None
-    )
     finished = session.status is SessionStatus.COMPLETED
     evaluation = session.evaluation
     result["evaluation"] = None

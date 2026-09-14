@@ -26,7 +26,6 @@ from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
 from ari.application.services.patient import PatientSimulator
 from ari.application.services.voice import TurnBasedVoiceEngine
-from ari.application.voice_stacks import VoiceTransport
 from ari.config import PROJECT_ROOT
 from ari.container import Container
 from ari.domain.errors import ProviderError
@@ -182,7 +181,6 @@ def test_http_and_websocket_vertical_slice(container: Container) -> None:
                 "case_version": case["version"],
             },
         ).json()
-        assert session["voice_profile"] == "economy"
         assert session["interaction_mode"] == "guided"
 
         with client.websocket_connect(f"/ws/sessions/{session['id']}/voice") as socket:
@@ -389,8 +387,7 @@ def test_successful_stt_trace_survives_patient_failure(container: Container) -> 
             ),
             "fr-FR",
         ),
-        container.voice_stacks,
-        VoiceTransport.PIPELINE,
+        container.voice_stack,
     )
     services = replace(
         container,

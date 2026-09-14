@@ -32,8 +32,8 @@ class LLMBackedEvaluator:
                 "turn": item.sequence,
                 "doctor": item.user_text,
                 "patient": (
-                    "[patient response excluded: interrupted]"
-                    if item.interrupted or item.provider_response_status != "completed"
+                    "[patient response excluded: failed]"
+                    if item.provider_response_status != "completed"
                     else item.patient_text
                 ),
                 "revealed_fact_ids": list(item.revealed_fact_ids),

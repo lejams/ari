@@ -4,9 +4,7 @@ import asyncio
 import base64
 import hashlib
 import time
-from collections import deque
-from collections.abc import AsyncIterator, Mapping
-from contextlib import asynccontextmanager, suppress
+from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
@@ -23,30 +21,19 @@ from ari.api.dto import (
     CreateLearnerRequest,
     CreateSessionRequest,
     UpdateGoalRequest,
-    VoiceFallbackRequest,
 )
 from ari.api.ownership import PROFILE_COOKIE, OwnershipMiddleware
 from ari.api.practice import practice_router
 from ari.api.public_session import public_session, public_turn
 from ari.application.contracts import ExecutionContext, TranscriptionConfig
-from ari.application.ports.realtime_voice import (
-    RealtimeCall,
-    RealtimeProviderEvent,
-    RealtimeResponseKind,
-)
 from ari.application.schemas import ClientControlMessage
-from ari.application.services.realtime import (
-    RealtimeTurnAssembler,
-    spoken_word_count,
-)
-from ari.application.services.realtime_fidelity import verify_response_fidelity
 from ari.application.services.telemetry import (
     aggregate_voice_metrics,
     merge_voice_metric,
     new_voice_metric,
     utc_timestamp,
 )
-from ari.application.voice_stacks import VoiceStack, VoiceTransport
+from ari.application.voice_stacks import VoiceStack
 from ari.config import Settings, get_settings
 from ari.container import Container, build_container
 from ari.domain.errors import AriError, InvalidStateError, NotFoundError, ProviderError
@@ -56,12 +43,9 @@ from ari.domain.models import (
     ConversationTurn,
     ExecutionRecord,
     ExecutionStatus,
-    InteractionMode,
     LearningGoal,
     LearningMode,
     MedicalCase,
-    PatientOpening,
-    PatientOpeningStatus,
     SessionStatus,
     TurnResponseState,
     VoiceMetricTransport,
@@ -83,10 +67,6 @@ def _is_websocket_disconnect_runtime(exc: RuntimeError) -> bool:
 class VoiceLifecycle:
     end_requested: asyncio.Event = field(default_factory=asyncio.Event)
     drained: asyncio.Event = field(default_factory=asyncio.Event)
-    provider_start_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    manual_turn_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    manual_recording: bool = False
-    guided_phase: str = "opening"
 
 
 def _public_case(case: MedicalCase) -> dict[str, object]:
@@ -115,9 +95,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         raise InvalidStateError("Synthetic MVP demos are forbidden in production")
     voice_session_lock = asyncio.Lock()
     voice_lifecycles: dict[str, VoiceLifecycle] = {}
-    realtime_calls: dict[str, RealtimeCall] = {}
-    realtime_ready: dict[str, asyncio.Event] = {}
-    realtime_lock = asyncio.Lock()
     analysis_locks: dict[str, asyncio.Lock] = {}
 
     def activate_if_created(session_id: str) -> None:
@@ -125,33 +102,14 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             services.orchestrator.activate(session_id)
 
     def voice_stack_for(session: ConversationSession) -> VoiceStack:
-        return services.voice_stacks.resolve_persisted(
+        return services.voice_stack.resolve_persisted(
             session.voice_stack_id,
             session.voice_stack_version,
             session.voice_stack_config,
         )
 
-    def public_stack(stack: VoiceStack) -> dict[str, object]:
-        return {
-            "id": stack.id,
-            "version": stack.version,
-            "transport": stack.transport.value,
-            "models": dict(stack.models),
-            "available": services.voice_stack_available(stack),
-        }
-
     def session_payload(session: ConversationSession) -> dict[str, object]:
-        payload = public_session(session)
-        snapshot = dict(session.voice_stack_config)
-        payload["voice_transport"] = snapshot.get("transport", "unknown")
-        payload["voice_models"] = payload["voice_stack_config"]["models"]
-        try:
-            stack = voice_stack_for(session)
-        except AriError:
-            payload["voice_stack_available"] = False
-        else:
-            payload["voice_stack_available"] = services.voice_stack_available(stack)
-        return payload
+        return public_session(session)
 
     def persist_client_playback_observation(
         turn: ConversationTurn, control: ClientControlMessage
@@ -190,14 +148,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                     merge_voice_metric(metric, delivery_status=turn.delivery_status)
                 )
 
-    @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        yield
-        for call in tuple(realtime_calls.values()):
-            with suppress(Exception):
-                await call.close()
-
-    app = FastAPI(title="ARI FSP POC", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="ARI FSP POC", version="0.1.0")
     app.state.container = services
     app.include_router(practice_router(services))
     credentials = ProfileCredentials(services.repository.engine)
@@ -229,14 +180,8 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         return {
             "status": "ok",
             "provider_mode": services.settings.provider_mode,
-            "voice_transport": services.settings.voice_transport,
             "technical_test_enabled": services.settings.enable_english_technical_test,
-            "voice_stacks": [public_stack(stack) for stack in services.voice_stacks.list()],
         }
-
-    @app.get("/api/voice-stacks")
-    async def list_voice_stacks() -> list[dict[str, object]]:
-        return [public_stack(stack) for stack in services.voice_stacks.list()]
 
     @app.get("/api/technical/voice-metrics")
     async def technical_voice_metrics(
@@ -338,9 +283,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             body.learner_id,
             body.case_id,
             body.case_version,
-            body.voice_profile,
             body.interaction_mode,
-            voice_stack_id=body.voice_stack_id,
             scenario_id=body.scenario_id,
             scenario_version=body.scenario_version,
             learning_mode=body.learning_mode,
@@ -389,35 +332,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     async def list_sessions(learner_id: str) -> Any:
         return [session_payload(item) for item in services.repository.list_sessions(learner_id)]
 
-    @app.post("/api/sessions/{session_id}/voice/fallback")
-    async def accept_voice_fallback(session_id: str, body: VoiceFallbackRequest) -> Any:
-        current = services.repository.get_session(session_id)
-        if current.voice_stack_id == body.target_voice_stack_id:
-            if any(
-                item.from_stack_id == body.failed_voice_stack_id
-                and item.to_stack_id == body.target_voice_stack_id
-                for item in current.voice_stack_transitions
-            ):
-                return session_payload(current)
-            raise InvalidStateError("Session already has a different stack history")
-        stack = voice_stack_for(current)
-        if stack.id != body.failed_voice_stack_id or stack.transport is not VoiceTransport.REALTIME:
-            raise InvalidStateError("Fallback source is not the persisted Realtime stack")
-        target = services.voice_stacks.get(body.target_voice_stack_id)
-        offered = services.voice_stacks.pipeline_alternative_for(current.interaction_mode)
-        if target.id != offered.id or not services.voice_stack_available(target):
-            raise InvalidStateError("Requested fallback is not the available alternative")
-        return session_payload(
-            services.repository.switch_voice_stack_before_first_turn(
-                session_id,
-                expected_stack_id=stack.id,
-                target_stack_id=target.id,
-                target_stack_version=target.version,
-                target_stack_config=target.snapshot(),
-                reason="realtime_connection_failed",
-            )
-        )
-
     @app.get("/api/sessions/{session_id}/vocabulary-hints")
     async def get_vocabulary_hints(session_id: str) -> Any:
         session = services.repository.get_session(session_id)
@@ -464,963 +378,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             services.repository.record_vocabulary_hint_usage(session_id, hint_id, asset.version)
         )
 
-    @app.post("/api/sessions/{session_id}/voice/realtime")
-    async def start_realtime_voice(session_id: str, request: Request) -> Response:
-        current_session = services.repository.get_session(session_id)
-        stack = voice_stack_for(current_session)
-        realtime_engine = services.realtime_voice_for(stack.id)
-        if stack.transport is not VoiceTransport.REALTIME or realtime_engine is None:
-            raise InvalidStateError("Realtime voice is unavailable in the current provider mode")
-        if not request.headers.get("content-type", "").startswith("application/sdp"):
-            return Response("Expected application/sdp", status_code=415, media_type="text/plain")
-        offer_sdp = (await request.body()).decode("utf-8").strip()
-        if not offer_sdp:
-            return Response("SDP offer cannot be empty", status_code=422, media_type="text/plain")
-        if not offer_sdp.startswith("v=0"):
-            return Response("Invalid SDP offer", status_code=422, media_type="text/plain")
-        offer_sdp = offer_sdp.replace("\r\n", "\n").replace("\n", "\r\n") + "\r\n"
-        async with voice_session_lock:
-            lifecycle = voice_lifecycles.get(session_id)
-            if lifecycle is None:
-                raise InvalidStateError("The voice control connection is not active")
-            if lifecycle.end_requested.is_set():
-                raise InvalidStateError("The voice session is ending")
-        session = services.repository.get_session(session_id)
-        activate_if_created(session_id)
-        session = services.repository.get_session(session_id)
-        case = services.orchestrator._case_for_session(session)
-        # Realtime is a transport only. Patient simulation is performed by the
-        # application facade and the provider receives no case facts.
-        simulation = services.realtime_simulation.build_transport(case)
-        context = ExecutionContext(
-            session_id=session.id,
-            learner_id=session.learner_id,
-            operation="realtime_voice.connect",
-            case_version=case.version,
-            case_hash=case.content_hash,
-            prompt_version=simulation.prompt_version,
-            prompt_hash=simulation.prompt_hash,
-        )
-        async with lifecycle.provider_start_lock:
-            if lifecycle.end_requested.is_set():
-                raise InvalidStateError("The voice session is ending")
-            async with realtime_lock:
-                if session_id in realtime_calls:
-                    raise InvalidStateError("A Realtime call already exists for this session")
-                try:
-                    call = await realtime_engine.start_call(
-                        offer_sdp,
-                        context=context,
-                        simulation=simulation,
-                        profile=session.voice_profile,
-                        interaction_mode=session.interaction_mode,
-                    )
-                except ProviderError as exc:
-                    services.repository.record_execution(cast(ExecutionRecord, exc.execution))
-                    alternative = services.voice_stacks.pipeline_alternative_for(
-                        session.interaction_mode
-                    )
-                    return JSONResponse(
-                        status_code=502,
-                        content={
-                            "detail": str(exc),
-                            "fallback": {
-                                "failed_voice_stack_id": stack.id,
-                                "target_voice_stack_id": alternative.id,
-                                "target_voice_stack_version": alternative.version,
-                                "transport": alternative.transport.value,
-                                "models": dict(alternative.models),
-                                "available": services.voice_stack_available(alternative),
-                            },
-                        },
-                    )
-                services.repository.record_execution(call.execution)
-                realtime_calls[session_id] = call
-                realtime_ready.setdefault(session_id, asyncio.Event()).set()
-        return Response(content=call.answer_sdp, media_type="application/sdp")
-
-    async def handle_realtime_socket(
-        websocket: WebSocket,
-        session_id: str,
-        lifecycle: VoiceLifecycle,
-        selected_stack: VoiceStack,
-    ) -> None:
-        activate_if_created(session_id)
-        session = services.repository.get_session(session_id)
-        case = services.orchestrator._case_for_session(session)
-        simulation_trace = services.realtime_simulation.build_transport(case)
-        assembler = RealtimeTurnAssembler()
-        send_lock = asyncio.Lock()
-        processing_lock = asyncio.Lock()
-        response_started_at: dict[str, float] = {}
-        speech_stopped_at: dict[str, float] = {}
-        transcript_final_at: dict[str, float] = {}
-        realtime_wall_timestamps: dict[str, dict[str, str]] = {}
-        response_text: dict[str, str] = {}
-        opening_transcripts: dict[str, str] = {}
-        length_limited_responses: set[str] = set()
-        length_limit_attempted: set[str] = set()
-        response_limit_tasks: dict[str, asyncio.Task[None]] = {}
-        active_response_id: str | None = None
-        pending_response_interruption = False
-        last_speech_stopped_at: float | None = None
-        timed_facts_released = asyncio.Event()
-        response_idle = asyncio.Event()
-        response_idle.set()
-        provider_response_terminal = asyncio.Event()
-        provider_response_terminal.set()
-        response_create_lock = asyncio.Lock()
-        response_create_tasks: set[asyncio.Task[None]] = set()
-        user_turn_ready = asyncio.Event()
-        pending_turns = 0
-        seen_speech_items: set[str] = set()
-        anonymous_turn_ids: deque[str] = deque()
-        pending_turns_by_input: dict[str, ConversationTurn] = {}
-        pending_anonymous_turns: deque[ConversationTurn] = deque()
-        finalized = asyncio.Event()
-        opening_text = services.patient_opening.build(case)
-
-        async def send(event_type: str, **data: object) -> bool:
-            try:
-                async with send_lock:
-                    await websocket.send_json({"type": event_type, "data": data})
-            except (RuntimeError, WebSocketDisconnect):
-                return False
-            return True
-
-        def command_failure(
-            call: RealtimeCall, operation: str, error: Exception
-        ) -> ExecutionRecord:
-            return ExecutionRecord(
-                id=new_id(),
-                session_id=session_id,
-                operation=operation,
-                provider=call.provider,
-                model=call.model,
-                status=ExecutionStatus.FAILED,
-                prompt_version=simulation_trace.prompt_version,
-                prompt_hash=simulation_trace.prompt_hash,
-                case_version=case.version,
-                case_hash=case.content_hash,
-                latency_ms=0,
-                usage={},
-                error_code=type(error).__name__,
-                error_message=str(error)[:1000],
-                retryable=True,
-            )
-
-        async def persist_user_transcript(
-            text: str, provider_input_item_id: str | None
-        ) -> ConversationTurn | None:
-            clean_text = text.strip()
-            if not clean_text:
-                return None
-            async with processing_lock:
-                if provider_input_item_id:
-                    existing = services.repository.get_turn_by_provider_input(
-                        session_id, provider_input_item_id
-                    )
-                    if existing is not None:
-                        return existing
-                current = services.repository.get_session(session_id)
-                turn = ConversationTurn(
-                    id=new_id(),
-                    session_id=session_id,
-                    sequence=len(current.turns) + 1,
-                    user_text=clean_text,
-                    patient_text="",
-                    revealed_fact_ids=(),
-                    provider_input_item_id=provider_input_item_id,
-                    provider_response_status="awaiting_response",
-                )
-                turn = services.repository.append_turn_idempotent(turn)
-                if provider_input_item_id is None:
-                    anonymous_turn_ids.append(turn.id)
-                    pending_anonymous_turns.append(turn)
-                else:
-                    pending_turns_by_input[provider_input_item_id] = turn
-                await send("turn.persisted", turn=public_turn(turn))
-                return turn
-
-        async def persist_completed(completed: object) -> None:
-            from ari.application.services.realtime import CompletedRealtimeTurn
-
-            item = cast(CompletedRealtimeTurn, completed)
-            response_completed_at = time.perf_counter()
-            if services.repository.get_turn_by_provider_response(session_id, item.response_id):
-                return
-            async with processing_lock:
-                turn = (
-                    services.repository.get_turn_by_provider_input(session_id, item.input_item_id)
-                    if item.input_item_id
-                    else None
-                )
-                if turn is None and anonymous_turn_ids:
-                    anonymous_id = anonymous_turn_ids.popleft()
-                    turn = next(
-                        (
-                            candidate
-                            for candidate in services.repository.get_session(session_id).turns
-                            if candidate.id == anonymous_id
-                        ),
-                        None,
-                    )
-                if turn is None:
-                    current = services.repository.get_session(session_id)
-                    turn = ConversationTurn(
-                        id=new_id(),
-                        session_id=session_id,
-                        sequence=len(current.turns) + 1,
-                        user_text=item.user_text,
-                        patient_text="",
-                        revealed_fact_ids=(),
-                        provider_input_item_id=item.input_item_id,
-                        provider_response_status="awaiting_response",
-                    )
-                    turn = services.repository.append_turn_idempotent(turn)
-                    await send("turn.persisted", turn=public_turn(turn))
-                effective_status = (
-                    "length_limited"
-                    if item.response_id in length_limited_responses
-                    else item.response_status
-                )
-                interrupted = item.interrupted or effective_status == "length_limited"
-                canonical = turn.canonical_response
-                canonical_text = (
-                    str(canonical.get("text", "")).strip() if isinstance(canonical, Mapping) else ""
-                )
-                fidelity = verify_response_fidelity(canonical_text, item.patient_text)
-                turn = services.repository.finalize_transport_response(
-                    turn.id,
-                    provider_response_id=item.response_id,
-                    provider_response_status=effective_status,
-                    canonical_response=canonical,
-                    observed_response_text=None if interrupted else item.patient_text,
-                    fidelity_matches=fidelity.matches,
-                    interrupted=interrupted,
-                    interruption_audio_end_ms=item.interruption_audio_end_ms,
-                )
-                if (
-                    not interrupted
-                    and fidelity.matches
-                    and effective_status == "completed"
-                    and canonical_text
-                ):
-                    turn = services.repository.begin_audio_stream(
-                        session_id, turn.id, item.response_id
-                    )
-                    turn = services.repository.mark_audio_sent(
-                        session_id, turn.id, item.response_id, 1
-                    )
-                observed_response_ms = int(
-                    1000
-                    * max(
-                        0.0,
-                        time.perf_counter()
-                        - response_started_at.get(item.response_id, time.perf_counter()),
-                    )
-                )
-                word_count = spoken_word_count(turn.patient_text)
-                if item.execution is not None:
-                    usage = {
-                        **item.execution.usage,
-                        "spoken_word_count": word_count,
-                        "observed_response_ms": observed_response_ms,
-                        "response_kind": RealtimeResponseKind.PATIENT_ANSWER.value,
-                    }
-                    services.repository.record_execution(
-                        replace(item.execution, turn_id=turn.id, usage=usage)
-                    )
-                input_key = item.input_item_id or "anonymous"
-                speech_end = speech_stopped_at.get(input_key)
-                if speech_end is None:
-                    speech_end = last_speech_stopped_at
-                transcript_end = transcript_final_at.get(input_key)
-
-                def elapsed(start: float | None, end: float | None) -> int | None:
-                    if start is None or end is None or end < start:
-                        return None
-                    return int((end - start) * 1000)
-
-                realtime_durations = {
-                    "speech_end_to_transcript_final_ms": elapsed(speech_end, transcript_end),
-                    # Realtime combines speech generation; no separate LLM stage is exposed.
-                    "llm_total_ms": None,
-                    # WebRTC audio bypasses this server; sideband arrival is not an audio send.
-                    "speech_end_to_first_audio_sent_ms": None,
-                    "turn_total_ms": elapsed(speech_end, response_completed_at),
-                }
-                available_durations = {
-                    key: value for key, value in realtime_durations.items() if value is not None
-                }
-                wall = {
-                    **realtime_wall_timestamps.get("anonymous", {}),
-                    **realtime_wall_timestamps.get(input_key, {}),
-                    **realtime_wall_timestamps.get(item.response_id, {}),
-                    "turn_ended_at": utc_timestamp(),
-                }
-                services.repository.record_voice_turn_metric(
-                    new_voice_metric(
-                        services.repository.get_session(session_id),
-                        turn,
-                        transport=VoiceMetricTransport.REALTIME,
-                        application_version=services.settings.application_version,
-                        durations=realtime_durations,
-                        clock_domains={key: ClockDomain.SERVER for key in available_durations},
-                        wall_timestamps_utc=wall,
-                        executions=(item.execution,) if item.execution is not None else (),
-                        status=(
-                            VoiceTurnMetricStatus.FAILED
-                            if (
-                                interrupted
-                                or effective_status != "completed"
-                                or not fidelity.matches
-                            )
-                            else VoiceTurnMetricStatus.COMPLETED
-                        ),
-                        error_count=(
-                            1 if effective_status != "completed" or not fidelity.matches else 0
-                        ),
-                    )
-                )
-                await send(
-                    "turn.completed",
-                    turn=public_turn(turn),
-                    telemetry={
-                        "transport": "webrtc",
-                        "response_start_ms": int(
-                            1000
-                            * max(
-                                0.0,
-                                response_started_at.get(item.response_id, time.perf_counter())
-                                - (last_speech_stopped_at or time.perf_counter()),
-                            )
-                        ),
-                        "model": realtime_calls[session_id].model,
-                        "usage": item.usage,
-                        "estimated_cost_usd": (
-                            item.execution.estimated_cost_usd if item.execution else None
-                        ),
-                        "interrupted": item.interrupted,
-                        "spoken_word_count": word_count,
-                        "observed_response_ms": observed_response_ms,
-                        "response_kind": RealtimeResponseKind.PATIENT_ANSWER.value,
-                    },
-                )
-
-        async def acknowledge_realtime_audio(control: ClientControlMessage) -> None:
-            if control.type == "audio.playback_completed":
-                await send(
-                    "audio.ack_rejected",
-                    turn_id=control.turn_id,
-                    message="WebRTC cannot prove per-response playback completion",
-                )
-                return
-            try:
-                turn = services.repository.confirm_audio_started(
-                    session_id,
-                    cast(str, control.turn_id),
-                    cast(str, control.audio_stream_id),
-                    provider_response_id=control.response_id,
-                    last_index=cast(int, control.last_index),
-                )
-            except AriError as exc:
-                await send("audio.ack_rejected", turn_id=control.turn_id, message=str(exc))
-                return
-            persist_client_playback_observation(turn, control)
-            await send("turn.audio_started", turn=public_turn(turn))
-
-        async def limit_response(response_id: str) -> None:
-            await asyncio.sleep(12)
-            if response_id != active_response_id or finalized.is_set():
-                return
-            await interrupt_for_limit(response_id)
-
-        async def interrupt_for_limit(response_id: str) -> None:
-            if response_id in length_limit_attempted:
-                return
-            length_limit_attempted.add(response_id)
-            call = realtime_calls.get(session_id)
-            if call is None:
-                return
-            try:
-                await call.interrupt_response()
-            except ProviderError as exc:
-                services.repository.record_execution(cast(ExecutionRecord, exc.execution))
-                await send(
-                    "response.limit_failed",
-                    response_id=response_id,
-                    message=str(exc),
-                )
-                return
-            except Exception as exc:
-                services.repository.record_execution(
-                    command_failure(call, "realtime_voice.interrupt", exc)
-                )
-                await send(
-                    "response.limit_failed",
-                    response_id=response_id,
-                    message=str(exc),
-                )
-                return
-            length_limited_responses.add(response_id)
-            await send(
-                "patient.interrupted",
-                response_id=response_id,
-                reason="length_limited",
-            )
-
-        async def pump_events() -> None:
-            nonlocal active_response_id, last_speech_stopped_at, pending_turns
-            nonlocal pending_response_interruption
-            try:
-                ready = realtime_ready.setdefault(session_id, asyncio.Event())
-                await asyncio.wait_for(ready.wait(), timeout=30)
-                call = realtime_calls[session_id]
-                await send(
-                    "realtime.connected",
-                    call_id=call.call_id,
-                    model=call.model,
-                    voice_profile=session.voice_profile.value,
-                    interaction_mode=session.interaction_mode.value,
-                )
-                current = services.repository.get_session(session_id)
-                should_open = current.patient_opening is None and not current.turns
-                if should_open:
-                    opening = services.repository.save_patient_opening(
-                        PatientOpening(
-                            session_id=session_id,
-                            text=opening_text,
-                            status=PatientOpeningStatus.PENDING,
-                        )
-                    )
-                    await send("patient.opening_started", text=opening.text)
-                    try:
-                        await call.create_response(
-                            kind=RealtimeResponseKind.OPENING,
-                            exact_text=opening.text,
-                        )
-                    except ProviderError as exc:
-                        services.repository.record_execution(cast(ExecutionRecord, exc.execution))
-                        services.repository.save_patient_opening(
-                            replace(opening, status=PatientOpeningStatus.FAILED)
-                        )
-                        await send("patient.opening_failed", text=opening.text)
-                        user_turn_ready.set()
-                        lifecycle.guided_phase = "ready"
-                        await send("user.turn.ready")
-                    except Exception as exc:
-                        services.repository.record_execution(
-                            command_failure(call, "realtime_voice.opening", exc)
-                        )
-                        services.repository.save_patient_opening(
-                            replace(opening, status=PatientOpeningStatus.FAILED)
-                        )
-                        await send("patient.opening_failed", text=opening.text)
-                        user_turn_ready.set()
-                        lifecycle.guided_phase = "ready"
-                        await send("user.turn.ready")
-                else:
-                    if (
-                        current.patient_opening is not None
-                        and current.patient_opening.status is PatientOpeningStatus.PENDING
-                    ):
-                        failed_opening = services.repository.save_patient_opening(
-                            replace(
-                                current.patient_opening,
-                                status=PatientOpeningStatus.FAILED,
-                            )
-                        )
-                        await send("patient.opening_failed", text=failed_opening.text)
-                    user_turn_ready.set()
-                    lifecycle.guided_phase = "ready"
-                    await send("user.turn.ready")
-                async for event in call.events():
-                    if event.response_kind is RealtimeResponseKind.OPENING:
-                        if event.type == "patient_speech_started" and event.response_id:
-                            response_started_at[event.response_id] = time.perf_counter()
-                        elif event.type == "patient_transcript_delta":
-                            if event.response_id:
-                                opening_transcripts[event.response_id] = opening_transcripts.get(
-                                    event.response_id, ""
-                                ) + (event.text or "")
-                            await send("patient.transcript_delta", text=event.text or "")
-                        elif event.type == "patient_transcript_final" and event.response_id:
-                            opening_transcripts[event.response_id] = (event.text or "").strip()
-                        elif event.type == "response_completed":
-                            stored_opening = services.repository.get_session(
-                                session_id
-                            ).patient_opening
-                            if stored_opening is None:
-                                continue
-                            if (
-                                stored_opening.status
-                                in {PatientOpeningStatus.COMPLETED, PatientOpeningStatus.FAILED}
-                                and stored_opening.provider_response_id == event.response_id
-                            ):
-                                continue
-                            spoken_text = opening_transcripts.get(
-                                event.response_id or "", ""
-                            ).strip()
-                            provider_succeeded = event.response_status in {
-                                None,
-                                "completed",
-                                "succeeded",
-                            }
-                            exact_match = spoken_text == stored_opening.text
-                            succeeded = provider_succeeded and exact_match
-                            status = (
-                                PatientOpeningStatus.COMPLETED
-                                if succeeded
-                                else PatientOpeningStatus.FAILED
-                            )
-                            stored_opening = services.repository.save_patient_opening(
-                                replace(
-                                    stored_opening,
-                                    status=status,
-                                    spoken_text=spoken_text or None,
-                                    provider_response_id=event.response_id,
-                                )
-                            )
-                            if event.execution is not None:
-                                started = response_started_at.get(
-                                    event.response_id or "", time.perf_counter()
-                                )
-                                services.repository.record_execution(
-                                    replace(
-                                        event.execution,
-                                        usage={
-                                            **event.execution.usage,
-                                            "spoken_word_count": spoken_word_count(
-                                                stored_opening.spoken_text or ""
-                                            ),
-                                            "observed_response_ms": int(
-                                                1000 * max(0.0, time.perf_counter() - started)
-                                            ),
-                                            "response_kind": RealtimeResponseKind.OPENING.value,
-                                            "planned_text": stored_opening.text,
-                                            "opening_exact_match": exact_match,
-                                        },
-                                    )
-                                )
-                            await send(
-                                (
-                                    "patient.opening_completed"
-                                    if succeeded
-                                    else "patient.opening_failed"
-                                ),
-                                text=stored_opening.text,
-                                spoken_text=stored_opening.spoken_text,
-                                response_id=event.response_id,
-                            )
-                            user_turn_ready.set()
-                            lifecycle.guided_phase = "ready"
-                            await send("user.turn.ready")
-                        elif event.type == "error":
-                            error_opening = services.repository.get_session(
-                                session_id
-                            ).patient_opening
-                            if error_opening is not None:
-                                services.repository.save_patient_opening(
-                                    replace(
-                                        error_opening,
-                                        status=PatientOpeningStatus.FAILED,
-                                    )
-                                )
-                            if event.execution is not None:
-                                services.repository.record_execution(event.execution)
-                            await send("patient.opening_failed", text=opening_text)
-                            user_turn_ready.set()
-                            lifecycle.guided_phase = "ready"
-                            await send("user.turn.ready")
-                        continue
-                    if event.type == "user_transcript_final" and event.text:
-                        await persist_user_transcript(event.text, event.input_item_id)
-                    completed = assembler.handle(event)
-                    if event.type == "user_speech_started":
-                        if session.interaction_mode is InteractionMode.IMMERSIVE and (
-                            event.input_item_id is None
-                            or event.input_item_id not in seen_speech_items
-                        ):
-                            if event.input_item_id is not None:
-                                seen_speech_items.add(event.input_item_id)
-                            pending_turns += 1
-                            response_idle.clear()
-                        await send("user.speech_started", item_id=event.input_item_id)
-                        input_key = event.input_item_id or "anonymous"
-                        realtime_wall_timestamps.setdefault(input_key, {})["speech_started_at"] = (
-                            utc_timestamp()
-                        )
-                        if event.response_id:
-                            await send("patient.interrupted", response_id=event.response_id)
-                    elif event.type == "user_speech_stopped":
-                        last_speech_stopped_at = time.perf_counter()
-                        input_key = event.input_item_id or "anonymous"
-                        speech_stopped_at[input_key] = last_speech_stopped_at
-                        realtime_wall_timestamps.setdefault(input_key, {})["speech_ended_at"] = (
-                            utc_timestamp()
-                        )
-                    elif event.type == "user_transcript_delta":
-                        await send("user.transcript_delta", text=event.text or "")
-                    elif event.type == "user_transcript_final":
-                        input_key = event.input_item_id or "anonymous"
-                        transcript_final_at[input_key] = time.perf_counter()
-                        realtime_wall_timestamps.setdefault(input_key, {})[
-                            "transcript_final_at"
-                        ] = utc_timestamp()
-                        await send("user.transcript_final", text=event.text or "")
-                        # Disclosure and case-time updates belong to the
-                        # application PatientSimulator, never to the transport.
-                        if lifecycle.end_requested.is_set():
-                            pending_turns = max(0, pending_turns - 1)
-                            if pending_turns == 0:
-                                response_idle.set()
-                        else:
-                            reserved_for_response = (
-                                pending_turns_by_input.get(event.input_item_id)
-                                if event.input_item_id is not None
-                                else (
-                                    pending_anonymous_turns.popleft()
-                                    if pending_anonymous_turns
-                                    else None
-                                )
-                            )
-                            task = asyncio.create_task(
-                                request_patient_response(
-                                    call,
-                                    reserved_for_response,
-                                )
-                            )
-                            response_create_tasks.add(task)
-                            task.add_done_callback(response_create_tasks.discard)
-                    elif event.type == "response_created":
-                        if event.response_id:
-                            realtime_wall_timestamps.setdefault(event.response_id, {})[
-                                "response_created_observed_at"
-                            ] = utc_timestamp()
-                            active_response_id = event.response_id
-                            if pending_response_interruption:
-                                assembler.handle(
-                                    RealtimeProviderEvent(
-                                        "patient_interrupted",
-                                        response_id=event.response_id,
-                                    )
-                                )
-                                pending_response_interruption = False
-                            response_limit_tasks[event.response_id] = asyncio.create_task(
-                                limit_response(event.response_id)
-                            )
-                    elif event.type == "patient_speech_started":
-                        if event.response_id:
-                            first_audio = time.perf_counter()
-                            response_started_at[event.response_id] = first_audio
-                            realtime_wall_timestamps.setdefault(event.response_id, {})[
-                                "provider_audio_started_observed_at"
-                            ] = utc_timestamp()
-                            active_response_id = event.response_id
-                            if event.response_id not in response_limit_tasks:
-                                response_limit_tasks[event.response_id] = asyncio.create_task(
-                                    limit_response(event.response_id)
-                                )
-                        if session.interaction_mode is InteractionMode.GUIDED:
-                            lifecycle.guided_phase = "patient_speaking"
-                        await send("patient.speech_started", response_id=event.response_id)
-                    elif event.type == "patient_transcript_delta":
-                        if event.response_id:
-                            response_text[event.response_id] = response_text.get(
-                                event.response_id, ""
-                            ) + (event.text or "")
-                            if (
-                                spoken_word_count(response_text[event.response_id]) >= 45
-                                and event.response_id not in length_limit_attempted
-                            ):
-                                await interrupt_for_limit(event.response_id)
-                        await send(
-                            "patient.transcript_delta",
-                            text=event.text or "",
-                            response_id=event.response_id,
-                        )
-                    elif event.type == "patient_transcript_final":
-                        await send(
-                            "patient.response_text",
-                            text=event.text or "",
-                            response_id=event.response_id,
-                        )
-                    elif event.type == "patient_interrupted":
-                        await send("patient.interrupted", response_id=event.response_id)
-                    elif event.type == "error":
-                        if event.execution is not None:
-                            services.repository.record_execution(event.execution)
-                        await send(
-                            "voice.error",
-                            message="Realtime provider error",
-                            detail=event.raw or {},
-                        )
-                    completed_items = (() if completed is None else (completed,)) + (
-                        assembler.drain_ready()
-                    )
-                    for completed_item in completed_items:
-                        await persist_completed(completed_item)
-                    if event.type in {"response_completed", "error"}:
-                        provider_response_terminal.set()
-                        pending_response_interruption = False
-                        if event.response_id:
-                            limit_task = response_limit_tasks.pop(event.response_id, None)
-                            if limit_task is not None:
-                                limit_task.cancel()
-                        active_response_id = None
-                        pending_turns = max(0, pending_turns - 1)
-                        if pending_turns == 0:
-                            response_idle.set()
-                            if session.interaction_mode is InteractionMode.GUIDED:
-                                lifecycle.guided_phase = "ready"
-                                await send("user.turn.ready")
-            except Exception as exc:
-                with suppress(Exception):
-                    await send("voice.error", message=str(exc))
-                    await websocket.close(code=1011)
-
-        async def release_timed_facts() -> None:
-            await asyncio.sleep(300)
-            if timed_facts_released.is_set():
-                return
-            ready = realtime_ready.setdefault(session_id, asyncio.Event())
-            await ready.wait()
-            call = realtime_calls.get(session_id)
-            if call is not None:
-                # Kept as a lifecycle task for compatibility; no clinical
-                # state is sent to the Realtime provider anymore.
-                timed_facts_released.set()
-
-        async def request_patient_response(
-            call: RealtimeCall, reserved_turn: ConversationTurn | None = None
-        ) -> None:
-            nonlocal pending_turns
-            async with response_create_lock:
-                if lifecycle.end_requested.is_set() or finalized.is_set():
-                    return
-                await provider_response_terminal.wait()
-                if lifecycle.end_requested.is_set() or finalized.is_set():
-                    return
-                provider_response_terminal.clear()
-                try:
-                    canonical_text: str | None = None
-                    if reserved_turn is not None:
-                        current_turn = next(
-                            (
-                                candidate
-                                for candidate in services.repository.get_session(session_id).turns
-                                if candidate.id == reserved_turn.id
-                            ),
-                            None,
-                        )
-                        if current_turn is None:
-                            raise InvalidStateError("Reserved practice turn was not found")
-                        if not current_turn.patient_text:
-                            await services.orchestrator.complete_turn(current_turn)
-                            current_turn = next(
-                                candidate
-                                for candidate in services.repository.get_session(session_id).turns
-                                if candidate.id == reserved_turn.id
-                            )
-                            canonical_text = current_turn.patient_text
-                        else:
-                            canonical_text = current_turn.patient_text
-                    if not canonical_text:
-                        raise InvalidStateError(
-                            "A canonical response is required before Realtime synthesis"
-                        )
-                    await call.create_response(exact_text=canonical_text)
-                except ProviderError as exc:
-                    services.repository.record_execution(cast(ExecutionRecord, exc.execution))
-                    provider_response_terminal.set()
-                    pending_turns = max(0, pending_turns - 1)
-                    if pending_turns == 0:
-                        response_idle.set()
-                        lifecycle.guided_phase = "ready"
-                        await send("user.turn.ready")
-                    await send("response.create_failed", message=str(exc))
-                except Exception as exc:
-                    services.repository.record_execution(
-                        command_failure(call, "realtime_voice.response_create", exc)
-                    )
-                    provider_response_terminal.set()
-                    pending_turns = max(0, pending_turns - 1)
-                    if pending_turns == 0:
-                        response_idle.set()
-                        lifecycle.guided_phase = "ready"
-                        await send("user.turn.ready")
-                    await send("response.create_failed", message=str(exc))
-
-        await send(
-            "call.started",
-            session_id=session_id,
-            provider_mode=services.settings.provider_mode,
-            transport="webrtc",
-            voice_stack_id=selected_stack.id,
-            voice_stack_version=selected_stack.version,
-            models=dict(selected_stack.models),
-        )
-        pump = asyncio.create_task(pump_events())
-        disclosure_timer = asyncio.create_task(release_timed_facts())
-
-        async def start_manual_turn() -> None:
-            nonlocal pending_response_interruption, pending_turns
-            if session.interaction_mode is not InteractionMode.GUIDED:
-                return
-            async with lifecycle.manual_turn_lock:
-                if lifecycle.manual_recording or lifecycle.end_requested.is_set():
-                    return
-                if not user_turn_ready.is_set():
-                    return
-                if lifecycle.guided_phase not in {"ready", "patient_speaking"}:
-                    return
-                call = realtime_calls.get(session_id)
-                if call is None:
-                    return
-                if pending_turns > 0:
-                    if active_response_id is not None:
-                        assembler.handle(
-                            RealtimeProviderEvent(
-                                "patient_interrupted",
-                                response_id=active_response_id,
-                            )
-                        )
-                    else:
-                        pending_response_interruption = True
-                    await call.interrupt_response()
-                    await send("patient.interrupted", response_id=active_response_id)
-                await call.begin_user_turn()
-                realtime_wall_timestamps.setdefault("anonymous", {})["speech_started_at"] = (
-                    utc_timestamp()
-                )
-                lifecycle.manual_recording = True
-                lifecycle.guided_phase = "recording"
-                pending_turns += 1
-                response_idle.clear()
-                await send("user.turn.recording")
-
-        async def finish_manual_turn() -> None:
-            nonlocal last_speech_stopped_at
-            if session.interaction_mode is not InteractionMode.GUIDED:
-                return
-            async with lifecycle.manual_turn_lock:
-                if not lifecycle.manual_recording:
-                    return
-                lifecycle.manual_recording = False
-                lifecycle.guided_phase = "processing"
-                await asyncio.sleep(0.2)
-                call = realtime_calls.get(session_id)
-                if call is None:
-                    return
-                await call.commit_user_turn()
-                last_speech_stopped_at = time.perf_counter()
-                realtime_wall_timestamps.setdefault("anonymous", {})["speech_ended_at"] = (
-                    utc_timestamp()
-                )
-                await send("user.turn.committed")
-
-        async def drain_voice() -> None:
-            if finalized.is_set():
-                await lifecycle.drained.wait()
-                return
-            finalized.set()
-            try:
-                provider_response_terminal.set()
-                queued_response_tasks = tuple(response_create_tasks)
-                for task in queued_response_tasks:
-                    task.cancel()
-                if queued_response_tasks:
-                    with suppress(TimeoutError):
-                        async with asyncio.timeout(1):
-                            await asyncio.gather(
-                                *queued_response_tasks,
-                                return_exceptions=True,
-                            )
-                for task in tuple(response_limit_tasks.values()):
-                    task.cancel()
-                if lifecycle.manual_recording:
-                    with suppress(Exception):
-                        await finish_manual_turn()
-                with suppress(TimeoutError):
-                    async with asyncio.timeout(3):
-                        await response_idle.wait()
-                async with lifecycle.provider_start_lock:
-                    call = realtime_calls.get(session_id)
-                    if call is not None:
-                        with suppress(Exception):
-                            await call.close()
-                if not pump.done():
-                    with suppress(TimeoutError):
-                        async with asyncio.timeout(2):
-                            await pump
-                if not pump.done():
-                    pump.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await pump
-                for completed_item in assembler.drain_ready(force_incomplete=True):
-                    await persist_completed(completed_item)
-                async with processing_lock:
-                    pass
-            finally:
-                services.repository.mark_session_delivery_unconfirmed(session_id)
-                sync_metric_delivery_status(session_id)
-                stored_opening = services.repository.get_session(session_id).patient_opening
-                if (
-                    stored_opening is not None
-                    and stored_opening.status is PatientOpeningStatus.PENDING
-                ):
-                    services.repository.save_patient_opening(
-                        replace(stored_opening, status=PatientOpeningStatus.FAILED)
-                    )
-                lifecycle.drained.set()
-
-        async def end_on_http_request() -> None:
-            await lifecycle.end_requested.wait()
-            await drain_voice()
-            await send("call.ended", session_id=session_id)
-            with suppress(Exception):
-                await websocket.close(code=1000)
-
-        end_watcher = asyncio.create_task(end_on_http_request())
-
-        try:
-            while True:
-                raw = await websocket.receive_text()
-                try:
-                    control = ClientControlMessage.model_validate_json(raw)
-                except ValidationError as exc:
-                    await send("voice.error", message="Invalid control event", detail=str(exc))
-                    continue
-                if control.type == "call.end":
-                    lifecycle.end_requested.set()
-                    await drain_voice()
-                    await send("call.ended", session_id=session_id)
-                    break
-                if control.type in {"audio.playback_started", "audio.playback_completed"}:
-                    await acknowledge_realtime_audio(control)
-                    continue
-                if control.type == "user.turn.start":
-                    await start_manual_turn()
-                elif control.type == "user.turn.finish":
-                    await finish_manual_turn()
-        except WebSocketDisconnect:
-            pass
-        finally:
-            end_watcher.cancel()
-            with suppress(asyncio.CancelledError):
-                await end_watcher
-            await drain_voice()
-            disclosure_timer.cancel()
-            with suppress(asyncio.CancelledError):
-                await disclosure_timer
-            async with realtime_lock:
-                call = realtime_calls.pop(session_id, None)
-                realtime_ready.pop(session_id, None)
-            if call is not None:
-                with suppress(Exception):
-                    await call.close()
-
     @app.websocket("/ws/sessions/{session_id}/voice")
     async def voice_socket(websocket: WebSocket, session_id: str) -> None:
         await websocket.accept()
@@ -1439,7 +396,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             )
             await websocket.close(code=4403)
             return
-        realtime_engine = services.realtime_voice_for(selected_stack.id)
         async with voice_session_lock:
             rejected = session_id in voice_lifecycles
             lifecycle = VoiceLifecycle()
@@ -1454,34 +410,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             )
             await websocket.close(code=4409)
             return
-        if selected_stack.transport is VoiceTransport.REALTIME:
-            if realtime_engine is None:
-                await websocket.send_json(
-                    {
-                        "type": "voice.error",
-                        "data": {"message": "The persisted Realtime voice stack is unavailable"},
-                    }
-                )
-                await websocket.close(code=4403)
-                lifecycle.drained.set()
-                async with voice_session_lock:
-                    if voice_lifecycles.get(session_id) is lifecycle:
-                        voice_lifecycles.pop(session_id, None)
-                return
-            try:
-                await handle_realtime_socket(websocket, session_id, lifecycle, selected_stack)
-            except Exception as exc:
-                with suppress(Exception):
-                    await websocket.send_json(
-                        {"type": "voice.error", "data": {"message": str(exc)}}
-                    )
-                    await websocket.close(code=1011)
-            finally:
-                lifecycle.drained.set()
-                async with voice_session_lock:
-                    if voice_lifecycles.get(session_id) is lifecycle:
-                        voice_lifecycles.pop(session_id, None)
-            return
         send_lock = asyncio.Lock()
         try:
             activate_if_created(session_id)
@@ -1494,7 +422,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                 case_version=case.version,
                 case_hash=case.content_hash,
             )
-            voice_engine = services.pipeline_voice_for(selected_stack.id)
+            voice_engine = services.voice
             stt = await voice_engine.open_transcription(context, TranscriptionConfig.for_case(case))
         except Exception as exc:
             if isinstance(exc, ProviderError):

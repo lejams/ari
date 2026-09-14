@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime
 from typing import Any
@@ -13,31 +12,23 @@ from starlette.websockets import WebSocket
 
 from ari.api.app import create_app
 from ari.application.contracts import AudioStreamEvent, ExecutionContext
-from ari.application.ports.realtime_voice import RealtimeSimulationSpec
 from ari.application.services.voice import TurnBasedVoiceEngine
 from ari.container import Container
 from ari.domain.errors import ProviderError
 from ari.domain.models import (
     ExecutionRecord,
     ExecutionStatus,
-    InteractionMode,
-    VoiceProfile,
     new_id,
 )
 from ari.infrastructure.providers.fake import FakeSTTProvider, FakeTTSProvider
 
 
-def create_session(client: TestClient, stack: str = "pipeline_economy") -> dict[str, object]:
+def create_session(client: TestClient) -> dict[str, object]:
     case = client.get("/api/cases").json()[0]
     learner = client.post("/api/learners", json={}).json()
     return client.post(
         "/api/sessions",
-        json={
-            "learner_id": learner["id"],
-            "case_id": case["id"],
-            "case_version": case["version"],
-            "voice_stack_id": stack,
-        },
+        json={"learner_id": learner["id"], "case_id": case["id"], "case_version": case["version"]},
     ).json()
 
 
@@ -235,72 +226,3 @@ def test_tts_retry_reuses_transcript_and_turn(container: Container) -> None:
             receive(socket, "call.ended")
         assert len(client.get(f"/api/sessions/{session_id}").json()["turns"]) == 1
         assert tts.calls == 2
-
-
-class FailingRealtimeEngine:
-    async def start_call(
-        self,
-        offer_sdp: str,
-        *,
-        context: ExecutionContext,
-        simulation: RealtimeSimulationSpec,
-        profile: VoiceProfile,
-        interaction_mode: InteractionMode,
-    ) -> object:
-        del offer_sdp, simulation, profile, interaction_mode
-        execution = ExecutionRecord(
-            id=new_id(),
-            session_id=context.session_id,
-            operation="realtime_voice.connect",
-            provider="test",
-            model="gpt-realtime-2.1-mini",
-            status=ExecutionStatus.FAILED,
-            prompt_version=context.prompt_version,
-            prompt_hash=context.prompt_hash,
-            case_version=context.case_version,
-            case_hash=context.case_hash,
-            latency_ms=1,
-            usage={},
-            error_code="forced",
-            error_message="forced",
-            retryable=True,
-        )
-        raise ProviderError("forced", execution=execution)
-
-
-def test_realtime_fallback_requires_explicit_atomic_action(container: Container) -> None:
-    services = replace(container, realtime_voice=FailingRealtimeEngine())  # type: ignore[arg-type]
-    with TestClient(create_app(services)) as client:
-        session = create_session(client, "realtime_economy")
-        session_id = str(session["id"])
-        with client.websocket_connect(f"/ws/sessions/{session_id}/voice") as socket:
-            socket.receive_json()
-            failed = client.post(
-                f"/api/sessions/{session_id}/voice/realtime",
-                content="v=0\r\n",
-                headers={"content-type": "application/sdp"},
-            )
-            assert failed.status_code == 502
-            assert (
-                client.get(f"/api/sessions/{session_id}").json()["voice_stack_id"]
-                == "realtime_economy"
-            )
-            request = {
-                "failed_voice_stack_id": "realtime_economy",
-                "target_voice_stack_id": "pipeline_economy",
-            }
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                responses = tuple(
-                    pool.map(
-                        lambda _: client.post(
-                            f"/api/sessions/{session_id}/voice/fallback", json=request
-                        ),
-                        range(2),
-                    )
-                )
-            assert [item.status_code for item in responses] == [200, 200]
-            socket.send_json({"type": "call.end"})
-            receive(socket, "call.ended")
-        stored = container.repository.get_session(session_id)
-        assert stored.voice_stack_id == "pipeline_economy"
-        assert len(stored.voice_stack_transitions) == 1

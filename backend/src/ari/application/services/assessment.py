@@ -16,7 +16,6 @@ def weighted_assessment(session: ConversationSession, case: MedicalCase) -> list
         t
         for t in session.turns
         if t.delivery_status is AudioDeliveryStatus.DELIVERED
-        and not t.interrupted
         and t.provider_response_status == "completed"
     ]
     heard = {fact for turn in delivered for fact in turn.revealed_fact_ids}

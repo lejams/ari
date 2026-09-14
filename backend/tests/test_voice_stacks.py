@@ -9,10 +9,10 @@ from pydantic import BaseModel
 
 from ari.api.app import create_app
 from ari.application.contracts import ExecutionContext, LLMRequest
-from ari.application.voice_stacks import VoiceStack, VoiceStackRegistry, VoiceTransport
+from ari.application.voice_stacks import VoiceStack
 from ari.container import Container
 from ari.domain.errors import InvalidStateError
-from ari.domain.models import InteractionMode, VoiceProfile, new_id
+from ari.domain.models import new_id
 from ari.infrastructure.providers.openai.llm import OpenAILLMProvider
 
 
@@ -59,129 +59,47 @@ class _OfflineClient:
         self.chat = _Chat(selected_models)
 
 
-def _stack(stack_id: str) -> VoiceStack:
-    return VoiceStack(
-        id=stack_id,
-        version="1",
-        transport=VoiceTransport.PIPELINE,
-        provider="fake",
-        models={"llm": "fake"},
-        parameters={"sample_rate": 24_000},
-    )
-
-
-def test_voice_stack_registry_is_unique_immutable_and_deterministic() -> None:
+def test_voice_stack_is_immutable_and_pins_its_exact_snapshot() -> None:
     original_parameters = {"sample_rate": 24_000, "nested": {"values": [1, 2]}}
-    economy = VoiceStack(
+    stack = VoiceStack(
         id="pipeline_economy",
         version="1",
-        transport=VoiceTransport.PIPELINE,
         provider="fake",
         models={"llm": "fake"},
         parameters=original_parameters,
     )
-    registry = VoiceStackRegistry((economy, _stack("pipeline_low_latency")))
-
-    assert (
-        registry.default_for(
-            InteractionMode.GUIDED,
-            VoiceProfile.ECONOMY,
-            preferred_transport=VoiceTransport.PIPELINE,
-        )
-        is economy
-    )
     with pytest.raises(TypeError):
-        cast(dict[str, str], economy.models)["llm"] = "changed"
+        cast(dict[str, str], stack.models)["llm"] = "changed"
     with pytest.raises(TypeError):
-        cast(dict[str, Any], economy.parameters)["sample_rate"] = 16_000
+        cast(dict[str, Any], stack.parameters)["sample_rate"] = 16_000
     original_parameters["nested"] = {"values": [99]}
-    first_snapshot = economy.snapshot()
+    first_snapshot = stack.snapshot()
     snapshot_parameters = cast(dict[str, Any], first_snapshot["parameters"])
     cast(dict[str, list[int]], snapshot_parameters["nested"])["values"].append(3)
-    assert economy.snapshot()["parameters"] == {
-        "sample_rate": 24_000,
-        "nested": {"values": [1, 2]},
-    }
-    assert registry.resolve_persisted("pipeline_economy", "1", economy.snapshot()) is economy
-    stale_snapshot = economy.snapshot()
+    assert stack.snapshot()["parameters"] == {"sample_rate": 24_000, "nested": {"values": [1, 2]}}
+    assert stack.resolve_persisted("pipeline_economy", "1", stack.snapshot()) is stack
+    stale_snapshot = stack.snapshot()
     cast(dict[str, Any], stale_snapshot["models"])["llm"] = "changed"
     with pytest.raises(InvalidStateError, match="not available exactly"):
-        registry.resolve_persisted("pipeline_economy", "1", stale_snapshot)
-    with pytest.raises(ValueError, match="unique"):
-        VoiceStackRegistry((economy, _stack("pipeline_economy")))
+        stack.resolve_persisted("pipeline_economy", "1", stale_snapshot)
+    with pytest.raises(InvalidStateError, match="not available exactly"):
+        stack.resolve_persisted("other", "1", stack.snapshot())
 
 
-def test_api_selects_and_persists_explicit_stack_and_rejects_unknown(
-    container: Container,
-) -> None:
+def test_api_persists_the_voice_stack_and_rejects_stack_selection(container: Container) -> None:
     app = create_app(container)
     with TestClient(app) as client:
         case = client.get("/api/cases").json()[0]
         learner = client.post("/api/learners", json={}).json()
-        default_session = client.post(
-            "/api/sessions",
-            json={
-                "learner_id": learner["id"],
-                "case_id": case["id"],
-                "case_version": case["version"],
-            },
-        ).json()
-        selected = client.post(
-            "/api/sessions",
-            json={
-                "learner_id": learner["id"],
-                "case_id": case["id"],
-                "case_version": case["version"],
-                "voice_stack_id": "realtime_quality",
-            },
-        )
-        unknown = client.post(
-            "/api/sessions",
-            json={
-                "learner_id": learner["id"],
-                "case_id": case["id"],
-                "case_version": case["version"],
-                "voice_stack_id": "unknown-stack",
-            },
-        )
+        body = {"learner_id": learner["id"], "case_id": case["id"], "case_version": case["version"]}
+        session = client.post("/api/sessions", json=body).json()
+        selected = client.post("/api/sessions", json={**body, "voice_stack_id": "other"})
 
-    assert default_session["voice_stack_id"] == "pipeline_economy"
-    assert selected.status_code == 201
-    assert selected.json()["voice_stack_id"] == "realtime_quality"
-    assert selected.json()["voice_profile"] == "quality"
-    assert selected.json()["voice_stack_config"]["models"]["realtime"] == "gpt-realtime-2.1"
-    assert unknown.status_code == 404
-
+    assert session["voice_stack_id"] == "pipeline_economy"
+    assert session["voice_stack_config"]["models"]["llm"] == container.voice_stack.models["llm"]
+    assert selected.status_code == 422
     direct = container.orchestrator.create_session(learner["id"], case["id"], case["version"])
-    assert (
-        container.voice_stacks.resolve_persisted(
-            direct.voice_stack_id,
-            direct.voice_stack_version,
-            direct.voice_stack_config,
-        ).id
-        == "pipeline_economy"
-    )
-
-
-def test_fake_mode_rejects_unavailable_explicit_realtime_stack(container: Container) -> None:
-    app = create_app(container)
-    with TestClient(app) as client:
-        case = client.get("/api/cases").json()[0]
-        learner = client.post("/api/learners", json={}).json()
-        session = client.post(
-            "/api/sessions",
-            json={
-                "learner_id": learner["id"],
-                "case_id": case["id"],
-                "case_version": case["version"],
-                "voice_stack_id": "realtime_economy",
-            },
-        ).json()
-        with client.websocket_connect(f"/ws/sessions/{session['id']}/voice") as socket:
-            error = socket.receive_json()
-
-    assert error["type"] == "voice.error"
-    assert "unavailable" in error["data"]["message"]
+    assert direct.voice_stack_config == container.voice_stack.snapshot()
 
 
 def test_voice_socket_rejects_stale_persisted_stack_cleanly(container: Container) -> None:
@@ -213,37 +131,6 @@ def test_voice_socket_rejects_stale_persisted_stack_cleanly(container: Container
     assert error["type"] == "voice.error"
     assert error["data"]["message"] == "The persisted voice stack is unavailable"
     assert "not available exactly" in error["data"]["detail"]
-
-
-def test_legacy_voice_transport_setting_only_selects_the_default_stack(
-    container: Container,
-) -> None:
-    pipeline_settings = container.settings.model_copy(update={"voice_transport": "pipeline"})
-    services = replace(container, settings=pipeline_settings)
-    app = create_app(services)
-    with TestClient(app) as client:
-        case = client.get("/api/cases").json()[0]
-        learner = client.post("/api/learners", json={}).json()
-        default_session = client.post(
-            "/api/sessions",
-            json={
-                "learner_id": learner["id"],
-                "case_id": case["id"],
-                "case_version": case["version"],
-            },
-        ).json()
-        explicit_session = client.post(
-            "/api/sessions",
-            json={
-                "learner_id": learner["id"],
-                "case_id": case["id"],
-                "case_version": case["version"],
-                "voice_stack_id": "realtime_quality",
-            },
-        ).json()
-
-    assert default_session["voice_stack_id"] == "pipeline_economy"
-    assert explicit_session["voice_stack_id"] == "realtime_quality"
 
 
 @pytest.mark.asyncio

@@ -8,7 +8,6 @@ import pytest
 from ari.application.prompting import load_prompt
 from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.patient import PatientSimulator
-from ari.application.voice_stacks import VoiceTransport
 from ari.config import PROJECT_ROOT
 from ari.container import Container
 from ari.domain.errors import InvalidStateError
@@ -191,8 +190,7 @@ async def test_unexpected_analysis_failure_is_retryable(container: Container) ->
             ),
         ),
         ExplodingEvaluator(),  # type: ignore[arg-type]
-        container.voice_stacks,
-        VoiceTransport.PIPELINE,
+        container.voice_stack,
     )
     learner = orchestrator.create_learner(CEFRLevel.C1)
     case = container.cases.list()[0]

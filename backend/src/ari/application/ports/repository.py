@@ -1,5 +1,4 @@
-from collections.abc import Mapping
-from typing import Any, Protocol
+from typing import Protocol
 
 from ari.domain.models import (
     ConversationSession,
@@ -7,7 +6,6 @@ from ari.domain.models import (
     Evaluation,
     ExecutionRecord,
     LearnerProfile,
-    PatientOpening,
     SessionMetrics,
     SessionStatus,
     VocabularyHintUsage,
@@ -52,31 +50,9 @@ class SessionRepository(Protocol):
         selected_fact_ids: tuple[str, ...],
         provider_response_id: str | None,
         provider_response_status: str,
-        interrupted: bool = False,
-        interruption_audio_end_ms: int | None = None,
-        normalized_user_text: str | None = None,
-        canonical_response: Mapping[str, Any] | None = None,
-        observed_response_text: str | None = None,
     ) -> ConversationTurn: ...
 
     def mark_turn_response_failed(self, turn_id: str) -> ConversationTurn: ...
-
-    def record_observed_response(
-        self, turn_id: str, observed_text: str, *, fidelity_matches: bool
-    ) -> ConversationTurn: ...
-
-    def finalize_transport_response(
-        self,
-        turn_id: str,
-        *,
-        provider_response_id: str,
-        provider_response_status: str,
-        canonical_response: Mapping[str, Any] | None,
-        observed_response_text: str | None,
-        fidelity_matches: bool,
-        interrupted: bool = False,
-        interruption_audio_end_ms: int | None = None,
-    ) -> ConversationTurn: ...
 
     def begin_audio_stream(
         self, session_id: str, turn_id: str, audio_stream_id: str
@@ -112,17 +88,6 @@ class SessionRepository(Protocol):
 
     def mark_session_delivery_unconfirmed(self, session_id: str) -> None: ...
 
-    def switch_voice_stack_before_first_turn(
-        self,
-        session_id: str,
-        *,
-        expected_stack_id: str,
-        target_stack_id: str,
-        target_stack_version: str,
-        target_stack_config: Mapping[str, Any],
-        reason: str,
-    ) -> ConversationSession: ...
-
     def get_turn_by_provider_input(
         self, session_id: str, provider_input_item_id: str
     ) -> ConversationTurn | None: ...
@@ -140,8 +105,6 @@ class SessionRepository(Protocol):
     def list_voice_turn_metrics(
         self, session_id: str | None = None
     ) -> tuple[VoiceTurnMetric, ...]: ...
-
-    def save_patient_opening(self, opening: PatientOpening) -> PatientOpening: ...
 
     def record_vocabulary_hint_usage(
         self, session_id: str, hint_id: str, asset_version: str

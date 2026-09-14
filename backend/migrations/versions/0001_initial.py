@@ -2,7 +2,7 @@
 
 Revision ID: 0001_initial
 Revises:
-Create Date: 2026-09-14 17:19:40.361535
+Create Date: 2026-09-14 21:20:59.511162
 """
 
 from collections.abc import Sequence
@@ -171,7 +171,6 @@ def upgrade() -> None:
         sa.Column("case_version", sa.String(), nullable=False),
         sa.Column("case_hash", sa.String(), nullable=False),
         sa.Column("goal", sa.JSON(), nullable=False),
-        sa.Column("voice_profile", sa.String(), nullable=False),
         sa.Column("interaction_mode", sa.String(), nullable=False),
         sa.Column("voice_stack_id", sa.String(), nullable=False),
         sa.Column("voice_stack_version", sa.String(), nullable=False),
@@ -284,20 +283,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_executions_session_id"), "executions", ["session_id"], unique=False)
     op.create_table(
-        "patient_openings",
-        sa.Column("session_id", sa.String(), nullable=False),
-        sa.Column("text", sa.Text(), nullable=False),
-        sa.Column("spoken_text", sa.Text(), nullable=True),
-        sa.Column("status", sa.String(), nullable=False),
-        sa.Column("provider_response_id", sa.String(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["session_id"],
-            ["sessions.id"],
-        ),
-        sa.PrimaryKeyConstraint("session_id"),
-    )
-    op.create_table(
         "practice_answers",
         sa.Column("run_id", sa.String(), nullable=False),
         sa.Column("question_id", sa.String(), nullable=False),
@@ -333,8 +318,6 @@ def upgrade() -> None:
         sa.Column("selected_fact_ids", sa.JSON(), nullable=False),
         sa.Column("provider_input_item_id", sa.String(), nullable=True),
         sa.Column("provider_response_id", sa.String(), nullable=True),
-        sa.Column("interrupted", sa.Boolean(), nullable=False),
-        sa.Column("interruption_audio_end_ms", sa.Integer(), nullable=True),
         sa.Column("provider_response_status", sa.String(), nullable=False),
         sa.Column("response_state", sa.String(), nullable=False),
         sa.Column("delivery_status", sa.String(), nullable=False),
@@ -345,9 +328,6 @@ def upgrade() -> None:
         sa.Column("audio_started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("audio_delivered_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("normalized_user_text", sa.Text(), nullable=True),
-        sa.Column("canonical_response", sa.JSON(), nullable=True),
-        sa.Column("observed_response_text", sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(
             ["session_id"],
             ["sessions.id"],
@@ -428,42 +408,6 @@ def upgrade() -> None:
         sa.UniqueConstraint("session_id"),
     )
     op.create_table(
-        "voice_stack_transitions",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("session_id", sa.String(), nullable=False),
-        sa.Column("from_stack_id", sa.String(), nullable=False),
-        sa.Column("from_stack_version", sa.String(), nullable=False),
-        sa.Column("from_stack_config", sa.JSON(), nullable=False),
-        sa.Column("to_stack_id", sa.String(), nullable=False),
-        sa.Column("to_stack_version", sa.String(), nullable=False),
-        sa.Column("to_stack_config", sa.JSON(), nullable=False),
-        sa.Column("reason", sa.String(), nullable=False),
-        sa.Column("failure_execution_id", sa.String(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["failure_execution_id"],
-            ["executions.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["session_id"],
-            ["sessions.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "session_id",
-            "from_stack_id",
-            "to_stack_id",
-            "failure_execution_id",
-            name="uq_voice_stack_transition_request",
-        ),
-    )
-    op.create_index(
-        op.f("ix_voice_stack_transitions_session_id"),
-        "voice_stack_transitions",
-        ["session_id"],
-        unique=False,
-    )
-    op.create_table(
         "voice_turn_metrics",
         sa.Column("id", sa.String(), nullable=False),
         sa.Column("session_id", sa.String(), nullable=False),
@@ -539,10 +483,6 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_voice_turn_metrics_trace_id"), table_name="voice_turn_metrics")
     op.drop_index(op.f("ix_voice_turn_metrics_session_id"), table_name="voice_turn_metrics")
     op.drop_table("voice_turn_metrics")
-    op.drop_index(
-        op.f("ix_voice_stack_transitions_session_id"), table_name="voice_stack_transitions"
-    )
-    op.drop_table("voice_stack_transitions")
     op.drop_table("voice_start_requests")
     op.drop_table("voice_learning_context")
     op.drop_index(
@@ -555,7 +495,6 @@ def downgrade() -> None:
     op.drop_table("turns")
     op.drop_table("session_metrics")
     op.drop_table("practice_answers")
-    op.drop_table("patient_openings")
     op.drop_index(op.f("ix_executions_session_id"), table_name="executions")
     op.drop_table("executions")
     op.drop_table("evaluations")

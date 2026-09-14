@@ -48,20 +48,9 @@ class CaseMode(StrEnum):
     TECHNICAL_TEST = "technical_test"
 
 
-class VoiceProfile(StrEnum):
-    QUALITY = "quality"
-    ECONOMY = "economy"
-
-
 class InteractionMode(StrEnum):
     GUIDED = "guided"
     IMMERSIVE = "immersive"
-
-
-class PatientOpeningStatus(StrEnum):
-    PENDING = "pending"
-    COMPLETED = "completed"
-    FAILED = "failed"
 
 
 class AudioDeliveryStatus(StrEnum):
@@ -70,7 +59,6 @@ class AudioDeliveryStatus(StrEnum):
     DELIVERED = "delivered"
     UNCONFIRMED = "unconfirmed"
     FAILED = "failed"
-    LEGACY_UNKNOWN = "legacy_unknown"
 
 
 class TurnResponseState(StrEnum):
@@ -83,8 +71,6 @@ class TurnResponseState(StrEnum):
     RESPONSE_FAILED = "response_failed"
     TTS_FAILED = "tts_failed"
     DELIVERY_UNCONFIRMED = "delivery_unconfirmed"
-    INTERRUPTED = "interrupted"
-    LEGACY_UNKNOWN = "legacy_unknown"
 
 
 class VoiceMetricTransport(StrEnum):
@@ -221,8 +207,6 @@ class ConversationTurn:
     selected_fact_ids: tuple[str, ...] = ()
     provider_input_item_id: str | None = None
     provider_response_id: str | None = None
-    interrupted: bool = False
-    interruption_audio_end_ms: int | None = None
     provider_response_status: str = "completed"
     response_state: TurnResponseState = TurnResponseState.TRANSCRIPT_RESERVED
     delivery_status: AudioDeliveryStatus = AudioDeliveryStatus.PENDING
@@ -232,27 +216,6 @@ class ConversationTurn:
     audio_sent_at: datetime | None = None
     audio_started_at: datetime | None = None
     audio_delivered_at: datetime | None = None
-    created_at: datetime = field(default_factory=utc_now)
-    # Additive provider-neutral fields.  ``patient_text`` remains the historical
-    # public projection; these fields make the canonical response and observed
-    # transport output explicit for new consumers.
-    normalized_user_text: str | None = None
-    canonical_response: Mapping[str, Any] | None = None
-    observed_response_text: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class VoiceStackTransition:
-    id: str
-    session_id: str
-    from_stack_id: str
-    from_stack_version: str
-    from_stack_config: Mapping[str, Any]
-    to_stack_id: str
-    to_stack_version: str
-    to_stack_config: Mapping[str, Any]
-    reason: str
-    failure_execution_id: str
     created_at: datetime = field(default_factory=utc_now)
 
 
@@ -476,16 +439,6 @@ class VoiceTurnMetric:
 
 
 @dataclass(frozen=True, slots=True)
-class PatientOpening:
-    session_id: str
-    text: str
-    status: PatientOpeningStatus
-    spoken_text: str | None = None
-    provider_response_id: str | None = None
-    created_at: datetime = field(default_factory=utc_now)
-
-
-@dataclass(frozen=True, slots=True)
 class ConversationSession:
     id: str
     learner_id: str
@@ -493,7 +446,6 @@ class ConversationSession:
     case_version: str
     case_hash: str
     goal: LearningGoal
-    voice_profile: VoiceProfile = VoiceProfile.ECONOMY
     interaction_mode: InteractionMode = InteractionMode.GUIDED
     voice_stack_id: str = "pipeline_economy"
     voice_stack_version: str = "1"
@@ -505,8 +457,6 @@ class ConversationSession:
     vocabulary: tuple[VocabularyObservation, ...] = ()
     vocabulary_hint_usages: tuple[VocabularyHintUsage, ...] = ()
     executions: tuple[ExecutionRecord, ...] = ()
-    voice_stack_transitions: tuple[VoiceStackTransition, ...] = ()
-    patient_opening: PatientOpening | None = None
     created_at: datetime = field(default_factory=utc_now)
     call_started_at: datetime | None = None
     ended_at: datetime | None = None

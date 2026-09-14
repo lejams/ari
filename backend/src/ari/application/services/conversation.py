@@ -1,5 +1,3 @@
-import re
-import unicodedata
 from dataclasses import dataclass, replace
 from typing import cast
 
@@ -7,7 +5,7 @@ from ari.application.ports.cases import MedicalCaseCatalog
 from ari.application.ports.evaluator import EvaluationOutcome, Evaluator
 from ari.application.ports.repository import SessionRepository
 from ari.application.services.patient import PatientOutcome, PatientSimulator
-from ari.application.voice_stacks import VoiceStackRegistry, VoiceTransport
+from ari.application.voice_stacks import VoiceStack
 from ari.domain.errors import InvalidStateError, ProviderError
 from ari.domain.models import (
     ConversationSession,
@@ -23,14 +21,8 @@ from ari.domain.models import (
     TurnResponseState,
     VocabularyObservation,
     VocabularyState,
-    VoiceProfile,
     new_id,
 )
-
-
-def normalize_user_text(text: str) -> str:
-    """Only Unicode normalization and whitespace; negation, digits and punctuation are kept."""
-    return re.sub(r"\s+", " ", unicodedata.normalize("NFKC", text).strip())
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,15 +43,13 @@ class ConversationOrchestrator:
         cases: MedicalCaseCatalog,
         patient: PatientSimulator,
         evaluator: Evaluator,
-        voice_stacks: VoiceStackRegistry,
-        preferred_voice_transport: VoiceTransport,
+        voice_stack: VoiceStack,
     ) -> None:
         self.repository = repository
         self.cases = cases
         self._patient = patient
         self._evaluator = evaluator
-        self._voice_stacks = voice_stacks
-        self._preferred_voice_transport = preferred_voice_transport
+        self._voice_stack = voice_stack
 
     def create_learner(self, target_cefr: object) -> LearnerProfile:
         from ari.domain.models import CEFRLevel
@@ -78,10 +68,8 @@ class ConversationOrchestrator:
         learner_id: str,
         case_id: str,
         case_version: str,
-        voice_profile: VoiceProfile = VoiceProfile.ECONOMY,
         interaction_mode: InteractionMode = InteractionMode.GUIDED,
         *,
-        voice_stack_id: str | None = None,
         scenario_id: str | None = None,
         scenario_version: str | None = None,
         learning_mode: LearningMode | None = None,
@@ -93,19 +81,7 @@ class ConversationOrchestrator:
                               scenario_version=scenario_version)
         if not case.available_for_new_sessions:
             raise InvalidStateError("This case has been withdrawn from new sessions")
-        stack = (
-            self._voice_stacks.get(voice_stack_id)
-            if voice_stack_id is not None
-            else self._voice_stacks.default_for(
-                interaction_mode,
-                voice_profile,
-                preferred_transport=self._preferred_voice_transport,
-            )
-        )
-        if stack.id == "realtime_quality":
-            voice_profile = VoiceProfile.QUALITY
-        elif stack.id == "realtime_economy":
-            voice_profile = VoiceProfile.ECONOMY
+        stack = self._voice_stack
         session = ConversationSession(
             id=new_id(),
             learner_id=learner.id,
@@ -117,7 +93,6 @@ class ConversationOrchestrator:
             start_request_id=start_request_id,
             start_request_hash=start_request_hash,
             goal=learner.goal,
-            voice_profile=voice_profile,
             interaction_mode=interaction_mode,
             voice_stack_id=stack.id,
             voice_stack_version=stack.version,
@@ -203,14 +178,6 @@ class ConversationOrchestrator:
             selected_fact_ids=patient.selected_fact_ids,
             provider_response_id=turn.provider_response_id,
             provider_response_status="completed",
-            normalized_user_text=normalize_user_text(turn.user_text),
-            canonical_response={
-                "text": patient.spoken_text,
-                "version": "canonical-response-v1",
-                "selected_fact_ids": list(patient.selected_fact_ids),
-                "source_refs": list(patient.source_refs),
-                "response_kind": "text",
-            },
         )
         return TurnOutcome(turn=turn, execution=patient.execution)
 
