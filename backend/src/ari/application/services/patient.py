@@ -52,17 +52,10 @@ class PatientSimulator:
         )
         available_sources = [
             {"ref": "opening_statement", "value": case.opening_statement},
-            *(
-                {"ref": f"demographics.{key}", "value": value}
-                for key, value in case.demographics.items()
-                if key in case.demographic_responses
-            ),
             *({"ref": f"fact:{fact.id}", "value": fact.value} for fact in case.facts),
         ]
         case_payload = {
-            "mode": case.mode.value,
             "language": case.language,
-            "demographics": dict(case.demographics),
             "opening_statement": case.opening_statement,
             "communication_style": case.communication_style,
             "facts": [
@@ -85,7 +78,6 @@ class PatientSimulator:
                     "content": json.dumps(
                         {
                             "simulation_language": case.language,
-                            "case_mode": case.mode.value,
                             "case": case_payload,
                             "previous_transcript": transcript,
                             "conversation_state": {"elapsed_seconds": elapsed_seconds},
@@ -109,7 +101,6 @@ class PatientSimulator:
         result = await self._provider.generate_structured(request, PatientResponseSchema)
         allowed_refs = {
             "opening_statement",
-            *(f"demographics.{key}" for key in case.demographic_responses),
             *(f"fact:{fact_id}" for fact_id in case.fact_ids),
         }
         unknown = set(result.value.source_refs) - allowed_refs
@@ -126,7 +117,6 @@ class PatientSimulator:
             )
         rendered_sources = {
             "opening_statement": case.opening_statement,
-            **{f"demographics.{key}": value for key, value in case.demographic_responses.items()},
             **{f"fact:{fact.id}": fact.patient_phrase for fact in case.facts},
         }
         if result.value.response_kind == "sources":

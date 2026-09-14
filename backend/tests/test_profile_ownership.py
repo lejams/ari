@@ -13,6 +13,11 @@ from ari.domain.models import CEFRLevel
 from ari.infrastructure.persistence.identity import ProfileCredentialRow, ProfileCredentials
 
 
+@pytest.fixture
+def container(published_container: Container) -> Container:
+    return published_container
+
+
 def test_profile_cookie_protects_history_session_goal_and_websocket(container: Container) -> None:
     app = create_app(container)
     with TestClient(app) as alice, TestClient(app) as bob, TestClient(app) as anonymous:
@@ -35,7 +40,6 @@ def test_profile_cookie_protects_history_session_goal_and_websocket(container: C
                 f"/api/learners/{profile['id']}/sessions",
                 f"/api/learners/{profile['id']}/goal",
                 f"/api/sessions/{session_id}",
-                f"/api/sessions/{session_id}/vocabulary-hints",
             ):
                 assert client.get(endpoint).status_code == 404
             assert client.post("/api/sessions", json=body).status_code == 404

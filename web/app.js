@@ -22,7 +22,6 @@ const state = {
   timer: null,
   providerMode: "fake",
   patientDraft: "",
-  technicalTestEnabled: false,
   completedTurns: 0,
   persistedTurns: 0,
   pcmRemainder: new Uint8Array(),
@@ -33,7 +32,6 @@ const state = {
   userSpeaking: false,
   lastPatientTurnNode: null,
   patientTurnNodes: new Map(),
-  vocabularyAsset: null,
   callConnected: false,
   learningMode: "training",
   examActive: false,
@@ -99,7 +97,6 @@ function setExamPresentation(active) {
   if (active) {
     $("transcript").replaceChildren();
     $("partial").replaceChildren();
-    $("telemetry").classList.add("hidden");
   }
 }
 
@@ -193,22 +190,12 @@ function renderCase(selectedCase) {
   state.case = selectedCase;
   $("case-title").textContent = selectedCase.title;
   $("case-summary").textContent = selectedCase.public_summary;
-  $("case-language").textContent = selectedCase.language.startsWith("en")
-    ? "English · technical test"
-    : "Deutsch · FSP";
-  $("case-goal").textContent =
-    selectedCase.mode === "technical_test" ? "Test technique" : "Entraînement · niveau non mesuré";
-  $("simulation-eyebrow").textContent =
-    selectedCase.mode === "technical_test"
-      ? "Simulation technique en anglais"
-      : "Simulation clinique en allemand";
+  $("case-language").textContent = "Deutsch · FSP";
+  $("case-goal").textContent = "Entraînement · niveau non mesuré";
+  $("simulation-eyebrow").textContent = "Simulation clinique en allemand";
   $("simulation-intro").textContent =
-    selectedCase.mode === "technical_test"
-      ? "Testez le parcours vocal complet en anglais. Le feedback reste bref, mesurable et relié au transcript."
-      : "Parlez naturellement. À la fin, vous recevez un feedback FSP bref, mesurable et relié à votre transcript.";
-  $("debug-input").placeholder = selectedCase.language.startsWith("en")
-    ? "Mode fake: enter an English sentence"
-    : "Mode fake : simuler une phrase en allemand";
+    "Parlez naturellement. À la fin, vous recevez un feedback FSP bref, mesurable et relié à votre transcript.";
+  $("debug-input").placeholder = "Mode fake : simuler une phrase en allemand";
   const caseValue = caseKey(selectedCase);
   if ($("case-select").value !== caseValue) $("case-select").value = caseValue;
 }
@@ -221,47 +208,6 @@ function showCallActions({ canStart, canEnd, canRetry, canCreateNew }) {
   $("retry-analysis").classList.toggle("hidden", !canRetry);
   $("new-session").classList.toggle("hidden", !canCreateNew);
   if (canStart || canRetry || canCreateNew) $("talk").classList.add("hidden");
-}
-
-async function loadVocabularyHints() {
-  state.vocabularyAsset = null;
-  state.failedTtsTurnId = null;
-  $("vocabulary-toggle").classList.add("hidden");
-  $("retry-audio").classList.add("hidden");
-  $("vocabulary-panel").classList.add("hidden");
-  if (!state.sessionId || !allowsInCallHelp(state.learningMode)) return;
-  try {
-    const asset = await api(`/api/sessions/${state.sessionId}/vocabulary-hints`);
-    state.vocabularyAsset = asset;
-    $("vocabulary-hints").replaceChildren(
-      ...asset.items.map((item) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "vocabulary-hint";
-        const term = document.createElement("strong");
-        term.textContent = item.term;
-        const translation = document.createElement("span");
-        translation.textContent = item.translation;
-        button.append(term, translation);
-        button.addEventListener("click", async () => {
-          try {
-            await navigator.clipboard.writeText(item.term);
-            await api(
-              `/api/sessions/${state.sessionId}/vocabulary-hints/${encodeURIComponent(item.id)}/use`,
-              { method: "POST", body: "{}" },
-            );
-            setStatus(`« ${item.term} » copié`, state.callConnected);
-          } catch (error) {
-            setStatus(`Aide vocabulaire indisponible : ${error.message}`);
-          }
-        });
-        return button;
-      }),
-    );
-    $("vocabulary-toggle").classList.remove("hidden");
-  } catch (error) {
-    if (error.status !== 404) console.error(error);
-  }
 }
 
 async function restoreSession() {
@@ -288,7 +234,7 @@ async function restoreSession() {
     renderPersistedTranscript(session.turns);
     state.persistedTurns = session.turns.length;
     $("case-select").disabled = true;
-    await loadVocabularyHints();
+    $("retry-audio").classList.add("hidden");
     if (["created", "active"].includes(session.status)) {
       $("start").textContent = "Reprendre l’appel";
       showCallActions({
@@ -308,7 +254,6 @@ async function restoreSession() {
     } else if (session.status === "completed") {
       showFeedback(session);
       showCallActions({ canStart: false, canEnd: false, canRetry: false, canCreateNew: true });
-      $("vocabulary-toggle").classList.add("hidden");
       setStatus("Session terminée et sauvegardée");
     }
     return true;
@@ -330,14 +275,11 @@ async function restoreSession() {
 async function initialize() {
   const [health, cases] = await Promise.all([api("/api/health"), api("/api/cases?approved_only=true")]);
   state.providerMode = health.provider_mode;
-  state.technicalTestEnabled = health.technical_test_enabled;
   state.cases = cases;
 
   const defaultCase = state.requestedCaseId
     ? cases.find((item) => item.id === state.requestedCaseId)
-    : (state.technicalTestEnabled && cases.find((item) => item.id === "ARI-FSP-001-EN")) ||
-    cases.find((item) => item.mode === "fsp") ||
-    cases[0];
+    : cases[0];
   if (defaultCase) renderCase(defaultCase);
   if (state.requestedLearningMode) state.learningMode = state.requestedLearningMode;
   $("learning-mode").value = state.learningMode;
@@ -359,7 +301,6 @@ async function initialize() {
   }
 
   if (state.providerMode === "fake" && state.learningMode === "training" && defaultCase) $("debug-form").classList.remove("hidden");
-  if (state.technicalTestEnabled && state.learningMode === "training") $("telemetry").classList.remove("hidden");
   const restored = await restoreSession();
   if (!restored && !defaultCase) {
     $("case-title").textContent = "Aucun scénario vocal approuvé";
@@ -426,17 +367,6 @@ function queuePcmAudio(bytes) {
   state.playbackSources.add(source);
   source.onended = () => state.playbackSources.delete(source);
   return {source, startAt};
-}
-
-function showTelemetry(telemetry) {
-  if (!telemetry) return;
-  const value = (key) =>
-    telemetry[key] === null || telemetry[key] === undefined ? "—" : `${telemetry[key]} ms`;
-  $("latency-stt").textContent = value("stt_final_ms");
-  $("latency-llm").textContent = value("patient_llm_ms");
-  $("latency-tts-first").textContent = value("tts_first_audio_ms");
-  $("latency-first-audio").textContent = value("turn_first_audio_ms");
-  $("latency-tts").textContent = value("tts_total_ms");
 }
 
 async function stopVoiceMedia(closeSocket = true) {
@@ -575,7 +505,6 @@ function handleEvent(event) {
   }
   if (event.type === "turn.completed") {
     state.completedTurns += 1;
-    showTelemetry(data.telemetry);
     const patientNode = data.turn?.provider_response_id
       ? state.patientTurnNodes.get(data.turn.provider_response_id)
       : state.lastPatientTurnNode;
@@ -670,7 +599,7 @@ async function startCall() {
     $("retry-analysis").classList.add("hidden");
     $("new-session").classList.add("hidden");
     $("end").classList.remove("hidden");
-    await loadVocabularyHints();
+    $("retry-audio").classList.add("hidden");
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     state.socket = new WebSocket(
       `${protocol}://${location.host}/ws/sessions/${state.sessionId}/voice`,
@@ -731,8 +660,6 @@ async function endCall() {
     renderPersistedTranscript(session.turns);
     showFeedback(session);
     showCallActions({ canStart: false, canEnd: false, canRetry: false, canCreateNew: true });
-    $("vocabulary-toggle").classList.add("hidden");
-    $("vocabulary-panel").classList.add("hidden");
     setStatus("Session terminée et sauvegardée");
   } catch (error) {
     await stopVoiceMedia();
@@ -804,15 +731,12 @@ function newSession() {
   state.persistedTurns = 0;
   state.completedTurns = 0;
   state.ending = false;
-  state.vocabularyAsset = null;
   state.learningMode = "training";
   setExamPresentation(false);
   $("learning-mode").value = "training";
   syncLearningModeButtons();
   clearTranscript();
   $("feedback").classList.add("hidden");
-  $("vocabulary-panel").classList.add("hidden");
-  $("vocabulary-toggle").classList.add("hidden");
   $("case-select").disabled = false;
   $("learning-mode").disabled = false;
   $("learning-mode").value = "training";
@@ -884,7 +808,6 @@ document.querySelectorAll("[data-learning-mode]").forEach((button) => {
     $("learning-mode").value = state.learningMode;
     syncLearningModeButtons();
     setExamPresentation(state.learningMode === "exam");
-    $("telemetry").classList.toggle("hidden", !(state.technicalTestEnabled && state.learningMode === "training"));
   });
 });
 $("subtitles-toggle").addEventListener("click", () => {
@@ -899,13 +822,6 @@ $("end").addEventListener("click", endCall);
 $("retry-analysis").addEventListener("click", retryAnalysis);
 $("retry-audio").addEventListener("click", retryAudio);
 $("new-session").addEventListener("click", newSession);
-$("vocabulary-toggle").addEventListener("click", () => {
-  if (!allowsInCallHelp(state.learningMode)) return;
-  $("vocabulary-panel").classList.toggle("hidden");
-});
-$("vocabulary-close").addEventListener("click", () => {
-  $("vocabulary-panel").classList.add("hidden");
-});
 $("debug-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = $("debug-input");

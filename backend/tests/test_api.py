@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from dataclasses import replace
 from typing import TypeVar
 
+import pytest
 from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
@@ -28,6 +29,11 @@ from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
 from ari.infrastructure.providers.fake import FakeLLMProvider
 
 T = TypeVar("T", bound=BaseModel)
+
+
+@pytest.fixture
+def container(published_container: Container) -> Container:
+    return published_container
 
 
 def execution(
@@ -113,9 +119,8 @@ def test_http_and_websocket_vertical_slice(container: Container) -> None:
     app = create_app(container)
     with TestClient(app) as client:
         assert client.get("/api/learners/missing/goal").status_code == 404
-        health = client.get("/api/health").json()
-        assert health["technical_test_enabled"] is False
-        assert len(client.get("/api/cases").json()) == 2
+        assert client.get("/api/health").json()["status"] == "ok"
+        assert len(client.get("/api/cases").json()) == 1
         case = client.get("/api/cases").json()[0]
         learner = client.post("/api/learners", json={"target_cefr": "C1"}).json()
         session = client.post(
@@ -177,91 +182,6 @@ def test_end_without_transcript_keeps_session_resumable(container: Container) ->
             assert resumed.receive_json()["type"] == "call.started"
             resumed.send_json({"type": "call.end"})
             assert resumed.receive_json()["type"] == "call.ended"
-
-
-def test_versioned_vocabulary_hints_are_bounded_and_usage_is_persisted(
-    container: Container,
-) -> None:
-    app = create_app(container)
-    with TestClient(app) as client:
-        session = create_session(client)
-        session_id = str(session["id"])
-        response = client.get(f"/api/sessions/{session_id}/vocabulary-hints")
-        assert response.status_code == 200
-        asset = response.json()
-        assert asset["asset_id"] == "ARI-FSP-001-vocab-de-fr"
-        assert asset["version"] == "1.0"
-        assert {item["term"] for item in asset["items"]} >= {
-            "erbrechen",
-            "die Übelkeit",
-            "die Atemnot",
-        }
-        serialized = str(asset["items"]).casefold()
-        assert all(value not in serialized for value in ("38,2", "einmal", "gestern", "kein "))
-
-        first = client.post(f"/api/sessions/{session_id}/vocabulary-hints/vomiting/use", json={})
-        second = client.post(f"/api/sessions/{session_id}/vocabulary-hints/vomiting/use", json={})
-        assert first.status_code == 200
-        assert second.json()["usage_count"] == 2
-        persisted = container.repository.get_session(session_id)
-        assert len(persisted.vocabulary_hint_usages) == 1
-        assert persisted.vocabulary_hint_usages[0].hint_id == "vomiting"
-
-        english = next(
-            item for item in client.get("/api/cases").json() if item["id"] != "ARI-FSP-001"
-        )
-        english_session = client.post(
-            "/api/sessions",
-            json={
-                "learner_id": session["learner_id"],
-                "case_id": english["id"],
-                "case_version": english["version"],
-            },
-        ).json()
-        assert (
-            client.get(f"/api/sessions/{english_session['id']}/vocabulary-hints").status_code == 404
-        )
-
-
-def test_english_technical_vertical_slice(technical_container: Container) -> None:
-    app = create_app(technical_container)
-    with TestClient(app) as client:
-        health = client.get("/api/health").json()
-        assert health["technical_test_enabled"] is True
-        cases = client.get("/api/cases").json()
-        assert {case["mode"] for case in cases} == {"fsp", "technical_test"}
-        case = next(case for case in cases if case["id"] == "technical-abdominal-pain-en")
-        learner = client.post("/api/learners", json={"target_cefr": "C1"}).json()
-        session = client.post(
-            "/api/sessions",
-            json={
-                "learner_id": learner["id"],
-                "case_id": case["id"],
-                "case_version": case["version"],
-            },
-        ).json()
-
-        with client.websocket_connect(f"/ws/sessions/{session['id']}/voice") as socket:
-            assert socket.receive_json()["type"] == "call.started"
-            socket.send_json({"type": "debug.transcript", "transcript": "When did it start?"})
-            completed_turn: dict[str, object] | None = None
-            while completed_turn is None:
-                event = socket.receive_json()
-                if event["type"] == "turn.completed":
-                    completed_turn = event
-            socket.send_json({"type": "call.end"})
-            assert socket.receive_json()["type"] == "call.ended"
-
-        completed = client.post(f"/api/sessions/{session['id']}/end", json={}).json()
-        assert completed["status"] == "completed"
-        assert "technique" in completed["evaluation"]["summary"].lower()
-        assert completed["evaluation"]["rubric_version"] == "technical-anamnesis-en-v1"
-        assert completed["evaluation"]["strengths"][0]["evidence_turn_sequences"] == [1]
-        stored = technical_container.repository.get_session(str(session["id"]))
-        assert stored.evaluation is not None
-        assert "symptom.location" in stored.evaluation.missed_fact_ids
-        assert completed["vocabulary"][0]["lemma"] == "radiate"
-        assert completed["vocabulary"][0]["evidence_turn_sequences"] == [1]
 
 
 def test_second_voice_connection_is_rejected(container: Container) -> None:
@@ -349,7 +269,7 @@ def test_tts_failure_keeps_persisted_turn_available_for_analysis(container: Cont
         with client.websocket_connect(f"/ws/sessions/{session_id}/voice") as socket:
             assert socket.receive_json()["type"] == "call.started"
             socket.send_json(
-                {"type": "debug.transcript", "transcript": "Seit wann haben Sie Schmerzen?"}
+                {"type": "debug.transcript", "transcript": "Erzählen Sie von fact-1."}
             )
             event_types: list[str] = []
             while not event_types or event_types[-1] != "voice.error":

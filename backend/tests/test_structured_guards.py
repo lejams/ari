@@ -20,6 +20,11 @@ from ari.infrastructure.providers.fake import FakeLLMProvider
 T = TypeVar("T", bound=BaseModel)
 
 
+@pytest.fixture
+def container(published_container: Container) -> Container:
+    return published_container
+
+
 def test_patient_schema_cannot_return_unbound_spoken_text() -> None:
     with pytest.raises(ValidationError):
         PatientResponseSchema.model_validate(
@@ -84,8 +89,8 @@ async def test_invented_case_fact_is_rejected_and_traced(container: Container) -
         LLMBackedEvaluator(
             FakeLLMProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v1.txt",
-                "evaluation-v1",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v2.txt",
+                "evaluation-v2",
             ),
             "fr-FR",
         ),

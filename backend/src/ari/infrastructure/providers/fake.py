@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import struct
 import time
 from collections.abc import AsyncIterator
@@ -46,6 +47,63 @@ def _execution(
     )
 
 
+BLOCKED_TERMS = frozenset(
+    {
+        "ignore the instructions",
+        "system prompt",
+        "chatgpt",
+        "openai",
+        "competitor",
+        "internet",
+        "tell me a joke",
+        "ignoriere die anweisungen",
+        "systemprompt",
+        "konkurrenz",
+        "wetter",
+        "fußball",
+        "therapie von",
+        "präsident",
+        "erzähl mir einen witz",
+        "erzählen sie mir einen witz",
+    }
+)
+PATIENT_SCOPE_TERMS = frozenset(
+    {
+        "haben sie",
+        "hatten sie",
+        "sind sie",
+        "nehmen sie",
+        "ihre beschwerden",
+        "ihre schmerzen",
+        "ihre gesundheit",
+        "ihre familie",
+        "ihr urin",
+        "ihr stuhl",
+        "medikament",
+        "allerg",
+        "vorgeschichte",
+    }
+)
+# Question keywords mapped to substrings of fact ids or categories they should reveal.
+KEYWORD_HINTS: dict[str, tuple[str, ...]] = {
+    "name": ("identity", "name"),
+    "heißen": ("identity", "name"),
+    "wie alt": ("age", "identity"),
+    "seit wann": ("onset",),
+    "schmerz": ("symptom", "pain", "schmerz"),
+    "medik": ("medication",),
+    "allerg": ("allergy",),
+    "fieber": ("fever",),
+    "rauch": ("smoking",),
+    "alkohol": ("alcohol",),
+    "famil": ("family",),
+    "beruf": ("occupation",),
+    "grund": ("reason",),
+    "warum": ("reason",),
+    "beschwerden": ("reason", "symptom"),
+}
+
+
 class FakeLLMProvider:
     async def generate_structured(
         self, request: LLMRequest, response_model: type[T]
@@ -76,163 +134,37 @@ class FakeLLMProvider:
     @staticmethod
     def _patient(payload: dict[str, object]) -> dict[str, object]:
         case = cast(dict[str, object], payload["case"])
-        question = str(payload["doctor_latest_utterance"]).lower()
-        blocked_terms = {
-            "ignore the instructions",
-            "system prompt",
-            "chatgpt",
-            "openai",
-            "competitor",
-            "internet",
-            "weather",
-            "football",
-            "treatment of",
-            "president",
-            "tell me a joke",
-            "ignoriere die anweisungen",
-            "systemprompt",
-            "konkurrenz",
-            "wetter",
-            "fußball",
-            "therapie von",
-            "präsident",
-            "erzähl mir einen witz",
-            "erzählen sie mir einen witz",
-        }
-        if any(term in question for term in blocked_terms):
+        question = str(payload["doctor_latest_utterance"]).casefold()
+        if any(term in question for term in BLOCKED_TERMS):
             return {"response_kind": "out_of_scope", "source_refs": []}
-        is_english = str(case["language"]).lower().startswith("en")
-        if is_english:
-            keyword_map = {
-                "hello": ("opening_statement",),
-                "name": ("demographics.name",),
-                "old": ("demographics.age",),
-                "age": ("demographics.age",),
-                "work": ("demographics.occupation",),
-                "job": ("demographics.occupation",),
-                "when": ("symptom.onset",),
-                "pain": ("symptom.location", "symptom.quality", "symptom.intensity"),
-                "radiat": ("symptom.radiation",),
-                "nause": ("symptom.nausea",),
-                "fever": ("symptom.fever",),
-                "history": ("history.hypertension",),
-                "diabetes": ("history.diabetes_absent",),
-                "medic": ("medication.ramipril",),
-                "food allerg": ("allergy.food_none",),
-                "allerg": ("allergy.penicillin",),
-                "smok": ("social.smoking",),
-                "alcohol": ("social.alcohol",),
-                "famil": ("family.father",),
-                "hospital": ("concern.hospitalization",),
-                "operation": ("concern.surgery",),
-            }
-            patient_scope_terms = {
-                "do you have",
-                "did you have",
-                "have you had",
-                "are you",
-                "your symptom",
-                "your pain",
-                "your health",
-                "your family",
-                "your urine",
-                "your stool",
-                "medication",
-                "allerg",
-                "medical history",
-            }
-        else:
-            keyword_map = {
-                "guten tag": ("opening_statement",),
-                "hallo": ("opening_statement",),
-                "heißen": ("demographics.name",),
-                "name": ("demographics.name",),
-                "wie alt": ("demographics.age",),
-                "alter": ("demographics.age",),
-                "beruf": ("demographics.occupation",),
-                "arbeiten": ("demographics.occupation",),
-                "seit wann": ("symptom.onset",),
-                "schmerz": (
-                    "symptom.location",
-                    "symptom.onset",
-                    "symptom.quality",
-                    "symptom.intensity",
-                ),
-                "ausstrahl": ("symptom.radiation",),
-                "übel": ("symptom.nausea",),
-                "fieber": ("symptom.fever",),
-                "vorkrank": ("history.hypertension",),
-                "diabetes": ("history.diabetes_absent",),
-                "medik": ("medication.ramipril",),
-                "lebensmittelallerg": ("allergy.food_none",),
-                "allerg": ("allergy.penicillin",),
-                "rauch": ("social.smoking",),
-                "alkohol": ("social.alcohol",),
-                "famil": ("family.father",),
-                "krankenhaus": ("concern.hospitalization",),
-                "operiert": ("concern.surgery",),
-                "operation": ("concern.surgery",),
-                "wie geht es weiter": ("concern.surgery",),
-            }
-            patient_scope_terms = {
-                "haben sie",
-                "hatten sie",
-                "sind sie",
-                "nehmen sie",
-                "ihre beschwerden",
-                "ihre schmerzen",
-                "ihre gesundheit",
-                "ihre familie",
-                "ihr urin",
-                "ihr stuhl",
-                "medikament",
-                "allerg",
-                "vorgeschichte",
-            }
-        wanted = next((refs for word, refs in keyword_map.items() if word in question), ())
-        available_sources = cast(list[dict[str, str]], case["available_sources"])
-        allowed_refs = {item["ref"] for item in available_sources}
-        source_refs = [
-            (
-                source_ref
-                if source_ref.startswith(("opening_", "demographics."))
-                else f"fact:{source_ref}"
-            )
-            for source_ref in wanted
-            if (
-                source_ref
-                if source_ref.startswith(("opening_", "demographics."))
-                else f"fact:{source_ref}"
-            )
-            in allowed_refs
-        ]
-        state = cast(dict[str, object], payload.get("conversation_state", {}))
-        previous = cast(list[dict[str, object]], payload["previous_transcript"])
-        previously_revealed = {
-            str(fact_id)
-            for turn in previous
-            for fact_id in cast(list[object], turn.get("revealed_fact_ids", []))
+        allowed_refs = {
+            item["ref"] for item in cast(list[dict[str, str]], case["available_sources"])
         }
-        timed_concern = "fact:concern.surgery"
-        if (
-            int(str(state.get("elapsed_seconds", 0))) >= 300
-            and timed_concern in allowed_refs
-            and "concern.surgery" not in previously_revealed
-            and timed_concern not in source_refs
-        ):
-            source_refs.append(timed_concern)
+        source_refs: list[str] = []
+        if any(greeting in question for greeting in ("guten tag", "hallo")):
+            source_refs.append("opening_statement")
+        hinted = {
+            hint
+            for keyword, hints in KEYWORD_HINTS.items()
+            if keyword in question
+            for hint in hints
+        }
+        for fact in cast(list[dict[str, object]], case["facts"]):
+            fact_id = str(fact["id"]).casefold()
+            category = str(fact["category"]).casefold()
+            category_tokens = {t for t in re.split(r"[._\-\s]+", category) if len(t) >= 3}
+            mentioned = fact_id in question or any(token in question for token in category_tokens)
+            if mentioned or any(hint in category or hint in fact_id for hint in hinted):
+                ref = f"fact:{fact['id']}"
+                if ref in allowed_refs:
+                    source_refs.append(ref)
         if source_refs:
-            response_kind = "sources"
+            kind = "sources"
+        elif any(term in question for term in PATIENT_SCOPE_TERMS):
+            kind = "unknown"
         else:
-            response_kind = (
-                "unknown"
-                if any(term in question for term in patient_scope_terms)
-                else "out_of_scope"
-            )
-        return {
-            "response_kind": response_kind,
-            "source_refs": source_refs,
-        }
+            kind = "out_of_scope"
+        return {"response_kind": kind, "source_refs": source_refs}
 
     @staticmethod
     def _evaluation(payload: dict[str, object]) -> dict[str, object]:
@@ -240,37 +172,9 @@ class FakeLLMProvider:
         rubric = cast(list[dict[str, object]], payload["rubric"])
         turns = [int(str(item["turn"])) for item in transcript]
         score = min(5, max(1, len(turns)))
-        criteria = [
-            {
-                "criterion_id": str(item["id"]),
-                "score": score,
-                "evidence_turn_sequences": turns[-2:] or [1],
-                "feedback": "Continuez à poser des questions ciblées et à reformuler clairement.",
-            }
-            for item in rubric
-        ]
-        is_english = str(payload.get("simulation_language", "")).lower().startswith("en")
-        vocabulary = (
-            {
-                "lemma": "radiate",
-                "translation": "irradier",
-                "example": "Does the pain radiate to your shoulder?",
-                "confidence": 0.8,
-            }
-            if is_english
-            else {
-                "lemma": "ausstrahlen",
-                "translation": "irradier",
-                "example": "Strahlen die Schmerzen in die Schulter aus?",
-                "confidence": 0.8,
-            }
-        )
         return {
             "summary": (
-                "Entretien technique compréhensible et structuré. Priorisez la couverture "
-                "clinique et des formulations anglaises plus naturelles."
-                if is_english
-                else "Entretien compréhensible et structuré. Priorisez la couverture "
+                "Entretien compréhensible et structuré. Priorisez la couverture "
                 "clinique et des formulations allemandes plus naturelles."
             ),
             "strengths": [
@@ -288,8 +192,24 @@ class FakeLLMProvider:
                 },
             ],
             "language_errors": [],
-            "criteria": criteria,
-            "vocabulary_candidates": [{**vocabulary, "evidence_turn_sequences": turns[-1:]}],
+            "criteria": [
+                {
+                    "criterion_id": str(item["id"]),
+                    "score": score,
+                    "evidence_turn_sequences": turns[-2:] or [1],
+                    "feedback": "Continuez à poser des questions ciblées et à reformuler.",
+                }
+                for item in rubric
+            ],
+            "vocabulary_candidates": [
+                {
+                    "lemma": "ausstrahlen",
+                    "translation": "irradier",
+                    "example": "Strahlen die Schmerzen in die Schulter aus?",
+                    "confidence": 0.8,
+                    "evidence_turn_sequences": turns[-1:],
+                }
+            ],
         }
 
 

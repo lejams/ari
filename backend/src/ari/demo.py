@@ -31,7 +31,6 @@ def main() -> None:
             provider_mode="fake",
             database_url=database_url,
             enable_mvp_demos=True,
-            enable_english_technical_test=False,
         )
         uvicorn.run(create_app(settings=settings), host="127.0.0.1", port=args.port)
 

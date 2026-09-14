@@ -49,7 +49,6 @@ class LLMBackedEvaluator:
                         {
                             "simulation_language": case.language,
                             "feedback_language": self._feedback_language,
-                            "case_mode": case.mode.value,
                             "goal": {
                                 "exam": session.goal.target_exam,
                                 "cefr": session.goal.target_cefr.value,
@@ -126,29 +125,11 @@ class LLMBackedEvaluator:
             fact_id for turn in session.turns for fact_id in turn.revealed_fact_ids
         )
         missed_fact_ids = tuple(sorted(case.fact_ids - revealed_fact_ids))
-        criteria_payload: list[dict[str, object]] = []
-        for item in result.value.criteria:
-            payload = item.model_dump()
-            if item.criterion_id == "clinical_coverage":
-                criterion = allowed_criteria[item.criterion_id]
-                ratio = len(revealed_fact_ids) / len(case.facts) if case.facts else 0.0
-                payload["score"] = min(criterion.max_score, int(ratio * criterion.max_score + 0.5))
-                payload["evidence_turn_sequences"] = [
-                    turn.sequence for turn in session.turns if turn.revealed_fact_ids
-                ] or [session.turns[0].sequence]
-                payload["feedback"] = (
-                    f"Couverture clinique calculée : {len(revealed_fact_ids)}/"
-                    f"{len(case.facts)} faits du cas obtenus."
-                )
-            criteria_payload.append(payload)
-
-        if case.schema_version == "clinical-case-v2":
-            criteria_payload = weighted_assessment(session, case)
+        criteria_payload = weighted_assessment(session, case)
         overall = float(sum(cast(float, item["score"]) for item in criteria_payload))
         maximum = float(sum(item.max_score for item in case.rubric))
         evaluation = Evaluation(
-            schema_version=("session-evaluation-v2" if case.schema_version == "clinical-case-v2"
-                            else "session-evaluation-v1"),
+            schema_version="session-evaluation-v2",
             prompt_version=self._prompt.version,
             rubric_version=case.rubric_version,
             overall_score=overall,

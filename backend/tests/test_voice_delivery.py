@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from dataclasses import replace
 
+import pytest
 from fastapi.testclient import TestClient
 
 from ari.api.app import create_app
@@ -15,6 +16,11 @@ from ari.domain.models import (
     new_id,
 )
 from ari.infrastructure.providers.fake import FAKE_TRANSCRIPT, FakeTTSProvider
+
+
+@pytest.fixture
+def container(published_container: Container) -> Container:
+    return published_container
 
 
 def create_session(client: TestClient) -> dict[str, object]:
@@ -41,14 +47,12 @@ def test_pipeline_delivery_is_correlated_idempotent_and_controls_fact_credit(
         session_id = str(session["id"])
         with client.websocket_connect(f"/ws/sessions/{session_id}/voice") as socket:
             socket.receive_json()
-            socket.send_json(
-                {"type": "debug.transcript", "transcript": "Seit wann haben Sie Schmerzen?"}
-            )
+            socket.send_json({"type": "debug.transcript", "transcript": "Erzählen Sie von fact-1."})
             sent = receive(socket, "patient.audio_sent")
             before = client.get(f"/api/sessions/{session_id}").json()["turns"][0]
             assert "selected_fact_ids" not in before
             assert container.repository.get_session(session_id).turns[0].selected_fact_ids == (
-                "symptom.onset",
+                "fact-1",
             )
             assert "revealed_fact_ids" not in before
             assert container.repository.get_session(session_id).turns[0].revealed_fact_ids == ()
@@ -71,7 +75,7 @@ def test_pipeline_delivery_is_correlated_idempotent_and_controls_fact_credit(
             first = receive(socket, "turn.delivered")["turn"]
             assert "revealed_fact_ids" not in first
             assert container.repository.get_session(session_id).turns[0].revealed_fact_ids == (
-                "symptom.onset",
+                "fact-1",
             )
             socket.send_json({"type": "audio.playback_completed", **ack})
             second = receive(socket, "turn.delivered")["turn"]

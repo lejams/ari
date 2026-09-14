@@ -2,7 +2,7 @@
 
 Revision ID: 0001_initial
 Revises:
-Create Date: 2026-09-14 22:17:24.235822
+Create Date: 2026-09-14 22:32:24.713812
 """
 
 from collections.abc import Sequence
@@ -336,20 +336,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_turns_session_id"), "turns", ["session_id"], unique=False)
     op.create_table(
-        "vocabulary_hint_usages",
-        sa.Column("session_id", sa.String(), nullable=False),
-        sa.Column("hint_id", sa.String(), nullable=False),
-        sa.Column("asset_version", sa.String(), nullable=False),
-        sa.Column("usage_count", sa.Integer(), nullable=False),
-        sa.Column("first_used_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("last_used_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["session_id"],
-            ["sessions.id"],
-        ),
-        sa.PrimaryKeyConstraint("session_id", "hint_id"),
-    )
-    op.create_table(
         "vocabulary_observations",
         sa.Column("id", sa.String(), nullable=False),
         sa.Column("session_id", sa.String(), nullable=False),
@@ -411,7 +397,6 @@ def downgrade() -> None:
         op.f("ix_vocabulary_observations_session_id"), table_name="vocabulary_observations"
     )
     op.drop_table("vocabulary_observations")
-    op.drop_table("vocabulary_hint_usages")
     op.drop_index(op.f("ix_turns_session_id"), table_name="turns")
     op.drop_index(op.f("ix_turns_provider_response_id"), table_name="turns")
     op.drop_table("turns")

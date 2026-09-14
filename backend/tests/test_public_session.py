@@ -3,11 +3,18 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 from ari.api.app import create_app
 from ari.api.public_session import public_session
 from ari.container import Container
+
+
+@pytest.fixture
+def container(published_container: Container) -> Container:
+    return published_container
+
 
 FORBIDDEN = {
     "selected_fact_ids",
@@ -16,7 +23,6 @@ FORBIDDEN = {
     "missed_fact_ids",
     "configs",
     "prompts",
-    "vocabulary_hint_usages",
 }
 
 

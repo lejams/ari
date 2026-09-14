@@ -16,6 +16,11 @@ from ari.domain.models import new_id
 from ari.infrastructure.providers.openai.llm import OpenAILLMProvider
 
 
+@pytest.fixture
+def container(published_container: Container) -> Container:
+    return published_container
+
+
 class _StructuredResult(BaseModel):
     value: str
 

@@ -42,11 +42,6 @@ class VocabularyState(StrEnum):
     MASTERED = "mastered"
 
 
-class CaseMode(StrEnum):
-    FSP = "fsp"
-    TECHNICAL_TEST = "technical_test"
-
-
 class AudioDeliveryStatus(StrEnum):
     PENDING = "pending"
     STARTED = "started"
@@ -136,7 +131,6 @@ class RubricCriterion:
 class MedicalCase:
     id: str
     version: str
-    mode: CaseMode
     validation_status: str
     content_hash: str
     language: str
@@ -147,17 +141,12 @@ class MedicalCase:
     public_summary: str
     difficulty: str
     educational_target: EducationalTarget
-    demographics: Mapping[str, str | int | float | bool]
-    demographic_responses: Mapping[str, str]
     source_revealed_fact_ids: Mapping[str, tuple[str, ...]]
     opening_statement: str
     communication_style: str
     facts: tuple[MedicalFact, ...]
     rubric_version: str
     rubric: tuple[RubricCriterion, ...]
-    schema_version: str = "clinical-case-v1"
-    source_collection: str | None = None
-    source_refs: tuple[str, ...] = ()
     assessment_items: tuple[AssessmentItem, ...] = ()
     training_snapshot: Mapping[str, str] = field(default_factory=dict)
     available_for_new_sessions: bool = True
@@ -236,34 +225,6 @@ class VocabularyObservation:
 
 
 @dataclass(frozen=True, slots=True)
-class VocabularyHint:
-    id: str
-    term: str
-    translation: str
-
-
-@dataclass(frozen=True, slots=True)
-class VocabularyHintAsset:
-    id: str
-    version: str
-    case_id: str
-    case_version: str
-    language: str
-    translation_language: str
-    hints: tuple[VocabularyHint, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class VocabularyHintUsage:
-    session_id: str
-    hint_id: str
-    asset_version: str
-    usage_count: int
-    first_used_at: datetime
-    last_used_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
 class ExecutionRecord:
     id: str
     session_id: str
@@ -301,7 +262,6 @@ class ConversationSession:
     evaluation: Evaluation | None = None
     metrics: SessionMetrics | None = None
     vocabulary: tuple[VocabularyObservation, ...] = ()
-    vocabulary_hint_usages: tuple[VocabularyHintUsage, ...] = ()
     executions: tuple[ExecutionRecord, ...] = ()
     created_at: datetime = field(default_factory=utc_now)
     call_started_at: datetime | None = None

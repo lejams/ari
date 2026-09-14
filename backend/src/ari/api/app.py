@@ -35,7 +35,6 @@ from ari.domain.models import (
     ExecutionRecord,
     ExecutionStatus,
     LearningGoal,
-    LearningMode,
     MedicalCase,
     SessionStatus,
     TurnResponseState,
@@ -62,7 +61,6 @@ def _public_case(case: MedicalCase) -> dict[str, object]:
     return {
         "id": case.id,
         "version": case.version,
-        "mode": case.mode.value,
         "validation_status": case.validation_status,
         "title": case.title,
         "language": case.language,
@@ -132,17 +130,11 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         return {
             "status": "ok",
             "provider_mode": services.settings.provider_mode,
-            "technical_test_enabled": services.settings.enable_english_technical_test,
         }
 
     @app.get("/api/cases")
-    async def list_cases(approved_only: bool = False) -> list[dict[str, object]]:
-        return [
-            _public_case(case)
-            for case in services.cases.list()
-            if case.validation_status == "published"
-            or (services.settings.environment == "test" and not approved_only)
-        ]
+    async def list_cases() -> list[dict[str, object]]:
+        return [_public_case(case) for case in services.cases.list()]
 
     @app.post("/api/learners", status_code=201)
     async def create_learner(
@@ -208,9 +200,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             scenario_id=body.scenario_id,
             scenario_version=body.scenario_version,
         )
-        if selected.validation_status != "published" and (
-            services.settings.environment != "test" or body.learning_mode is not None
-        ):
+        if selected.validation_status != "published":
             raise InvalidStateError("Aucun scénario vocal approuvé disponible pour ce choix")
         session = services.orchestrator.create_session(
             body.learner_id,
@@ -263,52 +253,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     @app.get("/api/learners/{learner_id}/sessions")
     async def list_sessions(learner_id: str) -> Any:
         return [session_payload(item) for item in services.repository.list_sessions(learner_id)]
-
-    @app.get("/api/sessions/{session_id}/vocabulary-hints")
-    async def get_vocabulary_hints(session_id: str) -> Any:
-        session = services.repository.get_session(session_id)
-        if (
-            session.learning_mode is LearningMode.EXAM
-            and session.status is not SessionStatus.COMPLETED
-        ):
-            raise NotFoundError("Aide indisponible pendant Exam")
-        asset = (
-            services.cases.vocabulary_for_session(session)
-            if session.training_snapshot
-            else services.vocabulary_hints.get_for_case(session.case_id, session.case_version)
-        )
-        if asset is None:
-            raise NotFoundError("No vocabulary hints are available for this case")
-        return _payload(
-            {
-                "asset_id": asset.id,
-                "version": asset.version,
-                "language": asset.language,
-                "translation_language": asset.translation_language,
-                "items": asset.hints,
-            }
-        )
-
-    @app.post("/api/sessions/{session_id}/vocabulary-hints/{hint_id}/use")
-    async def use_vocabulary_hint(session_id: str, hint_id: str) -> Any:
-        session = services.repository.get_session(session_id)
-        if (
-            session.learning_mode is LearningMode.EXAM
-            and session.status is not SessionStatus.COMPLETED
-        ):
-            raise NotFoundError("Aide indisponible pendant Exam")
-        asset = (
-            services.cases.vocabulary_for_session(session)
-            if session.training_snapshot
-            else services.vocabulary_hints.get_for_case(session.case_id, session.case_version)
-        )
-        if asset is None:
-            raise NotFoundError("No vocabulary hints are available for this case")
-        if hint_id not in {item.id for item in asset.hints}:
-            raise NotFoundError(f"Vocabulary hint {hint_id} was not found")
-        return _payload(
-            services.repository.record_vocabulary_hint_usage(session_id, hint_id, asset.version)
-        )
 
     @app.websocket("/ws/sessions/{session_id}/voice")
     async def voice_socket(websocket: WebSocket, session_id: str) -> None:

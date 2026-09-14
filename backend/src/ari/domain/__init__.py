@@ -11,9 +11,6 @@ from ari.domain.models import (
     MedicalFact,
     SessionMetrics,
     SessionStatus,
-    VocabularyHint,
-    VocabularyHintAsset,
-    VocabularyHintUsage,
     VocabularyObservation,
     VocabularyState,
 )
@@ -31,9 +28,6 @@ __all__ = [
     "MedicalFact",
     "SessionMetrics",
     "SessionStatus",
-    "VocabularyHint",
-    "VocabularyHintAsset",
-    "VocabularyHintUsage",
     "VocabularyObservation",
     "VocabularyState",
 ]

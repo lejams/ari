@@ -165,7 +165,6 @@ async def test_v2_evaluation_delivery_and_pinned_terminology(container: Containe
         c for c in analyzed.evaluation.criteria if c["criterion_id"] == "clinical_coverage"
     )
     assert clinical["score"] == 1.25
-    initial_vocabulary = container.cases.vocabulary_for_session(analyzed)
     terminology = bundle.terminology_sets[0].model_copy(update={"version": "2", "entries": ()})
     successor = scenario.model_copy(
         update={
@@ -183,5 +182,3 @@ async def test_v2_evaluation_delivery_and_pinned_terminology(container: Containe
     store.publish(successor.id, successor.version, actor="ISOLATED TEST")
     resumed = (await container.orchestrator.end_session(session.id)).session
     assert resumed.evaluation == analyzed.evaluation
-    assert container.cases.vocabulary_for_session(resumed) == initial_vocabulary
-    assert initial_vocabulary.hints[0].term == "Schmerz"

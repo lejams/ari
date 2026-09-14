@@ -38,7 +38,6 @@ from ari.domain.models import (
     SessionMetrics,
     SessionStatus,
     TurnResponseState,
-    VocabularyHintUsage,
     VocabularyObservation,
     VocabularyState,
     utc_now,
@@ -134,16 +133,6 @@ class VocabularyRow(Base):
     evidence_turn_sequences: Mapped[list[int]] = mapped_column(JSON, default=list)
     state: Mapped[str] = mapped_column(String)
     confidence: Mapped[float]
-
-
-class VocabularyHintUsageRow(Base):
-    __tablename__ = "vocabulary_hint_usages"
-    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
-    hint_id: Mapped[str] = mapped_column(String, primary_key=True)
-    asset_version: Mapped[str] = mapped_column(String)
-    usage_count: Mapped[int] = mapped_column(Integer)
-    first_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class ExecutionRow(Base):
@@ -350,14 +339,6 @@ class SqliteSessionRepository:
                     select(VocabularyRow).where(VocabularyRow.session_id == session_id)
                 )
             )
-            hint_usages = tuple(
-                self._vocabulary_hint_usage(r)
-                for r in db.scalars(
-                    select(VocabularyHintUsageRow)
-                    .where(VocabularyHintUsageRow.session_id == session_id)
-                    .order_by(VocabularyHintUsageRow.first_used_at)
-                )
-            )
             evaluation_row = db.get(EvaluationRow, session_id)
             metrics_row = db.get(MetricsRow, session_id)
             learning = db.get(VoiceLearningRow, session_id)
@@ -388,7 +369,6 @@ class SqliteSessionRepository:
                 evaluation=self._evaluation(evaluation_row.payload) if evaluation_row else None,
                 metrics=SessionMetrics(**metrics_row.payload) if metrics_row else None,
                 vocabulary=vocab,
-                vocabulary_hint_usages=hint_usages,
                 executions=executions,
                 created_at=_dt(row.created_at),
                 call_started_at=(_dt(row.call_started_at) if row.call_started_at else None),
@@ -790,31 +770,6 @@ class SqliteSessionRepository:
             db.add(ExecutionRow(**values))
             db.commit()
 
-    def record_vocabulary_hint_usage(
-        self, session_id: str, hint_id: str, asset_version: str
-    ) -> VocabularyHintUsage:
-        now = utc_now()
-        with Session(self.engine) as db:
-            if db.get(SessionRow, session_id) is None:
-                raise NotFoundError(f"Session {session_id} was not found")
-            row = db.get(VocabularyHintUsageRow, (session_id, hint_id))
-            if row is None:
-                row = VocabularyHintUsageRow(
-                    session_id=session_id,
-                    hint_id=hint_id,
-                    asset_version=asset_version,
-                    usage_count=1,
-                    first_used_at=now,
-                    last_used_at=now,
-                )
-                db.add(row)
-            else:
-                row.usage_count += 1
-                row.last_used_at = now
-            db.commit()
-            db.refresh(row)
-            return self._vocabulary_hint_usage(row)
-
     def save_analysis(
         self,
         session_id: str,
@@ -879,17 +834,6 @@ class SqliteSessionRepository:
             evidence_turn_sequences=tuple(row.evidence_turn_sequences),
             state=VocabularyState(row.state),
             confidence=row.confidence,
-        )
-
-    @staticmethod
-    def _vocabulary_hint_usage(row: VocabularyHintUsageRow) -> VocabularyHintUsage:
-        return VocabularyHintUsage(
-            session_id=row.session_id,
-            hint_id=row.hint_id,
-            asset_version=row.asset_version,
-            usage_count=row.usage_count,
-            first_used_at=_dt(row.first_used_at),
-            last_used_at=_dt(row.last_used_at),
         )
 
     @staticmethod

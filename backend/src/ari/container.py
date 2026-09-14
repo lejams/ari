@@ -16,13 +16,8 @@ from ari.config import Settings
 from ari.domain.errors import InvalidStateError
 from ari.infrastructure.cases.clinical_catalog import ClinicalCatalog
 from ari.infrastructure.cases.clinical_store import ClinicalStore
-from ari.infrastructure.cases.loader import load_cases
 from ari.infrastructure.cases.practice_catalog import PublishedPracticeCatalog
 from ari.infrastructure.cases.practice_demos import synthetic_demos
-from ari.infrastructure.learning_aids.loader import (
-    YamlVocabularyHintCatalog,
-    load_vocabulary_hints,
-)
 from ari.infrastructure.persistence.practice import SqlPracticeRepository
 from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
 from ari.infrastructure.providers.fake import FakeLLMProvider, FakeTranscriber, FakeTTSProvider
@@ -33,7 +28,6 @@ class Container:
     settings: Settings
     repository: SqliteSessionRepository
     cases: ClinicalCatalog
-    vocabulary_hints: YamlVocabularyHintCatalog
     orchestrator: ConversationOrchestrator
     transcriber: UtteranceTranscriber
     tts: StreamingTTSProvider
@@ -63,7 +57,6 @@ def _voice_stack(settings: Settings) -> VoiceStack:
 def build_container(settings: Settings) -> Container:
     if settings.enable_mvp_demos and settings.environment == "production":
         raise InvalidStateError("Synthetic MVP demos are forbidden in production")
-    settings.case_directory.mkdir(parents=True, exist_ok=True)
     if settings.database_url.startswith("sqlite:///"):
         from pathlib import Path
 
@@ -71,14 +64,7 @@ def build_container(settings: Settings) -> Container:
             parents=True, exist_ok=True
         )
     repository = SqliteSessionRepository(settings.database_url)
-    legacy_cases = load_cases(
-        settings.case_directory,
-        include_technical_test=settings.enable_english_technical_test,
-    )
-    cases = ClinicalCatalog(legacy_cases, ClinicalStore(
-        repository.engine, frozenset(c.id for c in legacy_cases.list()),
-    ))
-    vocabulary_hints = load_vocabulary_hints(settings.learning_aid_directory)
+    cases = ClinicalCatalog(ClinicalStore(repository.engine))
     patient_prompt = load_prompt(settings.prompt_directory / "patient_v2.txt", "patient-v2")
     evaluation_prompt = load_prompt(
         settings.prompt_directory / "evaluation_v2.txt", "evaluation-v2"
@@ -139,7 +125,6 @@ def build_container(settings: Settings) -> Container:
         settings=settings,
         repository=repository,
         cases=cases,
-        vocabulary_hints=vocabulary_hints,
         orchestrator=orchestrator,
         transcriber=transcriber,
         tts=tts,

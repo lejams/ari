@@ -38,20 +38,12 @@ def decode[ModelT: ClinicalModel](model: type[ModelT], payload: dict[str, Any]) 
 
 
 class ClinicalStore:
-    def __init__(self, engine: Engine, reserved_case_ids: frozenset[str] = frozenset()) -> None:
+    def __init__(self, engine: Engine) -> None:
         self.engine = engine
-        self.reserved_case_ids = reserved_case_ids | {
-            "ARI-FSP-001",
-            "ARI-FSP-001-EN",
-            "fsp-abdominal-pain",
-            "technical-abdominal-pain-en",
-        }
 
     def import_bundle(self, bundle: ClinicalBundle, *, dry_run: bool = False) -> dict[str, int]:
         # Revalidate even callers using unchecked model_copy/model_construct.
         bundle = decode(ClinicalBundle, bundle.model_dump(mode="json"))
-        if {case.id for case in bundle.cases} & self.reserved_case_ids:
-            raise InvalidStateError("Un identifiant historique ne peut pas être remplacé")
         counts = {"cas_nouveaux": 0, "cas_identiques": 0, "scenarios_nouveaux": 0}
         database = self.engine.url.database
         if (

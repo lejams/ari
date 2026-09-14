@@ -52,12 +52,6 @@ def test_published_voice_mode_history_hints_and_immutability(
         session = demo_container.repository.get_session(run["id"])
         assert session.learning_mode is LearningMode(mode)
         path = f"/api/sessions/{run['id']}"
-        assert client.get(path + "/vocabulary-hints").status_code == (
-            404 if mode == "exam" else 200
-        )
-        assert client.post(path + "/vocabulary-hints/symptom/use").status_code == (
-            404 if mode == "exam" else 200
-        )
         history = client.get("/api/history").json()["items"]
         assert len(history) == 1 and history[0]["kind"] == "voice"
         assert history[0]["mode"] == mode and history[0]["feedback_state"] == "no_data"
@@ -70,34 +64,6 @@ def test_published_voice_mode_history_hints_and_immutability(
                 text("UPDATE voice_learning_context SET mode=:mode"),
                 {"mode": "training" if mode == "exam" else "exam"},
             )
-
-
-def test_product_refuses_legacy_unapproved_voice_and_development_exposes_no_legacy(
-    demo_container: Container,
-) -> None:
-    with TestClient(create_app(demo_container)) as client:
-        learner = client.post("/api/learners", json={}).json()
-        case = demo_container.cases.legacy.list()[0]
-        assert (
-            client.post(
-                "/api/sessions",
-                json={
-                    "learner_id": learner["id"],
-                    "case_id": case.id,
-                    "case_version": case.version,
-                    "learning_mode": "training",
-                },
-            ).status_code
-            == 400
-        )
-    development = replace(
-        demo_container,
-        settings=demo_container.settings.model_copy(
-            update={"environment": "development"},
-        ),
-    )
-    with TestClient(create_app(development)) as client:
-        assert client.get("/api/cases").json() == []
 
 
 def test_voice_progression_uses_weighted_evidence_and_separates_modes(

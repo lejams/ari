@@ -8,7 +8,6 @@ from ari.domain.models import (
     LearnerProfile,
     SessionMetrics,
     SessionStatus,
-    VocabularyHintUsage,
     VocabularyObservation,
 )
 
@@ -96,10 +95,6 @@ class SessionRepository(Protocol):
     ) -> ConversationTurn | None: ...
 
     def record_execution(self, execution: ExecutionRecord) -> None: ...
-
-    def record_vocabulary_hint_usage(
-        self, session_id: str, hint_id: str, asset_version: str
-    ) -> VocabularyHintUsage: ...
 
     def save_analysis(
         self,

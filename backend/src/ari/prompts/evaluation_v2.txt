@@ -11,5 +11,4 @@ Return concise feedback in the supplied feedback_language. Keep quoted examples 
 - Vocabulary entries are candidates for later study, not words proven to be mastered.
 - Clinical coverage and missed case facts are calculated by the application; do not return them.
 - Do not assess pronunciation from a transcript.
-- When case_mode is technical_test, do not claim readiness for the FSP or any examination.
 - Return only the requested structured response.

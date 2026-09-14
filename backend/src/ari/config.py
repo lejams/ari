@@ -17,11 +17,8 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
     provider_mode: Literal["fake", "openai"] = "fake"
     database_url: str = f"sqlite:///{PROJECT_ROOT / 'var' / 'ari.db'}"
-    case_directory: Path = PROJECT_ROOT / "cases"
-    learning_aid_directory: Path = PROJECT_ROOT / "learning_aids"
     prompt_directory: Path = PROJECT_ROOT / "backend" / "src" / "ari" / "prompts"
     frontend_origin: str = "http://localhost:5173"
-    enable_english_technical_test: bool = False
     enable_mvp_demos: bool = False
     feedback_language: str = "fr-FR"
     application_version: str | None = None
