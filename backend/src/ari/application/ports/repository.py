@@ -6,7 +6,6 @@ from ari.domain.models import (
     ConversationTurn,
     Evaluation,
     ExecutionRecord,
-    GroundingAudit,
     LearnerProfile,
     PatientOpening,
     SessionMetrics,
@@ -113,10 +112,6 @@ class SessionRepository(Protocol):
 
     def mark_session_delivery_unconfirmed(self, session_id: str) -> None: ...
 
-    def update_turn_selected_fact_ids(
-        self, turn_id: str, fact_ids: tuple[str, ...]
-    ) -> ConversationTurn: ...
-
     def switch_voice_stack_before_first_turn(
         self,
         session_id: str,
@@ -135,8 +130,6 @@ class SessionRepository(Protocol):
     def get_turn_by_provider_response(
         self, session_id: str, provider_response_id: str
     ) -> ConversationTurn | None: ...
-
-    def save_grounding_audit(self, audit: GroundingAudit) -> None: ...
 
     def record_execution(self, execution: ExecutionRecord) -> None: ...
 

@@ -12,14 +12,12 @@ def _phrase_present(phrase: str, text: str) -> bool:
 
 
 def weighted_assessment(session: ConversationSession, case: MedicalCase) -> list[dict[str, object]]:
-    invalid = {a.turn_id for a in session.grounding_audits if a.severity in {"high", "critical"}}
     delivered = [
         t
         for t in session.turns
         if t.delivery_status is AudioDeliveryStatus.DELIVERED
         and not t.interrupted
         and t.provider_response_status == "completed"
-        and t.id not in invalid
     ]
     heard = {fact for turn in delivered for fact in turn.revealed_fact_ids}
     results: list[dict[str, object]] = []

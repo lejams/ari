@@ -37,7 +37,6 @@ class Settings(BaseSettings):
     pipeline_low_latency_stt_model: str = "gpt-live-transcribe"
     stt_handshake_timeout_seconds: float = 10.0
     patient_model: str = "gpt-5.6-luna"
-    grounding_model: str = "gpt-5.6-luna"
     evaluation_model: str = "gpt-5.6-terra"
     tts_model: str = "gpt-4o-mini-tts"
     tts_voice: str = "alloy"

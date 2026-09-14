@@ -257,20 +257,6 @@ class VoiceStackTransition:
 
 
 @dataclass(frozen=True, slots=True)
-class GroundingAudit:
-    id: str
-    session_id: str
-    turn_id: str
-    schema_version: str
-    prompt_version: str
-    supported_fact_ids: tuple[str, ...]
-    unsupported_claims: tuple[str, ...]
-    severity: str
-    confidence: float
-    created_at: datetime = field(default_factory=utc_now)
-
-
-@dataclass(frozen=True, slots=True)
 class EvidenceObservation:
     text: str
     evidence_turn_sequences: tuple[int, ...]
@@ -519,7 +505,6 @@ class ConversationSession:
     vocabulary: tuple[VocabularyObservation, ...] = ()
     vocabulary_hint_usages: tuple[VocabularyHintUsage, ...] = ()
     executions: tuple[ExecutionRecord, ...] = ()
-    grounding_audits: tuple[GroundingAudit, ...] = ()
     voice_stack_transitions: tuple[VoiceStackTransition, ...] = ()
     patient_opening: PatientOpening | None = None
     created_at: datetime = field(default_factory=utc_now)

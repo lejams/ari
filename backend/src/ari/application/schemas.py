@@ -58,19 +58,6 @@ class EvaluationOutputSchema(StrictModel):
     )
 
 
-class GroundedClaimSchema(StrictModel):
-    claim: Annotated[str, Field(min_length=1, max_length=300)]
-    supported_fact_ids: list[str] = Field(default_factory=list, max_length=8)
-    case_evidence: Annotated[str, Field(min_length=1, max_length=500)]
-
-
-class GroundingAuditOutputSchema(StrictModel):
-    mentioned_claims: list[GroundedClaimSchema] = Field(default_factory=list, max_length=20)
-    unsupported_claims: list[str] = Field(default_factory=list, max_length=10)
-    severity: Literal["none", "low", "medium", "high", "critical"]
-    confidence: Annotated[float, Field(ge=0, le=1)]
-
-
 class VoiceEventSchema(BaseModel):
     type: str
     data: dict[str, object] = Field(default_factory=dict)

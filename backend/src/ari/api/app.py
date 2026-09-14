@@ -552,7 +552,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         assembler = RealtimeTurnAssembler()
         send_lock = asyncio.Lock()
         processing_lock = asyncio.Lock()
-        audit_tasks: set[asyncio.Task[None]] = set()
         response_started_at: dict[str, float] = {}
         speech_stopped_at: dict[str, float] = {}
         transcript_final_at: dict[str, float] = {}
@@ -609,31 +608,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                 error_message=str(error)[:1000],
                 retryable=True,
             )
-
-        async def audit_turn(turn: ConversationTurn) -> None:
-            try:
-                current = services.repository.get_session(session_id)
-                outcome = await services.grounding_auditor.audit(current, case, turn)
-                services.repository.record_execution(outcome.execution)
-                services.repository.save_grounding_audit(outcome.audit)
-                trusted_fact_ids = (
-                    ()
-                    if (
-                        turn.interrupted
-                        or turn.provider_response_status != "completed"
-                        or outcome.audit.severity in {"high", "critical"}
-                    )
-                    else outcome.audit.supported_fact_ids
-                )
-                services.repository.update_turn_selected_fact_ids(turn.id, trusted_fact_ids)
-                # Grounding audits are internal and never sent to the browser.
-            except ProviderError as exc:
-                services.repository.record_execution(cast(ExecutionRecord, exc.execution))
-                with suppress(Exception):
-                    await send("grounding.audit_failed", turn_id=turn.id)
-            except Exception:
-                with suppress(Exception):
-                    await send("grounding.audit_failed", turn_id=turn.id)
 
         async def persist_user_transcript(
             text: str, provider_input_item_id: str | None
@@ -834,8 +808,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                     },
                 )
 
-        audit_scheduled_turn_ids: set[str] = set()
-
         async def acknowledge_realtime_audio(control: ClientControlMessage) -> None:
             if control.type == "audio.playback_completed":
                 await send(
@@ -857,16 +829,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                 return
             persist_client_playback_observation(turn, control)
             await send("turn.audio_started", turn=public_turn(turn))
-            if (
-                turn.id not in audit_scheduled_turn_ids
-                and turn.patient_text
-                and turn.canonical_response is None
-                and not turn.interrupted
-            ):
-                audit_scheduled_turn_ids.add(turn.id)
-                task = asyncio.create_task(audit_turn(turn))
-                audit_tasks.add(task)
-                task.add_done_callback(audit_tasks.discard)
 
         async def limit_response(response_id: str) -> None:
             await asyncio.sleep(12)

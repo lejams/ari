@@ -13,7 +13,6 @@ FORBIDDEN = {
     "canonical_response",
     "selected_fact_ids",
     "revealed_fact_ids",
-    "grounding_audits",
     "executions",
     "missed_fact_ids",
     "configs",

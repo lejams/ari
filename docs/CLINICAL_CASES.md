@@ -127,7 +127,7 @@ au moins un item par dimension. Les poids doivent être strictement positifs.
 Les items obligatoires manqués sont listés, sans seuil de réussite implicite.
 
 - `delivered_facts` : `all` exige tous les faits, `any` au moins un. Seuls les faits
-  confirmés livrés, non interrompus, sans divergence de grounding haute/critique,
+  confirmés livrés, non interrompus,
   sont crédités. Un fait sélectionné ou un audio non confirmé ne suffit jamais.
 - `doctor_quote` : recherche déterministe de phrases **écrites par le reviewer**
   dans les paroles du médecin (casse et espaces normalisés, limites de mots).

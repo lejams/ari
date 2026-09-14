@@ -712,7 +712,6 @@ def test_realtime_sdp_sideband_persists_one_idempotent_turn(container: Container
         assert persisted["turns"][0]["provider_response_id"] == "response-1"
         assert persisted["turns"][0]["delivery_status"] == "unconfirmed"
         assert persisted["turns"][0]["audio_delivered_at"] is None
-        assert jsonable_encoder(services.repository.get_session(session_id).grounding_audits) == []
         assert jsonable_encoder(
             services.repository.get_session(session_id).turns[0].canonical_response
         )["text"]
@@ -730,7 +729,6 @@ def test_realtime_sdp_sideband_persists_one_idempotent_turn(container: Container
         ]
         assert operations.count("realtime_voice.response") == 1
         assert operations.count("realtime_voice.opening") == 1
-        assert "grounding_audit" not in operations
         assert {"realtime.connected", "patient.speech_started"} <= set(event_types)
         metric = services.repository.get_voice_turn_metric(persisted["turns"][0]["id"])
         assert metric is not None
@@ -738,7 +736,7 @@ def test_realtime_sdp_sideband_persists_one_idempotent_turn(container: Container
         assert metric.speech_end_to_first_audio_sent_ms is None
 
 
-def test_realtime_client_playback_signal_starts_async_grounding(container: Container) -> None:
+def test_realtime_client_playback_signal_marks_audio_started(container: Container) -> None:
     services = replace(container, realtime_voice=FakeRealtimeEngine())
     with TestClient(create_app(services)) as client:
         session = _create_session(client)
@@ -771,7 +769,6 @@ def test_realtime_client_playback_signal_starts_async_grounding(container: Conta
             while socket.receive_json()["type"] != "call.ended":
                 pass
         stored = client.get(f"/api/sessions/{session_id}").json()
-        assert jsonable_encoder(services.repository.get_session(session_id).grounding_audits) == []
         assert stored["turns"][0]["delivery_status"] == "unconfirmed"
         assert (
             jsonable_encoder(services.repository.get_session(session_id).turns[0].revealed_fact_ids)
@@ -1038,7 +1035,6 @@ def test_call_end_drains_final_response_before_acknowledgement(container: Contai
         assert "turn.persisted" in event_types
         persisted = client.get(f"/api/sessions/{session_id}").json()
         assert len(persisted["turns"]) == 1
-        assert jsonable_encoder(services.repository.get_session(session_id).grounding_audits) == []
 
 
 def test_cancelled_empty_response_does_not_block_following_turns(

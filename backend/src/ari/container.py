@@ -11,7 +11,6 @@ from ari.application.ports.tts import StreamingTTSProvider
 from ari.application.prompting import load_prompt
 from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
-from ari.application.services.grounding import GroundingAuditor
 from ari.application.services.patient import PatientSimulator
 from ari.application.services.practice import PracticeService
 from ari.application.services.realtime import PatientOpeningBuilder, RealtimeSimulationBuilder
@@ -44,7 +43,6 @@ class Container:
     realtime_voice: RealtimeVoiceEngine | None
     realtime_simulation: RealtimeSimulationBuilder
     patient_opening: PatientOpeningBuilder
-    grounding_auditor: GroundingAuditor
     voice_stacks: VoiceStackRegistry
     pipeline_voices: Mapping[str, TurnBasedVoiceEngine]
     realtime_voices: Mapping[str, RealtimeVoiceEngine]
@@ -166,9 +164,6 @@ def build_container(settings: Settings) -> Container:
     realtime_transport_prompt = load_prompt(
         settings.prompt_directory / "realtime_transport_v1.txt", "realtime-transport-v1"
     )
-    grounding_prompt = load_prompt(
-        settings.prompt_directory / "grounding_audit_v1.txt", "grounding-audit-v1"
-    )
     voice_stacks = _voice_stack_registry(settings)
     preferred_voice_transport = (
         VoiceTransport.PIPELINE
@@ -195,7 +190,6 @@ def build_container(settings: Settings) -> Container:
         llm = OpenAILLMProvider(
             settings.openai_api_key,
             patient_model=settings.patient_model,
-            grounding_model=settings.grounding_model,
             evaluation_model=settings.evaluation_model,
             patient_timeout_seconds=settings.patient_timeout_seconds,
             evaluation_timeout_seconds=settings.evaluation_timeout_seconds,
@@ -277,7 +271,6 @@ def build_container(settings: Settings) -> Container:
             realtime_prompt, realtime_transport_prompt
         ),
         patient_opening=PatientOpeningBuilder(),
-        grounding_auditor=GroundingAuditor(llm, grounding_prompt),
         voice_stacks=voice_stacks,
         pipeline_voices=MappingProxyType(pipeline_voices),
         realtime_voices=MappingProxyType(realtime_voices),

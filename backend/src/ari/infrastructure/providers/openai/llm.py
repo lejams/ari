@@ -28,11 +28,9 @@ class OpenAILLMProvider:
         evaluation_model: str,
         patient_timeout_seconds: float,
         evaluation_timeout_seconds: float,
-        grounding_model: str | None = None,
     ) -> None:
         self._client = AsyncOpenAI(api_key=api_key)
         self._patient_model = patient_model
-        self._grounding_model = grounding_model or patient_model
         self._evaluation_model = evaluation_model
         self._patient_timeout_seconds = patient_timeout_seconds
         self._evaluation_timeout_seconds = evaluation_timeout_seconds
@@ -42,8 +40,6 @@ class OpenAILLMProvider:
     ) -> ProviderResult[T]:
         if request.context.operation == "session_evaluation":
             model = self._evaluation_model
-        elif request.context.operation == "grounding_audit":
-            model = self._grounding_model
         else:
             model = self._patient_model
         started = time.perf_counter()

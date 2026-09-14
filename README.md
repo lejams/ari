@@ -48,7 +48,7 @@ For OpenAI-backed voice, copy `.env.example` to `.env`, set `ARI_PROVIDER_MODE=o
 - `realtime_quality`: `gpt-realtime-2.1`;
 - `pipeline_economy`: `gpt-transcribe → gpt-5.6-luna → gpt-4o-mini-tts`;
 - `pipeline_low_latency`: `gpt-live-transcribe → gpt-5.6-luna → gpt-4o-mini-tts`;
-- post-session evaluation with `gpt-5.6-terra` and grounding audits with `gpt-5.6-luna`.
+- post-session evaluation with `gpt-5.6-terra`.
 
 `ARI_VOICE_TRANSPORT` remains a compatibility setting that chooses the default OpenAI stack when the API request does not provide `voice_stack_id`. Fake mode always selects `pipeline_economy`, because its deterministic test doubles implement the pipeline rather than Realtime. The setting never rewrites the stack already stored on an existing session.
 
@@ -87,8 +87,6 @@ flowchart LR
     API --> Orchestrator["ConversationOrchestrator"]
     Orchestrator --> Patient["PatientSimulator fallback"]
     Patient --> LLM["LLMProvider"]
-    API --> Auditor["GroundingAuditor"]
-    Auditor --> LLM
     Orchestrator --> Evaluator["Evaluator"]
     Evaluator --> LLM
     Orchestrator --> Repo["SessionRepository"]
@@ -124,7 +122,6 @@ It is persisted separately from learner turns, played once, and excluded from ev
 - ordinary anamnesis, short social exchanges, concerns, and clarifications remain in scope;
 - absent details produce varied, natural uncertainty rather than a repeated fixed phrase;
 - prompt injection, Internet, competitor, and role-exit requests are redirected in character;
-- a structured `GroundingAuditor` checks every completed patient turn asynchronously and persists supported fact IDs, unsupported claims, severity, confidence, and execution trace.
 
 Case metadata and disclosure conditions are strictly typed. Time-gated facts are omitted from the initial Realtime specification, then released through a sideband update after five minutes or when the learner discusses next steps. The deterministic fallback continues to enforce disclosure through its application-owned selector.
 
@@ -190,7 +187,7 @@ make benchmark-smoke
 - local cookie possession only; lost/expired cookies cannot reclaim an old profile by ID;
 - no pronunciation scoring without a dedicated audio assessment provider;
 - no claim that a vocabulary item is learned from one observation;
-- no durable job queue or microservice; grounding audits are in-process POC tasks;
+- no durable job queue or microservice;
 - latency and barge-in SLOs still require a 20-turn real-audio benchmark before they can be claimed.
 
 The bundled demonstration cases are synthetic and marked unvalidated. `ARI-FSP-001@1.0` is the user-provided test case and is also marked unvalidated. Every case must be clinically and linguistically reviewed before real learner use.

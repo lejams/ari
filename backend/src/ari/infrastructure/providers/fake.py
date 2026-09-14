@@ -20,7 +20,6 @@ from ari.application.contracts import (
 )
 from ari.application.schemas import (
     EvaluationOutputSchema,
-    GroundingAuditOutputSchema,
     PatientResponseSchema,
 )
 from ari.domain.models import CostStatus, ExecutionRecord, ExecutionStatus, new_id
@@ -64,13 +63,6 @@ class FakeLLMProvider:
             result = self._patient(payload)
         elif response_model is EvaluationOutputSchema:
             result = self._evaluation(payload)
-        elif response_model is GroundingAuditOutputSchema:
-            result = {
-                "mentioned_claims": [],
-                "unsupported_claims": [],
-                "severity": "none",
-                "confidence": 1.0,
-            }
         else:
             raise TypeError(f"Unsupported fake schema: {response_model.__name__}")
         elapsed = int((time.perf_counter() - started) * 1000)

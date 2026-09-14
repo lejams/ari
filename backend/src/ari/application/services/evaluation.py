@@ -27,22 +27,13 @@ class LLMBackedEvaluator:
         self._feedback_language = feedback_language
 
     async def evaluate(self, session: ConversationSession, case: MedicalCase) -> EvaluationOutcome:
-        invalid_turn_ids = {
-            audit.turn_id
-            for audit in session.grounding_audits
-            if audit.severity in {"high", "critical"}
-        }
         transcript = [
             {
                 "turn": item.sequence,
                 "doctor": item.user_text,
                 "patient": (
-                    "[patient response excluded: interrupted or grounding divergence]"
-                    if (
-                        item.interrupted
-                        or item.provider_response_status != "completed"
-                        or item.id in invalid_turn_ids
-                    )
+                    "[patient response excluded: interrupted]"
+                    if item.interrupted or item.provider_response_status != "completed"
                     else item.patient_text
                 ),
                 "revealed_fact_ids": list(item.revealed_fact_ids),

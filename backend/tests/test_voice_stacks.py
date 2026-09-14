@@ -247,7 +247,7 @@ def test_legacy_voice_transport_setting_only_selects_the_default_stack(
 
 
 @pytest.mark.asyncio
-async def test_openai_llm_constructor_compatibility_and_dedicated_grounding_model() -> None:
+async def test_openai_llm_selects_model_per_operation() -> None:
     selected_models: list[str] = []
     provider = OpenAILLMProvider(
         "offline-key",
@@ -255,10 +255,9 @@ async def test_openai_llm_constructor_compatibility_and_dedicated_grounding_mode
         evaluation_model="evaluation-terra",
         patient_timeout_seconds=1,
         evaluation_timeout_seconds=1,
-        grounding_model="grounding-luna",
     )
     provider._client = cast(Any, _OfflineClient(selected_models))
-    for operation in ("patient_simulation", "grounding_audit", "session_evaluation"):
+    for operation in ("patient_simulation", "session_evaluation"):
         await provider.generate_structured(
             LLMRequest(
                 messages=({"role": "user", "content": "offline"},),
@@ -271,27 +270,4 @@ async def test_openai_llm_constructor_compatibility_and_dedicated_grounding_mode
             ),
             _StructuredResult,
         )
-    assert selected_models == ["patient-luna", "grounding-luna", "evaluation-terra"]
-
-    fallback_models: list[str] = []
-    compatible = OpenAILLMProvider(
-        "offline-key",
-        patient_model="patient-luna",
-        evaluation_model="evaluation-terra",
-        patient_timeout_seconds=1,
-        evaluation_timeout_seconds=1,
-    )
-    compatible._client = cast(Any, _OfflineClient(fallback_models))
-    await compatible.generate_structured(
-        LLMRequest(
-            messages=({"role": "user", "content": "offline"},),
-            context=ExecutionContext(
-                session_id="session",
-                operation="grounding_audit",
-                case_version="1",
-                case_hash="hash",
-            ),
-        ),
-        _StructuredResult,
-    )
-    assert fallback_models == ["patient-luna"]
+    assert selected_models == ["patient-luna", "evaluation-terra"]

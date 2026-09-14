@@ -36,7 +36,6 @@ from ari.domain.models import (
     EvidenceObservation,
     ExecutionRecord,
     ExecutionStatus,
-    GroundingAudit,
     InteractionMode,
     LearnerProfile,
     LearningGoal,
@@ -140,20 +139,6 @@ class PatientOpeningRow(Base):
     spoken_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String)
     provider_response_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-
-
-class GroundingAuditRow(Base):
-    __tablename__ = "grounding_audits"
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), index=True)
-    turn_id: Mapped[str] = mapped_column(ForeignKey("turns.id"), index=True)
-    schema_version: Mapped[str] = mapped_column(String)
-    prompt_version: Mapped[str] = mapped_column(String)
-    supported_fact_ids: Mapped[list[str]] = mapped_column(JSON)
-    unsupported_claims: Mapped[list[str]] = mapped_column(JSON)
-    severity: Mapped[str] = mapped_column(String)
-    confidence: Mapped[float]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -503,14 +488,6 @@ class SqliteSessionRepository:
             )
             evaluation_row = db.get(EvaluationRow, session_id)
             metrics_row = db.get(MetricsRow, session_id)
-            audits = tuple(
-                self._grounding_audit(audit)
-                for audit in db.scalars(
-                    select(GroundingAuditRow)
-                    .where(GroundingAuditRow.session_id == session_id)
-                    .order_by(GroundingAuditRow.created_at)
-                )
-            )
             transitions = tuple(
                 self._voice_stack_transition(item)
                 for item in db.scalars(
@@ -552,7 +529,6 @@ class SqliteSessionRepository:
                 vocabulary=vocab,
                 vocabulary_hint_usages=hint_usages,
                 executions=executions,
-                grounding_audits=audits,
                 voice_stack_transitions=transitions,
                 patient_opening=(
                     self._patient_opening(opening_row) if opening_row is not None else None
@@ -708,26 +684,6 @@ class SqliteSessionRepository:
                 )
             )
             return self._turn(row) if row is not None else None
-
-    def save_grounding_audit(self, audit: GroundingAudit) -> None:
-        with Session(self.engine) as db:
-            if db.get(GroundingAuditRow, audit.id) is not None:
-                return
-            db.add(
-                GroundingAuditRow(
-                    id=audit.id,
-                    session_id=audit.session_id,
-                    turn_id=audit.turn_id,
-                    schema_version=audit.schema_version,
-                    prompt_version=audit.prompt_version,
-                    supported_fact_ids=list(audit.supported_fact_ids),
-                    unsupported_claims=list(audit.unsupported_claims),
-                    severity=audit.severity,
-                    confidence=audit.confidence,
-                    created_at=audit.created_at,
-                )
-            )
-            db.commit()
 
     def save_selected_response(
         self,
@@ -1102,23 +1058,6 @@ class SqliteSessionRepository:
                     row.revealed_fact_ids = []
             db.commit()
 
-    def update_turn_selected_fact_ids(
-        self, turn_id: str, fact_ids: tuple[str, ...]
-    ) -> ConversationTurn:
-        with Session(self.engine) as db:
-            row = db.get(TurnRow, turn_id)
-            if row is None:
-                raise NotFoundError(f"Turn {turn_id} was not found")
-            if row.response_state not in {
-                TurnResponseState.AUDIO_STARTED.value,
-                TurnResponseState.DELIVERY_UNCONFIRMED.value,
-            }:
-                raise InvalidStateError("Grounding requires observed playback")
-            row.selected_fact_ids = list(dict.fromkeys(fact_ids))
-            db.commit()
-            db.refresh(row)
-            return self._turn(row)
-
     def switch_voice_stack_before_first_turn(
         self,
         session_id: str,
@@ -1468,21 +1407,6 @@ class SqliteSessionRepository:
             status=VoiceTurnMetricStatus(row.status),
             created_at=_dt(row.created_at),
             updated_at=_dt(row.updated_at),
-        )
-
-    @staticmethod
-    def _grounding_audit(row: GroundingAuditRow) -> GroundingAudit:
-        return GroundingAudit(
-            id=row.id,
-            session_id=row.session_id,
-            turn_id=row.turn_id,
-            schema_version=row.schema_version,
-            prompt_version=row.prompt_version,
-            supported_fact_ids=tuple(row.supported_fact_ids),
-            unsupported_claims=tuple(row.unsupported_claims),
-            severity=row.severity,
-            confidence=row.confidence,
-            created_at=_dt(row.created_at),
         )
 
     @staticmethod

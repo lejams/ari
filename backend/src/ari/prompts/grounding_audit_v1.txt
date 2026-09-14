@@ -1,9 +1,0 @@
-Audit one AI patient's utterance against the supplied medical case.
-
-Extract each clinical or biographical claim. For every supported claim, cite only exact case
-fact identifiers and briefly state the matching case evidence. Put any material assertion
-that is absent from, inferred beyond, or contradictory to the case into unsupported_claims.
-Normal conversational wording, emotion, uncertainty, greetings, and harmless filler are not
-unsupported clinical claims. If the utterance was interrupted, audit only the audible text.
-Use high or critical severity for invented facts that could change clinical reasoning or
-patient safety; medium for other invented clinical facts; low for minor biographical drift.

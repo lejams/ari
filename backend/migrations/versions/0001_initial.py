@@ -2,7 +2,7 @@
 
 Revision ID: 0001_initial
 Revises:
-Create Date: 2026-09-14 17:12:23.820576
+Create Date: 2026-09-14 17:19:40.361535
 """
 
 from collections.abc import Sequence
@@ -428,34 +428,6 @@ def upgrade() -> None:
         sa.UniqueConstraint("session_id"),
     )
     op.create_table(
-        "grounding_audits",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("session_id", sa.String(), nullable=False),
-        sa.Column("turn_id", sa.String(), nullable=False),
-        sa.Column("schema_version", sa.String(), nullable=False),
-        sa.Column("prompt_version", sa.String(), nullable=False),
-        sa.Column("supported_fact_ids", sa.JSON(), nullable=False),
-        sa.Column("unsupported_claims", sa.JSON(), nullable=False),
-        sa.Column("severity", sa.String(), nullable=False),
-        sa.Column("confidence", sa.Float(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["session_id"],
-            ["sessions.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["turn_id"],
-            ["turns.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        op.f("ix_grounding_audits_session_id"), "grounding_audits", ["session_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_grounding_audits_turn_id"), "grounding_audits", ["turn_id"], unique=False
-    )
-    op.create_table(
         "voice_stack_transitions",
         sa.Column("id", sa.String(), nullable=False),
         sa.Column("session_id", sa.String(), nullable=False),
@@ -571,9 +543,6 @@ def downgrade() -> None:
         op.f("ix_voice_stack_transitions_session_id"), table_name="voice_stack_transitions"
     )
     op.drop_table("voice_stack_transitions")
-    op.drop_index(op.f("ix_grounding_audits_turn_id"), table_name="grounding_audits")
-    op.drop_index(op.f("ix_grounding_audits_session_id"), table_name="grounding_audits")
-    op.drop_table("grounding_audits")
     op.drop_table("voice_start_requests")
     op.drop_table("voice_learning_context")
     op.drop_index(
