@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     provider_mode: Literal["fake", "openai"] = "fake"
     voice_transport: Literal["realtime", "pipeline"] = "realtime"
     database_url: str = f"sqlite:///{PROJECT_ROOT / 'var' / 'ari.db'}"
-    auto_create_schema: bool = False
     case_directory: Path = PROJECT_ROOT / "cases"
     learning_aid_directory: Path = PROJECT_ROOT / "learning_aids"
     prompt_directory: Path = PROJECT_ROOT / "backend" / "src" / "ari" / "prompts"

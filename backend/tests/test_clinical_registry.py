@@ -7,8 +7,8 @@ import pytest
 import yaml
 from alembic import command
 from alembic.config import Config
-from alembic.util import load_python_file
 from clinical_fixtures import simulated_review, synthetic_bundle
+from conftest import migrated_database_url
 from pydantic import ValidationError
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
@@ -201,15 +201,10 @@ def test_weighted_delivery_and_behavior_evidence(container: Container) -> None:
     assert weighted_assessment(session, replace(case, assessment_items=()))[0]["score"] == 0
 
 
-def test_migrated_registry_immutability_and_foreign_keys(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    url = f"sqlite:///{tmp_path / 'registry.db'}"
-    monkeypatch.setenv("ARI_DATABASE_URL", url)
+def test_migrated_registry_immutability_and_foreign_keys(tmp_path: Path) -> None:
+    url = migrated_database_url(tmp_path / "registry.db")
     config = Config(PROJECT_ROOT / "alembic.ini")
-    command.upgrade(config, "20260903_0003")
-    command.upgrade(config, "head")
+    config.attributes["database_url"] = url
     command.check(config)
     repo = SqliteSessionRepository(url)
     store = ClinicalStore(repo.engine)
@@ -274,21 +269,12 @@ def test_mismatched_resource_hash_refuses_publication(container: Container) -> N
     bundle = synthetic_bundle()
     store = container.cases.store
     store.import_bundle(bundle)
-    # Test-only create_all database intentionally permits simulating storage corruption.
     from ari.infrastructure.persistence.clinical_rows import SourceRow
 
     with store.engine.begin() as db:
+        # Simulate storage corruption behind the immutability trigger's back.
+        db.execute(text("DROP TRIGGER clinical_sources_no_update"))
         db.execute(update(SourceRow).values(content_hash="0" * 64))
     with pytest.raises(InvalidStateError, match="Intégrité"):
         store.inspect("synthetic-scenario", "1")
 
-
-def test_legacy_postgres_bridge_matches_only_exact_unparameterized_statement() -> None:
-    bridge = load_python_file(PROJECT_ROOT / "backend/migrations", "legacy_postgres.py")
-    sql = bridge.LEGACY_BACKFILL
-    adapted, _ = bridge.adapt_legacy_backfill(None, None, sql, {}, None, False)
-    assert "END AS JSON)" in adapted
-    unrelated = sql.replace("UPDATE executions", "UPDATE other_table")
-    assert bridge.adapt_legacy_backfill(None, None, unrelated, {}, None, False)[0] == unrelated
-    assert bridge.adapt_legacy_backfill(None, None, sql, {"a": 1}, None, False)[0] == sql
-    assert bridge.adapt_legacy_backfill(None, None, sql, {}, None, True)[0] == sql

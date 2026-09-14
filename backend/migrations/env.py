@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from logging.config import fileConfig
-from pathlib import Path
 
 from alembic import context
-from alembic.util import load_python_file
 from sqlalchemy import engine_from_config, event, pool
 
 from ari.config import Settings
@@ -14,8 +12,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-database_url = Settings().database_url.replace("%", "%%")
-config.set_main_option("sqlalchemy.url", database_url)
+# Tests and the demo pass an explicit URL through ``config.attributes``.
+database_url = config.attributes.get("database_url") or Settings().database_url
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 target_metadata = Base.metadata
 
 
@@ -39,21 +38,9 @@ def run_migrations_online() -> None:
     )
     event.listen(connectable, "connect", _enable_sqlite_foreign_keys)
     with connectable.connect() as connection:
-        bridge = None
-        if connection.dialect.name == "postgresql":
-            bridge = load_python_file(Path(__file__).parent, "legacy_postgres.py")
-            event.listen(
-                connection, "before_cursor_execute", bridge.adapt_legacy_backfill, retval=True
-            )
-        try:
-            context.configure(
-                connection=connection, target_metadata=target_metadata, compare_type=True
-            )
-            with context.begin_transaction():
-                context.run_migrations()
-        finally:
-            if bridge is not None:
-                event.remove(connection, "before_cursor_execute", bridge.adapt_legacy_backfill)
+        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 if context.is_offline_mode():

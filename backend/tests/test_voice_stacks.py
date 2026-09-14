@@ -246,16 +246,6 @@ def test_legacy_voice_transport_setting_only_selects_the_default_stack(
     assert explicit_session["voice_stack_id"] == "realtime_quality"
 
 
-def test_production_cannot_enable_automatic_schema_creation(container: Container) -> None:
-    production_settings = container.settings.model_copy(
-        update={"environment": "production", "auto_create_schema": True}
-    )
-    app = create_app(replace(container, settings=production_settings))
-
-    with pytest.raises(RuntimeError, match="cannot be enabled in production"), TestClient(app):
-        pass
-
-
 @pytest.mark.asyncio
 async def test_openai_llm_constructor_compatibility_and_dedicated_grounding_model() -> None:
     selected_models: list[str] = []

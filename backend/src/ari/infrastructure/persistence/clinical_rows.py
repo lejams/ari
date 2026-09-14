@@ -10,30 +10,11 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ari.infrastructure.persistence.base import Base
 
-CLINICAL_JSON = JSON().with_variant(JSONB(), "postgresql")
-
-
-class DraftBatchRow(Base):
-    __tablename__ = "clinical_draft_batches"
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    payload: Mapped[dict[str, Any]] = mapped_column(CLINICAL_JSON)
-
-
-class DraftCaseRow(Base):
-    __tablename__ = "clinical_draft_cases"
-    __table_args__ = (
-        CheckConstraint("status = 'draft_unvalidated'", name="ck_clinical_intake_draft_only"),
-    )
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    version: Mapped[str] = mapped_column(String, primary_key=True)
-    content_hash: Mapped[str] = mapped_column(String(64))
-    batch_id: Mapped[str] = mapped_column(ForeignKey("clinical_draft_batches.id"))
-    status: Mapped[str] = mapped_column(String)
+CLINICAL_JSON = JSON()
 
 
 class SourceRow(Base):
@@ -92,7 +73,6 @@ class ScenarioRow(Base):
             "phase",
             unique=True,
             sqlite_where=text("status = 'published'"),
-            postgresql_where=text("status = 'published'"),
         ),
         UniqueConstraint("id", "version", "content_hash"),
         ForeignKeyConstraint(

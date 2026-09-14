@@ -355,13 +355,6 @@ class SqliteSessionRepository:
         )
         event.listen(self.engine, "connect", _enable_sqlite_foreign_keys)
 
-    def initialize_schema(self) -> None:
-        """Create the current schema explicitly for isolated development/tests.
-
-        Existing databases are upgraded only through Alembic.
-        """
-        Base.metadata.create_all(self.engine)
-
     def create_learner(self, learner: LearnerProfile) -> LearnerProfile:
         with Session(self.engine) as db:
             db.add(

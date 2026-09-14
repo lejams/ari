@@ -1,4 +1,4 @@
-"""Entirely synthetic contract examples, NOT Freiburg cases or human approvals."""
+"""Entirely synthetic contract examples, not human approvals."""
 
 from datetime import UTC, datetime
 

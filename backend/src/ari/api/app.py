@@ -192,12 +192,6 @@ def create_app(container: Container | None = None, settings: Settings | None = N
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        if services.settings.auto_create_schema:
-            if services.settings.environment == "production":
-                raise RuntimeError(
-                    "ARI_AUTO_CREATE_SCHEMA cannot be enabled in production; run Alembic"
-                )
-            services.repository.initialize_schema()
         yield
         for call in tuple(realtime_calls.values()):
             with suppress(Exception):

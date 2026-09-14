@@ -1,4 +1,4 @@
-"""Isolated synthetic practice assets. Never real reviews or Freiburg content."""
+"""Isolated synthetic practice assets. Never real reviews."""
 
 from clinical_fixtures import synthetic_bundle
 

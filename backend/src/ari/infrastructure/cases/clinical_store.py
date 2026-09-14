@@ -276,21 +276,6 @@ class ClinicalStore:
         if not actor.strip():
             raise InvalidStateError("Identité déclarée requise")
         with Session(self.engine) as db, db.begin():
-            if db.bind is not None and db.bind.dialect.name == "postgresql":
-                # Stable parent lock serializes distinct successor scenarios too.
-                # SQLite's following UPDATE already acquires its single writer lock.
-                db.execute(
-                    select(ClinicalCaseRow)
-                    .join(
-                        ScenarioRow,
-                        (
-                            (ScenarioRow.case_id == ClinicalCaseRow.id)
-                            & (ScenarioRow.case_version == ClinicalCaseRow.version)
-                        ),
-                    )
-                    .where(ScenarioRow.id == scenario_id, ScenarioRow.version == version)
-                    .with_for_update(of=ClinicalCaseRow)
-                ).all()
             row = self._scenario(db, scenario_id, version, lock=True)
             if row.status != "draft_unvalidated":
                 raise InvalidStateError("Le scénario n'est plus un brouillon")

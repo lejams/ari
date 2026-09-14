@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 from clinical_fixtures import simulated_review, synthetic_bundle
+from conftest import migrated_database_url
 from fastapi.testclient import TestClient
 from practice_fixtures import synthetic_practice
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
-from test_persistence_migration import _upgrade
 
 from ari.api.app import create_app
 from ari.config import Settings
@@ -25,16 +25,14 @@ from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
 
 
 @pytest.fixture
-def demo_container(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Container:
-    database = tmp_path / "practice.db"
-    _upgrade(database, monkeypatch)
+def demo_container(tmp_path: Path) -> Container:
     return build_container(
         Settings(
             _env_file=None,
             environment="test",
             provider_mode="fake",
             enable_mvp_demos=True,
-            database_url=f"sqlite:///{database}",
+            database_url=migrated_database_url(tmp_path / "practice.db"),
         )
     )
 

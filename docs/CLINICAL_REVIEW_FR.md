@@ -89,12 +89,4 @@ et les deux approbations exactes. Le successeur d'un scénario du même cas/vers
 retire le scénario précédent atomiquement ; les anciennes sessions conservent leur
 pin et peuvent être reprises. Un retrait bloque seulement les nouveaux départs.
 Arzt–Arzt et Fachbegriffe exigent leur spécification textuelle complète (Goal 5).
-Arztbrief reste indisponible. Aucun critère technique vert ne signifie que les
-brouillons source Freiburg ont été validés ou sont devenus exécutables.
-
-## Exports Freiburg 0.1 reçus
-
-Pour les brouillons source encore incomplets, utiliser d'abord `inspect-freiburg`
-et le [mapping/guide de préparation](FREIBURG_MAPPING.md). Cette zone ne contient
-aucun scénario exécutable; aucune décision d'approbation n'y est créée. Les commandes
-de revue ci-dessus concernent un bundle ARI complet, préparé après les choix humains.
+Arztbrief reste indisponible.

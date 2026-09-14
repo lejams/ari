@@ -9,8 +9,7 @@ is retained behind published clinical content:
 The default provider remains `fake`. Structured exercises are deterministic and make
 no AI calls. Synthetic demos are disabled by default, explicitly labeled unvalidated,
 and forbidden in production. Without published content the UI shows an empty state,
-not an unapproved case. Freiburg drafts are never runtime exercises.
-
+not an unapproved case. 
 ## Try the MVP safely, offline
 
 After installing Python dependencies, run from the repository root:
@@ -21,7 +20,7 @@ PYTHONPATH=backend/src .venv/bin/python -m ari.demo --port 8010
 
 Open [http://127.0.0.1:8010](http://127.0.0.1:8010). This creates a **fresh temporary
 database**, applies migrations only there, ignores `.env`, enables two synthetic
-text exercises and forces fake providers. No existing application/Freiburg database
+text exercises and forces fake providers. No existing application database
 is read or changed. Stop with Ctrl+C: the demo history is temporary and removed.
 Create a local profile, choose Training or Exam, answer, pause/reload/resume, finish,
 then open History and Progression. See [Goal 5 details and limitations](docs/GOAL5_IMPLEMENTATION.md).
@@ -112,16 +111,7 @@ Historical medical cases remain immutable YAML files with their original hashes.
 
 ### Clinical registry (Goal 4)
 
-Use the [clinical schema](docs/CLINICAL_CASES.md), [provisional Work export contract](docs/WORK_CASE_EXPORT_CONTRACT.md) and [French human-review guide](docs/CLINICAL_REVIEW_FR.md). `python -m ari.infrastructure.cases.cli --help` exposes local validation, dry-run, import, inspection/diff, human review, publication and withdrawal. No administrative HTTP routes or automatic imports are added.
-
-The actual Freiburg JSON/XLSX exports have been received and reconciled. Use
-`import-freiburg JSON --workbook XLSX` for their observed 0.1 format, not
-`import --format work`. They enter a private, immutable, non-executable draft zone:
-missing scenario/rubric fields are never invented. See the [mapping and human-review
-guide](docs/FREIBURG_MAPPING.md) and [actual intake status](docs/FREIBURG_IMPORT_STATUS.md).
-No real human approvals have been recorded and usage rights remain unconfirmed.
-Technical validation does not establish clinical validity. PostgreSQL 17 has a
-separate isolated CI job; its driver is locked in `backend/requirements-postgres.lock`.
+Use the [clinical schema](docs/CLINICAL_CASES.md) and the [French human-review guide](docs/CLINICAL_REVIEW_FR.md). `python -m ari.infrastructure.cases.cli --help` exposes local validation, dry-run, import, inspection/diff, human review, publication and withdrawal. No administrative HTTP routes or automatic imports are added. Technical validation does not establish clinical validity.
 
 ### Patient containment boundary
 
@@ -158,11 +148,7 @@ Structured text exercises use explicitly authored whole-answer variants and show
 attempted/expected weights. Modes, methods, content hashes and versions separate all
 series. No overall score, measured CEFR level or certification is presented.
 
-Alembic is the only mechanism for upgrading an existing database. Run `make migrate` before starting the application and `make migration-check` to verify that the database is at `head`. Application startup does not issue `ALTER TABLE` statements and automatic schema creation is disabled by default. Tests explicitly create isolated temporary schemas through the repository helper.
-
-See [docs/MIGRATIONS.md](docs/MIGRATIONS.md) for the migration workflow and compatibility policy.
-
-The initial Alembic revision supports both an empty database and the historical schema from `e61db6e`. Because historical rows did not record their voice transport, they are deterministically marked as `pipeline_economy@1` with `provider: legacy_unknown` and an explicit migration marker; this is a compatibility choice, not a reconstruction of historical fact. Existing turns receive `delivery_status=legacy_unknown` and no fabricated delivery timestamp. New reserved turns start as `pending`.
+Alembic creates and upgrades the database. Run `make migrate` before starting the application and `make migration-check` to verify that the database is at `head`. Application startup never alters the schema. Tests run the same migration against temporary databases. See [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
 
 Provider completion alone is not proof of playback. Pipeline facts are credited only after a correlated browser acknowledgement emitted when every scheduled PCM source has ended. Realtime WebRTC exposes observable playback start, but no reliable per-response playback completion, so those turns remain `delivery_unconfirmed` and do not credit facts. Connection fallback is proposed explicitly and changes the persisted stack only after client acceptance and before any transcript.
 
@@ -197,7 +183,7 @@ make migration-check
 make benchmark-smoke
 ```
 
-`make test` runs the backend suite plus JavaScript syntax checks and the PCM microphone resampler test for 44.1 and 48 kHz input. The tests cover case integrity and historical hashes, empty and historical database migrations, foreign-key enforcement, voice-stack/delivery/metric round-trips, analysis idempotency/retry, and the complete HTTP/WebSocket vertical slice with provider fakes. `make benchmark-smoke` runs all four versioned stacks against deterministic synthetic fixtures and generates temporary JSON, French Markdown, and manifest reports. All provider tests and the smoke benchmark are offline.
+`make test` runs the backend suite plus JavaScript syntax checks and the PCM microphone resampler test for 44.1 and 48 kHz input. The tests cover case integrity and historical hashes, the migration on an empty database, foreign-key enforcement, voice-stack/delivery/metric round-trips, analysis idempotency/retry, and the complete HTTP/WebSocket vertical slice with provider fakes. `make benchmark-smoke` runs all four versioned stacks against deterministic synthetic fixtures and generates temporary JSON, French Markdown, and manifest reports. All provider tests and the smoke benchmark are offline.
 
 ## Deliberate POC limits
 
