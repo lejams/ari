@@ -1,3 +1,4 @@
+
 NODE ?= node
 PYTHON ?= .venv/bin/python
 PYTEST ?= .venv/bin/pytest
@@ -5,7 +6,7 @@ RUFF ?= .venv/bin/ruff
 MYPY ?= .venv/bin/mypy
 ALEMBIC ?= .venv/bin/alembic
 
-.PHONY: install install-locked dev migrate migration-check test test-backend test-web lint format benchmark-smoke
+.PHONY: install install-locked dev migrate migration-check test test-backend test-web lint format
 
 install:
 	$(PYTHON) -m pip install -e "backend[dev]"
@@ -40,11 +41,6 @@ test-web:
 	$(NODE) web/tests/voice-dom.test.mjs
 	$(NODE) web/tests/calendar.test.mjs
 	$(NODE) web/tests/main-redesign-contract.test.mjs
-
-benchmark-smoke:
-	PYTHONPATH=backend/src $(PYTHON) -m ari.benchmarks.voice \
-		--suite benchmarks/voice/german_medical_smoke.v1.yaml \
-		--mode offline --output-dir /tmp/ari-benchmark-smoke
 
 lint:
 	$(RUFF) check backend

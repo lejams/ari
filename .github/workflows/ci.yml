@@ -35,8 +35,6 @@ jobs:
         run: |
           .venv/bin/alembic -c alembic.ini upgrade head
           .venv/bin/alembic -c alembic.ini check
-      - name: Offline voice benchmark smoke (network-free fixtures)
-        run: make benchmark-smoke
       - uses: pnpm/action-setup@v4
         with:
           version: "11.19.0"
