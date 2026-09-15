@@ -126,10 +126,22 @@ def build_container(settings: Settings) -> Container:
     tts: StreamingTTSProvider
     realtime: RealtimeVoiceEngine
     if settings.provider_mode == "openai":
-        if not settings.openai_api_key:
-            raise RuntimeError("ARI_OPENAI_API_KEY is required when ARI_PROVIDER_MODE=openai")
-        if not settings.stt_api_key:
-            raise RuntimeError("ARI_STT_API_KEY is required when ARI_PROVIDER_MODE=openai")
+        missing = [
+            name
+            for name, value in (
+                ("ARI_OPENAI_API_KEY", settings.openai_api_key),
+                ("ARI_STT_API_KEY", settings.stt_api_key),
+            )
+            if not value
+        ]
+        if missing:
+            raise RuntimeError(
+                f"{', '.join(missing)} required in .env when ARI_PROVIDER_MODE=openai. "
+                f"Whisper defaults to Groq ({settings.stt_base_url}); to use your OpenAI key "
+                "for transcription too, set ARI_STT_BASE_URL=https://api.openai.com/v1, "
+                "ARI_STT_MODEL=whisper-1 and ARI_STT_API_KEY to the same key."
+            )
+        assert settings.openai_api_key and settings.stt_api_key
         from ari.infrastructure.providers.openai import (
             OpenAILLMProvider,
             OpenAIRealtimeEngine,

@@ -1,10 +1,10 @@
-"""The demo bundle publishes through the real import/review/publish path and stays synthetic."""
+"""Demo and dev bundles publish through the real import/review/publish path and stay synthetic."""
 
 from pathlib import Path
 
 from conftest import build_test_container
 
-from ari.demo import DEMO_BUNDLES, publish_demo_content
+from ari.demo import DEMO_BUNDLES, DEV_BUNDLES, publish_demo_content, seed_bundles
 from ari.infrastructure.cases.yaml_io import parse_bundle
 
 
@@ -17,3 +17,18 @@ def test_demo_bundle_publishes_one_voice_case_and_two_exercises(tmp_path: Path) 
     assert [case.id for case in container.cases.list()] == ["ARI-DEMO"]
     exercises = sorted(c.scenario_id for c in container.practice.catalog.list())
     assert exercises == ["ari-demo-arzt_arzt", "ari-demo-fachbegriffe"]
+
+
+def test_dev_bundle_is_a_french_voice_case_and_reseeding_a_kept_database_is_a_no_op(
+    tmp_path: Path,
+) -> None:
+    container = build_test_container(tmp_path / "dev.db")
+    for path in sorted(DEV_BUNDLES.glob("*.yaml")):
+        bundle = parse_bundle(path.read_text(encoding="utf-8"))
+        assert all(source.source_type == "synthetic" for source in bundle.sources)
+    seed_bundles(container.cases.store, DEV_BUNDLES)
+    seed_bundles(container.cases.store, DEV_BUNDLES)  # persistent dev database, second launch
+    cases = container.cases.list()
+    assert [(case.id, case.language) for case in cases] == [("ARI-DEV-FR", "fr-FR")]
+    assert cases[0].facts and all(fact.patient_phrase for fact in cases[0].facts)
+    assert container.practice.catalog.list() == ()

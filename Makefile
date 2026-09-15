@@ -6,7 +6,7 @@ RUFF ?= .venv/bin/ruff
 MYPY ?= .venv/bin/mypy
 ALEMBIC ?= .venv/bin/alembic
 
-.PHONY: install install-locked dev migrate migration-check test test-backend test-web lint format
+.PHONY: install install-locked dev dev-fr migrate migration-check test test-backend test-web lint format
 
 install:
 	$(PYTHON) -m pip install -e "backend[dev]"
@@ -16,6 +16,10 @@ install-locked:
 
 dev:
 	$(PYTHON) -m uvicorn ari.main:app --app-dir backend/src --reload --port 8000
+
+# Live providers (.env), persistent var/dev-fr.db, synthetic French voice case for testing.
+dev-fr:
+	PYTHONPATH=backend/src $(PYTHON) -m ari.demo --provider openai --database var/dev-fr.db --bundles cases/dev
 
 migrate:
 	$(ALEMBIC) -c alembic.ini upgrade head

@@ -187,7 +187,8 @@ class TerminologySetVersion(VersionRef):
 
 class ClinicalCaseVersion(VersionRef):
     schema_version: Literal["clinical-case-v2"] = "clinical-case-v2"
-    language: Literal["de-DE"] = "de-DE"
+    # Published learner content is German. Other languages exist for development bundles only.
+    language: Literal["de-DE", "fr-FR", "en-US"] = "de-DE"
     region: Text
     city: Text
     title: Text

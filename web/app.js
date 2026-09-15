@@ -40,6 +40,8 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
+const LANGUAGE_LABELS = { "de-DE": ["Deutsch", "allemand"], "fr-FR": ["Français", "français"], "en-US": ["English", "anglais"] };
+const caseLanguage = () => (state.case?.language || "de-DE").split("-")[0];
 const caseKey = item => `${item.id}@${item.version}@${item.training_snapshot?.scenario_id || ""}@${item.training_snapshot?.scenario_version || ""}`;
 
 function sendVoiceControl(event) {
@@ -118,7 +120,7 @@ function addTurn(role, text) {
   $("transcript").querySelector(".empty")?.remove();
   const node = document.createElement("div");
   node.className = `turn ${role}`;
-  node.lang = "de";
+  node.lang = caseLanguage();
   const label = document.createElement("span");
   label.textContent = role === "user" ? "Vous" : "Patient";
   node.append(label, document.createTextNode(text));
@@ -191,12 +193,13 @@ function renderCase(selectedCase) {
   state.case = selectedCase;
   $("case-title").textContent = selectedCase.title;
   $("case-summary").textContent = selectedCase.public_summary;
-  $("case-language").textContent = "Deutsch · FSP";
+  const [native, french] = LANGUAGE_LABELS[selectedCase.language] || [selectedCase.language, selectedCase.language];
+  $("case-language").textContent = `${native} · FSP`;
   $("case-goal").textContent = "Entraînement · niveau non mesuré";
-  $("simulation-eyebrow").textContent = "Simulation clinique en allemand";
+  $("simulation-eyebrow").textContent = `Simulation clinique en ${french}`;
   $("simulation-intro").textContent =
     "Parlez naturellement. À la fin, vous recevez un feedback FSP bref, mesurable et relié à votre transcript.";
-  $("debug-input").placeholder = "Mode fake : simuler une phrase en allemand";
+  $("debug-input").placeholder = `Mode fake : simuler une phrase en ${french}`;
   const caseValue = caseKey(selectedCase);
   if ($("case-select").value !== caseValue) $("case-select").value = caseValue;
 }

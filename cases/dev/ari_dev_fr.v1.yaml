@@ -1,0 +1,239 @@
+# Development content in French: fiction, no human review, no clinical validity.
+# Lets the team test voice, exam mode and the feedback loop without speaking German.
+# make dev-fr publishes it (simulated reviews) into var/dev-fr.db with live providers.
+schema_version: ari-clinical-bundle-v1
+sources:
+- id: ari-dev-fr-synthetic
+  source_type: synthetic
+  document_reference: cases/dev/ari_dev_fr.v1.yaml
+  original_checksum: null
+  immediate_source_checksum: null
+  provenance: Fiction authored for platform development in French. No human review.
+  imported_at: '2026-09-15T00:00:00Z'
+  rights: compatible
+  intended_use: Local development only, not approved training content
+  rights_evidence: Synthetic content authored for this repository; no third-party material.
+  private_material_reference: none:synthetic
+  declared_original: null
+  original_verified: false
+rubrics:
+- id: ari-dev-fr-voice-rubric
+  version: '1'
+  dimensions:
+  - id: clinical_coverage
+    label: Couverture clinique
+    max_score: 5
+    description: Faits du cas effectivement entendus
+  - id: communication
+    label: Communication
+    max_score: 5
+    description: Salutation, empathie, reformulation
+  scoring_version: assessment-weighted-v1
+terminology_sets:
+- id: ari-dev-fr-terms
+  version: '1'
+  entries:
+  - id: oral
+    german: oral
+    french: par la bouche
+cases:
+- id: ARI-DEV-FR
+  version: '1'
+  schema_version: clinical-case-v2
+  language: fr-FR
+  region: Fiction
+  city: Fiction
+  title: Dev · Camille Martin, douleur thoracique
+  public_summary: Cas fictif en français pour le développement, sans validation clinique ou linguistique.
+  transcription_context: Anamnèse aux urgences, douleur thoracique, médicaments, allergies, tabac
+  unknown_response: Je ne sais pas, on ne m'a jamais dit ça.
+  out_of_scope_response: Excusez-moi docteur, je préfère qu'on parle de ce qui m'amène.
+  sources:
+  - source_id: ari-dev-fr-synthetic
+    pages: []
+  unresolved_questions: []
+  facts:
+  - id: identity
+    category: identity
+    value: Camille Martin, 52 ans
+    unit: null
+    temporality: null
+    polarity: present
+    criticality: normal
+    patient_phrases_de:
+    - Je m'appelle Camille Martin, j'ai 52 ans.
+    translation_fr: null
+    disclosure: when_asked
+    sources:
+    - source_id: ari-dev-fr-synthetic
+      pages: []
+    uncertainty: null
+  - id: reason
+    category: reason
+    value: Douleur thoracique oppressante
+    unit: null
+    temporality: null
+    polarity: present
+    criticality: normal
+    patient_phrases_de:
+    - J'ai une douleur dans la poitrine, comme un poids qui serre.
+    - Ça me serre dans la poitrine, c'est ça qui m'inquiète.
+    translation_fr: null
+    disclosure: spontaneous
+    sources:
+    - source_id: ari-dev-fr-synthetic
+      pages: []
+    uncertainty: null
+  - id: onset
+    category: onset
+    value: Depuis deux heures, apparue en montant les escaliers
+    unit: null
+    temporality: '2 heures'
+    polarity: present
+    criticality: normal
+    patient_phrases_de:
+    - Ça a commencé il y a environ deux heures, en montant les escaliers.
+    translation_fr: null
+    disclosure: when_asked
+    sources:
+    - source_id: ari-dev-fr-synthetic
+      pages: []
+    uncertainty: null
+  - id: radiation
+    category: symptom
+    value: Irradiation vers le bras gauche
+    unit: null
+    temporality: null
+    polarity: present
+    criticality: normal
+    patient_phrases_de:
+    - Oui, ça descend un peu dans le bras gauche.
+    translation_fr: null
+    disclosure: when_asked
+    sources:
+    - source_id: ari-dev-fr-synthetic
+      pages: []
+    uncertainty: null
+  - id: medication
+    category: medication
+    value: Ramipril 5 mg le matin pour la tension
+    unit: null
+    temporality: null
+    polarity: present
+    criticality: normal
+    patient_phrases_de:
+    - Je prends du ramipril, 5 milligrammes, tous les matins pour la tension.
+    translation_fr: null
+    disclosure: when_asked
+    sources:
+    - source_id: ari-dev-fr-synthetic
+      pages: []
+    uncertainty: null
+  - id: allergy
+    category: allergy
+    value: Aucune allergie connue
+    unit: null
+    temporality: null
+    polarity: absent
+    criticality: normal
+    patient_phrases_de:
+    - Non, je n'ai pas d'allergie, à ma connaissance.
+    translation_fr: null
+    disclosure: when_asked
+    sources:
+    - source_id: ari-dev-fr-synthetic
+      pages: []
+    uncertainty: null
+  - id: smoking
+    category: smoking
+    value: Dix cigarettes par jour depuis trente ans
+    unit: null
+    temporality: '30 ans'
+    polarity: present
+    criticality: normal
+    patient_phrases_de:
+    - Je fume, oui, à peu près dix cigarettes par jour depuis trente ans.
+    translation_fr: null
+    disclosure: when_explicitly_asked
+    sources:
+    - source_id: ari-dev-fr-synthetic
+      pages: []
+    uncertainty: null
+  assessment_items:
+  - id: patient-identity
+    dimension: clinical_coverage
+    weight: 1.0
+    required: false
+    expected_behavior: Recueillir nom et âge
+    evidence_kind: delivered_facts
+    satisfaction: all
+    satisfied_by_fact_ids:
+    - identity
+    doctor_phrases: []
+  - id: pain-history
+    dimension: clinical_coverage
+    weight: 2.0
+    required: true
+    expected_behavior: Explorer le début et l'irradiation de la douleur
+    evidence_kind: delivered_facts
+    satisfaction: all
+    satisfied_by_fact_ids:
+    - onset
+    - radiation
+    doctor_phrases: []
+  - id: medication-allergy
+    dimension: clinical_coverage
+    weight: 1.0
+    required: false
+    expected_behavior: Demander médicaments et allergies
+    evidence_kind: delivered_facts
+    satisfaction: all
+    satisfied_by_fact_ids:
+    - medication
+    - allergy
+    doctor_phrases: []
+  - id: risk-factors
+    dimension: clinical_coverage
+    weight: 1.0
+    required: false
+    expected_behavior: Demander explicitement le tabagisme
+    evidence_kind: delivered_facts
+    satisfaction: all
+    satisfied_by_fact_ids:
+    - smoking
+    doctor_phrases: []
+  - id: greeting
+    dimension: communication
+    weight: 1.0
+    required: false
+    expected_behavior: Saluer le patient
+    evidence_kind: doctor_quote
+    satisfaction: any
+    satisfied_by_fact_ids: []
+    doctor_phrases:
+    - Bonjour
+scenarios:
+- id: ari-dev-fr-arzt_patient
+  version: '1'
+  case:
+    id: ARI-DEV-FR
+    version: '1'
+  case_hash: 4bb2d81a8e5858450c900defafcdf427f7db82957fef01092f4023805c2aae22
+  rubric:
+    id: ari-dev-fr-voice-rubric
+    version: '1'
+  rubric_hash: cef4cdb12606bb1e7866ed4f49509e56dc1ec005c6dfd2b2bd8265d41a0ad018
+  terminology:
+    id: ari-dev-fr-terms
+    version: '1'
+  terminology_hash: 5edb16cf08f97748f7b76c2ceff21a52d204aa7844868915a2737cc116342fbc
+  phase: arzt_patient
+  persona: Patient fictif, inquiet mais coopératif, répond brièvement
+  difficulty: développement
+  cefr: B2
+  opening: Bonjour docteur. J'ai une douleur dans la poitrine, comme un poids qui serre.
+  opening_fact_ids:
+  - reason
+  objectives:
+  - Tester la voix, le mode examen et la boucle de feedback en français
+  duration_minutes: 10

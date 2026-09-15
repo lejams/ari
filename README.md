@@ -36,6 +36,32 @@ publishes one synthetic voice case and two synthetic exercises, and runs with fa
 providers. In fake mode the voice page offers a text field instead of the microphone.
 Nothing outside the temporary directory is read or written; Ctrl+C removes it.
 
+## Develop with live providers, in French
+
+You do not need to speak German to exercise the platform. `cases/dev/ari_dev_fr.v1.yaml`
+is a synthetic French voice case (fiction, simulated reviews, never learner content):
+
+```sh
+make dev-fr             # http://127.0.0.1:8010
+```
+
+`.env` at the project root must define `ARI_OPENAI_API_KEY` and `ARI_STT_API_KEY` (start
+from `.env.example` only if you have no `.env` yet, `cp` overwrites). Whisper goes to Groq
+by default; with a single OpenAI key add:
+
+```sh
+ARI_STT_BASE_URL=https://api.openai.com/v1
+ARI_STT_MODEL=whisper-1
+ARI_STT_API_KEY=<same OpenAI key>
+```
+
+`make dev-fr` runs `python -m ari.demo --provider openai --database var/dev-fr.db
+--bundles cases/dev`: the database persists between runs so history and progression
+accumulate, and re-seeding an existing database is a no-op. Everything downstream follows
+the case language (Whisper, Realtime transcription, patient and evaluation prompts).
+Nothing changes for learners: the platform database only holds content published through
+the registry, and only German cases are published there.
+
 ## Run locally
 
 ```sh
