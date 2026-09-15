@@ -36,6 +36,7 @@ const state = {
   learningMode: "training",
   examActive: false,
   deferredTurns: [],
+  openMic: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -93,7 +94,7 @@ function setExamPresentation(active) {
   state.examActive = active;
   document.body.classList.toggle("exam-active", active);
   $("subtitles-toggle").hidden = active || state.learningMode !== "training";
-  $("debug-form").classList.toggle("hidden", state.providerMode !== "fake" || active || !state.case);
+  $("debug-form").classList.toggle("hidden", state.providerMode !== "fake" || !state.case);
   if (active) {
     $("transcript").replaceChildren();
     $("partial").replaceChildren();
@@ -106,7 +107,7 @@ function syncLearningModeButtons() {
     button.setAttribute("aria-pressed", String(selected));
     button.disabled = Boolean(state.sessionId);
   });
-  $("debug-form").classList.toggle("hidden", state.providerMode !== "fake" || state.learningMode !== "training" || !state.case);
+  $("debug-form").classList.toggle("hidden", state.providerMode !== "fake" || !state.case);
 }
 
 function addTurn(role, text) {
@@ -300,7 +301,7 @@ async function initialize() {
     $("case-picker").classList.remove("hidden");
   }
 
-  if (state.providerMode === "fake" && state.learningMode === "training" && defaultCase) $("debug-form").classList.remove("hidden");
+  if (state.providerMode === "fake" && defaultCase) $("debug-form").classList.remove("hidden");
   const restored = await restoreSession();
   if (!restored && !defaultCase) {
     $("case-title").textContent = "Aucun scénario vocal approuvé";
@@ -380,6 +381,7 @@ async function stopVoiceMedia(closeSocket = true) {
   state.audioContext = null;
   state.stream = null;
   state.callConnected = false;
+  state.openMic = false;
 }
 
 async function resetFailedCall() {
@@ -391,7 +393,7 @@ async function resetFailedCall() {
 
 function showTalkButton(ready) {
   const talk = $("talk");
-  talk.classList.toggle("hidden", state.providerMode === "fake" || !state.callConnected || state.ending);
+  talk.classList.toggle("hidden", state.providerMode === "fake" || state.openMic || !state.callConnected || state.ending);
   talk.disabled = !ready;
   talk.textContent = state.sending ? "J’ai fini" : ready ? "Parler" : "Envoi…";
 }
@@ -429,7 +431,13 @@ function handleEvent(event) {
     $("start").classList.add("hidden");
     $("end").disabled = false;
     state.callConnected = true;
-    if (state.providerMode === "fake") setStatus("À vous de parler", true);
+    state.openMic = data.interaction === "open_microphone";
+    if (state.openMic) {
+      // Exam: the microphone streams continuously to the speech-to-speech model.
+      state.sending = true;
+      showTalkButton(false);
+      setStatus("Micro ouvert — parlez naturellement, le patient vous répond", true);
+    } else if (state.providerMode === "fake") setStatus("À vous de parler", true);
     else {
       showTalkButton(true);
       setStatus("Appuyez sur « Parler » quand vous êtes prêt", true);
@@ -445,6 +453,8 @@ function handleEvent(event) {
   }
   if (event.type === "user.speech_started") {
     state.userSpeaking = true;
+    // Open microphone: the learner may interrupt the patient; stop the local playback too.
+    if (state.openMic) cancelPipelinePlayback();
     setStatus("Je vous écoute…", true);
   }
   if (event.type === "user.transcript_delta") setPartial(data.text);
@@ -452,7 +462,7 @@ function handleEvent(event) {
     state.userSpeaking = false;
     setPartial("");
     addTurn("user", data.text);
-    state.sending = false;
+    if (!state.openMic) state.sending = false;
     setStatus("Le patient réfléchit…", true);
   }
   if (event.type === "patient.response_text") {
@@ -825,7 +835,7 @@ $("new-session").addEventListener("click", newSession);
 $("debug-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = $("debug-input");
-  if (allowsInCallHelp(state.learningMode) && input.value.trim() && state.socket?.readyState === WebSocket.OPEN) {
+  if (input.value.trim() && state.socket?.readyState === WebSocket.OPEN) {
     state.socket.send(
       JSON.stringify({ type: "debug.transcript", transcript: input.value.trim() }),
     );

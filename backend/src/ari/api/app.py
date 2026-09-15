@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from ari.api.dto import (
 )
 from ari.api.ownership import PROFILE_COOKIE, OwnershipMiddleware
 from ari.api.practice import practice_router
+from ari.api.realtime_socket import RealtimeVoiceSocket
 from ari.api.voice_session_dto import public_session
 from ari.api.voice_socket import VoiceLifecycles, VoiceSocket
 from ari.config import Settings, get_settings
@@ -214,7 +216,12 @@ def create_app(container: Container | None = None, settings: Settings | None = N
 
     @app.websocket("/ws/sessions/{session_id}/voice")
     async def voice_socket(websocket: WebSocket, session_id: str) -> None:
-        await VoiceSocket(services, voice_lifecycles, websocket, session_id).run()
+        socket_class: type[VoiceSocket] = VoiceSocket
+        with suppress(AriError):
+            stack_id = services.repository.get_session(session_id).voice_stack_id
+            if stack_id == services.realtime_stack.id:
+                socket_class = RealtimeVoiceSocket
+        await socket_class(services, voice_lifecycles, websocket, session_id).run()
 
     web_dir = Path(__file__).resolve().parents[4] / "web"
     if web_dir.exists():

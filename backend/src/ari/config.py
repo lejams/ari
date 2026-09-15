@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     patient_timeout_seconds: float = 30.0
     evaluation_timeout_seconds: float = 60.0
     tts_timeout_seconds: float = 30.0
+    # Exam mode: open microphone, one speech-to-speech model. Set ARI_REALTIME_MODEL to the
+    # exact model id you are entitled to; it is pinned on every exam session.
+    realtime_model: str = "gpt-realtime-mini"
+    realtime_voice: str = "marin"
+    realtime_transcription_model: str = "gpt-4o-mini-transcribe"
+    realtime_vad_silence_ms: int = 900
+    realtime_connect_timeout_seconds: float = 15.0
     audio_sample_rate: int = 24_000
 
 

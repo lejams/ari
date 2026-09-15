@@ -78,7 +78,7 @@ def public_session(session: ConversationSession) -> dict[str, Any]:
     result["voice_stack_config"] = {
         "models": {
             name: models[name]
-            for name in ("stt", "llm", "tts")
+            for name in ("stt", "llm", "tts", "sts")
             if isinstance(models, dict) and isinstance(models.get(name), str)
         }
     }

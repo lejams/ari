@@ -75,6 +75,10 @@ class VoiceLifecycles:
 
 
 class VoiceSocket:
+    """Training: push-to-talk. The browser gates microphone frames with `user.turn.finish`."""
+
+    interaction = "push_to_talk"
+
     def __init__(
         self,
         services: Container,
@@ -102,12 +106,7 @@ class VoiceSocket:
         websocket, services, session_id = self.websocket, self.services, self.session_id
         await websocket.accept()
         try:
-            selected_session = services.repository.get_session(session_id)
-            stack = services.voice_stack.resolve_persisted(
-                selected_session.voice_stack_id,
-                selected_session.voice_stack_version,
-                selected_session.voice_stack_config,
-            )
+            stack = services.resolve_voice_stack(services.repository.get_session(session_id))
         except AriError as exc:
             await self._refuse("The persisted voice stack is unavailable", str(exc), code=4403)
             return
@@ -135,6 +134,7 @@ class VoiceSocket:
             voice_stack_id=stack.id,
             voice_stack_version=stack.version,
             models=dict(stack.models),
+            interaction=self.interaction,
         )
         end_watcher = asyncio.create_task(self._end_on_http_request())
         try:

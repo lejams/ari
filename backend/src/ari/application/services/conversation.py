@@ -43,12 +43,15 @@ class ConversationOrchestrator:
         patient: PatientSimulator,
         evaluator: Evaluator,
         voice_stack: VoiceStack,
+        exam_voice_stack: VoiceStack | None = None,
     ) -> None:
         self.repository = repository
         self.cases = cases
         self._patient = patient
         self._evaluator = evaluator
         self._voice_stack = voice_stack
+        # Exam sessions run on the open-microphone speech-to-speech stack when configured.
+        self._exam_voice_stack = exam_voice_stack or voice_stack
 
     def create_learner(self, target_cefr: object) -> LearnerProfile:
         from ari.domain.models import CEFRLevel
@@ -79,7 +82,7 @@ class ConversationOrchestrator:
                               scenario_version=scenario_version)
         if not case.available_for_new_sessions:
             raise InvalidStateError("This case has been withdrawn from new sessions")
-        stack = self._voice_stack
+        stack = self._exam_voice_stack if learning_mode is LearningMode.EXAM else self._voice_stack
         session = ConversationSession(
             id=new_id(),
             learner_id=learner.id,

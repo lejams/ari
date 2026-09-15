@@ -3,11 +3,17 @@
 ARI is a local-first trainer for the German medical language exam (FSP). A learner
 creates a local profile, then practises with published, versioned clinical content:
 
-- **Arzt–Patient**: a voice consultation with a simulated patient. The learner presses
-  *Parler*, speaks, presses *J’ai fini*; Whisper transcribes the utterance, an LLM picks
-  which case facts the patient may reveal, application code renders the exact patient
-  sentence, TTS plays it back, and the browser acknowledges playback before any fact is
-  credited as heard. A structured evaluation follows at the end of the session.
+- **Arzt–Patient, training**: a push-to-talk voice consultation with a simulated
+  patient. The learner presses *Parler*, speaks, presses *J’ai fini*; Whisper transcribes
+  the utterance, an LLM picks which case facts the patient may reveal, application code
+  renders the exact patient sentence, TTS plays it back, and the browser acknowledges
+  playback before any fact is credited as heard. A structured evaluation follows at the
+  end of the session.
+- **Arzt–Patient, exam**: the same consultation with an open microphone. Browser audio
+  is relayed to one speech-to-speech model briefed with the authored case; the model
+  speaks freely, the learner may interrupt it. After each answer an LLM audit maps the
+  spoken sentence back to authored facts, and the same playback acknowledgement credits
+  them. The transcript stays hidden until the session ends.
 - **Arzt–Arzt** and **Fachbegriffe**: deterministic text exercises with authored answer
   variants. No AI call is involved.
 - History and progression, separated by content version, rubric, method and mode.
@@ -51,9 +57,13 @@ For live providers set, in `.env` or the environment:
 | `ARI_STT_BASE_URL` | any OpenAI-compatible `/audio/transcriptions` host | `https://api.groq.com/openai/v1` |
 | `ARI_STT_MODEL` | Whisper model | `whisper-large-v3` |
 | `ARI_PATIENT_MODEL`, `ARI_EVALUATION_MODEL`, `ARI_TTS_MODEL`, `ARI_TTS_VOICE` | OpenAI models | see `backend/src/ari/config.py` |
+| `ARI_REALTIME_MODEL`, `ARI_REALTIME_VOICE` | exam mode speech-to-speech model and voice (OpenAI Realtime) | `gpt-realtime-mini`, `marin` |
+| `ARI_REALTIME_TRANSCRIPTION_MODEL` | learner transcript inside the Realtime session | `gpt-4o-mini-transcribe` |
+| `ARI_REALTIME_VAD_SILENCE_MS` | silence before the patient answers; keep it high for A1–B1 learners | `900` |
 
-Every session pins the voice stack it was created with (`stt`, `llm`, `tts` model ids
-plus parameters). A session can only resume on exactly that configuration.
+Every session pins the voice stack it was created with: `pipeline_economy` for training
+(`stt`, `llm`, `tts` model ids) or `realtime_exam` for exam (`sts`, `stt`, `llm`), plus
+parameters. A session can only resume on exactly that configuration.
 
 This is a loopback development build: cookie-based local profiles, no rate limits, no
 spend controls. Do not expose it publicly.
@@ -63,11 +73,13 @@ spend controls. Do not expose it publicly.
 ```mermaid
 flowchart LR
     Browser["Browser · PCM microphone + PCM playback"] -->|"WebSocket"| API["FastAPI voice gateway"]
-    API --> STT["UtteranceTranscriber (Whisper)"]
+    API -->|"training"| STT["UtteranceTranscriber (Whisper)"]
     API --> Orchestrator["ConversationOrchestrator"]
     Orchestrator --> Patient["PatientSimulator"] --> LLM["LLMProvider"]
     Orchestrator --> Evaluator["Evaluator"] --> LLM
-    API --> TTS["StreamingTTSProvider"]
+    API -->|"training"| TTS["StreamingTTSProvider"]
+    API -->|"exam"| STS["RealtimeVoiceEngine (OpenAI Realtime)"]
+    API -->|"exam"| Attributor["FactAttributor"] --> LLM
     Orchestrator --> Repo["SqliteSessionRepository"] --> DB[("SQLite")]
     Registry["Clinical registry (SQLite tables)"] --> Orchestrator
 ```
@@ -77,16 +89,20 @@ Dependencies point inward:
 - `domain`: session and turn state, strict Pydantic clinical authoring contracts, the
   practice (text exercise) rules; no vendor SDKs;
 - `application`: ports (`LLMProvider`, `UtteranceTranscriber`, `StreamingTTSProvider`,
-  `Evaluator`, `SessionRepository`), patient simulation, evaluation, orchestration,
-  progression;
-- `infrastructure`: SQLite persistence, the clinical registry and its CLI, OpenAI and
-  Whisper adapters, deterministic fakes;
-- `api`: HTTP routes, the voice WebSocket, cookie ownership middleware;
+  `RealtimeVoiceEngine`, `Evaluator`, `SessionRepository`), patient simulation, fact
+  attribution, evaluation, orchestration, progression;
+- `infrastructure`: SQLite persistence, the clinical registry and its CLI, OpenAI,
+  OpenAI Realtime and Whisper adapters, deterministic fakes;
+- `api`: HTTP routes, the two voice WebSocket handlers (push-to-talk pipeline, open
+  microphone relay), cookie ownership middleware;
 - `web`: two dependency-free pages, `index.html` (practice) and `voice.html`.
 
-The patient never invents facts: the LLM returns source references only, and the
-application renders the authored patient phrases. Unknown references are rejected and
-traced. Prompt injection and off-topic requests are answered in character.
+In training the patient never invents facts: the LLM returns source references only,
+and the application renders the authored patient phrases. Unknown references are
+rejected and traced. In exam the speech model speaks freely under the same case rules;
+its sentences are stored verbatim and audited afterwards, so a fact is credited only
+when the audit finds it and the browser confirms playback. Prompt injection and
+off-topic requests are answered in character in both modes.
 
 ### Clinical registry
 
@@ -114,7 +130,8 @@ a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connect
   `POST /api/sessions/{id}/analysis/retry`
 - `WebSocket /ws/sessions/{id}/voice`: binary PCM16 24 kHz frames, `user.turn.finish`,
   `audio.playback_started`, `audio.playback_completed`, `turn.retry_tts`, `call.end`;
-  in fake mode `debug.transcript`.
+  in fake mode `debug.transcript`. `call.started` carries `interaction`:
+  `push_to_talk` (training) or `open_microphone` (exam, frames stream continuously).
 - `GET /api/exercises`, `POST /api/practice/runs`, `GET /api/practice/runs/{id}`,
   `POST /api/practice/runs/{id}/{answers|pause|resume|finish}`
 - `GET /api/history`, `GET /api/progression`

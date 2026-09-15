@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import re
@@ -17,6 +18,7 @@ from ari.application.contracts import (
     ProviderResult,
     TranscriptionConfig,
 )
+from ari.application.ports.realtime import RealtimeEvent
 from ari.application.ports.stt import Transcription
 from ari.application.schemas import (
     EvaluationOutputSchema,
@@ -134,7 +136,10 @@ class FakeLLMProvider:
     @staticmethod
     def _patient(payload: dict[str, object]) -> dict[str, object]:
         case = cast(dict[str, object], payload["case"])
-        question = str(payload["doctor_latest_utterance"]).casefold()
+        # Patient simulation audits the doctor's question; fact attribution audits the
+        # patient's own sentence. Both select case sources by keyword.
+        utterance = payload.get("patient_utterance", payload.get("doctor_latest_utterance"))
+        question = str(utterance).casefold()
         if any(term in question for term in BLOCKED_TERMS):
             return {"response_kind": "out_of_scope", "source_refs": []}
         allowed_refs = {
@@ -238,21 +243,26 @@ class FakeTranscriber:
         return Transcription(text, _execution(context, "speech_to_text", 1, usage))
 
 
+def fake_tone(text: str) -> bytes:
+    """A short 440 Hz PCM16 24 kHz tone whose length grows with the text."""
+    rate, duration = 24_000, min(0.22, 0.04 + len(text) / 2000)
+    frames = bytearray()
+    for index in range(int(rate * duration)):
+        amplitude = int(1000 * math.sin(2 * math.pi * 440 * index / rate))
+        frames.extend(struct.pack("<h", amplitude))
+    return bytes(frames)
+
+
 class FakeTTSProvider:
     async def stream(self, text: str, context: ExecutionContext) -> AsyncIterator[AudioStreamEvent]:
         started = time.perf_counter()
-        rate, duration = 24_000, min(0.22, 0.04 + len(text) / 2000)
-        frames = bytearray()
-        for index in range(int(rate * duration)):
-            amplitude = int(1000 * math.sin(2 * math.pi * 440 * index / rate))
-            frames.extend(struct.pack("<h", amplitude))
+        audio = fake_tone(text)
         execution = _execution(
             context,
             "text_to_speech",
             int((time.perf_counter() - started) * 1000),
             {"characters": len(text), "first_audio_ms": 0},
         )
-        audio = bytes(frames)
         for offset in range(0, len(audio), 4096):
             yield AudioStreamEvent(
                 "chunk",
@@ -260,3 +270,62 @@ class FakeTTSProvider:
                 mime_type="audio/pcm;rate=24000",
             )
         yield AudioStreamEvent("completed", mime_type="audio/pcm;rate=24000", execution=execution)
+
+
+class FakeRealtimeConnection:
+    """UTF-8 text sent as audio is one learner utterance; the patient echoes it back.
+
+    Real PCM frames are treated as silence so the fake never answers noise.
+    """
+
+    def __init__(self, context: ExecutionContext) -> None:
+        self._context = context
+        self._queue: asyncio.Queue[RealtimeEvent | None] = asyncio.Queue()
+        self._turns = 0
+
+    async def send_audio(self, pcm16: bytes) -> None:
+        try:
+            text = pcm16.decode("utf-8").strip()
+        except UnicodeDecodeError:
+            return
+        if not text or not text.isprintable():
+            return
+        self._turns += 1
+        item_id, response_id = f"fake-item-{self._turns}", f"fake-response-{self._turns}"
+        audio = fake_tone(text)
+        for event in (
+            RealtimeEvent("speech_started"),
+            RealtimeEvent("user_transcript", item_id=item_id, text=text),
+            RealtimeEvent("patient_audio", response_id=response_id, audio=audio),
+            RealtimeEvent("patient_transcript", response_id=response_id, text=text),
+            RealtimeEvent(
+                "response_completed",
+                response_id=response_id,
+                execution=_execution(
+                    self._context,
+                    "speech_to_speech",
+                    1,
+                    {"response_status": "completed", "characters": len(text)},
+                ),
+            ),
+        ):
+            await self._queue.put(event)
+
+    async def events(self) -> AsyncIterator[RealtimeEvent]:
+        while (event := await self._queue.get()) is not None:
+            yield event
+
+    async def close(self) -> None:
+        await self._queue.put(None)
+
+
+class FakeRealtimeEngine:
+    def __init__(self) -> None:
+        self.instructions: list[str] = []
+
+    async def open(
+        self, *, instructions: str, language: str, context: ExecutionContext
+    ) -> FakeRealtimeConnection:
+        del language
+        self.instructions.append(instructions)
+        return FakeRealtimeConnection(context)
