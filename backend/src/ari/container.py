@@ -12,6 +12,7 @@ from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
 from ari.application.services.lexicon import LexiconService
 from ari.application.services.patient import PatientSimulator
+from ari.application.services.placement import PlacementService
 from ari.application.services.practice import PracticeService
 from ari.application.services.realtime_patient import FactAttributor
 from ari.application.voice_stacks import VoiceStack
@@ -20,8 +21,10 @@ from ari.domain.errors import InvalidStateError
 from ari.domain.models import ConversationSession
 from ari.infrastructure.cases.clinical_catalog import ClinicalCatalog
 from ari.infrastructure.cases.clinical_store import ClinicalStore
+from ari.infrastructure.cases.placement_store import PlacementStore
 from ari.infrastructure.cases.practice_catalog import PublishedPracticeCatalog
 from ari.infrastructure.persistence.lexicon import SqlLexiconRepository
+from ari.infrastructure.persistence.placement import SqlPlacementRepository
 from ari.infrastructure.persistence.practice import SqlPracticeRepository
 from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
 from ari.infrastructure.providers.fake import (
@@ -50,6 +53,7 @@ class Container:
     realtime_prompt: VersionedPrompt
     attributor: FactAttributor
     lexicon: LexiconService
+    placement: PlacementService
 
     def resolve_voice_stack(self, session: ConversationSession) -> VoiceStack:
         """The exact stack a session was created with, or an error: never a silent swap."""
@@ -121,6 +125,9 @@ def build_container(settings: Settings) -> Container:
     )
     attribution_prompt = load_prompt(
         settings.prompt_directory / "fact_attribution_v1.txt", "fact-attribution-v1"
+    )
+    speaking_prompt = load_prompt(
+        settings.prompt_directory / "placement_speaking_v1.txt", "placement-speaking-v1"
     )
     voice_stack = _voice_stack(settings)
     realtime_stack = _realtime_stack(settings)
@@ -198,6 +205,17 @@ def build_container(settings: Settings) -> Container:
     practice_service = PracticeService(
         PublishedPracticeCatalog(cases.store), SqlPracticeRepository(repository.engine)
     )
+    placement = PlacementService(
+        PlacementStore(repository.engine),
+        SqlPlacementRepository(repository.engine),
+        repository,
+        transcriber,
+        tts,
+        llm,
+        speaking_prompt,
+        feedback_language=settings.feedback_language,
+        sample_rate=settings.audio_sample_rate,
+    )
     return Container(
         settings=settings,
         repository=repository,
@@ -212,4 +230,5 @@ def build_container(settings: Settings) -> Container:
         realtime_prompt=realtime_prompt,
         attributor=FactAttributor(llm, attribution_prompt),
         lexicon=lexicon,
+        placement=placement,
     )

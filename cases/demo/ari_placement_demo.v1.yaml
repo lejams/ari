@@ -1,0 +1,80 @@
+# Synthetic German placement items for the offline demo. Authored for this repository,
+# not reviewed by a linguist: the demo simulates the linguistic approval.
+schema_version: ari-placement-bundle-v1
+sources:
+- id: ari-placement-demo-synthetic
+  source_type: synthetic
+  document_reference: cases/demo/ari_placement_demo.v1.yaml
+  original_checksum: null
+  immediate_source_checksum: null
+  provenance: Items written for the demo from public CEFR descriptors; no third-party test material.
+  imported_at: '2026-09-16T00:00:00Z'
+  rights: compatible
+  intended_use: Offline demonstration only
+  rights_evidence: Original synthetic content authored for this repository.
+  private_material_reference: none:synthetic
+  declared_original: null
+  original_verified: false
+sets:
+- id: ari-placement-demo
+  version: '1'
+  schema_version: placement-set-v1
+  language: de-DE
+  title: Test de niveau · allemand général (démo)
+  description_fr: Une quinzaine de questions adaptatives, quatre écoutes courtes et deux prises de parole d'une minute. Environ quinze minutes.
+  sources:
+  - source_id: ari-placement-demo-synthetic
+    pages: []
+  mcq_items:
+  - {id: a1-1, skill: vocabulary, level: A1, stem: 'Guten ___! Wie geht es Ihnen?', options: [Abend, Morgens, Tag], answer_index: 2}
+  - {id: a1-2, skill: grammar, level: A1, stem: 'Ich ___ Ärztin.', options: [bist, bin, ist], answer_index: 1}
+  - {id: a1-3, skill: grammar, level: A1, stem: 'Wie ___ Sie?', options: [heißen, heißt, heiße], answer_index: 0}
+  - {id: a1-4, skill: grammar, level: A1, stem: 'Das ist ___ Apfel.', options: [eine, einen, ein], answer_index: 2}
+  - {id: a2-1, skill: grammar, level: A2, stem: 'Gestern ___ ich im Krankenhaus.', options: [war, bin, ist], answer_index: 0}
+  - {id: a2-2, skill: grammar, level: A2, stem: 'Ich nehme eine Tablette, ___ ich Kopfschmerzen habe.', options: [deshalb, denn, weil], answer_index: 2}
+  - {id: a2-3, skill: grammar, level: A2, stem: 'Können Sie mir bitte ___ Formular geben?', options: [der, das, den], answer_index: 1}
+  - {id: a2-4, skill: vocabulary, level: A2, stem: 'Er interessiert sich ___ Medizin.', options: [für, auf, an], answer_index: 0}
+  - {id: b1-1, skill: grammar, level: B1, stem: 'Wenn ich Zeit hätte, ___ ich mehr Sport machen.', options: [werde, würde, wurde], answer_index: 1}
+  - {id: b1-2, skill: grammar, level: B1, stem: 'Der Patient, ___ gestern kam, ist wieder zu Hause.', options: [der, den, dem], answer_index: 0}
+  - {id: b1-3, skill: grammar, level: B1, stem: 'Sie müssen die Tabletten ___ nehmen.', options: [regelmäßige, regelmäßigen, regelmäßig], answer_index: 2}
+  - {id: b1-4, skill: vocabulary, level: B1, stem: 'Ich freue mich ___ Ihren Besuch nächste Woche.', options: [über, auf, an], answer_index: 1}
+  - {id: b2-1, skill: grammar, level: B2, stem: 'Die Untersuchung wurde ___ des Notfalls verschoben.', options: [trotz, während, wegen], answer_index: 2}
+  - {id: b2-2, skill: grammar, level: B2, stem: 'Die Ergebnisse müssen bis morgen ___ werden.', options: [ausgewertet, auswerten, ausgewertete], answer_index: 0}
+  - {id: b2-3, skill: vocabulary, level: B2, stem: 'Das Medikament ist gut ___.', options: [vertraglich, verträglich, vertragen], answer_index: 1}
+  - {id: b2-4, skill: grammar, level: B2, stem: '___ seines Alters ist er sehr fit.', options: [Wegen, Während, Trotz], answer_index: 2}
+  listening_items:
+  - id: l-a1
+    level: A1
+    script: Guten Tag, ich heiße Anna Müller. Ich bin 34 Jahre alt und komme aus Hamburg.
+    question: Woher kommt Anna?
+    options: [Aus Berlin, Aus Hamburg, Aus München]
+    answer_index: 1
+  - id: l-a2
+    level: A2
+    script: Ich habe seit zwei Tagen Fieber und Husten. Heute Morgen habe ich eine Tablette genommen.
+    question: Seit wann hat die Person Fieber?
+    options: [Seit heute Morgen, Seit einer Woche, Seit zwei Tagen]
+    answer_index: 2
+  - id: l-b1
+    level: B1
+    script: Wenn Sie diese Tabletten nehmen, sollten Sie keinen Alkohol trinken. Sonst kann das Medikament stärker wirken als gewünscht.
+    question: Was soll man während der Behandlung vermeiden?
+    options: [Alkohol, Kaffee, Sport]
+    answer_index: 0
+  - id: l-b2
+    level: B2
+    script: Obwohl die Symptome zurückgegangen sind, empfehlen wir, die Behandlung bis zum Ende fortzusetzen, damit die Infektion nicht zurückkehrt.
+    question: Warum soll die Behandlung fortgesetzt werden?
+    options: [Weil die Symptome stärker werden, Damit die Infektion nicht zurückkehrt, Weil das Medikament günstig ist]
+    answer_index: 1
+  speaking_items:
+  - id: s-1
+    level_hint: A2
+    prompt_fr: "Présentez-vous en allemand pendant environ une minute : votre nom, votre pays, votre métier et pourquoi vous apprenez l'allemand."
+    prompt_target: Stellen Sie sich bitte vor. Sagen Sie, wie Sie heißen, woher Sie kommen, was Sie beruflich machen und warum Sie Deutsch lernen.
+    target_seconds: 60
+  - id: s-2
+    level_hint: B1
+    prompt_fr: "Racontez en allemand une journée de travail typique. Qu'est-ce qui vous plaît, qu'est-ce qui est difficile ?"
+    prompt_target: Beschreiben Sie einen typischen Arbeitstag. Was gefällt Ihnen daran, und was finden Sie schwierig?
+    target_seconds: 90

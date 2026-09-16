@@ -26,8 +26,10 @@ from ari.api.app import create_app
 from ari.config import PROJECT_ROOT, Settings
 from ari.domain.clinical import CaseReview, ClinicalBundle, TrainingScenarioVersion, VersionRef
 from ari.domain.models import new_id
+from ari.domain.placement import PlacementBundle, PlacementReview
 from ari.infrastructure.cases.clinical_store import ClinicalStore
-from ari.infrastructure.cases.yaml_io import parse_bundle
+from ari.infrastructure.cases.placement_store import PlacementStore
+from ari.infrastructure.cases.yaml_io import bundle_kind, parse_bundle, parse_placement_bundle
 from ari.infrastructure.persistence.clinical_rows import ScenarioRow
 from ari.infrastructure.persistence.sqlite import Base, SqliteSessionRepository
 
@@ -112,9 +114,34 @@ def _ensure_schema(engine: Engine, database_url: str) -> None:
         )
 
 
+def publish_placement_content(store: PlacementStore, bundle: PlacementBundle) -> None:
+    """Placement sets need one linguistic approval; here it is simulated, like the cases."""
+    store.import_bundle(bundle)
+    for placement_set in bundle.sets:
+        if store.inspect(placement_set.id, placement_set.version)["status"] != "draft_unvalidated":
+            continue
+        store.record_review(
+            PlacementReview(
+                id=new_id(),
+                set=VersionRef(id=placement_set.id, version=placement_set.version),
+                set_hash=placement_set.content_hash,
+                reviewer_name=DEMO_ACTOR,
+                reviewed_at=datetime.now(UTC),
+                decision="approve",
+                notes="Synthetic placement items; no linguistic validity claimed.",
+            )
+        )
+        store.publish(placement_set.id, placement_set.version, actor=DEMO_ACTOR)
+
+
 def seed_bundles(store: ClinicalStore, directory: Path) -> None:
+    placement_store = PlacementStore(store.engine)
     for path in sorted(directory.glob("*.yaml")):
-        publish_demo_content(store, parse_bundle(path.read_text(encoding="utf-8")))
+        text = path.read_text(encoding="utf-8")
+        if bundle_kind(text) == "ari-placement-bundle-v1":
+            publish_placement_content(placement_store, parse_placement_bundle(text))
+        else:
+            publish_demo_content(store, parse_bundle(text))
 
 
 def serve(database_url: str, bundles: Path, provider: Literal["fake", "openai"], port: int) -> None:

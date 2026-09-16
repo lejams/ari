@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Any
 from uuid import uuid4
@@ -113,10 +113,29 @@ class EducationalTarget:
 
 
 @dataclass(frozen=True, slots=True)
+class LearnerDetails:
+    """What the learner declared plus what ARI estimated. Never a certified level."""
+
+    declared_level: CEFRLevel | None = None
+    level_source: str = "self"  # self | certificate
+    certificate_kind: str | None = None
+    certificate_date: date | None = None
+    exam_date: date | None = None
+    minutes_per_day: int = 30
+    land: str | None = None
+    situation: str | None = None  # doctor | student
+    specialty: str | None = None
+    estimated_level: CEFRLevel | None = None
+    estimated_at: datetime | None = None
+    placement_attempt_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class LearnerProfile:
     id: str
     goal: LearningGoal
     created_at: datetime = field(default_factory=utc_now)
+    details: LearnerDetails = field(default_factory=LearnerDetails)
 
 
 @dataclass(frozen=True, slots=True)

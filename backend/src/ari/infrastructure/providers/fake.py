@@ -23,6 +23,7 @@ from ari.application.ports.stt import Transcription
 from ari.application.schemas import (
     EvaluationOutputSchema,
     PatientResponseSchema,
+    SpeakingRatingSchema,
 )
 from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
 
@@ -166,6 +167,8 @@ class FakeLLMProvider:
             result = self._patient(payload)
         elif response_model is EvaluationOutputSchema:
             result = self._evaluation(payload)
+        elif response_model is SpeakingRatingSchema:
+            result = self._speaking(payload)
         else:
             raise TypeError(f"Unsupported fake schema: {response_model.__name__}")
         elapsed = int((time.perf_counter() - started) * 1000)
@@ -307,6 +310,22 @@ class FakeLLMProvider:
             ],
             "code_switches": code_switches[:8],
             "empathy": empathy[:8],
+        }
+
+    @staticmethod
+    def _speaking(payload: dict[str, object]) -> dict[str, object]:
+        """Deterministic: a longer connected production rates B2 with confidence, else B1."""
+        words = len(str(payload.get("transcript", "")).split())
+        if words >= 40:
+            return {
+                "estimated_level": "B2",
+                "confidence": 0.8,
+                "observations": ["Production fictive longue : niveau B2 attribué par le fake."],
+            }
+        return {
+            "estimated_level": "B1",
+            "confidence": 0.5,
+            "observations": ["Production fictive courte : niveau B1 attribué par le fake."],
         }
 
 

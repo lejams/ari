@@ -64,6 +64,34 @@ Trois « prochaines actions » au plus sont dérivées de signaux déterministes
 ordre : item obligatoire manqué, section non couverte, moment d'empathie ignoré ou
 partiel, mots ajoutés au carnet.
 
+### Test de niveau (`ari-placement-bundle-v1`)
+
+Le test de niveau est du contenu de langue générale, pas un cas clinique. Il passe par le
+même registre local : `placement import`, une revue **linguistique** du hash exact
+(`placement review`), puis `placement publish` ; le contenu est immuable, seul le statut
+change, et publier une version retire la précédente du même identifiant.
+
+Un `placement-set-v1` porte `language`, `title`, `description_fr`, ses `sources` (droits
+compatibles exigés) et trois familles d'items : `mcq_items` (`skill` vocabulaire ou
+grammaire, `level`, `stem`, 3 ou 4 `options`, `answer_index` ; en pratique 6 à 8 items
+par niveau évitent que le test s'arrête faute de questions), `listening_items` (`script`
+lu par la synthèse vocale, jamais affiché avant la réponse, `question`, `options`,
+`answer_index`) et exactement deux `speaking_items` (`prompt_fr`, `prompt_target`,
+`target_seconds`). Au moins 4 QCM et 1 écoute par niveau A1 à B2 sont exigés.
+
+Méthode `placement-staircase-v1`, déterministe : départ au niveau déclaré (sinon A2) ;
+deux bonnes réponses consécutives montent d'un niveau, deux mauvaises descendent ; arrêt
+après 14 questions, 3 renversements de direction ou épuisement des items du niveau
+atteint (aucun emprunt à un autre niveau, qui biaiserait l'estimation) ; l'estimation
+vocabulaire-grammaire est la médiane basse des niveaux des 6 dernières questions
+présentées. Quatre écoutes autour de ce niveau donnent le niveau d'écoute (≥ 75 % de
+bonnes réponses : +1 ; ≥ 50 % : égal ; sinon −1). Les deux productions orales sont
+transcrites puis notées par le fournisseur (`placement-speaking-v1`, schéma strict :
+niveau, confiance, observations citées). Le résultat global est le plus faible des
+niveaux mesurés ; l'oral n'est compté que si sa confiance atteint 0,6. Il est copié dans
+le profil comme `estimated_level`, avec la date et l'identifiant de la tentative. Ce
+n'est ni un certificat ni le niveau requis pour l'inscription à la FSP.
+
 ### Exercices structurés
 
 Le scénario peut porter `practice: PracticeSpecification` (`practice-spec-v1`) :

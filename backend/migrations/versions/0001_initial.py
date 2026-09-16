@@ -2,7 +2,7 @@
 
 Revision ID: 0001_initial
 Revises:
-Create Date: 2026-09-16 11:53:49.056340
+Create Date: 2026-09-16
 """
 
 from collections.abc import Sequence
@@ -57,6 +57,29 @@ def upgrade() -> None:
         sa.Column("id", sa.String(), nullable=False),
         sa.Column("goal", sa.JSON(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("details", sa.JSON(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_table(
+        "placement_sets",
+        sa.Column("id", sa.String(), nullable=False),
+        sa.Column("version", sa.String(), nullable=False),
+        sa.Column("content_hash", sa.String(length=64), nullable=False),
+        sa.Column("language", sa.String(), nullable=False),
+        sa.Column("payload", sa.JSON(), nullable=False),
+        sa.Column("status", sa.String(), nullable=False),
+        sa.CheckConstraint(
+            "status IN ('draft_unvalidated', 'published', 'withdrawn')",
+            name="ck_placement_workflow_status",
+        ),
+        sa.PrimaryKeyConstraint("id", "version"),
+        sa.UniqueConstraint("id", "version", "content_hash"),
+    )
+    op.create_table(
+        "placement_sources",
+        sa.Column("id", sa.String(), nullable=False),
+        sa.Column("content_hash", sa.String(length=64), nullable=False),
+        sa.Column("payload", sa.JSON(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
@@ -151,6 +174,67 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_learner_lexicon_learner_id"), "learner_lexicon", ["learner_id"], unique=False
+    )
+    op.create_table(
+        "placement_attempts",
+        sa.Column("id", sa.String(), nullable=False),
+        sa.Column("learner_id", sa.String(), nullable=False),
+        sa.Column("request_id", sa.String(), nullable=False),
+        sa.Column("set_id", sa.String(), nullable=False),
+        sa.Column("set_version", sa.String(), nullable=False),
+        sa.Column("set_hash", sa.String(length=64), nullable=False),
+        sa.Column("status", sa.String(), nullable=False),
+        sa.Column("phase", sa.String(), nullable=False),
+        sa.Column("state", sa.JSON(none_as_null=True), nullable=False),
+        sa.Column("result", sa.JSON(none_as_null=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
+        sa.CheckConstraint(
+            "phase IN ('mcq','listening','speaking','completed')", name="ck_placement_phase"
+        ),
+        sa.CheckConstraint(
+            "status IN ('active','completed','abandoned')", name="ck_placement_status"
+        ),
+        sa.ForeignKeyConstraint(
+            ["learner_id"],
+            ["learners.id"],
+        ),
+        sa.ForeignKeyConstraint(
+            ["set_id", "set_version", "set_hash"],
+            ["placement_sets.id", "placement_sets.version", "placement_sets.content_hash"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("learner_id", "request_id", name="uq_placement_start_request"),
+    )
+    op.create_index(
+        op.f("ix_placement_attempts_learner_id"), "placement_attempts", ["learner_id"], unique=False
+    )
+    op.create_table(
+        "placement_publication_events",
+        sa.Column("id", sa.String(), nullable=False),
+        sa.Column("set_id", sa.String(), nullable=False),
+        sa.Column("set_version", sa.String(), nullable=False),
+        sa.Column("payload", sa.JSON(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["set_id", "set_version"],
+            ["placement_sets.id", "placement_sets.version"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_table(
+        "placement_reviews",
+        sa.Column("sequence", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column("id", sa.String(), nullable=False),
+        sa.Column("set_id", sa.String(), nullable=False),
+        sa.Column("set_version", sa.String(), nullable=False),
+        sa.Column("set_hash", sa.String(length=64), nullable=False),
+        sa.Column("payload", sa.JSON(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["set_id", "set_version", "set_hash"],
+            ["placement_sets.id", "placement_sets.version", "placement_sets.content_hash"],
+        ),
+        sa.PrimaryKeyConstraint("sequence"),
+        sa.UniqueConstraint("id"),
     )
     op.create_table(
         "practice_runs",
@@ -319,6 +403,22 @@ def upgrade() -> None:
         op.f("ix_lexicon_reviews_entry_id"), "lexicon_reviews", ["entry_id"], unique=False
     )
     op.create_table(
+        "placement_answers",
+        sa.Column("attempt_id", sa.String(), nullable=False),
+        sa.Column("sequence", sa.Integer(), nullable=False),
+        sa.Column("event_id", sa.String(), nullable=False),
+        sa.Column("item_id", sa.String(), nullable=False),
+        sa.Column("phase", sa.String(), nullable=False),
+        sa.Column("payload", sa.JSON(none_as_null=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["attempt_id"],
+            ["placement_attempts.id"],
+        ),
+        sa.PrimaryKeyConstraint("attempt_id", "sequence"),
+        sa.UniqueConstraint("attempt_id", "event_id", name="uq_placement_answer_event"),
+        sa.UniqueConstraint("attempt_id", "item_id", name="uq_placement_answer_item"),
+    )
+    op.create_table(
         "practice_answers",
         sa.Column("run_id", sa.String(), nullable=False),
         sa.Column("question_id", sa.String(), nullable=False),
@@ -459,6 +559,7 @@ def downgrade() -> None:
     op.drop_table("session_metrics")
     op.drop_table("session_lexicon_reports")
     op.drop_table("practice_answers")
+    op.drop_table("placement_answers")
     op.drop_index(op.f("ix_lexicon_reviews_entry_id"), table_name="lexicon_reviews")
     op.drop_table("lexicon_reviews")
     op.drop_index(op.f("ix_executions_session_id"), table_name="executions")
@@ -472,6 +573,10 @@ def downgrade() -> None:
     op.drop_table("sessions")
     op.drop_table("profile_credentials")
     op.drop_table("practice_runs")
+    op.drop_table("placement_reviews")
+    op.drop_table("placement_publication_events")
+    op.drop_index(op.f("ix_placement_attempts_learner_id"), table_name="placement_attempts")
+    op.drop_table("placement_attempts")
     op.drop_index(op.f("ix_learner_lexicon_learner_id"), table_name="learner_lexicon")
     op.drop_table("learner_lexicon")
     op.drop_index(
@@ -481,6 +586,8 @@ def downgrade() -> None:
     )
     op.drop_table("clinical_scenarios")
     op.drop_table("clinical_case_sources")
+    op.drop_table("placement_sources")
+    op.drop_table("placement_sets")
     op.drop_table("learners")
     op.drop_table("clinical_terminology")
     op.drop_table("clinical_sources")
@@ -498,6 +605,9 @@ IMMUTABLE_CLINICAL_TABLES = (
     "clinical_reviews",
     "clinical_publication_events",
     "clinical_session_pins",
+    "placement_sources",
+    "placement_reviews",
+    "placement_publication_events",
 )
 SCENARIO_CONTENT_COLUMNS = (
     "id",
@@ -515,6 +625,7 @@ SCENARIO_CONTENT_COLUMNS = (
     "terminology_hash",
     "phase",
 )
+PLACEMENT_SET_CONTENT_COLUMNS = ("id", "version", "content_hash", "language", "payload")
 PRACTICE_RUN_CONTENT_COLUMNS = (
     "id",
     "learner_id",
@@ -547,6 +658,15 @@ def _create_sqlite_triggers() -> None:
         when=f"WHEN {changed} ",
     )
     _abort("clinical_scenario_delete", "DELETE", "clinical_scenarios", "Immutable scenario")
+    changed = " OR ".join(f"NEW.{c} IS NOT OLD.{c}" for c in PLACEMENT_SET_CONTENT_COLUMNS)
+    _abort(
+        "placement_set_content",
+        "UPDATE",
+        "placement_sets",
+        "Immutable placement set",
+        when=f"WHEN {changed} ",
+    )
+    _abort("placement_set_delete", "DELETE", "placement_sets", "Immutable placement set")
     changed = " OR ".join(f"NEW.{c} IS NOT OLD.{c}" for c in PRACTICE_RUN_CONTENT_COLUMNS)
     _abort(
         "practice_run_immutable",
@@ -561,6 +681,12 @@ def _create_sqlite_triggers() -> None:
     for action in ("UPDATE", "DELETE"):
         _abort(
             f"practice_answers_no_{action.lower()}", action, "practice_answers", "Immutable answer"
+        )
+        _abort(
+            f"placement_answers_no_{action.lower()}",
+            action,
+            "placement_answers",
+            "Immutable placement answer",
         )
     _abort(
         "practice_answer_active",

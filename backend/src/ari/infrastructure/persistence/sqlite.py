@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import asdict, is_dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import Enum
 from typing import Any
 
@@ -33,6 +33,7 @@ from ari.domain.models import (
     EvidenceObservation,
     ExecutionRecord,
     ExecutionStatus,
+    LearnerDetails,
     LearnerProfile,
     LearningGoal,
     LearningMode,
@@ -52,6 +53,9 @@ from ari.infrastructure.persistence.clinical_rows import (
 )
 from ari.infrastructure.persistence.identity import ProfileCredentialRow as ProfileCredentialRow
 from ari.infrastructure.persistence.lexicon_rows import LexiconEntryRow as LexiconEntryRow
+from ari.infrastructure.persistence.placement_rows import (
+    PlacementAttemptRow as PlacementAttemptRow,
+)
 from ari.infrastructure.persistence.practice_rows import PracticeRunRow as PracticeRunRow
 from ari.infrastructure.persistence.voice_learning import VoiceLearningRow, VoiceStartRow
 
@@ -61,6 +65,7 @@ class LearnerRow(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     goal: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class SessionRow(Base):
@@ -172,6 +177,34 @@ def _goal(value: dict[str, Any]) -> LearningGoal:
     )
 
 
+def _details(value: dict[str, Any] | None) -> LearnerDetails:
+    value = value or {}
+
+    def level(name: str) -> CEFRLevel | None:
+        raw = value.get(name)
+        return CEFRLevel(str(raw)) if raw else None
+
+    def day(name: str) -> date | None:
+        raw = value.get(name)
+        return date.fromisoformat(str(raw)) if raw else None
+
+    estimated_at = value.get("estimated_at")
+    return LearnerDetails(
+        declared_level=level("declared_level"),
+        level_source=str(value.get("level_source") or "self"),
+        certificate_kind=value.get("certificate_kind") or None,
+        certificate_date=day("certificate_date"),
+        exam_date=day("exam_date"),
+        minutes_per_day=int(value.get("minutes_per_day") or 30),
+        land=value.get("land") or None,
+        situation=value.get("situation") or None,
+        specialty=value.get("specialty") or None,
+        estimated_level=level("estimated_level"),
+        estimated_at=_dt(datetime.fromisoformat(str(estimated_at))) if estimated_at else None,
+        placement_attempt_id=value.get("placement_attempt_id") or None,
+    )
+
+
 def _dt(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value
 
@@ -181,7 +214,7 @@ def _jsonable(value: Any) -> Any:
         return _jsonable(asdict(value))
     if isinstance(value, Enum):
         return value.value
-    if isinstance(value, datetime):
+    if isinstance(value, datetime | date):
         return value.isoformat()
     if isinstance(value, dict):
         return {str(key): _jsonable(item) for key, item in value.items()}
@@ -214,7 +247,10 @@ class SqliteSessionRepository:
         with Session(self.engine) as db:
             db.add(
                 LearnerRow(
-                    id=learner.id, goal=_jsonable(learner.goal), created_at=learner.created_at
+                    id=learner.id,
+                    goal=_jsonable(learner.goal),
+                    created_at=learner.created_at,
+                    details=_jsonable(learner.details),
                 )
             )
             db.commit()
@@ -225,7 +261,12 @@ class SqliteSessionRepository:
             row = db.get(LearnerRow, learner_id)
             if row is None:
                 raise NotFoundError(f"Learner {learner_id} was not found")
-            return LearnerProfile(id=row.id, goal=_goal(row.goal), created_at=_dt(row.created_at))
+            return LearnerProfile(
+                id=row.id,
+                goal=_goal(row.goal),
+                created_at=_dt(row.created_at),
+                details=_details(row.details),
+            )
 
     def update_learner(self, learner: LearnerProfile) -> LearnerProfile:
         with Session(self.engine) as db:
@@ -233,6 +274,7 @@ class SqliteSessionRepository:
             if row is None:
                 raise NotFoundError(f"Learner {learner.id} was not found")
             row.goal = _jsonable(learner.goal)
+            row.details = _jsonable(learner.details)
             db.commit()
         return learner
 
@@ -272,17 +314,29 @@ class SqliteSessionRepository:
             snapshot = dict(session.training_snapshot)
             scenario = None
             if snapshot:
-                db.execute(update(ScenarioRow).where(
-                    ScenarioRow.id == snapshot.get("scenario_id"),
-                    ScenarioRow.version == snapshot.get("scenario_version"),
-                ).values(status=ScenarioRow.status))
-                scenario = db.get(ScenarioRow, (
-                    snapshot.get("scenario_id"), snapshot.get("scenario_version"),
-                ))
-                if (scenario is None or scenario.status != "published"
-                    or scenario.phase != "arzt_patient" or snapshot != scenario_snapshot(scenario)
+                db.execute(
+                    update(ScenarioRow)
+                    .where(
+                        ScenarioRow.id == snapshot.get("scenario_id"),
+                        ScenarioRow.version == snapshot.get("scenario_version"),
+                    )
+                    .values(status=ScenarioRow.status)
+                )
+                scenario = db.get(
+                    ScenarioRow,
+                    (
+                        snapshot.get("scenario_id"),
+                        snapshot.get("scenario_version"),
+                    ),
+                )
+                if (
+                    scenario is None
+                    or scenario.status != "published"
+                    or scenario.phase != "arzt_patient"
+                    or snapshot != scenario_snapshot(scenario)
                     or (session.case_id, session.case_version, session.case_hash)
-                    != (scenario.case_id, scenario.case_version, scenario.case_hash)):
+                    != (scenario.case_id, scenario.case_version, scenario.case_hash)
+                ):
                     raise InvalidStateError("Publication unavailable or session snapshot mismatch")
             db.add(
                 SessionRow(
@@ -303,19 +357,27 @@ class SqliteSessionRepository:
             )
             if session.start_request_id is not None:
                 db.flush()
-                db.add(VoiceStartRow(
-                    learner_id=session.learner_id, request_id=session.start_request_id,
-                    request_hash=session.start_request_hash, session_id=session.id,
-                ))
+                db.add(
+                    VoiceStartRow(
+                        learner_id=session.learner_id,
+                        request_id=session.start_request_id,
+                        request_hash=session.start_request_hash,
+                        session_id=session.id,
+                    )
+                )
             if session.learning_mode is not None:
                 db.flush()
                 db.add(VoiceLearningRow(session_id=session.id, mode=session.learning_mode.value))
             if scenario is not None:
                 db.flush()
-                db.add(ClinicalSessionPinRow(
-                    session_id=session.id, scenario_id=scenario.id,
-                    scenario_version=scenario.version, scenario_hash=scenario.content_hash,
-                ))
+                db.add(
+                    ClinicalSessionPinRow(
+                        session_id=session.id,
+                        scenario_id=scenario.id,
+                        scenario_version=scenario.version,
+                        scenario_hash=scenario.content_hash,
+                    )
+                )
             db.commit()
         return session
 
@@ -537,9 +599,10 @@ class SqliteSessionRepository:
                 raise NotFoundError(f"Turn {turn_id} was not found")
             failed = provider_response_status not in {"completed", "succeeded"}
             if row.response_state != TurnResponseState.TRANSCRIPT_RESERVED.value:
-                same_response = row.patient_text == patient_text and tuple(
-                    row.selected_fact_ids
-                ) == selected_fact_ids
+                same_response = (
+                    row.patient_text == patient_text
+                    and tuple(row.selected_fact_ids) == selected_fact_ids
+                )
                 same_provider = row.provider_response_id == provider_response_id or (
                     row.response_state == TurnResponseState.RESPONSE_SELECTED.value
                     and row.provider_response_id is None

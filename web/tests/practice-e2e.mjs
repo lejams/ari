@@ -14,10 +14,14 @@ async function onboard(page, official = false) {
   await page.getByLabel("Spécialité visée").fill("Médecine interne");
   if (official) {
     await page.getByRole("radio", {name:"Officiel / certifié", exact:true}).check();
-    assert.equal(await page.locator("#proof-file").isEnabled(), false);
-    assert.match(await page.locator("#proof-status").innerText(), /aucun document vérifié/);
+    await page.getByLabel("Certificat obtenu").fill("Goethe-Zertifikat B2");
+    assert.match(await page.locator("#proof-status").innerText(), /aucun document n’est déposé ni vérifié/);
   }
   await page.getByRole("button", {name:"Créer mon profil et pratiquer", exact:true}).click();
+  // A new profile without an estimate lands on the placement test; the learner may skip it.
+  await page.locator("#placement:not([hidden])").waitFor();
+  assert.match(await page.locator("#placement-status").innerText(), /Niveau de départ/);
+  await page.goto(base + "/#home");
   await page.locator("#home:not([hidden])").waitFor();
 }
 try {

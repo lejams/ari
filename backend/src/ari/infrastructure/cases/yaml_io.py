@@ -6,6 +6,7 @@ from typing import Any
 import yaml
 
 from ari.domain.clinical import ClinicalBundle
+from ari.domain.placement import PlacementBundle
 
 
 class UniqueKeyLoader(yaml.SafeLoader):
@@ -38,3 +39,13 @@ def read_yaml(text: str) -> Any:
 
 def parse_bundle(text: str) -> ClinicalBundle:
     return ClinicalBundle.model_validate_json(json.dumps(read_yaml(text), allow_nan=False))
+
+
+def parse_placement_bundle(text: str) -> PlacementBundle:
+    return PlacementBundle.model_validate_json(json.dumps(read_yaml(text), allow_nan=False))
+
+
+def bundle_kind(text: str) -> str:
+    """The declared schema_version of a YAML document, without validating it."""
+    document = read_yaml(text)
+    return str(document.get("schema_version", "")) if isinstance(document, dict) else ""

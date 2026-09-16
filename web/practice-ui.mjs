@@ -1,13 +1,44 @@
 import {PracticeClient, phaseLabel, stateLabel, dimensionText} from './practice-client.mjs';
 import {LexiconClient, RATINGS, lexiconStateLabel, ratingLabel, sourceLabel} from './lexicon-client.mjs';
+import {PlacementClient, LEVEL_LABELS, PHASE_LABELS, describeResult} from './placement-client.mjs';
+import {PcmRecorder} from './pcm-recorder.mjs';
 import {completedDayKeys, lastLocalDays, localDayKey, scrollDelta} from './calendar.mjs';
 
 const client = new PracticeClient();
 const lexicon = new LexiconClient((path, options) => client.api(path, options));
+const placement = new PlacementClient((path, options) => client.api(path, options));
 let reviewQueue = [], reviewTotal = 0, reviewEntry = null;
+let placementAttempt = null, placementListens = 0, recorder = null, recordedAudio = null, recordTimer = null, providerMode = 'fake';
 const $ = id => document.getElementById(id);
-const views = ['onboarding', 'home', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress'];
-const fields = ['goal', 'land', 'date', 'minutes', 'situation', 'specialty', 'level'];
+const views = ['onboarding', 'home', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress', 'placement'];
+const fields = ['goal', 'land', 'date', 'minutes', 'situation', 'specialty', 'level', 'certificate-kind', 'certificate-date'];
+// What the onboarding form sends to the profile; land, goal and dates are server-side now.
+function profileDetails() {
+  const source = document.querySelector('[name=source]:checked').value;
+  return {
+    declared_level: $('draft-level').value,
+    level_source: source === 'official' ? 'certificate' : 'self',
+    certificate_kind: source === 'official' ? $('draft-certificate-kind').value.trim() || null : null,
+    certificate_date: source === 'official' ? $('draft-certificate-date').value || null : null,
+    exam_date: $('draft-date').value || null,
+    minutes_per_day: Number($('draft-minutes').value) || 30,
+    land: $('draft-land').value || null,
+    situation: $('draft-situation').value,
+    specialty: $('draft-specialty').value.trim() || null,
+  };
+}
+function fillFromProfile(details) {
+  if (!details) return;
+  if (details.declared_level) $('draft-level').value = details.declared_level;
+  document.querySelector(`[name=source][value=${details.level_source === 'certificate' ? 'official' : 'self'}]`).checked = true;
+  $('draft-certificate-kind').value = details.certificate_kind || '';
+  $('draft-certificate-date').value = details.certificate_date || '';
+  $('draft-date').value = details.exam_date || '';
+  if (details.minutes_per_day) $('draft-minutes').value = String(details.minutes_per_day);
+  if (details.land) $('draft-land').value = details.land;
+  if (details.situation) $('draft-situation').value = details.situation;
+  $('draft-specialty').value = details.specialty || '';
+}
 let currentRun = null, retryAction = null, busy = false, selected = null;
 let catalog = [], voiceCases = [], historyItems = [];
 const node = (tag, text, className) => {
@@ -61,7 +92,8 @@ function restoreDraft() {
     input.value = draft[field];
   }
   if (['self', 'official'].includes(draft.source)) document.querySelector(`[name=source][value=${draft.source}]`).checked = true;
-  $('target').value = client.profile?.goal.target_cefr || (['B2', 'C1', 'C2'].includes(draft.target) ? draft.target : 'C1');
+  fillFromProfile(client.profile?.details);
+  $('target').value = client.profile?.goal.target_cefr || (['B2', 'C1'].includes(draft.target) ? draft.target : 'C1');
   $('save-profile').textContent = client.profile ? 'Enregistrer mes préférences' : 'Créer mon profil et pratiquer';
   onboardingStep(draft.step === 2 ? 2 : 1);
   sourceState();
@@ -165,10 +197,12 @@ function renderCalendar() {
 async function home() {
   if (!client.profile) { restoreDraft(); view('onboarding', false); return; }
   await loadCatalog(); historyItems = (await client.api('/api/history')).items;
-  $('profile-goal').textContent = `Objectif personnel ${client.profile.goal.target_cefr} · niveau non mesuré.`;
+  const details = client.profile.details || {};
+  const estimated = details.estimated_level ? `niveau estimé ${details.estimated_level} le ${new Date(details.estimated_at).toLocaleDateString('fr-FR')}` : 'niveau non mesuré';
+  $('profile-goal').textContent = `Objectif personnel ${client.profile.goal.target_cefr} · ${estimated}.`;
   $('goal-target').value = client.profile.goal.target_cefr;
-  const draft = readDraft();
-  $('local-profile-summary').textContent = draft.land ? `${draft.land} · ${draft.minutes} min/jour · niveau ${draft.level} déclaré. Préférences conservées uniquement sur cet appareil.` : 'Vous pouvez renseigner vos préférences sur cet appareil.';
+  $('local-profile-summary').textContent = [details.land, details.minutes_per_day ? `${details.minutes_per_day} min/jour` : '', details.declared_level ? `niveau ${details.declared_level} ${details.level_source === 'certificate' ? 'certifié (déclaré)' : 'auto-évalué'}` : '', details.exam_date ? `examen le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}` : ''].filter(Boolean).join(' · ') || 'Renseignez vos préférences pour calibrer votre pratique.';
+  $('placement-cta').textContent = details.estimated_level ? 'Refaire le test de niveau' : 'Passer le test de niveau';
   const first = voiceCases[0] || catalog[0], kind = voiceCases[0] ? 'voice' : 'practice';
   $('recommendation').replaceChildren(node('p','Votre prochaine étape','eyebrow'),node('h2',first?.title || 'Aucune session disponible.'));
   if (first) {
@@ -289,9 +323,102 @@ async function showVocab() {
   $('vocab-list').replaceChildren(...overview.entries.map(entryCard));
   view('vocab');
 }
+// ----- placement test ---------------------------------------------------------------
+function placementBusyReset() {
+  clearInterval(recordTimer); recordTimer = null; recordedAudio = null;
+  if (recorder) { recorder.stop().catch(() => {}); recorder = null; }
+}
+async function showPlacement() {
+  placement.profileId = client.profile.id;
+  placementBusyReset();
+  const overview = await placement.overview();
+  $('placement-description').textContent = overview.set?.description_fr || 'Aucun test de niveau publié pour le moment.';
+  $('placement-limitations').textContent = overview.limitations;
+  $('placement-intro').hidden = false; $('placement-run').hidden = true; $('placement-result').hidden = true;
+  const latest = overview.latest;
+  $('placement-start').hidden = !overview.available;
+  $('placement-resume').hidden = !(latest && latest.status === 'active');
+  $('placement-status').textContent = !overview.available ? 'Le test sera disponible dès qu’un jeu de questions aura été relu et publié.'
+    : latest?.status === 'completed' ? `Dernière estimation : ${latest.result.band} (${new Date(latest.ended_at).toLocaleDateString('fr-FR')}). Vous pouvez refaire le test.`
+    : latest?.status === 'active' ? `Un test est en cours (${PHASE_LABELS[latest.phase]}).`
+    : `Environ quinze minutes. Niveau de départ : ${overview.declared_level || 'A2'} (votre niveau déclaré).`;
+  placementAttempt = latest && latest.status === 'active' ? latest : null;
+  view('placement');
+}
+async function startPlacement(resume = false) {
+  const health = await client.api('/api/health'); providerMode = health.provider_mode;
+  placementAttempt = resume && placementAttempt ? await placement.get(placementAttempt.id) : await placement.start();
+  renderPlacement(placementAttempt);
+}
+function renderPlacement(attempt) {
+  placementAttempt = attempt; placementListens = 0; placementBusyReset();
+  $('placement-intro').hidden = true;
+  if (attempt.status === 'completed') { renderPlacementResult(attempt); return; }
+  $('placement-run').hidden = false; $('placement-result').hidden = true;
+  const p = attempt.progress;
+  $('placement-phase').textContent = `${PHASE_LABELS[attempt.phase]} · étape ${attempt.phase === 'mcq' ? 1 : attempt.phase === 'listening' ? 2 : 3} / 3`;
+  $('placement-progress').textContent = attempt.phase === 'mcq' ? `Question ${p.mcq_answered + 1} · le test s’adapte à vos réponses, ${p.mcq_max} questions au plus`
+    : attempt.phase === 'listening' ? `Écoute ${p.listening_answered + 1} / ${p.listening_total} · deux écoutes maximum par extrait`
+    : `Prise de parole ${p.speaking_answered + 1} / ${p.speaking_total}`;
+  $('placement-item').replaceChildren();
+  const item = attempt.current_item;
+  const isChoice = item && (item.kind === 'mcq' || item.kind === 'listening');
+  $('placement-choice-form').hidden = !isChoice; $('placement-speaking').hidden = item?.kind !== 'speaking';
+  $('placement-quit').hidden = attempt.phase === 'mcq';
+  if (!item) return;
+  if (item.kind === 'listening') {
+    const audio = node('audio'); audio.controls = true; audio.preload = 'auto'; audio.src = placement.audioUrl(attempt, item.id);
+    audio.addEventListener('play', () => { placementListens += 1; if (placementListens > 2) { audio.pause(); audio.currentTime = 0; $('placement-progress').textContent = 'Deux écoutes effectuées : répondez maintenant.'; } });
+    const wrap = node('div', undefined, 'availability'); wrap.append(node('p', 'Écoutez l’extrait, puis répondez à la question.'), audio); wrap.lang = attempt.language.split('-')[0];
+    $('placement-item').append(wrap);
+  }
+  if (isChoice) {
+    const question = item.kind === 'mcq' ? item.stem : item.question;
+    $('placement-question').textContent = question; $('placement-question').lang = attempt.language.split('-')[0];
+    const legend = $('placement-question');
+    $('placement-options').replaceChildren(legend, ...item.options.map((option, index) => {
+      const label = node('label'); const input = node('input'); input.type = 'radio'; input.name = 'placement-option'; input.value = String(index);
+      label.append(input, document.createTextNode(` ${option}`)); label.lang = attempt.language.split('-')[0]; return label;
+    }));
+  }
+  if (item.kind === 'speaking') {
+    $('placement-speaking-fr').textContent = item.prompt_fr; $('placement-speaking-target').textContent = item.prompt_target; $('placement-speaking-target').lang = attempt.language.split('-')[0];
+    $('placement-record-status').textContent = `Visez environ ${item.target_seconds} secondes. Appuyez sur Enregistrer, parlez, puis appuyez de nouveau pour arrêter.`;
+    $('placement-record').textContent = 'Enregistrer'; $('placement-send').disabled = true;
+    $('placement-text-form').hidden = providerMode !== 'fake'; $('placement-record').hidden = providerMode === 'fake'; $('placement-send').hidden = providerMode === 'fake';
+  }
+}
+function renderPlacementResult(attempt) {
+  $('placement-run').hidden = true; $('placement-result').hidden = false;
+  const result = attempt.result;
+  $('placement-band').textContent = `${result.band} · ${LEVEL_LABELS[result.band] || ''}`;
+  $('placement-detail').textContent = describeResult(result) + ` · ${result.mcq_answered} questions, ${result.listening_answered} écoutes, ${result.speaking_answered} prises de parole.`;
+  $('placement-speaking-feedback').replaceChildren(...attempt.speaking_feedback.map(item => {
+    const card = node('article', undefined, 'card'); card.append(node('h3', `Expression orale · ${item.estimated_level} (confiance ${Math.round(item.confidence * 100)} %)`));
+    const quote = node('blockquote', item.transcript); quote.lang = attempt.language.split('-')[0]; card.append(quote);
+    for (const observation of item.observations) card.append(node('p', observation, 'muted'));
+    return card;
+  }));
+}
+async function toggleRecording() {
+  if (!recorder) {
+    recorder = new PcmRecorder(); recordedAudio = null; $('placement-send').disabled = true;
+    await recorder.start();
+    const started = Date.now();
+    $('placement-record').textContent = 'Arrêter';
+    recordTimer = setInterval(() => { $('placement-record-status').textContent = `Enregistrement… ${Math.floor((Date.now() - started) / 1000)} s`; }, 500);
+    return;
+  }
+  clearInterval(recordTimer); recordTimer = null;
+  recordedAudio = await recorder.stop(); recorder = null;
+  const seconds = Math.round(recordedAudio.byteLength / 48000);
+  $('placement-record').textContent = 'Réenregistrer';
+  $('placement-record-status').textContent = seconds < 1 ? 'Enregistrement trop court, réessayez.' : `${seconds} s enregistrées. Envoyez, ou réenregistrez.`;
+  $('placement-send').disabled = seconds < 1;
+}
 async function navigate(name) {
   if(!client.profile)return home();
-  const routes={home,cases:showCases,exam:showExam,vocab:showVocab,history:showHistory,progress:showProgress,warmup:()=>selected?view('warmup'):showCases()};
+  const routes={home,cases:showCases,exam:showExam,vocab:showVocab,history:showHistory,progress:showProgress,placement:showPlacement,warmup:()=>selected?view('warmup'):showCases()};
   await (routes[name]||home)();
 }
 async function route() { const match=location.hash.match(/^#practice\/([A-Za-z0-9_.-]+)$/);if(client.profile&&match)return showRun(await client.getRun(match[1]));return navigate(location.hash.slice(1)||'home'); }
@@ -300,11 +427,19 @@ $('next-profile').onclick=()=>{if($('draft-land').reportValidity()&&$('draft-dat
 $('back-project').onclick=()=>{onboardingStep(1,true);writeDraft();};
 $('profile-form').addEventListener('input',()=>{sourceState();writeDraft();});
 $('profile-form').addEventListener('change',()=>{sourceState();writeDraft();});
-$('profile-form').onsubmit=event=>{event.preventDefault();if($('person-step').hidden)return;if(!$('draft-land').value){onboardingStep(1);$('draft-land').reportValidity();return;}if(!$('draft-specialty').reportValidity())return;const draft=writeDraft();perform(async()=>{if(!client.profile){await client.restoreProfile();if(!client.profile)await client.createProfile($('target').value);try{localStorage.setItem(localKey(),JSON.stringify(draft));localStorage.removeItem('ari:onboarding:v3:anonymous');}catch{}}else if(client.profile.goal.target_cefr!==$('target').value){await client.api(`/api/learners/${encodeURIComponent(client.profile.id)}/goal`,{method:'PATCH',body:JSON.stringify({target_cefr:$('target').value})});await client.restoreProfile();}await home();});};
+$('profile-form').onsubmit=event=>{event.preventDefault();if($('person-step').hidden)return;if(!$('draft-land').value){onboardingStep(1);$('draft-land').reportValidity();return;}if(!$('draft-specialty').reportValidity())return;const draft=writeDraft();const details=profileDetails();perform(async()=>{const created=!client.profile;if(!client.profile){await client.restoreProfile();if(!client.profile)await client.createProfile($('target').value,details);try{localStorage.setItem(localKey(),JSON.stringify(draft));localStorage.removeItem('ari:onboarding:v3:anonymous');}catch{}}if(!created||client.profile.details?.declared_level!==details.declared_level){await client.updateProfile(details);}if(client.profile.goal.target_cefr!==$('target').value){await client.api(`/api/learners/${encodeURIComponent(client.profile.id)}/goal`,{method:'PATCH',body:JSON.stringify({target_cefr:$('target').value})});await client.restoreProfile();}if(created&&!client.profile.details?.estimated_level){await showPlacement();return;}await home();});};
 $('goal-form').onsubmit=event=>{event.preventDefault();perform(async()=>{await client.api(`/api/learners/${encodeURIComponent(client.profile.id)}/goal`,{method:'PATCH',body:JSON.stringify({target_cefr:$('goal-target').value})});await client.restoreProfile();await home();});};
 $('edit-profile').onclick=()=>{restoreDraft();history.replaceState(null,'','#onboarding');view('onboarding',false);};
 $('case-search').oninput=renderCatalog;$('case-filter').onchange=renderCatalog;document.querySelectorAll('[name=mode]').forEach(input=>input.onchange=renderCatalog);
 $('warmup-start').onclick=()=>perform(startSelected);
+$('placement-start').onclick=()=>perform(()=>startPlacement(false));
+$('placement-resume').onclick=()=>perform(()=>startPlacement(true));
+$('placement-again').onclick=()=>perform(()=>startPlacement(false));
+$('placement-choice-form').onsubmit=event=>{event.preventDefault();const chosen=document.querySelector('[name=placement-option]:checked');if(!chosen){$('notice').textContent='Choisissez une réponse.';return;}const attempt=placementAttempt;perform(async()=>renderPlacement(await placement.answer(attempt,attempt.current_item.id,Number(chosen.value))));};
+$('placement-record').onclick=()=>perform(toggleRecording);
+$('placement-send').onclick=()=>{const attempt=placementAttempt,audio=recordedAudio;perform(async()=>renderPlacement(await placement.speak(attempt,attempt.current_item.id,{audio})));};
+$('placement-text-form').onsubmit=event=>{event.preventDefault();const attempt=placementAttempt,text=$('placement-text').value.trim();if(!text)return;perform(async()=>{$('placement-text').value='';renderPlacement(await placement.speak(attempt,attempt.current_item.id,{text}));});};
+$('placement-quit').onclick=()=>{const attempt=placementAttempt;perform(async()=>{await client.restoreProfile();renderPlacement(await placement.finish(attempt));await client.restoreProfile();});};
 $('review-form').onsubmit=event=>{event.preventDefault();if(reviewEntry)revealReview($('review-input').value);};
 $('review-reveal').onclick=()=>{if(reviewEntry)revealReview('');};
 $('vocab-add-form').onsubmit=event=>{event.preventDefault();if(!$('add-lemma').reportValidity())return;const lemma=$('add-lemma').value,translation=$('add-translation').value,example=$('add-example').value;perform(async()=>{await lexicon.add(lemma,translation,example);$('vocab-add-form').reset();await showVocab();});};

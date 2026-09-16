@@ -12,6 +12,7 @@ from ari.domain.models import (
     ConversationSession,
     ConversationTurn,
     ExecutionRecord,
+    LearnerDetails,
     LearnerProfile,
     LearningGoal,
     LearningMode,
@@ -57,17 +58,27 @@ class ConversationOrchestrator:
         # Without a lexicon service the analysis completes; nothing carries across sessions.
         self._lexicon = lexicon
 
-    def create_learner(self, target_cefr: object) -> LearnerProfile:
+    def create_learner(
+        self, target_cefr: object, details: LearnerDetails | None = None
+    ) -> LearnerProfile:
         from ari.domain.models import CEFRLevel
 
         level = target_cefr if isinstance(target_cefr, CEFRLevel) else CEFRLevel(str(target_cefr))
         return self.repository.create_learner(
-            LearnerProfile(id=new_id(), goal=LearningGoal(target_cefr=level))
+            LearnerProfile(
+                id=new_id(),
+                goal=LearningGoal(target_cefr=level),
+                details=details or LearnerDetails(),
+            )
         )
 
     def update_goal(self, learner_id: str, goal: LearningGoal) -> LearnerProfile:
         current = self.repository.get_learner(learner_id)
         return self.repository.update_learner(replace(current, goal=goal))
+
+    def update_details(self, learner_id: str, details: LearnerDetails) -> LearnerProfile:
+        current = self.repository.get_learner(learner_id)
+        return self.repository.update_learner(replace(current, details=details))
 
     def create_session(
         self,

@@ -1,24 +1,56 @@
 from __future__ import annotations
 
-from typing import Literal
+from datetime import date
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ari.domain.clinical import Identifier
-from ari.domain.models import CEFRLevel, LearningMode
+from ari.domain.models import CEFRLevel, LearnerDetails, LearningMode
 
 
 class ApiModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+TargetLevel = Literal["B2", "C1"]  # The working goal inside ARI stays B2 or C1.
+
+
+class UpdateProfileRequest(ApiModel):
+    """Declared facts about the learner. Only the fields sent are changed."""
+
+    declared_level: CEFRLevel | None = None
+    level_source: Literal["self", "certificate"] = "self"
+    certificate_kind: Annotated[str, Field(max_length=80)] | None = None
+    certificate_date: date | None = None
+    exam_date: date | None = None
+    minutes_per_day: Annotated[int, Field(ge=5, le=240)] = 30
+    land: Annotated[str, Field(max_length=40)] | None = None
+    situation: Literal["doctor", "student"] | None = None
+    specialty: Annotated[str, Field(max_length=120)] | None = None
+
+    def apply(self, current: LearnerDetails) -> LearnerDetails:
+        changes = self.model_dump(exclude_unset=True)
+        # Estimated level and its provenance come only from a placement attempt.
+        return LearnerDetails(
+            **{
+                **{
+                    name: getattr(current, name)
+                    for name in LearnerDetails.__dataclass_fields__  # type: ignore[attr-defined]
+                },
+                **changes,
+            }
+        )
+
+
 class CreateLearnerRequest(ApiModel):
-    target_cefr: CEFRLevel = CEFRLevel.C1
+    target_cefr: TargetLevel = "C1"
+    details: UpdateProfileRequest | None = None
 
 
 class UpdateGoalRequest(ApiModel):
     target_exam: Literal["FSP"] = "FSP"
-    target_cefr: CEFRLevel
+    target_cefr: TargetLevel
     rubric_version: str = "fsp-anamnesis-v1"
 
 

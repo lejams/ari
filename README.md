@@ -28,8 +28,15 @@ creates a local profile, then practises with published, versioned clinical conte
   disclosure the doctor should acknowledge). The trigger is deterministic; only the
   verdict on the learner's next turn is asked of the LLM, with the turn as evidence.
   Each feedback ends with at most three next actions derived from these signals.
+- **Profile and placement test**: the onboarding facts (declared level, certificate,
+  exam date, minutes per day, Land, specialty) live in the learner profile. A short
+  placement test (`placement-staircase-v1`: adaptive MCQ, four listening items read by
+  the TTS provider, two spoken tasks transcribed and rated by the LLM) yields an
+  *estimated* level per skill and an overall band stored as `estimated_level`. Its
+  content is a separate registry bundle (`ari-placement-bundle-v1`) with one linguistic
+  review; see `docs/CLINICAL_CASES.md`.
 - History and progression, separated by content version, rubric, method and mode.
-  No overall score, no measured CEFR level, no certification.
+  No overall score, no certified CEFR level, no certification.
 
 Without published content the catalogue is empty. Content enters through the clinical
 registry (import, two human reviews, publication), never through code.
@@ -149,7 +156,8 @@ off-topic requests are answered in character in both modes.
 Content is a YAML `ari-clinical-bundle-v1` document (see `docs/CLINICAL_CASES.md`)
 with sources, rubrics, terminology, cases and scenarios. `python -m
 ari.infrastructure.cases.cli --help` validates, imports, inspects, records human
-reviews, publishes and withdraws. Publication requires compatible source rights and one
+reviews, publishes and withdraws. The `placement` subcommands do the same for
+`ari-placement-bundle-v1` documents, with a single linguistic review. Publication requires compatible source rights and one
 clinical plus one linguistic approval of the exact hashes. Content rows are immutable
 (SQLite triggers). See `docs/CLINICAL_REVIEW_FR.md` for the review procedure.
 
@@ -164,7 +172,11 @@ a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connect
 ## API
 
 - `POST /api/learners`, `GET /api/profile`, `DELETE /api/profile`
-- `GET/PATCH /api/learners/{id}/goal`, `GET /api/learners/{id}/sessions`
+- `GET/PATCH /api/learners/{id}/goal`, `PATCH /api/learners/{id}/profile`,
+  `GET /api/learners/{id}/sessions`
+- `GET /api/placement`, `POST /api/placement/attempts`, `GET /api/placement/attempts/{id}`,
+  `POST .../answers`, `GET .../items/{item_id}/audio` (WAV), `POST .../speaking/{item_id}`
+  (PCM16 24 kHz body, `X-Event-Id` header; `text/plain` in fake mode), `POST .../finish`
 - `GET /api/cases`
 - `POST /api/sessions`, `GET /api/sessions/{id}`, `POST /api/sessions/{id}/end`,
   `POST /api/sessions/{id}/analysis/retry`

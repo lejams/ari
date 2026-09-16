@@ -16,9 +16,11 @@ from ari.api.dto import (
     CreateLearnerRequest,
     CreateSessionRequest,
     UpdateGoalRequest,
+    UpdateProfileRequest,
 )
 from ari.api.lexicon import lexicon_router, public_report
 from ari.api.ownership import PROFILE_COOKIE, OwnershipMiddleware
+from ari.api.placement import placement_router
 from ari.api.practice import practice_router
 from ari.api.realtime_socket import RealtimeVoiceSocket
 from ari.api.voice_session_dto import public_session
@@ -27,6 +29,8 @@ from ari.config import Settings, get_settings
 from ari.container import Container, build_container
 from ari.domain.errors import AriError, InvalidStateError, NotFoundError, ProviderError
 from ari.domain.models import (
+    CEFRLevel,
+    LearnerDetails,
     LearningGoal,
     MedicalCase,
     SessionStatus,
@@ -66,6 +70,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     app.state.container = services
     app.include_router(practice_router(services))
     app.include_router(lexicon_router(services))
+    app.include_router(placement_router(services))
 
     def _session_view(session_id: str) -> Any:
         session = services.repository.get_session(session_id)
@@ -121,7 +126,10 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     ) -> Any:
         if request.state.learner_id:
             return _payload(services.repository.get_learner(request.state.learner_id))
-        learner = services.orchestrator.create_learner(body.target_cefr)
+        learner = services.orchestrator.create_learner(
+            body.target_cefr,
+            details=body.details.apply(LearnerDetails()) if body.details else None,
+        )
         token = credentials.issue(learner.id)
         response.set_cookie(
             PROFILE_COOKIE,
@@ -155,8 +163,15 @@ def create_app(container: Container | None = None, settings: Settings | None = N
 
     @app.patch("/api/learners/{learner_id}/goal")
     async def update_goal(learner_id: str, body: UpdateGoalRequest) -> Any:
-        goal = LearningGoal(body.target_exam, body.target_cefr, body.rubric_version)
+        goal = LearningGoal(body.target_exam, CEFRLevel(body.target_cefr), body.rubric_version)
         return _payload(services.orchestrator.update_goal(learner_id, goal).goal)
+
+    @app.patch("/api/learners/{learner_id}/profile")
+    async def update_profile(learner_id: str, body: UpdateProfileRequest) -> Any:
+        current = services.repository.get_learner(learner_id)
+        return _payload(
+            services.orchestrator.update_details(learner_id, body.apply(current.details))
+        )
 
     @app.post("/api/sessions", status_code=201)
     async def create_session(body: CreateSessionRequest, request: Request) -> Any:
