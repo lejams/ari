@@ -58,6 +58,8 @@ def weighted_assessment(session: ConversationSession, case: MedicalCase) -> list
         results.append(
             {
                 "criterion_id": dimension.id,
+                "label": dimension.label,
+                "max_score": dimension.max_score,
                 "score": round(score, 6),
                 "evidence_turn_sequences": sorted(evidence),
                 "feedback": f"Évaluation pondérée: {earned:g}/{total_weight:g} poids satisfaits.",

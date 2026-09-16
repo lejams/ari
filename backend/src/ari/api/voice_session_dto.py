@@ -134,6 +134,8 @@ def public_session(session: ConversationSession) -> dict[str, Any]:
                 name: jsonable_encoder(item[name])
                 for name in (
                     "criterion_id",
+                    "label",
+                    "max_score",
                     "score",
                     "evidence_turn_sequences",
                     "feedback",
