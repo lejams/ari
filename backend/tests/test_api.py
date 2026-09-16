@@ -223,8 +223,8 @@ def test_successful_stt_trace_survives_patient_failure(container: Container) -> 
         LLMBackedEvaluator(
             FakeLLMProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v4.txt",
-                "evaluation-v4",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v5.txt",
+                "evaluation-v5",
             ),
             "fr-FR",
         ),
