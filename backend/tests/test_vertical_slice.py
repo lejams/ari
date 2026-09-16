@@ -153,8 +153,8 @@ async def test_unexpected_analysis_failure_is_retryable(container: Container) ->
         PatientSimulator(
             FakeLLMProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "patient_v2.txt",
-                "patient-v2",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "patient_v3.txt",
+                "patient-v3",
             ),
         ),
         ExplodingEvaluator(),  # type: ignore[arg-type]

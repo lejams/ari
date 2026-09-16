@@ -159,7 +159,7 @@ async def test_v2_evaluation_delivery_and_pinned_terminology(container: Containe
     )
     analyzed = (await container.orchestrator.end_session(session.id)).session
     assert analyzed.evaluation is not None
-    assert analyzed.evaluation.schema_version == "session-evaluation-v2"
+    assert analyzed.evaluation.schema_version == "session-evaluation-v3"
     assert analyzed.evaluation.criteria[0]["scoring_version"] == "assessment-weighted-v1"
     clinical = next(
         c for c in analyzed.evaluation.criteria if c["criterion_id"] == "clinical_coverage"

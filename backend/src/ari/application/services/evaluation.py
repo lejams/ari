@@ -10,12 +10,17 @@ from ari.application.schemas import EvaluationOutputSchema
 from ari.application.services.assessment import weighted_assessment
 from ari.domain.errors import ProviderError
 from ari.domain.models import (
+    CodeSwitch,
     ConversationSession,
     Evaluation,
     EvidenceObservation,
     ExecutionStatus,
     MedicalCase,
 )
+
+# v3: qualitative code switches and vocabulary candidate kinds. Deterministic criteria
+# and their scoring method are unchanged from v2.
+EVALUATION_SCHEMA_VERSION = "session-evaluation-v3"
 
 
 class LLMBackedEvaluator:
@@ -36,6 +41,7 @@ class LLMBackedEvaluator:
                     if item.provider_response_status != "completed"
                     else item.patient_text
                 ),
+                "patient_response_kind": item.patient_response_kind,
                 "revealed_fact_ids": list(item.revealed_fact_ids),
             }
             for item in session.turns
@@ -120,6 +126,9 @@ class LLMBackedEvaluator:
             for observation in observations:
                 if set(observation.evidence_turn_sequences) - valid_turns:
                     raise reject("Evaluation observation references an unknown transcript turn")
+        for code_switch in result.value.code_switches:
+            if code_switch.turn not in valid_turns:
+                raise reject("Code switch references an unknown transcript turn")
 
         revealed_fact_ids = frozenset(
             fact_id for turn in session.turns for fact_id in turn.revealed_fact_ids
@@ -129,7 +138,7 @@ class LLMBackedEvaluator:
         overall = float(sum(cast(float, item["score"]) for item in criteria_payload))
         maximum = float(sum(item.max_score for item in case.rubric))
         evaluation = Evaluation(
-            schema_version="session-evaluation-v2",
+            schema_version=EVALUATION_SCHEMA_VERSION,
             prompt_version=self._prompt.version,
             rubric_version=case.rubric_version,
             overall_score=overall,
@@ -149,6 +158,10 @@ class LLMBackedEvaluator:
                 for item in result.value.language_errors
             ),
             criteria=tuple(criteria_payload),
+            code_switches=tuple(
+                CodeSwitch(item.turn, item.fragment, item.intended_german)
+                for item in result.value.code_switches
+            ),
         )
         return EvaluationOutcome(
             evaluation=evaluation,

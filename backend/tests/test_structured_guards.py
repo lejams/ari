@@ -7,14 +7,20 @@ from pydantic import BaseModel, ValidationError
 
 from ari.application.contracts import LLMRequest, ProviderResult
 from ari.application.prompting import load_prompt
-from ari.application.schemas import PatientResponseSchema
+from ari.application.schemas import EvaluationOutputSchema, PatientResponseSchema
 from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
 from ari.application.services.patient import PatientSimulator
 from ari.config import PROJECT_ROOT
 from ari.container import Container
 from ari.domain.errors import ProviderError
-from ari.domain.models import CEFRLevel, ExecutionRecord, ExecutionStatus, new_id
+from ari.domain.models import (
+    CEFRLevel,
+    ExecutionRecord,
+    ExecutionStatus,
+    SessionStatus,
+    new_id,
+)
 from ari.infrastructure.providers.fake import FakeLLMProvider
 
 T = TypeVar("T", bound=BaseModel)
@@ -79,8 +85,8 @@ class InventingProvider:
 @pytest.mark.asyncio
 async def test_invented_case_fact_is_rejected_and_traced(container: Container) -> None:
     prompt = load_prompt(
-        PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "patient_v2.txt",
-        "patient-v2",
+        PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "patient_v3.txt",
+        "patient-v3",
     )
     guarded = ConversationOrchestrator(
         container.repository,
@@ -89,8 +95,8 @@ async def test_invented_case_fact_is_rejected_and_traced(container: Container) -
         LLMBackedEvaluator(
             FakeLLMProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v2.txt",
-                "evaluation-v2",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v3.txt",
+                "evaluation-v3",
             ),
             "fr-FR",
         ),
@@ -112,3 +118,65 @@ async def test_invented_case_fact_is_rejected_and_traced(container: Container) -
     assert len(persisted.executions) == 1
     assert persisted.executions[0].status is ExecutionStatus.FAILED
     assert persisted.executions[0].error_code == "structured_output_guard"
+
+
+def test_wrong_language_response_cannot_reference_case_sources() -> None:
+    with pytest.raises(ValidationError):
+        PatientResponseSchema.model_validate(
+            {"response_kind": "wrong_language", "source_refs": ["fact:symptom.location"]}
+        )
+    assert (
+        PatientResponseSchema.model_validate({"response_kind": "wrong_language"}).source_refs == []
+    )
+
+
+class CodeSwitchInventingProvider(FakeLLMProvider):
+    """Deterministic fake, except code switches point at a turn that never happened."""
+
+    async def generate_structured(
+        self, request: LLMRequest, response_model: type[T]
+    ) -> ProviderResult[T]:
+        result = await super().generate_structured(request, response_model)
+        if response_model is EvaluationOutputSchema:
+            payload = result.value.model_dump()
+            payload["code_switches"] = [
+                {"turn": 99, "fragment": "invented", "intended_german": None}
+            ]
+            return ProviderResult(response_model.model_validate(payload), result.execution)
+        return result
+
+
+@pytest.mark.asyncio
+async def test_code_switch_on_unknown_turn_is_rejected_and_traced(container: Container) -> None:
+    guarded = ConversationOrchestrator(
+        container.repository,
+        container.cases,
+        PatientSimulator(
+            FakeLLMProvider(),
+            load_prompt(
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "patient_v3.txt",
+                "patient-v3",
+            ),
+        ),
+        LLMBackedEvaluator(
+            CodeSwitchInventingProvider(),
+            load_prompt(
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v3.txt",
+                "evaluation-v3",
+            ),
+            "fr-FR",
+        ),
+        container.voice_stack,
+    )
+    learner = guarded.create_learner(CEFRLevel.C1)
+    case = container.cases.list()[0]
+    session = guarded.create_session(learner.id, case.id, case.version)
+    guarded.activate(session.id)
+    await guarded.process_transcript(session.id, "Seit wann haben Sie Schmerzen?")
+
+    with pytest.raises(ProviderError, match="unknown transcript turn"):
+        await guarded.end_session(session.id)
+
+    persisted = container.repository.get_session(session.id)
+    assert persisted.status is SessionStatus.ANALYSIS_FAILED
+    assert any(e.error_code == "structured_output_guard" for e in persisted.executions)

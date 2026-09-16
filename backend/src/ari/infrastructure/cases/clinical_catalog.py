@@ -13,6 +13,7 @@ from ari.domain.models import (
     MedicalCase,
     MedicalFact,
     RubricCriterion,
+    TerminologyTerm,
 )
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.persistence.clinical_rows import ScenarioRow, scenario_snapshot
@@ -65,6 +66,7 @@ class ClinicalCatalog:
     def _runtime(self, db: Session, row: ScenarioRow) -> MedicalCase:
         bundle = self.store._bundle(db, row)
         case, scenario, rubric = bundle.cases[0], bundle.scenarios[0], bundle.rubrics[0]
+        terminology = bundle.terminology_sets[0]
         return MedicalCase(
             id=case.id,
             version=case.version,
@@ -122,4 +124,8 @@ class ClinicalCatalog:
             ),
             training_snapshot=MappingProxyType(scenario_snapshot(row)),
             available_for_new_sessions=row.status == "published",
+            terminology=tuple(
+                TerminologyTerm(id=t.id, german=t.german, french=t.french)
+                for t in terminology.entries
+            ),
         )

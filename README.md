@@ -16,6 +16,13 @@ creates a local profile, then practises with published, versioned clinical conte
   them. The transcript stays hidden until the session ends.
 - **Arzt–Arzt** and **Fachbegriffe**: deterministic text exercises with authored answer
   variants. No AI call is involved.
+- **Personal lexicon**: every analysed voice session feeds a per-learner word list
+  (evaluator candidates tagged missing or misused, case terms the learner never used,
+  words said in another language) with spaced-repetition review (`srs-sm2-v1`). A word
+  is promoted to *used* only when the learner says it spontaneously in a later session,
+  and to *mastered* after two such sessions and three successful reviews. In training a
+  question asked in another language than the case gets the authored off-topic answer
+  and is recorded as `wrong_language`, never a fact.
 - History and progression, separated by content version, rubric, method and mode.
   No overall score, no measured CEFR level, no certification.
 
@@ -57,8 +64,10 @@ ARI_STT_API_KEY=<same OpenAI key>
 
 `make dev-fr` runs `python -m ari.demo --provider openai --database var/dev-fr.db
 --bundles cases/dev`: the database persists between runs so history and progression
-accumulate, and re-seeding an existing database is a no-op. Everything downstream follows
-the case language (Whisper, Realtime transcription, patient and evaluation prompts).
+accumulate, and re-seeding an existing database is a no-op. When the single migration
+has been regenerated since the file was created, the demo refuses to start and asks you
+to delete `var/dev-fr.db`. Everything downstream follows the case language (Whisper,
+Realtime transcription, patient and evaluation prompts).
 Nothing changes for learners: the platform database only holds content published through
 the registry, and only German cases are published there.
 
@@ -160,6 +169,10 @@ a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connect
   `push_to_talk` (training) or `open_microphone` (exam, frames stream continuously).
 - `GET /api/exercises`, `POST /api/practice/runs`, `GET /api/practice/runs/{id}`,
   `POST /api/practice/runs/{id}/{answers|pause|resume|finish}`
+- `GET /api/lexicon`, `POST /api/lexicon/entries`, `PATCH /api/lexicon/entries/{id}`
+  (archive), `POST /api/lexicon/entries/{id}/reviews` (idempotent per `event_id`).
+  A completed session's `GET /api/sessions/{id}` carries `lexicon` (words added and
+  promoted by that session) and `evaluation.code_switches`.
 - `GET /api/history`, `GET /api/progression`
 
 ## Quality checks
@@ -184,7 +197,10 @@ pnpm --dir web test:e2e
 
 - The pipeline is single-process: voice connection state lives in memory, so run one
   worker. SQLite has a single writer.
-- No pronunciation scoring; vocabulary entries are candidates, never "mastered".
+- No pronunciation scoring. Lexicon promotions are lexical (a token starting with the
+  term, short inflection allowed), not a judgement of correct usage; the LLM only
+  proposes candidates and flags code switches. In exam mode the speech model refuses
+  other languages in character, but the turn is not tagged `wrong_language`.
 - Text exercises match whole answers after normalisation; unrecognised phrasings are
   reported as unrecognised, not as wrong.
 - All shipped content is synthetic. Real cases require human clinical and linguistic

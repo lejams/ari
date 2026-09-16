@@ -35,7 +35,9 @@ test-backend:
 test-web:
 	$(NODE) --check web/practice-client.mjs
 	$(NODE) --check web/practice-ui.mjs
+	$(NODE) --check web/lexicon-client.mjs
 	$(NODE) web/tests/practice-client.test.mjs
+	$(NODE) web/tests/lexicon-client.test.mjs
 	$(NODE) --check web/app.js
 	$(NODE) --check web/pcm-worklet.js
 	$(NODE) web/tests/pcm-resampler.test.mjs

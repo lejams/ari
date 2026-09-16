@@ -23,7 +23,7 @@ class OwnershipMiddleware:
         connection = HTTPConnection(scope)
         path = connection.url.path
         protected = path.startswith(
-            ("/api/learners/", "/api/sessions", "/ws/sessions/", "/api/practice/")
+            ("/api/learners/", "/api/sessions", "/ws/sessions/", "/api/practice/", "/api/lexicon")
         ) or path in (
             "/api/profile",
             "/api/progression",

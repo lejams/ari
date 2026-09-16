@@ -17,6 +17,7 @@ from ari.api.dto import (
     CreateSessionRequest,
     UpdateGoalRequest,
 )
+from ari.api.lexicon import lexicon_router, public_report
 from ari.api.ownership import PROFILE_COOKIE, OwnershipMiddleware
 from ari.api.practice import practice_router
 from ari.api.realtime_socket import RealtimeVoiceSocket
@@ -64,6 +65,19 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     app = FastAPI(title="ARI FSP POC", version="0.1.0")
     app.state.container = services
     app.include_router(practice_router(services))
+    app.include_router(lexicon_router(services))
+
+    def _session_view(session_id: str) -> Any:
+        session = services.repository.get_session(session_id)
+        result = public_session(session)
+        # The lexicon report is only shown once the analysis is complete.
+        result["lexicon"] = (
+            public_report(services.lexicon.repository.get_report(session_id))
+            if session.status is SessionStatus.COMPLETED
+            else None
+        )
+        return result
+
     credentials = ProfileCredentials(services.repository.engine)
     app.add_middleware(
         OwnershipMiddleware,
@@ -179,7 +193,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
 
     @app.get("/api/sessions/{session_id}")
     async def get_session(session_id: str) -> Any:
-        return public_session(services.repository.get_session(session_id))
+        return _session_view(session_id)
 
     @app.post("/api/sessions/{session_id}/end")
     async def end_session(session_id: str) -> Any:
@@ -195,7 +209,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                 raise InvalidStateError("Voice session is still being finalized") from exc
         async with analysis_locks.setdefault(session_id, asyncio.Lock()):
             await services.orchestrator.end_session(session_id)
-            return public_session(services.repository.get_session(session_id))
+            return _session_view(session_id)
 
     @app.post("/api/sessions/{session_id}/analysis/retry")
     async def retry_analysis(session_id: str) -> Any:
@@ -208,7 +222,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             raise InvalidStateError(f"Cannot retry analysis for a {session.status} session")
         async with analysis_locks.setdefault(session_id, asyncio.Lock()):
             await services.orchestrator.end_session(session_id)
-            return public_session(services.repository.get_session(session_id))
+            return _session_view(session_id)
 
     @app.get("/api/learners/{learner_id}/sessions")
     async def list_sessions(learner_id: str) -> Any:

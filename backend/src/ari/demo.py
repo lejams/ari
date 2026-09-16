@@ -19,6 +19,7 @@ import uvicorn
 from alembic import command
 from alembic.config import Config
 from pydantic_settings import SettingsConfigDict
+from sqlalchemy import Engine, inspect
 
 from ari.api.app import create_app
 from ari.config import PROJECT_ROOT, Settings
@@ -26,7 +27,7 @@ from ari.domain.clinical import CaseReview, ClinicalBundle, VersionRef
 from ari.domain.models import new_id
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.yaml_io import parse_bundle
-from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
+from ari.infrastructure.persistence.sqlite import Base, SqliteSessionRepository
 
 DEMO_BUNDLES = PROJECT_ROOT / "cases" / "demo"
 DEV_BUNDLES = PROJECT_ROOT / "cases" / "dev"
@@ -72,6 +73,21 @@ def publish_demo_content(store: ClinicalStore, bundle: ClinicalBundle) -> None:
         store.publish(scenario.id, scenario.version, actor=DEMO_ACTOR)
 
 
+def _ensure_schema(engine: Engine, database_url: str) -> None:
+    """The single revision is regenerated while no real database exists (docs/MIGRATIONS.md).
+
+    A persistent development database created by an older `0001_initial` reports itself as
+    current yet lacks the newer tables; fail early with the remedy instead of at first use.
+    """
+    missing = set(Base.metadata.tables) - set(inspect(engine).get_table_names())
+    if missing:
+        raise SystemExit(
+            f"Base {database_url} créée par une ancienne révision (tables manquantes : "
+            f"{', '.join(sorted(missing))}). Supprimez ce fichier et relancez : la démo le "
+            "recrée et republie le contenu synthétique."
+        )
+
+
 def seed_bundles(store: ClinicalStore, directory: Path) -> None:
     for path in sorted(directory.glob("*.yaml")):
         publish_demo_content(store, parse_bundle(path.read_text(encoding="utf-8")))
@@ -83,7 +99,9 @@ def serve(
     config = Config(PROJECT_ROOT / "alembic.ini")
     config.attributes["database_url"] = database_url
     command.upgrade(config, "head")
-    seed_bundles(ClinicalStore(SqliteSessionRepository(database_url).engine), bundles)
+    engine = SqliteSessionRepository(database_url).engine
+    _ensure_schema(engine, database_url)
+    seed_bundles(ClinicalStore(engine), bundles)
     # Live providers read their keys from `.env`; the offline demo stays hermetic.
     settings_class: type[Settings] = Settings if provider == "openai" else DemoSettings
     settings = settings_class(

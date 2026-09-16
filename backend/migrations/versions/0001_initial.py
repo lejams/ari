@@ -2,7 +2,7 @@
 
 Revision ID: 0001_initial
 Revises:
-Create Date: 2026-09-14 22:32:24.713812
+Create Date: 2026-09-16 11:53:49.056340
 """
 
 from collections.abc import Sequence
@@ -124,6 +124,33 @@ def upgrade() -> None:
         ["case_id", "case_version", "phase"],
         unique=True,
         sqlite_where=sa.text("status = 'published'"),
+    )
+    op.create_table(
+        "learner_lexicon",
+        sa.Column("id", sa.String(), nullable=False),
+        sa.Column("learner_id", sa.String(), nullable=False),
+        sa.Column("lemma_key", sa.String(), nullable=False),
+        sa.Column("lemma", sa.String(), nullable=False),
+        sa.Column("translation", sa.String(), nullable=False),
+        sa.Column("example", sa.Text(), nullable=False),
+        sa.Column("source", sa.String(), nullable=False),
+        sa.Column("state", sa.String(), nullable=False),
+        sa.Column("srs", sa.JSON(), nullable=False),
+        sa.Column("first_session_id", sa.String(), nullable=True),
+        sa.Column("last_session_id", sa.String(), nullable=True),
+        sa.Column("used_session_ids", sa.JSON(), nullable=False),
+        sa.Column("archived", sa.Boolean(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["learner_id"],
+            ["learners.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("learner_id", "lemma_key", name="uq_lexicon_learner_lemma"),
+    )
+    op.create_index(
+        op.f("ix_learner_lexicon_learner_id"), "learner_lexicon", ["learner_id"], unique=False
     )
     op.create_table(
         "practice_runs",
@@ -275,6 +302,23 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_executions_session_id"), "executions", ["session_id"], unique=False)
     op.create_table(
+        "lexicon_reviews",
+        sa.Column("id", sa.String(), nullable=False),
+        sa.Column("entry_id", sa.String(), nullable=False),
+        sa.Column("event_id", sa.String(), nullable=False),
+        sa.Column("rating", sa.String(), nullable=False),
+        sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["entry_id"],
+            ["learner_lexicon.id"],
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("entry_id", "event_id", name="uq_lexicon_review_event"),
+    )
+    op.create_index(
+        op.f("ix_lexicon_reviews_entry_id"), "lexicon_reviews", ["entry_id"], unique=False
+    )
+    op.create_table(
         "practice_answers",
         sa.Column("run_id", sa.String(), nullable=False),
         sa.Column("question_id", sa.String(), nullable=False),
@@ -288,6 +332,16 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("run_id", "question_id"),
         sa.UniqueConstraint("run_id", "event_id", name="uq_practice_answer_event"),
         sa.UniqueConstraint("run_id", "sequence", name="uq_practice_answer_sequence"),
+    )
+    op.create_table(
+        "session_lexicon_reports",
+        sa.Column("session_id", sa.String(), nullable=False),
+        sa.Column("payload", sa.JSON(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["session_id"],
+            ["sessions.id"],
+        ),
+        sa.PrimaryKeyConstraint("session_id"),
     )
     op.create_table(
         "session_metrics",
@@ -320,6 +374,7 @@ def upgrade() -> None:
         sa.Column("audio_started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("audio_delivered_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("patient_response_kind", sa.String(), nullable=False),
         sa.ForeignKeyConstraint(
             ["session_id"],
             ["sessions.id"],
@@ -345,6 +400,7 @@ def upgrade() -> None:
         sa.Column("evidence_turn_sequences", sa.JSON(), nullable=False),
         sa.Column("state", sa.String(), nullable=False),
         sa.Column("confidence", sa.Float(), nullable=False),
+        sa.Column("kind", sa.String(), nullable=False),
         sa.ForeignKeyConstraint(
             ["session_id"],
             ["sessions.id"],
@@ -401,7 +457,10 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_turns_provider_response_id"), table_name="turns")
     op.drop_table("turns")
     op.drop_table("session_metrics")
+    op.drop_table("session_lexicon_reports")
     op.drop_table("practice_answers")
+    op.drop_index(op.f("ix_lexicon_reviews_entry_id"), table_name="lexicon_reviews")
+    op.drop_table("lexicon_reviews")
     op.drop_index(op.f("ix_executions_session_id"), table_name="executions")
     op.drop_table("executions")
     op.drop_table("evaluations")
@@ -413,6 +472,8 @@ def downgrade() -> None:
     op.drop_table("sessions")
     op.drop_table("profile_credentials")
     op.drop_table("practice_runs")
+    op.drop_index(op.f("ix_learner_lexicon_learner_id"), table_name="learner_lexicon")
+    op.drop_table("learner_lexicon")
     op.drop_index(
         "uq_clinical_published_case_phase",
         table_name="clinical_scenarios",
@@ -511,6 +572,7 @@ def _create_sqlite_triggers() -> None:
     for prefix, table, message in (
         ("voice_learning", "voice_learning_context", "Immutable learning mode"),
         ("voice_start", "voice_start_requests", "Immutable start request"),
+        ("lexicon_review", "lexicon_reviews", "Immutable review event"),
     ):
         for action in ("UPDATE", "DELETE"):
             _abort(f"{prefix}_no_{action.lower()}", action, table, message)

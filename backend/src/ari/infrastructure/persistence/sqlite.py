@@ -26,6 +26,7 @@ from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.models import (
     AudioDeliveryStatus,
     CEFRLevel,
+    CodeSwitch,
     ConversationSession,
     ConversationTurn,
     Evaluation,
@@ -35,6 +36,7 @@ from ari.domain.models import (
     LearnerProfile,
     LearningGoal,
     LearningMode,
+    PatientResponseKind,
     SessionMetrics,
     SessionStatus,
     TurnResponseState,
@@ -49,6 +51,7 @@ from ari.infrastructure.persistence.clinical_rows import (
     scenario_snapshot,
 )
 from ari.infrastructure.persistence.identity import ProfileCredentialRow as ProfileCredentialRow
+from ari.infrastructure.persistence.lexicon_rows import LexiconEntryRow as LexiconEntryRow
 from ari.infrastructure.persistence.practice_rows import PracticeRunRow as PracticeRunRow
 from ari.infrastructure.persistence.voice_learning import VoiceLearningRow, VoiceStartRow
 
@@ -109,6 +112,9 @@ class TurnRow(Base):
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    patient_response_kind: Mapped[str] = mapped_column(
+        String, default=PatientResponseKind.SOURCES.value
+    )
 
 
 class EvaluationRow(Base):
@@ -133,6 +139,7 @@ class VocabularyRow(Base):
     evidence_turn_sequences: Mapped[list[int]] = mapped_column(JSON, default=list)
     state: Mapped[str] = mapped_column(String)
     confidence: Mapped[float]
+    kind: Mapped[str] = mapped_column(String, default="missing")
 
 
 class ExecutionRow(Base):
@@ -437,6 +444,7 @@ class SqliteSessionRepository:
                     audio_started_at=turn.audio_started_at,
                     audio_delivered_at=turn.audio_delivered_at,
                     created_at=turn.created_at,
+                    patient_response_kind=turn.patient_response_kind,
                 )
             )
             db.commit()
@@ -475,6 +483,7 @@ class SqliteSessionRepository:
                         audio_started_at=turn.audio_started_at,
                         audio_delivered_at=turn.audio_delivered_at,
                         created_at=turn.created_at,
+                        patient_response_kind=turn.patient_response_kind,
                     )
                 )
                 db.commit()
@@ -520,6 +529,7 @@ class SqliteSessionRepository:
         selected_fact_ids: tuple[str, ...],
         provider_response_id: str | None,
         provider_response_status: str,
+        patient_response_kind: str = PatientResponseKind.SOURCES.value,
     ) -> ConversationTurn:
         with Session(self.engine) as db:
             row = db.get(TurnRow, turn_id)
@@ -551,6 +561,7 @@ class SqliteSessionRepository:
             row.revealed_fact_ids = []
             row.provider_response_id = provider_response_id
             row.provider_response_status = provider_response_status
+            row.patient_response_kind = patient_response_kind
             if failed:
                 row.response_state = TurnResponseState.RESPONSE_FAILED.value
                 row.delivery_status = AudioDeliveryStatus.FAILED.value
@@ -821,6 +832,7 @@ class SqliteSessionRepository:
                 _dt(row.audio_delivered_at) if row.audio_delivered_at is not None else None
             ),
             created_at=_dt(row.created_at),
+            patient_response_kind=row.patient_response_kind,
         )
 
     @staticmethod
@@ -834,6 +846,7 @@ class SqliteSessionRepository:
             evidence_turn_sequences=tuple(row.evidence_turn_sequences),
             state=VocabularyState(row.state),
             confidence=row.confidence,
+            kind=row.kind,
         )
 
     @staticmethod
@@ -851,6 +864,14 @@ class SqliteSessionRepository:
             )
         for key in ("missed_fact_ids", "criteria"):
             value[key] = tuple(value[key])
+        value["code_switches"] = tuple(
+            CodeSwitch(
+                turn=int(item["turn"]),
+                fragment=str(item["fragment"]),
+                intended_german=item.get("intended_german"),
+            )
+            for item in value.get("code_switches", ())
+        )
         value.setdefault("rubric_version", "unknown")
         value["created_at"] = (
             datetime.fromisoformat(value["created_at"])

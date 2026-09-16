@@ -1,7 +1,10 @@
 import {PracticeClient, phaseLabel, stateLabel, dimensionText} from './practice-client.mjs';
+import {LexiconClient, RATINGS, lexiconStateLabel, ratingLabel, sourceLabel} from './lexicon-client.mjs';
 import {completedDayKeys, lastLocalDays, localDayKey, scrollDelta} from './calendar.mjs';
 
 const client = new PracticeClient();
+const lexicon = new LexiconClient((path, options) => client.api(path, options));
+let reviewQueue = [], reviewTotal = 0, reviewEntry = null;
 const $ = id => document.getElementById(id);
 const views = ['onboarding', 'home', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress'];
 const fields = ['goal', 'land', 'date', 'minutes', 'situation', 'specialty', 'level'];
@@ -227,9 +230,68 @@ async function showProgress() {
   for(const excluded of progress.excluded||[])$('progress-list').append(node('p',`${excluded.reason} · session ${excluded.run_id}. Le feedback reste disponible dans l’historique.`,'help'));
   for(const group of progress.groups){const card=node('article',undefined,'card');card.append(node('h2',`${group.content.title} · ${group.mode}`),node('p',`Contenu ${group.content.scenario_id}@${group.content.scenario_version} · rubrique ${group.content.rubric_id}@${group.content.rubric_version}`,'help'));for(const point of group.points){card.append(node('h3',formatDate(point.created_at)));for(const dimension of point.dimensions)card.append(node('p',dimensionText(dimension)));card.append(actionButton('Voir les preuves',()=>openHistoryItem({id:point.run_id,kind:group.kind})));}$('progress-list').append(card);}view('progress');
 }
+function renderReviewCard() {
+  reviewEntry = reviewQueue[0] || null;
+  $('vocab-review').hidden = !reviewEntry;
+  if (!reviewEntry) return;
+  $('review-progress').textContent = `Révision ${reviewTotal - reviewQueue.length + 1} / ${reviewTotal}`;
+  $('review-source').textContent = sourceLabel(reviewEntry.source);
+  // Recto: the French cue when we have one, else the German word itself (recall the meaning).
+  const hasCue = Boolean(reviewEntry.translation);
+  $('review-front').textContent = hasCue ? reviewEntry.translation : reviewEntry.lemma;
+  $('review-front').lang = hasCue ? 'fr' : 'de';
+  $('review-example').hidden = true; $('review-example').textContent = reviewEntry.example || '';
+  $('review-form').hidden = !hasCue; $('review-input').value = '';
+  $('review-back').hidden = hasCue;
+  $('review-answer').textContent = reviewEntry.lemma;
+  $('review-verdict').textContent = hasCue ? '' : 'Ce mot n’a pas encore de traduction : évaluez votre souvenir de son sens.';
+  $('review-ratings').replaceChildren(...RATINGS.map(rating => actionButton(ratingLabel(rating), () => rateReview(rating), rating === 'good')));
+  if (!hasCue && reviewEntry.example) $('review-example').hidden = false;
+}
+function revealReview(typed) {
+  const suggestion = LexiconClient.suggest(reviewEntry, typed);
+  $('review-form').hidden = true; $('review-back').hidden = false;
+  if (reviewEntry.example) $('review-example').hidden = false;
+  $('review-verdict').textContent = suggestion === 'good' ? 'Votre réponse correspond. Évaluez la facilité du rappel.'
+    : suggestion === 'again' ? `Vous avez écrit « ${typed.trim()} ». Comparez et évaluez honnêtement.` : 'Évaluez votre rappel.';
+  Array.from($('review-ratings').children).forEach(button => button.classList.toggle('primary', suggestion ? button.textContent === ratingLabel(suggestion) : button.textContent === ratingLabel('good')));
+}
+async function rateReview(rating) {
+  const entry = reviewEntry;
+  await lexicon.review(entry, rating);
+  reviewQueue = reviewQueue.filter(item => item.id !== entry.id);
+  if (rating === 'again') reviewQueue.push(entry); // Due again immediately: back of the queue.
+  if (!reviewQueue.length) { await showVocab(); return; }
+  renderReviewCard();
+}
+function entryCard(entry) {
+  const card = node('article', undefined, 'card');
+  const title = node('h3', entry.lemma); title.lang = 'de';
+  card.append(node('span', lexiconStateLabel(entry.state), 'badge'), title);
+  if (entry.translation) card.append(node('p', entry.translation));
+  if (entry.example) { const example = node('p', entry.example, 'muted'); example.lang = 'de'; card.append(example); }
+  const due = entry.due ? 'à revoir maintenant' : `prochaine révision ${new Date(entry.due_at).toLocaleDateString('fr-FR')}`;
+  card.append(node('p', `${sourceLabel(entry.source)} · ${due} · ${entry.repetitions} révision${entry.repetitions > 1 ? 's' : ''} · utilisé dans ${entry.used_sessions} session${entry.used_sessions > 1 ? 's' : ''}`, 'help'));
+  card.append(actionButton('Archiver', async () => { await lexicon.archive(entry, true); await showVocab(); }));
+  return card;
+}
+async function showVocab() {
+  lexicon.profileId = client.profile.id;
+  const overview = await lexicon.overview();
+  const counts = overview.by_state;
+  $('vocab-summary').textContent = overview.entries.length
+    ? `${overview.entries.length} mot${overview.entries.length > 1 ? 's' : ''} dans votre carnet · ${overview.due_count} à revoir aujourd’hui · ${counts.used + counts.mastered} utilisé${counts.used + counts.mastered > 1 ? 's' : ''} en session.`
+    : 'Votre carnet se remplit à chaque session : mots manqués, termes du cas non utilisés, passages dans une autre langue.';
+  $('vocab-limitations').textContent = overview.limitations;
+  reviewQueue = overview.entries.filter(entry => entry.due); reviewTotal = reviewQueue.length;
+  renderReviewCard();
+  $('vocab-empty').hidden = reviewTotal > 0;
+  $('vocab-list').replaceChildren(...overview.entries.map(entryCard));
+  view('vocab');
+}
 async function navigate(name) {
   if(!client.profile)return home();
-  const routes={home,cases:showCases,exam:showExam,vocab:()=>view('vocab'),history:showHistory,progress:showProgress,warmup:()=>selected?view('warmup'):showCases()};
+  const routes={home,cases:showCases,exam:showExam,vocab:showVocab,history:showHistory,progress:showProgress,warmup:()=>selected?view('warmup'):showCases()};
   await (routes[name]||home)();
 }
 async function route() { const match=location.hash.match(/^#practice\/([A-Za-z0-9_.-]+)$/);if(client.profile&&match)return showRun(await client.getRun(match[1]));return navigate(location.hash.slice(1)||'home'); }
@@ -243,6 +305,9 @@ $('goal-form').onsubmit=event=>{event.preventDefault();perform(async()=>{await c
 $('edit-profile').onclick=()=>{restoreDraft();history.replaceState(null,'','#onboarding');view('onboarding',false);};
 $('case-search').oninput=renderCatalog;$('case-filter').onchange=renderCatalog;document.querySelectorAll('[name=mode]').forEach(input=>input.onchange=renderCatalog);
 $('warmup-start').onclick=()=>perform(startSelected);
+$('review-form').onsubmit=event=>{event.preventDefault();if(reviewEntry)revealReview($('review-input').value);};
+$('review-reveal').onclick=()=>{if(reviewEntry)revealReview('');};
+$('vocab-add-form').onsubmit=event=>{event.preventDefault();if(!$('add-lemma').reportValidity())return;const lemma=$('add-lemma').value,translation=$('add-translation').value,example=$('add-example').value;perform(async()=>{await lexicon.add(lemma,translation,example);$('vocab-add-form').reset();await showVocab();});};
 $('answer-form').onsubmit=event=>{event.preventDefault();const run=currentRun,text=$('answer').value;perform(async()=>showRun(await client.answer(run,text)));};
 for(const action of ['pause','resume','finish'])$(action).onclick=()=>{const run=currentRun;perform(async()=>showRun(await client.action(run,action)));};
 for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>perform(()=>navigate(button.dataset.view));

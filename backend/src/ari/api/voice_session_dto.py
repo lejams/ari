@@ -27,6 +27,7 @@ TURN_FIELDS = (
     "audio_started_at",
     "audio_delivered_at",
     "created_at",
+    "patient_response_kind",
 )
 SESSION_FIELDS = (
     "id",
@@ -103,6 +104,10 @@ def public_session(session: ConversationSession) -> dict[str, Any]:
                 _fields(item, ("text", "evidence_turn_sequences"))
                 for item in getattr(evaluation, name)
             ]
+        payload["code_switches"] = [
+            _fields(item, ("turn", "fragment", "intended_german"))
+            for item in evaluation.code_switches
+        ]
         payload["criteria"] = [
             {
                 name: jsonable_encoder(item[name])
@@ -147,6 +152,7 @@ def public_session(session: ConversationSession) -> dict[str, Any]:
                     "evidence_turn_sequences",
                     "state",
                     "confidence",
+                    "kind",
                 ),
             )
             for item in session.vocabulary

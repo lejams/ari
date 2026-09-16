@@ -10,6 +10,7 @@ from ari.application.ports.tts import StreamingTTSProvider
 from ari.application.prompting import VersionedPrompt, load_prompt
 from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
+from ari.application.services.lexicon import LexiconService
 from ari.application.services.patient import PatientSimulator
 from ari.application.services.practice import PracticeService
 from ari.application.services.realtime_patient import FactAttributor
@@ -20,6 +21,7 @@ from ari.domain.models import ConversationSession
 from ari.infrastructure.cases.clinical_catalog import ClinicalCatalog
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.practice_catalog import PublishedPracticeCatalog
+from ari.infrastructure.persistence.lexicon import SqlLexiconRepository
 from ari.infrastructure.persistence.practice import SqlPracticeRepository
 from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
 from ari.infrastructure.providers.fake import (
@@ -47,6 +49,7 @@ class Container:
     realtime_stack: VoiceStack
     realtime_prompt: VersionedPrompt
     attributor: FactAttributor
+    lexicon: LexiconService
 
     def resolve_voice_stack(self, session: ConversationSession) -> VoiceStack:
         """The exact stack a session was created with, or an error: never a silent swap."""
@@ -109,9 +112,9 @@ def build_container(settings: Settings) -> Container:
         )
     repository = SqliteSessionRepository(settings.database_url)
     cases = ClinicalCatalog(ClinicalStore(repository.engine))
-    patient_prompt = load_prompt(settings.prompt_directory / "patient_v2.txt", "patient-v2")
+    patient_prompt = load_prompt(settings.prompt_directory / "patient_v3.txt", "patient-v3")
     evaluation_prompt = load_prompt(
-        settings.prompt_directory / "evaluation_v2.txt", "evaluation-v2"
+        settings.prompt_directory / "evaluation_v3.txt", "evaluation-v3"
     )
     realtime_prompt = load_prompt(
         settings.prompt_directory / "patient_realtime_v1.txt", "patient-realtime-v1"
@@ -182,6 +185,7 @@ def build_container(settings: Settings) -> Container:
         tts = FakeTTSProvider()
         realtime = FakeRealtimeEngine()
 
+    lexicon = LexiconService(SqlLexiconRepository(repository.engine))
     orchestrator = ConversationOrchestrator(
         repository,
         cases,
@@ -189,6 +193,7 @@ def build_container(settings: Settings) -> Container:
         LLMBackedEvaluator(llm, evaluation_prompt, settings.feedback_language),
         voice_stack,
         exam_voice_stack=realtime_stack,
+        lexicon=lexicon,
     )
     practice_service = PracticeService(
         PublishedPracticeCatalog(cases.store), SqlPracticeRepository(repository.engine)
@@ -206,4 +211,5 @@ def build_container(settings: Settings) -> Container:
         realtime_stack=realtime_stack,
         realtime_prompt=realtime_prompt,
         attributor=FactAttributor(llm, attribution_prompt),
+        lexicon=lexicon,
     )

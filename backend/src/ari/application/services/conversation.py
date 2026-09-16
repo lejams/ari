@@ -4,6 +4,7 @@ from typing import cast
 from ari.application.ports.cases import MedicalCaseCatalog
 from ari.application.ports.evaluator import EvaluationOutcome, Evaluator
 from ari.application.ports.repository import SessionRepository
+from ari.application.services.lexicon import LexiconService
 from ari.application.services.patient import PatientOutcome, PatientSimulator
 from ari.application.voice_stacks import VoiceStack
 from ari.domain.errors import InvalidStateError, ProviderError
@@ -44,6 +45,7 @@ class ConversationOrchestrator:
         evaluator: Evaluator,
         voice_stack: VoiceStack,
         exam_voice_stack: VoiceStack | None = None,
+        lexicon: LexiconService | None = None,
     ) -> None:
         self.repository = repository
         self.cases = cases
@@ -52,6 +54,8 @@ class ConversationOrchestrator:
         self._voice_stack = voice_stack
         # Exam sessions run on the open-microphone speech-to-speech stack when configured.
         self._exam_voice_stack = exam_voice_stack or voice_stack
+        # Without a lexicon service the analysis completes; nothing carries across sessions.
+        self._lexicon = lexicon
 
     def create_learner(self, target_cefr: object) -> LearnerProfile:
         from ari.domain.models import CEFRLevel
@@ -78,8 +82,9 @@ class ConversationOrchestrator:
         start_request_hash: str | None = None,
     ) -> ConversationSession:
         learner = self.repository.get_learner(learner_id)
-        case = self.cases.get(case_id, case_version, scenario_id=scenario_id,
-                              scenario_version=scenario_version)
+        case = self.cases.get(
+            case_id, case_version, scenario_id=scenario_id, scenario_version=scenario_version
+        )
         if not case.available_for_new_sessions:
             raise InvalidStateError("This case has been withdrawn from new sessions")
         stack = self._exam_voice_stack if learning_mode is LearningMode.EXAM else self._voice_stack
@@ -178,6 +183,7 @@ class ConversationOrchestrator:
             selected_fact_ids=patient.selected_fact_ids,
             provider_response_id=turn.provider_response_id,
             provider_response_status="completed",
+            patient_response_kind=patient.response_kind,
         )
         return TurnOutcome(turn=turn, execution=patient.execution)
 
@@ -200,7 +206,7 @@ class ConversationOrchestrator:
         try:
             outcome = await self._evaluator.evaluate(session, case)
             self.repository.record_execution(outcome.execution)
-            metrics = self._build_metrics(outcome)
+            metrics = self._build_metrics(outcome, case)
             vocabulary = tuple(
                 VocabularyObservation(
                     id=new_id(),
@@ -211,10 +217,13 @@ class ConversationOrchestrator:
                     confidence=float(str(item["confidence"])),
                     evidence_turn_sequences=tuple(cast(list[int], item["evidence_turn_sequences"])),
                     state=VocabularyState.IDENTIFIED,
+                    kind=str(item.get("kind", "missing")),
                 )
                 for item in outcome.vocabulary_candidates
             )
             self.repository.save_analysis(session_id, outcome.evaluation, metrics, vocabulary)
+            if self._lexicon is not None:
+                self._lexicon.ingest_session(session, case, outcome)
         except ProviderError as exc:
             execution = cast(ExecutionRecord, exc.execution)
             self.repository.record_execution(execution)
@@ -227,21 +236,25 @@ class ConversationOrchestrator:
 
     def _case_for_session(self, session: ConversationSession) -> MedicalCase:
         case = self.cases.get(
-            session.case_id, session.case_version,
+            session.case_id,
+            session.case_version,
             scenario_id=session.training_snapshot.get("scenario_id"),
             scenario_version=session.training_snapshot.get("scenario_version"),
         )
-        if (case.content_hash != session.case_hash
-                or dict(case.training_snapshot) != dict(session.training_snapshot)):
+        if case.content_hash != session.case_hash or dict(case.training_snapshot) != dict(
+            session.training_snapshot
+        ):
             raise InvalidStateError(
                 f"Case {case.id}@{case.version} changed without a version increment"
             )
         return case
 
     @staticmethod
-    def _build_metrics(outcome: EvaluationOutcome) -> SessionMetrics:
+    def _build_metrics(outcome: EvaluationOutcome, case: MedicalCase) -> SessionMetrics:
+        maxima = {criterion.id: float(criterion.max_score) for criterion in case.rubric}
         scores = {
-            str(item["criterion_id"]): float(item["score"]) / 5.0
+            str(item["criterion_id"]): float(item["score"])
+            / maxima.get(str(item["criterion_id"]), 5.0)
             for item in outcome.evaluation.criteria
         }
         return SessionMetrics(

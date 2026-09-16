@@ -211,6 +211,9 @@ function showCallActions({ canStart, canEnd, canRetry, canCreateNew }) {
   $("end").disabled = !canEnd;
   $("retry-analysis").classList.toggle("hidden", !canRetry);
   $("new-session").classList.toggle("hidden", !canCreateNew);
+  // Redoing the same case right after the feedback is where the correction sticks.
+  const knownCase = state.cases.some((item) => item.id === state.case?.id && item.version === state.case?.version);
+  $("retry-case").classList.toggle("hidden", !(canCreateNew && knownCase && ["training", "exam"].includes(state.learningMode)));
   if (canStart || canRetry || canCreateNew) $("talk").classList.add("hidden");
 }
 
@@ -735,8 +738,7 @@ async function retryAnalysis() {
   }
 }
 
-function newSession() {
-  if (!state.cases.length) { location.href = "/"; return; }
+function resetForNewSession(mode, selectedCase) {
   localStorage.removeItem("ari.current_session_id");
   history.replaceState(null, "", "/voice.html");
   state.storedSessionId = null;
@@ -744,19 +746,31 @@ function newSession() {
   state.persistedTurns = 0;
   state.completedTurns = 0;
   state.ending = false;
-  state.learningMode = "training";
+  state.learningMode = mode;
   setExamPresentation(false);
-  $("learning-mode").value = "training";
+  $("learning-mode").value = mode;
   syncLearningModeButtons();
   clearTranscript();
   $("feedback").classList.add("hidden");
   $("case-select").disabled = false;
   $("learning-mode").disabled = false;
-  $("learning-mode").value = "training";
-  renderCase(state.cases[0]);
+  renderCase(selectedCase);
   $("start").textContent = "Commencer l’appel";
   showCallActions({ canStart: true, canEnd: false, canRetry: false, canCreateNew: false });
   setStatus("Prêt");
+}
+
+function newSession() {
+  if (!state.cases.length) { location.href = "/"; return; }
+  resetForNewSession("training", state.cases[0]);
+}
+
+async function retryCase() {
+  // Same case, same mode, a fresh session: the feedback is still on screen to guide it.
+  const current = state.cases.find((item) => item.id === state.case?.id && item.version === state.case?.version);
+  if (!current) { newSession(); return; }
+  resetForNewSession(state.learningMode, current);
+  await startCall();
 }
 
 function fillList(id, items) {
@@ -770,12 +784,17 @@ function fillList(id, items) {
   );
 }
 
+const COMPARABLE_EVALUATIONS = new Set(["session-evaluation-v2", "session-evaluation-v3"]);
+const VOCABULARY_KIND_LABELS = { missing: "mot manquant", misused: "mal employé", well_used: "bien employé" };
+const turnsLabel = (sequences) => `tour${sequences.length > 1 ? "s" : ""} ${sequences.join(", ")}`;
+
 function showFeedback(session) {
   const evaluation = session.evaluation;
+  if (!evaluation) return;
   $("score").textContent = "Provisoire";
   $("score-label").textContent = "analyse automatisée · aucun score global ni niveau certifié";
   $("voice-dimensions").replaceChildren();
-  if (evaluation.schema_version !== "session-evaluation-v2") {
+  if (!COMPARABLE_EVALUATIONS.has(evaluation.schema_version)) {
     const notice = document.createElement("p");
     notice.textContent = "Évaluation historique non comparable : les anciennes notes ne sont pas utilisées dans la progression.";
     $("voice-dimensions").append(notice);
@@ -785,25 +804,37 @@ function showFeedback(session) {
     $("voice-dimensions").append(line);
   }
   $("summary").textContent = evaluation.summary;
-  fillList(
-    "strengths",
-    evaluation.strengths.map(
-      (item) => `${item.text} (tours ${item.evidence_turn_sequences.join(", ")})`,
-    ),
-  );
-  fillList(
-    "priorities",
-    evaluation.priorities.map(
-      (item) => `${item.text} (tours ${item.evidence_turn_sequences.join(", ")})`,
-    ),
-  );
+  fillList("strengths", evaluation.strengths.map((item) => `${item.text} (${turnsLabel(item.evidence_turn_sequences)})`));
+  fillList("priorities", evaluation.priorities.map((item) => `${item.text} (${turnsLabel(item.evidence_turn_sequences)})`));
   fillList(
     "vocabulary",
     session.vocabulary.map(
-      (item) =>
-        `${item.lemma} — ${item.translation} (tour${item.evidence_turn_sequences.length > 1 ? "s" : ""} ${item.evidence_turn_sequences.join(", ")})`,
+      (item) => `${item.lemma} — ${item.translation} · ${VOCABULARY_KIND_LABELS[item.kind] || "candidat"} (${turnsLabel(item.evidence_turn_sequences)})`,
     ),
   );
+  const languageErrors = evaluation.language_errors || [];
+  fillList("language-errors", languageErrors.length
+    ? languageErrors.map((item) => `${item.text} (${turnsLabel(item.evidence_turn_sequences)})`)
+    : ["Aucune erreur de langue significative relevée."]);
+  const codeSwitches = evaluation.code_switches || [];
+  fillList("code-switches", codeSwitches.length
+    ? codeSwitches.map((item) => `Tour ${item.turn} : « ${item.fragment} »${item.intended_german ? ` → ${item.intended_german}` : ""}`)
+    : ["Vous êtes resté dans la langue de la consultation."]);
+  const lexicon = session.lexicon;
+  if (lexicon) {
+    const added = lexicon.added.length, promoted = lexicon.promoted.length, wrong = lexicon.wrong_language_turns.length;
+    $("lexicon-summary").textContent = [
+      added ? `${added} mot${added > 1 ? "s" : ""} ajouté${added > 1 ? "s" : ""} à votre carnet.` : "Aucun nouveau mot ajouté.",
+      promoted ? `${promoted} mot${promoted > 1 ? "s" : ""} de votre carnet utilisé${promoted > 1 ? "s" : ""} en session.` : "",
+      wrong ? `Le patient n’a pas compris ${wrong} question${wrong > 1 ? "s" : ""} posée${wrong > 1 ? "s" : ""} dans une autre langue.` : "",
+    ].filter(Boolean).join(" ");
+    fillList("lexicon-added", lexicon.added.map((item) => `${item.lemma}${item.translation ? ` — ${item.translation}` : ""}`));
+    fillList("lexicon-promoted", lexicon.promoted.map((item) => `${item.lemma} · ${item.state === "mastered" ? "maîtrisé" : "utilisé"}`));
+  } else {
+    $("lexicon-summary").textContent = "Carnet indisponible pour cette session.";
+    fillList("lexicon-added", []);
+    fillList("lexicon-promoted", []);
+  }
   $("feedback").classList.remove("hidden");
   $("feedback").scrollIntoView({ behavior: "smooth" });
 }
@@ -835,6 +866,7 @@ $("end").addEventListener("click", endCall);
 $("retry-analysis").addEventListener("click", retryAnalysis);
 $("retry-audio").addEventListener("click", retryAudio);
 $("new-session").addEventListener("click", newSession);
+$("retry-case").addEventListener("click", retryCase);
 $("debug-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = $("debug-input");

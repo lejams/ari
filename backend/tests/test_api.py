@@ -216,15 +216,15 @@ def test_successful_stt_trace_survives_patient_failure(container: Container) -> 
         PatientSimulator(
             FailingLLMProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "patient_v2.txt",
-                "patient-v2",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "patient_v3.txt",
+                "patient-v3",
             ),
         ),
         LLMBackedEvaluator(
             FakeLLMProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v2.txt",
-                "evaluation-v2",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v3.txt",
+                "evaluation-v3",
             ),
             "fr-FR",
         ),

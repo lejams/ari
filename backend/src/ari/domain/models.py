@@ -13,8 +13,12 @@ def utc_now() -> datetime:
 
 
 class CEFRLevel(StrEnum):
+    A1 = "A1"
+    A2 = "A2"
+    B1 = "B1"
     B2 = "B2"
     C1 = "C1"
+    C2 = "C2"
 
 
 class LearningMode(StrEnum):
@@ -36,10 +40,33 @@ class ExecutionStatus(StrEnum):
 
 
 class VocabularyState(StrEnum):
-    IDENTIFIED = "identified"
-    USED = "used"
-    RECALLED = "recalled"
-    MASTERED = "mastered"
+    """Personal lexicon lifecycle; every promotion needs learner evidence, never a guess."""
+
+    IDENTIFIED = "identified"  # Seen once: evaluation candidate, unused case term, code switch.
+    REVIEWED = "reviewed"  # Recalled at least once in a spaced-repetition review.
+    USED = "used"  # Spoken spontaneously in a voice session after entering the lexicon.
+    MASTERED = "mastered"  # Used in two distinct later sessions and reviewed three times.
+
+
+class LexiconSource(StrEnum):
+    EVALUATION_CANDIDATE = "evaluation_candidate"
+    TERMINOLOGY_UNUSED = "terminology_unused"
+    CODE_SWITCH = "code_switch"
+    MANUAL = "manual"
+
+
+class SrsRating(StrEnum):
+    AGAIN = "again"
+    HARD = "hard"
+    GOOD = "good"
+    EASY = "easy"
+
+
+class PatientResponseKind(StrEnum):
+    SOURCES = "sources"
+    UNKNOWN = "unknown"
+    OUT_OF_SCOPE = "out_of_scope"
+    WRONG_LANGUAGE = "wrong_language"  # Learner spoke another language than the simulation.
 
 
 class AudioDeliveryStatus(StrEnum):
@@ -128,6 +155,13 @@ class RubricCriterion:
 
 
 @dataclass(frozen=True, slots=True)
+class TerminologyTerm:
+    id: str
+    german: str
+    french: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class MedicalCase:
     id: str
     version: str
@@ -150,6 +184,7 @@ class MedicalCase:
     assessment_items: tuple[AssessmentItem, ...] = ()
     training_snapshot: Mapping[str, str] = field(default_factory=dict)
     available_for_new_sessions: bool = True
+    terminology: tuple[TerminologyTerm, ...] = ()
 
     @property
     def fact_ids(self) -> frozenset[str]:
@@ -177,12 +212,22 @@ class ConversationTurn:
     audio_started_at: datetime | None = None
     audio_delivered_at: datetime | None = None
     created_at: datetime = field(default_factory=utc_now)
+    patient_response_kind: str = PatientResponseKind.SOURCES.value
 
 
 @dataclass(frozen=True, slots=True)
 class EvidenceObservation:
     text: str
     evidence_turn_sequences: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CodeSwitch:
+    """A fragment the learner said in another language than the simulation."""
+
+    turn: int
+    fragment: str
+    intended_german: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,6 +244,7 @@ class Evaluation:
     language_errors: tuple[EvidenceObservation, ...]
     criteria: tuple[dict[str, Any], ...]
     created_at: datetime = field(default_factory=utc_now)
+    code_switches: tuple[CodeSwitch, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,6 +268,49 @@ class VocabularyObservation:
     evidence_turn_sequences: tuple[int, ...]
     state: VocabularyState = VocabularyState.IDENTIFIED
     confidence: float = 0.0
+    kind: str = "missing"  # missing | misused | well_used, as judged by the evaluator.
+
+
+@dataclass(frozen=True, slots=True)
+class SrsState:
+    """Spaced-repetition schedule of one lexicon entry (see domain/srs.py)."""
+
+    due_at: datetime
+    interval_days: int = 0
+    ease: float = 2.5
+    repetitions: int = 0
+    lapses: int = 0
+    last_reviewed_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LexiconEntry:
+    """One word or phrase in a learner's personal lexicon, across all sessions."""
+
+    id: str
+    learner_id: str
+    lemma_key: str
+    lemma: str
+    translation: str
+    example: str
+    source: LexiconSource
+    state: VocabularyState
+    srs: SrsState
+    first_session_id: str | None = None
+    last_session_id: str | None = None
+    used_session_ids: tuple[str, ...] = ()
+    archived: bool = False
+    created_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(frozen=True, slots=True)
+class LexiconReview:
+    id: str
+    entry_id: str
+    event_id: str
+    rating: SrsRating
+    reviewed_at: datetime = field(default_factory=utc_now)
 
 
 @dataclass(frozen=True, slots=True)

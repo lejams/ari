@@ -80,15 +80,35 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
     ...activeExam,
     status: "completed",
     evaluation: {
-      schema_version: "session-evaluation-v2", summary: "Retour", criteria: [], strengths: [], priorities: [],
+      schema_version: "session-evaluation-v3", summary: "Retour", criteria: [], strengths: [], priorities: [],
+      language_errors: [], code_switches: [{ turn: 1, fragment: "la douleur", intended_german: "der Schmerz" }],
     },
-    vocabulary: [],
+    vocabulary: [{ lemma: "ausstrahlen", translation: "irradier", kind: "missing", evidence_turn_sequences: [1] }],
+    lexicon: { added: [{ lemma: "der Schmerz", translation: "la douleur", state: "identified" }], promoted: [], wrong_language_turns: [1] },
   };
   const result = await load("?session=session-1", {
     "/api/health": health, "/api/cases?approved_only=true": [caseItem], "/api/sessions/session-1": completed,
   });
   assert.equal(result.nodes.get("transcript").children.length > 0, true, "feedback restores the transcript after completion");
   assert.equal(result.nodes.get("feedback").classList.contains("hidden"), false);
+  assert.match(result.nodes.get("code-switches").children[0].textContent, /la douleur.*der Schmerz/);
+  assert.match(result.nodes.get("vocabulary").children[0].textContent, /mot manquant/);
+  assert.match(result.nodes.get("lexicon-summary").textContent, /1 mot ajouté/);
+  assert.equal(result.nodes.get("retry-case").classList.contains("hidden"), false, "the learner can redo the same case");
+}
+
+{
+  // Legacy v2 feedback and a session without a lexicon report still render.
+  const legacy = {
+    ...activeExam, status: "completed", vocabulary: [], lexicon: null,
+    evaluation: { schema_version: "session-evaluation-v2", summary: "Retour", criteria: [], strengths: [], priorities: [] },
+  };
+  const result = await load("?session=session-1", {
+    "/api/health": health, "/api/cases?approved_only=true": [caseItem], "/api/sessions/session-1": legacy,
+  });
+  assert.equal(result.nodes.get("feedback").classList.contains("hidden"), false);
+  assert.match(result.nodes.get("lexicon-summary").textContent, /indisponible/);
+  assert.equal(result.nodes.get("voice-dimensions").children.length, 0, "v2 stays comparable, no legacy notice");
 }
 
 {

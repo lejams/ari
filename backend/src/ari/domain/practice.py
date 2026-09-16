@@ -1,7 +1,5 @@
 """Deterministic practice state and evidence. No providers or persistence."""
 
-import re
-import unicodedata
 from datetime import datetime
 from typing import Annotated, Literal, Self
 
@@ -13,15 +11,10 @@ from ari.domain.clinical import (
     Identifier,
     Text,
 )
+from ari.domain.text import normalize_answer
 
 PracticeMode = Literal["training", "exam"]
 PracticeStatus = Literal["active", "paused", "completed"]
-
-
-def normalize_answer(text: str) -> str:
-    """Only case, whitespace and terminal punctuation; never remove negation or numbers."""
-    text = unicodedata.normalize("NFKC", text).casefold().strip()
-    return re.sub(r"\s+", " ", text).rstrip(".!? ")
 
 
 class PracticeAnswer(ClinicalModel):

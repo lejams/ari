@@ -104,6 +104,55 @@ KEYWORD_HINTS: dict[str, tuple[str, ...]] = {
     "warum": ("reason",),
     "beschwerden": ("reason", "symptom"),
 }
+# Deterministic language markers: a doctor utterance carrying markers of a language other
+# than the simulation language is answered with response_kind=wrong_language.
+LANGUAGE_MARKERS: dict[str, frozenset[str]] = {
+    "fr": frozenset(
+        {
+            "est-ce que",
+            "avez-vous",
+            "vous avez",
+            "depuis quand",
+            "bonjour",
+            "docteur",
+            "douleur",
+            "médicament",
+            "fièvre",
+            "où avez",
+            "quels sont",
+        }
+    ),
+    "en": frozenset(
+        {
+            "do you",
+            "have you",
+            "since when",
+            "hello",
+            "how long",
+            "where does",
+            "pain",
+            "medication",
+            "fever",
+        }
+    ),
+    "de": frozenset(
+        {"haben sie", "seit wann", "guten tag", "schmerz", "medikament", "fieber", "wo haben"}
+    ),
+}
+# Tiny glossary so the fake evaluator can name the German word a French code switch needed.
+FAKE_GLOSSARY_FR_DE = {"douleur": "Schmerz", "fièvre": "Fieber", "médicament": "Medikament"}
+
+
+def foreign_language(utterance: str, simulation_language: str) -> bool:
+    """True when the utterance carries markers of another language than the simulation."""
+    primary = simulation_language.split("-")[0].lower()
+    text = utterance.casefold()
+    return any(
+        marker in text
+        for language, markers in LANGUAGE_MARKERS.items()
+        if language != primary
+        for marker in markers
+    )
 
 
 class FakeLLMProvider:
@@ -142,6 +191,11 @@ class FakeLLMProvider:
         question = str(utterance).casefold()
         if any(term in question for term in BLOCKED_TERMS):
             return {"response_kind": "out_of_scope", "source_refs": []}
+        # Only the doctor's utterance is language-checked; the patient audit never is.
+        if "doctor_latest_utterance" in payload and foreign_language(
+            question, str(payload.get("simulation_language", "de-DE"))
+        ):
+            return {"response_kind": "wrong_language", "source_refs": []}
         allowed_refs = {
             item["ref"] for item in cast(list[dict[str, str]], case["available_sources"])
         }
@@ -177,6 +231,19 @@ class FakeLLMProvider:
         rubric = cast(list[dict[str, object]], payload["rubric"])
         turns = [int(str(item["turn"])) for item in transcript]
         score = min(5, max(1, len(turns)))
+        code_switches = []
+        for item in transcript:
+            doctor = str(item.get("doctor", "")).casefold()
+            if item.get("patient_response_kind") != "wrong_language":
+                continue
+            intended = next((de for fr, de in FAKE_GLOSSARY_FR_DE.items() if fr in doctor), None)
+            code_switches.append(
+                {
+                    "turn": int(str(item["turn"])),
+                    "fragment": str(item.get("doctor", ""))[:120],
+                    "intended_german": intended,
+                }
+            )
         return {
             "summary": (
                 "Entretien compréhensible et structuré. Priorisez la couverture "
@@ -213,8 +280,10 @@ class FakeLLMProvider:
                     "example": "Strahlen die Schmerzen in die Schulter aus?",
                     "confidence": 0.8,
                     "evidence_turn_sequences": turns[-1:],
+                    "kind": "missing",
                 }
             ],
+            "code_switches": code_switches[:8],
         }
 
 
