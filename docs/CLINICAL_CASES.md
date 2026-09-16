@@ -39,6 +39,31 @@ bundles les utilisent. Les schémas exécutables sont dans `domain/clinical.py`.
 - `TrainingScenarioVersion` référence les hashes exacts du cas, de la rubrique et
   du lexique, puis définit persona, difficulté, CEFR, ouverture et objectifs.
 
+### Sections d'anamnèse et moments d'empathie
+
+Le scénario (couche pédagogique, jamais le cas) peut porter deux extensions
+optionnelles, omises de la représentation canonique quand elles sont vides : les
+hashes et revues des scénarios existants ne changent pas.
+
+- `anamnesis_sections` : liste de `{id, label_de, fact_ids}` où `id` appartient aux
+  sections canoniques FSP (`patientendaten`, `aktuelle_beschwerden`, `vorerkrankungen`,
+  `medikamente`, `allergien`, `noxen`, `familienanamnese`, `sozialanamnese`,
+  `vegetative_anamnese`, `sonstiges`). Chaque fait appartient à au plus une section ;
+  un fait hors section n'est simplement pas compté. L'évaluation calcule de façon
+  déterministe (`anamnesis-sections-v1`) la couverture par section à partir des faits
+  livrés, la première apparition de chaque section et le respect de l'ordre canonique.
+  C'est une checklist, pas un jugement de raisonnement clinique.
+- `empathy_moments` : liste de `{id, fact_id, cue_fr, expected_fr}`. Le déclencheur est
+  déterministe : premier tour où le fait est livré ; la réponse jugée est le tour
+  suivant de l'apprenant. Seul le verdict (`acknowledged`, `partial`, `ignored`) est
+  demandé au fournisseur, une fois par moment déclenché, avec le tour de réponse comme
+  preuve ; `not_triggered` et `not_reached` sont posés par l'application. Ces verdicts
+  restent qualitatifs et n'entrent jamais dans les scores `assessment-weighted-v1`.
+
+Trois « prochaines actions » au plus sont dérivées de signaux déterministes, dans cet
+ordre : item obligatoire manqué, section non couverte, moment d'empathie ignoré ou
+partiel, mots ajoutés au carnet.
+
 ### Exercices structurés
 
 Le scénario peut porter `practice: PracticeSpecification` (`practice-spec-v1`) :

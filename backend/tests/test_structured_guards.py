@@ -95,8 +95,8 @@ async def test_invented_case_fact_is_rejected_and_traced(container: Container) -
         LLMBackedEvaluator(
             FakeLLMProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v3.txt",
-                "evaluation-v3",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v4.txt",
+                "evaluation-v4",
             ),
             "fr-FR",
         ),
@@ -140,7 +140,7 @@ class CodeSwitchInventingProvider(FakeLLMProvider):
         if response_model is EvaluationOutputSchema:
             payload = result.value.model_dump()
             payload["code_switches"] = [
-                {"turn": 99, "fragment": "invented", "intended_german": None}
+                {"turn": 99, "fragment": "invented", "intended_term": None}
             ]
             return ProviderResult(response_model.model_validate(payload), result.execution)
         return result
@@ -161,8 +161,8 @@ async def test_code_switch_on_unknown_turn_is_rejected_and_traced(container: Con
         LLMBackedEvaluator(
             CodeSwitchInventingProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v3.txt",
-                "evaluation-v3",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v4.txt",
+                "evaluation-v4",
             ),
             "fr-FR",
         ),

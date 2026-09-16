@@ -80,8 +80,17 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
     ...activeExam,
     status: "completed",
     evaluation: {
-      schema_version: "session-evaluation-v3", summary: "Retour", criteria: [], strengths: [], priorities: [],
-      language_errors: [], code_switches: [{ turn: 1, fragment: "la douleur", intended_german: "der Schmerz" }],
+      schema_version: "session-evaluation-v4", summary: "Retour", criteria: [], strengths: [], priorities: [],
+      language_errors: [], code_switches: [{ turn: 1, fragment: "la douleur", intended_term: "der Schmerz" }],
+      structure: {
+        version: "anamnesis-sections-v1", covered_count: 1, total_count: 2, order_observed: ["patientendaten"], canonical_order_respected: true,
+        sections: [
+          { id: "patientendaten", label: "Patientendaten", fact_ids: ["identity"], covered_fact_ids: ["identity"], missing_fact_ids: [], first_turn: 1 },
+          { id: "noxen", label: "Noxen", fact_ids: ["smoking"], covered_fact_ids: [], missing_fact_ids: ["smoking"], first_turn: null },
+        ],
+      },
+      empathy: [{ moment_id: "m1", cue: "décès du père", expected: "reconnaître", trigger_turn: 1, response_turn: 2, verdict: "ignored", feedback: "Vous avez enchaîné.", evidence_turn_sequences: [2] }],
+      next_actions: [{ kind: "uncovered_section", text: "Couvrez la section « Noxen ».", target: { kind: "section", id: "noxen" } }],
     },
     vocabulary: [{ lemma: "ausstrahlen", translation: "irradier", kind: "missing", evidence_turn_sequences: [1] }],
     lexicon: { added: [{ lemma: "der Schmerz", translation: "la douleur", state: "identified" }], promoted: [], wrong_language_turns: [1] },
@@ -95,6 +104,11 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
   assert.match(result.nodes.get("vocabulary").children[0].textContent, /mot manquant/);
   assert.match(result.nodes.get("lexicon-summary").textContent, /1 mot ajouté/);
   assert.equal(result.nodes.get("retry-case").classList.contains("hidden"), false, "the learner can redo the same case");
+  assert.equal(result.nodes.get("next-actions-block").classList.contains("hidden"), false);
+  assert.match(result.nodes.get("next-actions").children[0].textContent, /Noxen/);
+  assert.match(result.nodes.get("structure").children[0].textContent, /1 section complète sur 2/);
+  assert.match(result.nodes.get("structure").children[1].children[1].textContent, /—.*Noxen.*manque : smoking/);
+  assert.match(result.nodes.get("empathy").children[0].children[0].textContent, /décès du père : Pas de réaction \(tour 2\)/);
 }
 
 {
@@ -109,6 +123,9 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
   assert.equal(result.nodes.get("feedback").classList.contains("hidden"), false);
   assert.match(result.nodes.get("lexicon-summary").textContent, /indisponible/);
   assert.equal(result.nodes.get("voice-dimensions").children.length, 0, "v2 stays comparable, no legacy notice");
+  assert.equal(result.nodes.get("next-actions-block").classList.contains("hidden"), true, "no actions, no block");
+  assert.match(result.nodes.get("structure").children[0].textContent, /ne définit pas de sections/);
+  assert.match(result.nodes.get("empathy").children[0].textContent, /ne définit pas de moment/);
 }
 
 {

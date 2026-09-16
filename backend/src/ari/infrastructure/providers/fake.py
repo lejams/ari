@@ -141,6 +141,7 @@ LANGUAGE_MARKERS: dict[str, frozenset[str]] = {
 }
 # Tiny glossary so the fake evaluator can name the German word a French code switch needed.
 FAKE_GLOSSARY_FR_DE = {"douleur": "Schmerz", "fièvre": "Fieber", "médicament": "Medikament"}
+EMPATHY_MARKERS = ("leid", "désolé", "verstehe", "comprends", "schwer", "difficile", "sorry")
 
 
 def foreign_language(utterance: str, simulation_language: str) -> bool:
@@ -231,6 +232,9 @@ class FakeLLMProvider:
         rubric = cast(list[dict[str, object]], payload["rubric"])
         turns = [int(str(item["turn"])) for item in transcript]
         score = min(5, max(1, len(turns)))
+        doctor_by_turn = {
+            int(str(item["turn"])): str(item.get("doctor", "")) for item in transcript
+        }
         code_switches = []
         for item in transcript:
             doctor = str(item.get("doctor", "")).casefold()
@@ -241,7 +245,25 @@ class FakeLLMProvider:
                 {
                     "turn": int(str(item["turn"])),
                     "fragment": str(item.get("doctor", ""))[:120],
-                    "intended_german": intended,
+                    "intended_term": intended,
+                }
+            )
+        # Empathy: the learner acknowledged when the response turn carries a sympathy marker.
+        empathy = []
+        for moment in cast(list[dict[str, object]], payload.get("empathy_moments", [])):
+            response_turn = int(str(moment["response_turn"]))
+            spoken = doctor_by_turn.get(response_turn, "")
+            acknowledged = any(m in spoken.casefold() for m in EMPATHY_MARKERS)
+            empathy.append(
+                {
+                    "moment_id": str(moment["id"]),
+                    "verdict": "acknowledged" if acknowledged else "ignored",
+                    "feedback": (
+                        f"Vous avez réagi au vécu du patient : « {spoken[:80]} »."
+                        if acknowledged
+                        else "Vous avez enchaîné sur la question suivante sans réagir."
+                    ),
+                    "evidence_turn_sequences": [response_turn],
                 }
             )
         return {
@@ -284,6 +306,7 @@ class FakeLLMProvider:
                 }
             ],
             "code_switches": code_switches[:8],
+            "empathy": empathy[:8],
         }
 
 

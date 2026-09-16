@@ -120,10 +120,8 @@ class LexiconService:
                 add(term.german, term.french or "", "", LexiconSource.TERMINOLOGY_UNUSED)
 
         for code_switch in outcome.evaluation.code_switches:
-            if code_switch.intended_german:
-                add(
-                    code_switch.intended_german, code_switch.fragment, "", LexiconSource.CODE_SWITCH
-                )
+            if code_switch.intended_term:
+                add(code_switch.intended_term, code_switch.fragment, "", LexiconSource.CODE_SWITCH)
 
         self.repository.upsert(changed.values())
         after = self.repository.list(session.learner_id, include_archived=True)

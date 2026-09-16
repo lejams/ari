@@ -149,7 +149,7 @@ cases:
     - Guten Tag
 scenarios:
 - id: ari-demo-arzt_patient
-  version: '1'
+  version: '2'
   case:
     id: ARI-DEMO
     version: '1'
@@ -172,6 +172,19 @@ scenarios:
   objectives:
   - Tester le parcours vocal, sans certification de niveau
   duration_minutes: 5
+  anamnesis_sections:
+  - id: patientendaten
+    label_de: Patientendaten
+    fact_ids:
+    - identity
+  - id: aktuelle_beschwerden
+    label_de: Aktuelle Beschwerden
+    fact_ids:
+    - reason
+  - id: medikamente
+    label_de: Medikamente
+    fact_ids:
+    - medication
 - id: ari-demo-arzt_arzt
   version: '1'
   case:

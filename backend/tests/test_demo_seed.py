@@ -19,6 +19,19 @@ def test_demo_bundle_publishes_one_voice_case_and_two_exercises(tmp_path: Path) 
     assert exercises == ["ari-demo-arzt_arzt", "ari-demo-fachbegriffe"]
 
 
+def test_new_case_version_supersedes_the_older_one_in_a_kept_database(tmp_path: Path) -> None:
+    from clinical_fixtures import synthetic_bundle
+
+    container = build_test_container(tmp_path / "dev-evolving.db")
+    publish_demo_content(container.cases.store, synthetic_bundle("1"))
+    publish_demo_content(container.cases.store, synthetic_bundle("2"))
+    listed = container.cases.list()
+    assert [(case.id, case.version) for case in listed] == [("SYNTHETIC-TEST", "2")]
+    # The old scenario is withdrawn, not deleted: pinned sessions still resolve it.
+    old = container.cases.get("SYNTHETIC-TEST", "1")
+    assert old.validation_status == "withdrawn" and not old.available_for_new_sessions
+
+
 def test_dev_bundle_is_a_french_voice_case_and_reseeding_a_kept_database_is_a_no_op(
     tmp_path: Path,
 ) -> None:
@@ -32,3 +45,6 @@ def test_dev_bundle_is_a_french_voice_case_and_reseeding_a_kept_database_is_a_no
     assert [(case.id, case.language) for case in cases] == [("ARI-DEV-FR", "fr-FR")]
     assert cases[0].facts and all(fact.patient_phrase for fact in cases[0].facts)
     assert container.practice.catalog.list() == ()
+    # Phase 2 pedagogy travels with the dev scenario.
+    assert [m.fact_id for m in cases[0].empathy_moments] == ["family_history"]
+    assert {s.id for s in cases[0].anamnesis_sections} >= {"aktuelle_beschwerden", "noxen"}

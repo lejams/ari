@@ -270,6 +270,52 @@ class PracticeSpecification(ClinicalModel):
         return self
 
 
+# Canonical FSP anamnesis sections, in the order examiners expect them.
+ANAMNESIS_SECTION_IDS = (
+    "patientendaten",
+    "aktuelle_beschwerden",
+    "vorerkrankungen",
+    "medikamente",
+    "allergien",
+    "noxen",
+    "familienanamnese",
+    "sozialanamnese",
+    "vegetative_anamnese",
+    "sonstiges",
+)
+AnamnesisSectionId = Literal[
+    "patientendaten",
+    "aktuelle_beschwerden",
+    "vorerkrankungen",
+    "medikamente",
+    "allergien",
+    "noxen",
+    "familienanamnese",
+    "sozialanamnese",
+    "vegetative_anamnese",
+    "sonstiges",
+]
+
+
+class EmpathyMoment(ClinicalModel):
+    """A disclosure the doctor should acknowledge before moving on (pedagogical layer).
+
+    The trigger is deterministic (the fact is delivered); only the judgement of the
+    learner's next turn is delegated to the evaluator, with the turn as evidence.
+    """
+
+    id: Identifier
+    fact_id: Identifier
+    cue_fr: Text  # What the patient reveals, for the reviewer and the feedback.
+    expected_fr: Text  # The expected reaction, e.g. acknowledge, pause, then return to the case.
+
+
+class AnamnesisSection(ClinicalModel):
+    id: AnamnesisSectionId
+    label_de: Text
+    fact_ids: tuple[Identifier, ...] = Field(min_length=1)
+
+
 class TrainingScenarioVersion(VersionRef):
     case: VersionRef
     case_hash: Digest
@@ -286,15 +332,32 @@ class TrainingScenarioVersion(VersionRef):
     objectives: tuple[Text, ...] = Field(min_length=1)
     duration_minutes: Annotated[int, Field(ge=1, le=240)] = 20
     practice: PracticeSpecification | None = None
+    empathy_moments: tuple[EmpathyMoment, ...] = ()
+    anamnesis_sections: tuple[AnamnesisSection, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_pedagogy(self) -> Self:
+        unique(tuple(m.id for m in self.empathy_moments), "moments d'empathie")
+        unique(tuple(m.fact_id for m in self.empathy_moments), "faits des moments d'empathie")
+        unique(tuple(s.id for s in self.anamnesis_sections), "sections d'anamnèse")
+        unique(
+            tuple(f for s in self.anamnesis_sections for f in s.fact_ids),
+            "faits des sections d'anamnèse",
+        )
+        return self
 
     @model_serializer(mode="wrap")
     def preserve_legacy_serialization(
         self, handler: SerializerFunctionWrapHandler
     ) -> dict[str, Any]:
         payload: dict[str, Any] = handler(self)
+        # Additive optional assets: old payloads/hashes/reviews remain byte-for-byte canonical.
         if self.practice is None:
-            # Additive optional asset: old payloads/hashes/reviews remain byte-for-byte canonical.
             payload.pop("practice", None)
+        if not self.empathy_moments:
+            payload.pop("empathy_moments", None)
+        if not self.anamnesis_sections:
+            payload.pop("anamnesis_sections", None)
         return payload
 
 
@@ -365,8 +428,13 @@ class ClinicalBundle(ClinicalModel):
             ):
                 raise ValueError("Hash de référence différent du contenu")
             unique(scenario.opening_fact_ids, "faits d'ouverture")
-            if set(scenario.opening_fact_ids) - {f.id for f in case.facts}:
+            case_fact_ids = {f.id for f in case.facts}
+            if set(scenario.opening_fact_ids) - case_fact_ids:
                 raise ValueError("Fait d'ouverture inconnu")
+            if {m.fact_id for m in scenario.empathy_moments} - case_fact_ids:
+                raise ValueError("Fait inconnu pour un moment d'empathie")
+            if {f for s in scenario.anamnesis_sections for f in s.fact_ids} - case_fact_ids:
+                raise ValueError("Fait inconnu dans une section d'anamnèse")
             dimensions = {d.id for d in rubric.dimensions}
             expected_method = (
                 scenario.practice.scoring_version if scenario.practice else "assessment-weighted-v1"

@@ -868,10 +868,14 @@ class SqliteSessionRepository:
             CodeSwitch(
                 turn=int(item["turn"]),
                 fragment=str(item["fragment"]),
-                intended_german=item.get("intended_german"),
+                # v3 payloads stored the key under intended_german.
+                intended_term=item.get("intended_term", item.get("intended_german")),
             )
             for item in value.get("code_switches", ())
         )
+        value["empathy"] = tuple(dict(item) for item in value.get("empathy", ()))
+        value["next_actions"] = tuple(dict(item) for item in value.get("next_actions", ()))
+        value.setdefault("structure", None)
         value.setdefault("rubric_version", "unknown")
         value["created_at"] = (
             datetime.fromisoformat(value["created_at"])

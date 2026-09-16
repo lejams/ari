@@ -114,7 +114,7 @@ def build_container(settings: Settings) -> Container:
     cases = ClinicalCatalog(ClinicalStore(repository.engine))
     patient_prompt = load_prompt(settings.prompt_directory / "patient_v3.txt", "patient-v3")
     evaluation_prompt = load_prompt(
-        settings.prompt_directory / "evaluation_v3.txt", "evaluation-v3"
+        settings.prompt_directory / "evaluation_v4.txt", "evaluation-v4"
     )
     realtime_prompt = load_prompt(
         settings.prompt_directory / "patient_realtime_v1.txt", "patient-realtime-v1"

@@ -19,14 +19,16 @@ import uvicorn
 from alembic import command
 from alembic.config import Config
 from pydantic_settings import SettingsConfigDict
-from sqlalchemy import Engine, inspect
+from sqlalchemy import Engine, inspect, select
+from sqlalchemy.orm import Session
 
 from ari.api.app import create_app
 from ari.config import PROJECT_ROOT, Settings
-from ari.domain.clinical import CaseReview, ClinicalBundle, VersionRef
+from ari.domain.clinical import CaseReview, ClinicalBundle, TrainingScenarioVersion, VersionRef
 from ari.domain.models import new_id
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.yaml_io import parse_bundle
+from ari.infrastructure.persistence.clinical_rows import ScenarioRow
 from ari.infrastructure.persistence.sqlite import Base, SqliteSessionRepository
 
 DEMO_BUNDLES = PROJECT_ROOT / "cases" / "demo"
@@ -71,6 +73,28 @@ def publish_demo_content(store: ClinicalStore, bundle: ClinicalBundle) -> None:
                 )
             )
         store.publish(scenario.id, scenario.version, actor=DEMO_ACTOR)
+        _withdraw_older_case_versions(store, scenario)
+
+
+def _withdraw_older_case_versions(store: ClinicalStore, scenario: TrainingScenarioVersion) -> None:
+    """Demo convenience: a new case version supersedes the older one in the catalogue.
+
+    The registry only withdraws a predecessor for the same case version. In a persistent
+    development database an edited case would otherwise appear twice; sessions pinned
+    to the old scenario keep working through their pin.
+    """
+    with Session(store.engine) as db:
+        rows = db.scalars(
+            select(ScenarioRow).where(
+                ScenarioRow.case_id == scenario.case.id,
+                ScenarioRow.phase == scenario.phase,
+                ScenarioRow.status == "published",
+                ScenarioRow.case_version != scenario.case.version,
+            )
+        ).all()
+        older = [(row.id, row.version) for row in rows]
+    for scenario_id, version in older:
+        store.withdraw(scenario_id, version, actor=DEMO_ACTOR)
 
 
 def _ensure_schema(engine: Engine, database_url: str) -> None:
@@ -93,9 +117,7 @@ def seed_bundles(store: ClinicalStore, directory: Path) -> None:
         publish_demo_content(store, parse_bundle(path.read_text(encoding="utf-8")))
 
 
-def serve(
-    database_url: str, bundles: Path, provider: Literal["fake", "openai"], port: int
-) -> None:
+def serve(database_url: str, bundles: Path, provider: Literal["fake", "openai"], port: int) -> None:
     config = Config(PROJECT_ROOT / "alembic.ini")
     config.attributes["database_url"] = database_url
     command.upgrade(config, "head")

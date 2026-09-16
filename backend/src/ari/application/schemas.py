@@ -53,7 +53,15 @@ class VocabularyCandidateSchema(StrictModel):
 class CodeSwitchSchema(StrictModel):
     turn: int
     fragment: Annotated[str, Field(min_length=1, max_length=120)]
-    intended_german: Annotated[str, Field(min_length=1, max_length=120)] | None = None
+    # The key word or short phrase, in the simulation language, the learner needed.
+    intended_term: Annotated[str, Field(min_length=1, max_length=80)] | None = None
+
+
+class EmpathyJudgementSchema(StrictModel):
+    moment_id: str
+    verdict: Literal["acknowledged", "partial", "ignored"]
+    feedback: Annotated[str, Field(min_length=1, max_length=350)]
+    evidence_turn_sequences: list[int] = Field(min_length=1, max_length=2)
 
 
 class EvaluationOutputSchema(StrictModel):
@@ -66,6 +74,7 @@ class EvaluationOutputSchema(StrictModel):
         default_factory=list, max_length=8
     )
     code_switches: list[CodeSwitchSchema] = Field(default_factory=list, max_length=8)
+    empathy: list[EmpathyJudgementSchema] = Field(default_factory=list, max_length=8)
 
 
 class VoiceEventSchema(BaseModel):

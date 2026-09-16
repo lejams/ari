@@ -77,7 +77,7 @@ async def test_session_feeds_the_lexicon_and_reanalysis_never_duplicates(
     session = container.repository.get_session(session_id)
     assert session.evaluation is not None
     assert session.evaluation.code_switches[0].turn == 3
-    assert session.evaluation.code_switches[0].intended_german == "Schmerz"
+    assert session.evaluation.code_switches[0].intended_term == "Schmerz"
 
     # A re-analysis (e.g. after a failure) touches the same entries.
     container.repository.set_status(session_id, SessionStatus.ANALYSIS_FAILED)
@@ -228,7 +228,7 @@ def test_completed_session_view_carries_the_lexicon_report(container: Container)
         assert active["turns"][2]["patient_response_kind"] == "wrong_language"
 
         completed = client.post(f"/api/sessions/{session['id']}/end", json={}).json()
-        assert completed["evaluation"]["schema_version"] == "session-evaluation-v3"
+        assert completed["evaluation"]["schema_version"] == "session-evaluation-v4"
         assert completed["evaluation"]["code_switches"][0]["turn"] == 3
         assert completed["vocabulary"][0]["kind"] == "missing"
         assert {e["lemma"] for e in completed["lexicon"]["added"]} == {"ausstrahlen", "Schmerz"}

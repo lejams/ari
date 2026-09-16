@@ -8,8 +8,10 @@ from sqlalchemy.orm import Session
 
 from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.models import (
+    AnamnesisSectionSpec,
     AssessmentItem,
     EducationalTarget,
+    EmpathyMomentSpec,
     MedicalCase,
     MedicalFact,
     RubricCriterion,
@@ -127,5 +129,13 @@ class ClinicalCatalog:
             terminology=tuple(
                 TerminologyTerm(id=t.id, german=t.german, french=t.french)
                 for t in terminology.entries
+            ),
+            empathy_moments=tuple(
+                EmpathyMomentSpec(id=m.id, fact_id=m.fact_id, cue=m.cue_fr, expected=m.expected_fr)
+                for m in scenario.empathy_moments
+            ),
+            anamnesis_sections=tuple(
+                AnamnesisSectionSpec(id=s.id, label=s.label_de, fact_ids=s.fact_ids)
+                for s in scenario.anamnesis_sections
             ),
         )

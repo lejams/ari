@@ -784,9 +784,65 @@ function fillList(id, items) {
   );
 }
 
-const COMPARABLE_EVALUATIONS = new Set(["session-evaluation-v2", "session-evaluation-v3"]);
+const COMPARABLE_EVALUATIONS = new Set(["session-evaluation-v2", "session-evaluation-v3", "session-evaluation-v4"]);
 const VOCABULARY_KIND_LABELS = { missing: "mot manquant", misused: "mal employé", well_used: "bien employé" };
+const EMPATHY_LABELS = {
+  acknowledged: "Réaction adaptée", partial: "Réaction minimale", ignored: "Pas de réaction",
+  not_reached: "Révélé en fin de session, sans réponse", not_triggered: "Le patient ne l’a pas révélé",
+};
 const turnsLabel = (sequences) => `tour${sequences.length > 1 ? "s" : ""} ${sequences.join(", ")}`;
+
+function renderStructure(structure) {
+  const node = $("structure");
+  node.replaceChildren();
+  if (!structure) {
+    node.append(Object.assign(document.createElement("p"), { textContent: "Ce scénario ne définit pas de sections d’anamnèse." }));
+    return;
+  }
+  const intro = document.createElement("p");
+  intro.textContent = `${structure.covered_count} section${structure.covered_count > 1 ? "s" : ""} complète${structure.covered_count > 1 ? "s" : ""} sur ${structure.total_count}` +
+    (structure.order_observed.length > 1 ? (structure.canonical_order_respected ? " · ordre canonique respecté" : " · ordre différent de l’anamnèse canonique") : "");
+  node.append(intro);
+  const list = document.createElement("ul");
+  for (const section of structure.sections) {
+    const li = document.createElement("li");
+    const complete = section.missing_fact_ids.length === 0;
+    const started = section.covered_fact_ids.length > 0;
+    li.textContent = `${complete ? "✓" : started ? "◐" : "—"} ${section.label} · ${section.covered_fact_ids.length}/${section.fact_ids.length}` +
+      (section.first_turn ? ` (dès le tour ${section.first_turn})` : "") +
+      (complete ? "" : ` · manque : ${section.missing_fact_ids.join(", ")}`);
+    li.lang = "de";
+    list.append(li);
+  }
+  node.append(list);
+}
+
+function renderEmpathy(moments) {
+  const node = $("empathy");
+  node.replaceChildren();
+  if (!moments.length) {
+    node.append(Object.assign(document.createElement("p"), { textContent: "Ce scénario ne définit pas de moment sensible." }));
+    return;
+  }
+  const list = document.createElement("ul");
+  for (const moment of moments) {
+    const li = document.createElement("li");
+    const where = moment.response_turn ? ` (${turnsLabel([moment.response_turn])})` : "";
+    li.textContent = `${moment.cue} : ${EMPATHY_LABELS[moment.verdict] || moment.verdict}${where}${moment.feedback ? ` · ${moment.feedback}` : ""}`;
+    list.append(li);
+  }
+  node.append(list);
+}
+
+function renderNextActions(actions) {
+  const node = $("next-actions");
+  node.replaceChildren(...actions.map((action) => {
+    const li = document.createElement("li");
+    li.textContent = action.text;
+    return li;
+  }));
+  $("next-actions-block").classList.toggle("hidden", !actions.length);
+}
 
 function showFeedback(session) {
   const evaluation = session.evaluation;
@@ -804,6 +860,9 @@ function showFeedback(session) {
     $("voice-dimensions").append(line);
   }
   $("summary").textContent = evaluation.summary;
+  renderNextActions(evaluation.next_actions || []);
+  renderStructure(evaluation.structure || null);
+  renderEmpathy(evaluation.empathy || []);
   fillList("strengths", evaluation.strengths.map((item) => `${item.text} (${turnsLabel(item.evidence_turn_sequences)})`));
   fillList("priorities", evaluation.priorities.map((item) => `${item.text} (${turnsLabel(item.evidence_turn_sequences)})`));
   fillList(
@@ -818,7 +877,7 @@ function showFeedback(session) {
     : ["Aucune erreur de langue significative relevée."]);
   const codeSwitches = evaluation.code_switches || [];
   fillList("code-switches", codeSwitches.length
-    ? codeSwitches.map((item) => `Tour ${item.turn} : « ${item.fragment} »${item.intended_german ? ` → ${item.intended_german}` : ""}`)
+    ? codeSwitches.map((item) => `Tour ${item.turn} : « ${item.fragment} »${item.intended_term ? ` → ${item.intended_term}` : ""}`)
     : ["Vous êtes resté dans la langue de la consultation."]);
   const lexicon = session.lexicon;
   if (lexicon) {

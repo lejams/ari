@@ -23,6 +23,11 @@ creates a local profile, then practises with published, versioned clinical conte
   and to *mastered* after two such sessions and three successful reviews. In training a
   question asked in another language than the case gets the authored off-topic answer
   and is recorded as `wrong_language`, never a fact.
+- **Structure and empathy**: a scenario may map its facts to the canonical FSP
+  anamnesis sections (deterministic coverage checklist) and flag empathy moments (a
+  disclosure the doctor should acknowledge). The trigger is deterministic; only the
+  verdict on the learner's next turn is asked of the LLM, with the turn as evidence.
+  Each feedback ends with at most three next actions derived from these signals.
 - History and progression, separated by content version, rubric, method and mode.
   No overall score, no measured CEFR level, no certification.
 

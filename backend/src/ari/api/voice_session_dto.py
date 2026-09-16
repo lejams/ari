@@ -105,8 +105,29 @@ def public_session(session: ConversationSession) -> dict[str, Any]:
                 for item in getattr(evaluation, name)
             ]
         payload["code_switches"] = [
-            _fields(item, ("turn", "fragment", "intended_german"))
+            _fields(item, ("turn", "fragment", "intended_term"))
             for item in evaluation.code_switches
+        ]
+        payload["structure"] = jsonable_encoder(evaluation.structure)
+        payload["empathy"] = [
+            {
+                name: jsonable_encoder(item.get(name))
+                for name in (
+                    "moment_id",
+                    "cue",
+                    "expected",
+                    "trigger_turn",
+                    "response_turn",
+                    "verdict",
+                    "feedback",
+                    "evidence_turn_sequences",
+                )
+            }
+            for item in evaluation.empathy
+        ]
+        payload["next_actions"] = [
+            {name: jsonable_encoder(item.get(name)) for name in ("kind", "text", "target")}
+            for item in evaluation.next_actions
         ]
         payload["criteria"] = [
             {

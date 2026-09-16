@@ -162,6 +162,21 @@ class TerminologyTerm:
 
 
 @dataclass(frozen=True, slots=True)
+class EmpathyMomentSpec:
+    id: str
+    fact_id: str
+    cue: str
+    expected: str
+
+
+@dataclass(frozen=True, slots=True)
+class AnamnesisSectionSpec:
+    id: str
+    label: str
+    fact_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class MedicalCase:
     id: str
     version: str
@@ -185,6 +200,8 @@ class MedicalCase:
     training_snapshot: Mapping[str, str] = field(default_factory=dict)
     available_for_new_sessions: bool = True
     terminology: tuple[TerminologyTerm, ...] = ()
+    empathy_moments: tuple[EmpathyMomentSpec, ...] = ()
+    anamnesis_sections: tuple[AnamnesisSectionSpec, ...] = ()
 
     @property
     def fact_ids(self) -> frozenset[str]:
@@ -227,7 +244,7 @@ class CodeSwitch:
 
     turn: int
     fragment: str
-    intended_german: str | None = None
+    intended_term: str | None = None  # The key term in the simulation language.
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,6 +262,12 @@ class Evaluation:
     criteria: tuple[dict[str, Any], ...]
     created_at: datetime = field(default_factory=utc_now)
     code_switches: tuple[CodeSwitch, ...] = ()
+    # Deterministic section coverage (anamnesis-sections-v1), None when the scenario has none.
+    structure: dict[str, Any] | None = None
+    # One judgement per authored empathy moment: deterministic trigger, LLM verdict with evidence.
+    empathy: tuple[dict[str, Any], ...] = ()
+    # At most three concrete next steps, derived from deterministic signals only.
+    next_actions: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

@@ -38,7 +38,7 @@ terminology_sets:
     french: par la bouche
 cases:
 - id: ARI-DEV-FR
-  version: '1'
+  version: '2'
   schema_version: clinical-case-v2
   language: fr-FR
   region: Fiction
@@ -159,6 +159,21 @@ cases:
     - source_id: ari-dev-fr-synthetic
       pages: []
     uncertainty: null
+  - id: family_history
+    category: family
+    value: Père décédé d'un infarctus à 55 ans
+    unit: null
+    temporality: null
+    polarity: present
+    criticality: normal
+    patient_phrases_de:
+    - Mon père est mort d'un infarctus à 55 ans. J'ai peur que ce soit la même chose.
+    translation_fr: null
+    disclosure: when_asked
+    sources:
+    - source_id: ari-dev-fr-synthetic
+      pages: []
+    uncertainty: null
   assessment_items:
   - id: patient-identity
     dimension: clinical_coverage
@@ -202,6 +217,16 @@ cases:
     satisfied_by_fact_ids:
     - smoking
     doctor_phrases: []
+  - id: family-history
+    dimension: clinical_coverage
+    weight: 1.0
+    required: false
+    expected_behavior: Demander les antécédents familiaux
+    evidence_kind: delivered_facts
+    satisfaction: all
+    satisfied_by_fact_ids:
+    - family_history
+    doctor_phrases: []
   - id: greeting
     dimension: communication
     weight: 1.0
@@ -214,11 +239,11 @@ cases:
     - Bonjour
 scenarios:
 - id: ari-dev-fr-arzt_patient
-  version: '1'
+  version: '2'
   case:
     id: ARI-DEV-FR
-    version: '1'
-  case_hash: 4bb2d81a8e5858450c900defafcdf427f7db82957fef01092f4023805c2aae22
+    version: '2'
+  case_hash: 3d96d39fcf2808249b3fd0d09df4585860f73dc0c8bdf3068b9ee5cc25c7d001
   rubric:
     id: ari-dev-fr-voice-rubric
     version: '1'
@@ -236,4 +261,37 @@ scenarios:
   - reason
   objectives:
   - Tester la voix, le mode examen et la boucle de feedback en français
+  - Tester la checklist des sections et le jugement d'empathie
   duration_minutes: 10
+  empathy_moments:
+  - id: father-death
+    fact_id: family_history
+    cue_fr: Le patient révèle que son père est mort d'un infarctus et dit avoir peur
+    expected_fr: Reconnaître la peur et le deuil en une phrase, marquer un temps, puis revenir à l'anamnèse
+  anamnesis_sections:
+  - id: patientendaten
+    label_de: Identité
+    fact_ids:
+    - identity
+  - id: aktuelle_beschwerden
+    label_de: Plainte actuelle
+    fact_ids:
+    - reason
+    - onset
+    - radiation
+  - id: medikamente
+    label_de: Médicaments
+    fact_ids:
+    - medication
+  - id: allergien
+    label_de: Allergies
+    fact_ids:
+    - allergy
+  - id: noxen
+    label_de: Tabac et toxiques
+    fact_ids:
+    - smoking
+  - id: familienanamnese
+    label_de: Antécédents familiaux
+    fact_ids:
+    - family_history
