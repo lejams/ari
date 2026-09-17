@@ -41,6 +41,7 @@ test-web:
 	$(NODE) web/tests/practice-client.test.mjs
 	$(NODE) web/tests/lexicon-client.test.mjs
 	$(NODE) web/tests/placement-client.test.mjs
+	$(NODE) web/tests/practice-dom.test.mjs
 	$(NODE) --check web/app.js
 	$(NODE) --check web/pcm-worklet.js
 	$(NODE) web/tests/pcm-resampler.test.mjs

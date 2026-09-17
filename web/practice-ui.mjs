@@ -421,6 +421,40 @@ async function showProgress() {
   for(const excluded of progress.excluded||[])$('progress-list').append(node('p',`${excluded.reason} · session ${excluded.run_id}. Le feedback reste disponible dans l’historique.`,'help'));
   for(const group of progress.groups){const card=node('article',undefined,'card');card.append(node('h2',`${group.content.title} · ${group.mode}`),node('p',`Contenu ${group.content.scenario_id}@${group.content.scenario_version} · rubrique ${group.content.rubric_id}@${group.content.rubric_version}`,'help'));for(const point of group.points){card.append(node('h3',formatDate(point.created_at)));for(const dimension of point.dimensions)card.append(node('p',dimensionText(dimension)));card.append(actionButton('Voir les preuves',()=>openHistoryItem({id:point.run_id,kind:group.kind})));}$('progress-list').append(card);}view('progress');
 }
+function renderReviewCard() {
+  reviewEntry = reviewQueue[0] || null;
+  $('vocab-review').hidden = !reviewEntry;
+  if (!reviewEntry) return;
+  $('review-progress').textContent = `Révision ${reviewTotal - reviewQueue.length + 1} / ${reviewTotal}`;
+  $('review-source').textContent = reviewEntry.zone === 'acquired' ? `Entretien · ${sourceLabel(reviewEntry.source)}` : sourceLabel(reviewEntry.source);
+  // Recto: the French cue when we have one, else the German word itself (recall the meaning).
+  const hasCue = Boolean(reviewEntry.translation);
+  $('review-front').textContent = hasCue ? reviewEntry.translation : reviewEntry.lemma;
+  $('review-front').lang = hasCue ? 'fr' : 'de';
+  $('review-example').hidden = true; $('review-example').textContent = reviewEntry.example || '';
+  $('review-form').hidden = !hasCue; $('review-input').value = '';
+  $('review-back').hidden = hasCue;
+  $('review-answer').textContent = reviewEntry.lemma;
+  $('review-verdict').textContent = hasCue ? '' : 'Ce mot n’a pas encore de traduction : évaluez votre souvenir de son sens.';
+  $('review-ratings').replaceChildren(...RATINGS.map(rating => actionButton(ratingLabel(rating), () => rateReview(rating), rating === 'good')));
+  if (!hasCue && reviewEntry.example) $('review-example').hidden = false;
+}
+function revealReview(typed) {
+  const suggestion = LexiconClient.suggest(reviewEntry, typed);
+  $('review-form').hidden = true; $('review-back').hidden = false;
+  if (reviewEntry.example) $('review-example').hidden = false;
+  $('review-verdict').textContent = suggestion === 'good' ? 'Votre réponse correspond. Évaluez la facilité du rappel.'
+    : suggestion === 'again' ? `Vous avez écrit « ${typed.trim()} ». Comparez et évaluez honnêtement.` : 'Évaluez votre rappel.';
+  Array.from($('review-ratings').children).forEach(button => button.classList.toggle('primary', suggestion ? button.textContent === ratingLabel(suggestion) : button.textContent === ratingLabel('good')));
+}
+async function rateReview(rating) {
+  const entry = reviewEntry;
+  await lexicon.review(entry, rating);
+  reviewQueue = reviewQueue.filter(item => item.id !== entry.id);
+  if (rating === 'again') reviewQueue.push(entry); // Due again immediately: back of the queue.
+  if (!reviewQueue.length) { await showVocab(); return; }
+  renderReviewCard();
+}
 let vocabZone = 'active', vocabOverview = null;
 function entryCard(entry) {
   const card = node('article', undefined, 'card word-card');
