@@ -22,6 +22,7 @@ from ari.api.lexicon import lexicon_router, public_report
 from ari.api.ownership import PROFILE_COOKIE, OwnershipMiddleware
 from ari.api.placement import placement_router
 from ari.api.practice import practice_router
+from ari.api.program import program_router
 from ari.api.realtime_socket import RealtimeVoiceSocket
 from ari.api.voice_session_dto import public_session
 from ari.api.voice_socket import VoiceLifecycles, VoiceSocket
@@ -51,6 +52,7 @@ def _public_case(case: MedicalCase) -> dict[str, object]:
         "language": case.language,
         "public_summary": case.public_summary,
         "difficulty": case.difficulty,
+        "cefr": case.cefr,
         "educational_target": {
             "exam": case.educational_target.exam,
             "phase": case.educational_target.phase,
@@ -71,6 +73,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     app.include_router(practice_router(services))
     app.include_router(lexicon_router(services))
     app.include_router(placement_router(services))
+    app.include_router(program_router(services))
 
     def _session_view(session_id: str) -> Any:
         session = services.repository.get_session(session_id)

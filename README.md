@@ -35,6 +35,15 @@ creates a local profile, then practises with published, versioned clinical conte
   *estimated* level per skill and an overall band stored as `estimated_level`. Its
   content is a separate registry bundle (`ari-placement-bundle-v1`) with one linguistic
   review; see `docs/CLINICAL_CASES.md`.
+- **Weekly programme** (`program-rules-v1`): a learner model is computed on every read
+  from deterministic signals only (reference level, lexicon due words, section coverage
+  over the last sessions, required items missed, empathy verdict counts, recent
+  activity, exam horizon) and turned into this week's slots, bounded by the declared
+  minutes per day. Phases: positionnement, prérequis (below B1, with the general-German
+  prerequisite stated as information to verify per Land), fondations, anamnèse, examen.
+  Recommended content scores published cases by overlap with due lexicon words, weak
+  sections and recency. Nothing is stored: the plan is recomputed, done slots are matched
+  against what was completed since Monday.
 - History and progression, separated by content version, rubric, method and mode.
   No overall score, no certified CEFR level, no certification.
 
@@ -190,7 +199,8 @@ a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connect
   (archive), `POST /api/lexicon/entries/{id}/reviews` (idempotent per `event_id`).
   A completed session's `GET /api/sessions/{id}` carries `lexicon` (words added and
   promoted by that session) and `evaluation.code_switches`.
-- `GET /api/history`, `GET /api/progression`
+- `GET /api/history`, `GET /api/progression`, `GET /api/program` (learner model and
+  this week's slots)
 
 ## Quality checks
 

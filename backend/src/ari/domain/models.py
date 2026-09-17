@@ -221,6 +221,7 @@ class MedicalCase:
     terminology: tuple[TerminologyTerm, ...] = ()
     empathy_moments: tuple[EmpathyMomentSpec, ...] = ()
     anamnesis_sections: tuple[AnamnesisSectionSpec, ...] = ()
+    cefr: str | None = None  # Authored scenario level; the programme filters on it.
 
     @property
     def fact_ids(self) -> frozenset[str]:

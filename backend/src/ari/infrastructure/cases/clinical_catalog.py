@@ -138,4 +138,5 @@ class ClinicalCatalog:
                 AnamnesisSectionSpec(id=s.id, label=s.label_de, fact_ids=s.fact_ids)
                 for s in scenario.anamnesis_sections
             ),
+            cefr=scenario.cefr,
         )

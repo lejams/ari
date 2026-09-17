@@ -92,6 +92,16 @@ niveaux mesurés ; l'oral n'est compté que si sa confiance atteint 0,6. Il est 
 le profil comme `estimated_level`, avec la date et l'identifiant de la tentative. Ce
 n'est ni un certificat ni le niveau requis pour l'inscription à la FSP.
 
+### Programme hebdomadaire (`program-rules-v1`)
+
+Le programme n'est pas du contenu et n'est jamais stocké : il est recalculé à chaque
+lecture à partir du modèle apprenant (`learner-model-v1`, signaux déterministes
+uniquement). Le scénario influence la recommandation par trois champs déjà revus :
+`cefr` (un cas au plus un niveau au-dessus du niveau de référence est proposé),
+`terminology` (recouvrement avec les mots dus du carnet) et `anamnesis_sections`
+(sections faibles de l'apprenant). Un scénario sans ces champs reste recommandable,
+seulement moins souvent.
+
 ### Exercices structurés
 
 Le scénario peut porter `practice: PracticeSpecification` (`practice-spec-v1`) :

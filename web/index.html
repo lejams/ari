@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f5f2"><title>ARI — Votre pratique</title><link rel="stylesheet" href="/practice.css?v=20260909b"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f5f2"><title>ARI — Votre pratique</title><link rel="stylesheet" href="/practice.css?v=20260917"></head>
 <body>
 <a class="skip" href="#main">Aller au contenu</a>
 <aside class="sidebar">
@@ -44,6 +44,7 @@
   </section>
   <section id="home" hidden>
     <div class="pagehead"><p class="eyebrow">Votre pratique, un jour à la fois</p><h1>Faites une place<br>à votre allemand médical.</h1></div>
+    <article id="week-plan" class="card week-card" aria-labelledby="week-title"><div class="row between"><div><h2 id="week-title">Cette semaine</h2><p id="week-phase" class="help"></p></div><span id="week-budget" class="help"></span></div><p id="week-message"></p><div id="week-days" class="week-days" role="list"></div><p id="week-limitations" class="help"></p></article>
     <article class="card calendar-card" aria-labelledby="calendar-title"><div class="row between"><div><h2 id="calendar-title">Votre régularité</h2><p class="help">21 jours · dates dans votre fuseau local</p></div><div class="row"><button id="cal-prev" aria-label="Jours précédents">←</button><button id="cal-next" aria-label="Jours suivants">→</button></div></div><div id="daytrack" class="daytrack" role="group" aria-label="Calendrier des 21 derniers jours"></div><p id="day-summary" class="daysummary" role="status"></p><div class="legend"><span>✓ Pratique terminée</span><span>— Sans pratique</span><span>○ Aujourd’hui</span></div></article>
     <article id="recommendation" class="recommend card"></article>
     <div class="grid"><article class="quiet-card"><h2>Une autre conversation ?</h2><p>Retrouvez les cas et exercices disponibles.</p><button data-view="cases">Explorer la bibliothèque →</button></article><article class="quiet-card"><h2>Votre parcours</h2><p id="profile-goal"></p><p id="local-profile-summary" class="help"></p><div class="row wrap"><button id="placement-cta" data-view="placement">Passer le test de niveau</button><button id="edit-profile">Modifier mes préférences</button></div></article></div>
@@ -75,5 +76,5 @@
   <section id="progress" hidden><div class="pagehead"><p class="eyebrow">Progression</p><h1>Observez votre pratique.</h1><p id="progress-note"></p></div><button data-view="history">Voir tout mon historique →</button><div id="progress-list"></div></section>
 </main>
 <nav class="bottomnav" aria-label="Navigation mobile"><button data-view="home">Accueil</button><button data-view="cases">Cas</button><button data-view="exam">Examen</button><button data-view="progress">Progrès</button><button data-view="vocab">Mots</button></nav>
-<script type="module" src="/practice-ui.mjs?v=20260916b"></script>
+<script type="module" src="/practice-ui.mjs?v=20260917"></script>
 </body></html>

@@ -31,6 +31,9 @@ try {
   await page.goto(base);
   await onboard(page);
   assert.match(await page.locator("#profile-goal").innerText(), /niveau non mesuré/);
+  // The weekly programme is computed from the profile: a declared B2 without estimate is "anamnese".
+  assert.match(await page.locator("#week-phase").innerText(), /Anamnèse · niveau B2/);
+  assert.equal(await page.locator("#week-days .slot").count() > 0, true, "the week has slots");
   await page.goto(base + "/#cases");
   await page.getByRole("radio", {name: /Examen/}).check();
   // Server commits the start but the browser loses its response: retry must not duplicate it.

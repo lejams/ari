@@ -35,6 +35,7 @@ class OwnershipMiddleware:
             "/api/profile",
             "/api/progression",
             "/api/history",
+            "/api/program",
             "/api/technical/voice-metrics",
         )
         origin = connection.headers.get("origin")

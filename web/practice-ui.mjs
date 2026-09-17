@@ -194,6 +194,59 @@ function renderCalendar() {
   summary(selectedIndex);
   requestAnimationFrame(() => { track.scrollLeft = track.scrollWidth; controls(); });
 }
+
+// ----- weekly programme -----------------------------------------------------------------
+const SLOT_LABELS = {lexicon_review: 'Réviser mon carnet', fachbegriffe: 'Fachbegriffe', arzt_arzt: 'Arzt–Arzt', voice_training: 'Consultation · Training', voice_exam: 'Consultation · Examen', placement: 'Test de niveau'};
+const SLOT_STATES = {done: '✓', today: '○', todo: '·', missed: '—'};
+const PHASE_LABELS_FR = {positionnement: 'Positionnement', prerequis: 'Prérequis', fondations: 'Fondations', anamnese: 'Anamnèse', examen: 'Examen'};
+function slotTitle(slot) {
+  const rec = slot.recommended;
+  return rec ? `${SLOT_LABELS[slot.kind]} · ${rec.title}` : SLOT_LABELS[slot.kind] || slot.kind;
+}
+function slotButtonLabel(slot) {
+  return {lexicon_review: 'Réviser →', placement: 'Passer le test →', voice_training: 'Préparer la consultation →', voice_exam: 'Commencer en Examen →', fachbegriffe: 'Faire l’exercice →', arzt_arzt: 'Faire l’exercice →'}[slot.kind] || 'Commencer →';
+}
+async function runSlot(slot) {
+  const rec = slot.recommended;
+  if (slot.kind === 'lexicon_review') return showVocab();
+  if (slot.kind === 'placement') return showPlacement();
+  if (rec?.kind === 'voice') {
+    await loadCatalog();
+    const item = voiceCases.find(c => c.id === rec.id && c.version === rec.version) || rec;
+    return prepare(item, 'voice', rec.mode);
+  }
+  if (rec?.kind === 'practice') {
+    await loadCatalog();
+    const item = catalog.find(c => c.scenario_id === rec.scenario_id && c.scenario_version === rec.scenario_version) || rec;
+    return prepare(item, 'practice', 'training');
+  }
+  return showCases();
+}
+function renderWeek(program) {
+  const week = program.week, model = program.model;
+  $('week-phase').textContent = `${PHASE_LABELS_FR[week.phase] || week.phase} · niveau ${model.level.reference || 'non estimé'}${model.exam.weeks_left !== null ? ` · examen dans ${model.exam.weeks_left} semaine${model.exam.weeks_left > 1 ? 's' : ''}` : ''}`;
+  $('week-budget').textContent = `${week.planned_minutes} / ${week.budget_minutes} min prévues`;
+  $('week-message').textContent = week.message;
+  $('week-limitations').textContent = week.limitations;
+  const days = Array.from({length: 7}, (_, offset) => { const day = new Date(week.week_start + 'T00:00:00'); day.setDate(day.getDate() + offset); return day; });
+  $('week-days').replaceChildren(...days.map((day, offset) => {
+    const column = node('div', undefined, 'week-day'); column.setAttribute('role', 'listitem');
+    const key = day.toISOString().slice(0, 10);
+    const isToday = key === week.today;
+    column.append(node('p', day.toLocaleDateString('fr-FR', {weekday: 'short', day: 'numeric'}), `week-day-label${isToday ? ' today' : ''}`));
+    const slots = week.slots.filter(slot => slot.day_offset === offset);
+    if (!slots.length) column.append(node('p', 'repos', 'help'));
+    for (const slot of slots) {
+      const button = node('button', undefined, 'slot'); button.type = 'button'; button.dataset.state = slot.state;
+      button.append(node('span', SLOT_STATES[slot.state] || '·', 'slot-state'), node('strong', SLOT_LABELS[slot.kind] || slot.kind), node('span', `${slot.minutes} min${slot.recommended?.title ? ` · ${slot.recommended.title}` : ''}`, 'slot-note'));
+      button.title = slot.rationale;
+      button.disabled = slot.state === 'done';
+      button.addEventListener('click', () => perform(() => runSlot(slot)));
+      column.append(button);
+    }
+    return column;
+  }));
+}
 async function home() {
   if (!client.profile) { restoreDraft(); view('onboarding', false); return; }
   await loadCatalog(); historyItems = (await client.api('/api/history')).items;
@@ -203,13 +256,18 @@ async function home() {
   $('goal-target').value = client.profile.goal.target_cefr;
   $('local-profile-summary').textContent = [details.land, details.minutes_per_day ? `${details.minutes_per_day} min/jour` : '', details.declared_level ? `niveau ${details.declared_level} ${details.level_source === 'certificate' ? 'certifié (déclaré)' : 'auto-évalué'}` : '', details.exam_date ? `examen le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}` : ''].filter(Boolean).join(' · ') || 'Renseignez vos préférences pour calibrer votre pratique.';
   $('placement-cta').textContent = details.estimated_level ? 'Refaire le test de niveau' : 'Passer le test de niveau';
-  const first = voiceCases[0] || catalog[0], kind = voiceCases[0] ? 'voice' : 'practice';
-  $('recommendation').replaceChildren(node('p','Votre prochaine étape','eyebrow'),node('h2',first?.title || 'Aucune session disponible.'));
-  if (first) {
-    $('recommendation').append(node('p', 'Prenez quelques minutes pour préparer votre prochain échange.'), actionButton('Préparer ma session →', () => prepare(first,kind), true));
-    const why = node('details'); why.append(node('summary','Pourquoi cette proposition ?'),node('p', first.provenance === 'synthetic_demo' ? 'Le serveur de démonstration propose cet exercice synthétique de test. Il ne constitue pas une recommandation pédagogique personnalisée.' : 'Ce contenu est le premier du catalogue disponible, en privilégiant les consultations vocales. Cette sélection ne repose pas sur un niveau mesuré et ne constitue pas un programme calibré.'));
+  const program = await client.api('/api/program');
+  renderWeek(program);
+  const next = program.week.next;
+  $('recommendation').replaceChildren(node('p', 'Votre prochaine étape', 'eyebrow'));
+  if (next) {
+    $('recommendation').append(node('h2', slotTitle(next)), node('p', next.rationale));
+    $('recommendation').append(actionButton(slotButtonLabel(next), () => runSlot(next), true));
+    const why = node('details'); why.append(node('summary', 'Pourquoi cette proposition ?'), node('p', `${program.week.message} ${program.week.limitations}`));
     $('recommendation').append(why);
-  } else $('recommendation').append(node('p','Aucun cas ou exercice publié n’est disponible. Vos sessions précédentes restent accessibles dans l’historique.'));
+  } else {
+    $('recommendation').append(node('h2', 'Semaine accomplie.'), node('p', 'Tous les créneaux prévus sont faits. Le programme se recalcule lundi, ou dès que votre carnet ou votre profil change.'));
+  }
   view('home'); renderCalendar();
 }
 async function showCases() { await loadCatalog(); renderCatalog(); view('cases'); }
