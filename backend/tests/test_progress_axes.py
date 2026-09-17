@@ -104,8 +104,9 @@ def test_axes_aggregate_sections_verdicts_and_recurring_error_categories() -> No
     assert communication["acknowledged_rate"] == 1.0 and communication["previous_rate"] == 0.0
     language = axes["language"]
     assert language["sessions_considered"] == 5
-    assert language["by_category"] == {"case": 4, "gender": 1}
-    assert [r["category"] for r in language["recurring"]] == ["case"]
+    # Sessions 3..7: gender at 3 and 6, case elsewhere; both recur, most frequent first.
+    assert language["by_category"] == {"case": 3, "gender": 2}
+    assert [r["category"] for r in language["recurring"]] == ["case", "gender"]
     assert language["errors_per_session"] == 1.0
     regularity = axes["regularity"]
     assert len(regularity["weeks"]) == 4 and regularity["weeks"][-1]["voice_sessions"] >= 1
