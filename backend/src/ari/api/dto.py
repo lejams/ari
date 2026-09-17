@@ -29,6 +29,7 @@ class UpdateProfileRequest(ApiModel):
     land: Annotated[str, Field(max_length=40)] | None = None
     situation: Literal["doctor", "student"] | None = None
     specialty: Annotated[str, Field(max_length=120)] | None = None
+    maintenance_cadence_days: Literal[7, 30] = 30
 
     def apply(self, current: LearnerDetails) -> LearnerDetails:
         changes = self.model_dump(exclude_unset=True)

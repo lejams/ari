@@ -132,11 +132,21 @@ async def test_term_spoken_in_a_later_session_is_promoted_then_mastered(
     for event in ("r1", "r2"):
         entry = container.lexicon.review(learner.id, entry.id, event, SrsRating.GOOD)
         assert entry.state is VocabularyState.USED
-    entry = container.lexicon.review(learner.id, entry.id, "r3", SrsRating.GOOD)
+    entry = container.lexicon.review(learner.id, entry.id, "r3", SrsRating.GOOD, maintenance_days=7)
     assert entry.state is VocabularyState.MASTERED
-    entry = container.lexicon.review(learner.id, entry.id, "r4", SrsRating.AGAIN)
-    assert entry.state is VocabularyState.USED
-    assert entry.srs.lapses == 1
+    # Acquired: the word leaves the SM-2 ladder and comes back at the maintenance cadence.
+    assert entry.srs.interval_days == 7
+    assert (entry.srs.due_at - entry.srs.last_reviewed_at).days == 7  # type: ignore[operator]
+    overview = container.lexicon.overview(learner.id)
+    assert [e.lemma_key for e in overview.acquired] == ["schmerz"]
+    assert "schmerz" not in {e.lemma_key for e in overview.active}
+    kept = container.lexicon.review(learner.id, entry.id, "r4", SrsRating.GOOD, maintenance_days=30)
+    assert kept.state is VocabularyState.MASTERED and kept.srs.interval_days == 30
+    assert kept.srs.repetitions == entry.srs.repetitions + 1
+    # A miss during maintenance sends the word back to the active zone.
+    demoted = container.lexicon.review(learner.id, entry.id, "r5", SrsRating.AGAIN)
+    assert demoted.state is VocabularyState.USED
+    assert demoted.srs.lapses == 1 and demoted.srs.interval_days == 0
 
 
 def test_reviews_are_idempotent_per_event_and_identified_words_become_reviewed(
@@ -182,6 +192,18 @@ def test_lexicon_api_is_owned_by_the_profile(container: Container) -> None:
         assert reviewed["state"] == "reviewed" and reviewed["due"] is False
         overview = alice.get("/api/lexicon").json()
         assert overview["by_state"]["reviewed"] == 1 and overview["due_count"] == 0
+        assert overview["active_count"] == 1 and overview["acquired_count"] == 0
+        assert overview["maintenance_cadence_days"] == 30
+        assert overview["entries"][0]["zone"] == "active"
+        me = alice.get("/api/profile").json()
+        alice.patch(f"/api/learners/{me['id']}/profile", json={"maintenance_cadence_days": 7})
+        assert alice.get("/api/lexicon").json()["maintenance_cadence_days"] == 7
+        assert (
+            alice.patch(
+                f"/api/learners/{me['id']}/profile", json={"maintenance_cadence_days": 10}
+            ).status_code
+            == 422
+        )
 
         assert bob.get("/api/lexicon").json()["entries"] == []
         assert (

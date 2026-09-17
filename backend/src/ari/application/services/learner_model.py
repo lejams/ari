@@ -57,6 +57,8 @@ class LearnerModel:
     voice_minutes_7d: int
     last_completed_by_scenario: dict[str, datetime] = field(default_factory=dict)
     last_completed_by_practice: dict[str, datetime] = field(default_factory=dict)
+    lexicon_acquired: int = 0
+    lexicon_maintenance_due: int = 0
 
     @property
     def level_reference(self) -> str | None:
@@ -84,6 +86,8 @@ class LearnerModel:
             "lexicon": {
                 "total": self.lexicon_total,
                 "due": self.lexicon_due,
+                "acquired": self.lexicon_acquired,
+                "maintenance_due": self.lexicon_maintenance_due,
                 "by_state": dict(self.lexicon_by_state),
             },
             "structure": {
@@ -200,6 +204,8 @@ class LearnerModelService:
             voice_minutes_7d=sum(_minutes(s) for s in sessions if _within(s, week_ago)),
             last_completed_by_scenario=by_scenario,
             last_completed_by_practice=by_practice,
+            lexicon_acquired=len(overview.acquired),
+            lexicon_maintenance_due=len(overview.due_maintenance),
         )
 
 

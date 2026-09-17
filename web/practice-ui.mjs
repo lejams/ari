@@ -199,7 +199,7 @@ function renderCalendar() {
 }
 
 // ----- weekly programme -----------------------------------------------------------------
-const SLOT_LABELS = {lexicon_review: 'Réviser mon carnet', fachbegriffe: 'Fachbegriffe', arzt_arzt: 'Arzt–Arzt', voice_training: 'Consultation · Training', voice_exam: 'Consultation · Examen', placement: 'Test de niveau'};
+const SLOT_LABELS = {lexicon_review: 'Réviser mon carnet', lexicon_maintenance: 'Entretien du carnet', fachbegriffe: 'Fachbegriffe', arzt_arzt: 'Arzt–Arzt', voice_training: 'Consultation · Training', voice_exam: 'Consultation · Examen', placement: 'Test de niveau'};
 const SLOT_STATES = {done: '✓', today: '○', todo: '·', missed: '—'};
 const PHASE_LABELS_FR = {positionnement: 'Positionnement', prerequis: 'Prérequis', fondations: 'Fondations', anamnese: 'Anamnèse', examen: 'Examen'};
 function slotTitle(slot) {
@@ -207,11 +207,11 @@ function slotTitle(slot) {
   return rec ? `${SLOT_LABELS[slot.kind]} · ${rec.title}` : SLOT_LABELS[slot.kind] || slot.kind;
 }
 function slotButtonLabel(slot) {
-  return {lexicon_review: 'Réviser →', placement: 'Passer le test →', voice_training: 'Préparer la consultation →', voice_exam: 'Commencer en Examen →', fachbegriffe: 'Faire l’exercice →', arzt_arzt: 'Faire l’exercice →'}[slot.kind] || 'Commencer →';
+  return {lexicon_review: 'Réviser →', lexicon_maintenance: 'Entretenir →', placement: 'Passer le test →', voice_training: 'Préparer la consultation →', voice_exam: 'Commencer en Examen →', fachbegriffe: 'Faire l’exercice →', arzt_arzt: 'Faire l’exercice →'}[slot.kind] || 'Commencer →';
 }
 async function runSlot(slot) {
   const rec = slot.recommended;
-  if (slot.kind === 'lexicon_review') return showVocab();
+  if (slot.kind === 'lexicon_review' || slot.kind === 'lexicon_maintenance') return showVocab();
   if (slot.kind === 'placement') return showPlacement();
   if (rec?.kind === 'voice') {
     await loadCatalog();
@@ -349,7 +349,7 @@ function renderReviewCard() {
   $('vocab-review').hidden = !reviewEntry;
   if (!reviewEntry) return;
   $('review-progress').textContent = `Révision ${reviewTotal - reviewQueue.length + 1} / ${reviewTotal}`;
-  $('review-source').textContent = sourceLabel(reviewEntry.source);
+  $('review-source').textContent = reviewEntry.zone === 'acquired' ? `Entretien · ${sourceLabel(reviewEntry.source)}` : sourceLabel(reviewEntry.source);
   // Recto: the French cue when we have one, else the German word itself (recall the meaning).
   const hasCue = Boolean(reviewEntry.translation);
   $('review-front').textContent = hasCue ? reviewEntry.translation : reviewEntry.lemma;
@@ -378,29 +378,56 @@ async function rateReview(rating) {
   if (!reviewQueue.length) { await showVocab(); return; }
   renderReviewCard();
 }
+let vocabZone = 'active', vocabOverview = null;
 function entryCard(entry) {
-  const card = node('article', undefined, 'card');
+  const card = node('article', undefined, 'card word-card');
   const title = node('h3', entry.lemma); title.lang = 'de';
   card.append(node('span', lexiconStateLabel(entry.state), 'badge'), title);
   if (entry.translation) card.append(node('p', entry.translation));
   if (entry.example) { const example = node('p', entry.example, 'muted'); example.lang = 'de'; card.append(example); }
-  const due = entry.due ? 'à revoir maintenant' : `prochaine révision ${new Date(entry.due_at).toLocaleDateString('fr-FR')}`;
-  card.append(node('p', `${sourceLabel(entry.source)} · ${due} · ${entry.repetitions} révision${entry.repetitions > 1 ? 's' : ''} · utilisé dans ${entry.used_sessions} session${entry.used_sessions > 1 ? 's' : ''}`, 'help'));
+  const next = entry.due ? (entry.zone === 'acquired' ? 'entretien à faire' : 'à revoir maintenant') : `prochain passage ${new Date(entry.due_at).toLocaleDateString('fr-FR')}`;
+  card.append(node('p', `${sourceLabel(entry.source)} · ${next}`, 'help'));
+  const history = node('p', [
+    `repéré le ${new Date(entry.created_at).toLocaleDateString('fr-FR')}`,
+    `${entry.repetitions} révision${entry.repetitions > 1 ? 's' : ''}${entry.lapses ? ` · ${entry.lapses} oubli${entry.lapses > 1 ? 's' : ''}` : ''}`,
+    `utilisé dans ${entry.used_sessions} session${entry.used_sessions > 1 ? 's' : ''}`,
+    entry.last_reviewed_at ? `dernière révision le ${new Date(entry.last_reviewed_at).toLocaleDateString('fr-FR')}` : 'jamais révisé',
+  ].join(' · '), 'help');
+  card.append(history);
   card.append(actionButton('Archiver', async () => { await lexicon.archive(entry, true); await showVocab(); }));
   return card;
+}
+function renderVocabList() {
+  if (!vocabOverview) return;
+  const query = $('vocab-search').value.trim().toLocaleLowerCase('fr-FR');
+  const source = $('vocab-source').value;
+  const entries = vocabOverview.entries.filter(entry => entry.zone === vocabZone
+    && (source === 'all' || entry.source === source)
+    && (!query || `${entry.lemma} ${entry.translation}`.toLocaleLowerCase('fr-FR').includes(query)));
+  for (const tab of document.querySelectorAll('.tab')) tab.setAttribute('aria-selected', String(tab.dataset.zone === vocabZone));
+  $('tab-active').textContent = `À travailler (${vocabOverview.active_count})`;
+  $('tab-acquired').textContent = `Acquis (${vocabOverview.acquired_count})`;
+  $('vocab-zone-note').textContent = vocabZone === 'active'
+    ? 'Mots repérés, révisés ou utilisés une fois : ils reviennent par répétition espacée jusqu’à être acquis.'
+    : `Mots utilisés spontanément dans deux sessions et révisés trois fois : ils reviennent ${vocabOverview.maintenance_cadence_days === 7 ? 'chaque semaine' : 'chaque mois'} en entretien.`;
+  $('vocab-list').replaceChildren(...(entries.length ? entries.map(entryCard) : [node('p', vocabZone === 'active' ? 'Aucun mot à travailler avec ces filtres.' : 'Aucun mot acquis pour le moment : utilisez un mot de votre carnet dans deux sessions et révisez-le trois fois.', 'availability')]));
 }
 async function showVocab() {
   lexicon.profileId = client.profile.id;
   const overview = await lexicon.overview();
-  const counts = overview.by_state;
+  vocabOverview = overview;
+  const acquired = overview.acquired_count, active = overview.active_count;
   $('vocab-summary').textContent = overview.entries.length
-    ? `${overview.entries.length} mot${overview.entries.length > 1 ? 's' : ''} dans votre carnet · ${overview.due_count} à revoir aujourd’hui · ${counts.used + counts.mastered} utilisé${counts.used + counts.mastered > 1 ? 's' : ''} en session.`
+    ? `${active} mot${active > 1 ? 's' : ''} à travailler · ${overview.due_count} à revoir aujourd’hui · ${acquired} acquis${overview.maintenance_due_count ? ` · ${overview.maintenance_due_count} en entretien` : ''}.`
     : 'Votre carnet se remplit à chaque session : mots manqués, termes du cas non utilisés, passages dans une autre langue.';
   $('vocab-limitations').textContent = overview.limitations;
-  reviewQueue = overview.entries.filter(entry => entry.due); reviewTotal = reviewQueue.length;
+  $('vocab-cadence').value = String(overview.maintenance_cadence_days);
+  // Due active words first, then acquired words whose maintenance is due.
+  reviewQueue = [...overview.entries.filter(entry => entry.zone === 'active' && entry.due), ...overview.entries.filter(entry => entry.zone === 'acquired' && entry.due)];
+  reviewTotal = reviewQueue.length;
   renderReviewCard();
   $('vocab-empty').hidden = reviewTotal > 0;
-  $('vocab-list').replaceChildren(...overview.entries.map(entryCard));
+  renderVocabList();
   view('vocab');
 }
 // ----- placement test ---------------------------------------------------------------
@@ -520,6 +547,9 @@ $('placement-record').onclick=()=>perform(toggleRecording);
 $('placement-send').onclick=()=>{const attempt=placementAttempt,audio=recordedAudio;perform(async()=>renderPlacement(await placement.speak(attempt,attempt.current_item.id,{audio})));};
 $('placement-text-form').onsubmit=event=>{event.preventDefault();const attempt=placementAttempt,text=$('placement-text').value.trim();if(!text)return;perform(async()=>{$('placement-text').value='';renderPlacement(await placement.speak(attempt,attempt.current_item.id,{text}));});};
 $('placement-quit').onclick=()=>{const attempt=placementAttempt;perform(async()=>{await client.restoreProfile();renderPlacement(await placement.finish(attempt));await client.restoreProfile();});};
+for(const tab of document.querySelectorAll('.tab'))tab.onclick=()=>{vocabZone=tab.dataset.zone;renderVocabList();};
+$('vocab-search').oninput=renderVocabList;$('vocab-source').onchange=renderVocabList;
+$('vocab-cadence-form').onsubmit=event=>{event.preventDefault();const days=Number($('vocab-cadence').value);perform(async()=>{await client.updateProfile({maintenance_cadence_days:days});await showVocab();});};
 $('review-form').onsubmit=event=>{event.preventDefault();if(reviewEntry)revealReview($('review-input').value);};
 $('review-reveal').onclick=()=>{if(reviewEntry)revealReview('');};
 $('vocab-add-form').onsubmit=event=>{event.preventDefault();if(!$('add-lemma').reportValidity())return;const lemma=$('add-lemma').value,translation=$('add-translation').value,example=$('add-example').value;perform(async()=>{await lexicon.add(lemma,translation,example);$('vocab-add-form').reset();await showVocab();});};

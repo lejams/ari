@@ -49,6 +49,10 @@ def public_entry(entry: LexiconEntry, now: datetime | None = None) -> dict[str, 
         "used_sessions": len(entry.used_session_ids),
         "first_session_id": entry.first_session_id,
         "created_at": entry.created_at.isoformat(),
+        "last_reviewed_at": (
+            entry.srs.last_reviewed_at.isoformat() if entry.srs.last_reviewed_at else None
+        ),
+        "zone": "acquired" if entry.state.value == "mastered" else "active",
     }
 
 
@@ -70,17 +74,23 @@ def lexicon_router(services: Container) -> APIRouter:
     @router.get("/api/lexicon")
     def overview(request: Request) -> dict[str, Any]:
         result = lexicon.overview(request.state.learner_id)
+        cadence = services.repository.get_learner(request.state.learner_id).details
         now = utc_now()
         return {
             "srs_version": result.srs_version,
             "due_count": len(result.due),
+            "maintenance_due_count": len(result.due_maintenance),
+            "active_count": len(result.active),
+            "acquired_count": len(result.acquired),
+            "maintenance_cadence_days": cadence.maintenance_cadence_days,
             "by_state": dict(result.by_state),
             "entries": [public_entry(e, now) for e in result.entries],
             "limitations": (
                 "Un mot devient « utilisé » quand vous le prononcez spontanément dans une "
-                "session ultérieure, et « maîtrisé » après deux sessions distinctes et trois "
-                "révisions réussies. La reconnaissance est lexicale, pas un jugement de "
-                "correction."
+                "session ultérieure, et « acquis » après deux sessions distinctes et trois "
+                "révisions réussies. Les mots acquis reviennent à la cadence d'entretien que "
+                "vous choisissez ; un oubli les renvoie dans la zone à travailler. La "
+                "reconnaissance est lexicale, pas un jugement de correction."
             ),
         }
 
@@ -92,9 +102,14 @@ def lexicon_router(services: Container) -> APIRouter:
 
     @router.post("/api/lexicon/entries/{entry_id}/reviews")
     def review(entry_id: str, body: ReviewEntry, request: Request) -> dict[str, Any]:
+        cadence = services.repository.get_learner(request.state.learner_id).details
         return public_entry(
             lexicon.review(
-                request.state.learner_id, entry_id, body.event_id, SrsRating(body.rating)
+                request.state.learner_id,
+                entry_id,
+                body.event_id,
+                SrsRating(body.rating),
+                maintenance_days=cadence.maintenance_cadence_days,
             )
         )
 

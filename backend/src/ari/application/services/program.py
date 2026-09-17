@@ -61,7 +61,9 @@ PHASE_MESSAGES = {
 class Slot:
     id: str
     day_offset: int
-    kind: str  # lexicon_review | fachbegriffe | arzt_arzt | voice_training | voice_exam | placement
+    kind: (
+        str  # lexicon_review | lexicon_maintenance | fachbegriffe | arzt_arzt | voice_* | placement
+    )
     minutes: int
     priority: int  # lower is kept first when the budget is tight
     rationale: str
@@ -185,9 +187,18 @@ def plan_week(
         add(
             0, "placement", PLACEMENT_MINUTES, 0, "Estimer votre niveau pour calibrer le programme."
         )
-    if model.lexicon_total:
+    if model.lexicon_total - model.lexicon_acquired:
         for day in range(7):
             add(day, "lexicon_review", LEXICON_MINUTES, 1, "Révision espacée de votre carnet.")
+    if model.lexicon_maintenance_due:
+        today_offset = (today - start).days
+        add(
+            today_offset,
+            "lexicon_maintenance",
+            LEXICON_MINUTES,
+            1,
+            f"Entretien : {model.lexicon_maintenance_due} mot(s) acquis à revoir à votre cadence.",
+        )
 
     voice_days = {"fondations": (1, 4), "anamnese": (1, 4), "examen": (1, 4)}.get(phase, ())
     exam_day = (

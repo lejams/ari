@@ -6,7 +6,7 @@ session). The LLM proposes candidates; it never declares a word mastered.
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from ari.application.ports.evaluator import EvaluationOutcome
 from ari.application.ports.lexicon import LexiconIngestReport, LexiconRepository
@@ -31,13 +31,31 @@ from ari.domain.text import normalize_answer, term_used
 MIN_TURNS_FOR_UNUSED_TERMS = 3
 MASTERY_SESSIONS = 2
 MASTERY_REPETITIONS = 3
+DEFAULT_MAINTENANCE_DAYS = 30
+
+
+def maintenance_schedule(srs: SrsState, now: datetime, days: int) -> SrsState:
+    """Acquired words leave the SM-2 ladder: they come back at the learner's cadence."""
+    return SrsState(
+        due_at=now + timedelta(days=days),
+        interval_days=days,
+        ease=srs.ease,
+        repetitions=srs.repetitions,
+        lapses=srs.lapses,
+        last_reviewed_at=now,
+    )
 
 
 @dataclass(frozen=True, slots=True)
 class LexiconOverview:
-    due: tuple[LexiconEntry, ...]
+    """Two zones: active words to work on, acquired words kept in maintenance."""
+
+    due: tuple[LexiconEntry, ...]  # active words due now
     entries: tuple[LexiconEntry, ...]
     by_state: Mapping[str, int]
+    active: tuple[LexiconEntry, ...] = ()
+    acquired: tuple[LexiconEntry, ...] = ()
+    due_maintenance: tuple[LexiconEntry, ...] = ()
     srs_version: str = SRS_VERSION
 
 
@@ -51,7 +69,11 @@ class LexiconService:
     # ----- ingestion -----------------------------------------------------------------
 
     def ingest_session(
-        self, session: ConversationSession, case: MedicalCase, outcome: EvaluationOutcome
+        self,
+        session: ConversationSession,
+        case: MedicalCase,
+        outcome: EvaluationOutcome,
+        maintenance_days: int = DEFAULT_MAINTENANCE_DAYS,
     ) -> LexiconIngestReport:
         """Idempotent: re-analysing a session touches the same entries, never duplicates."""
         now = self._clock()
@@ -91,7 +113,7 @@ class LexiconService:
             if entry.first_session_id == session.id:
                 return
             changed[entry.lemma_key] = self._used_in(
-                changed.get(entry.lemma_key) or entry, session.id, now
+                changed.get(entry.lemma_key) or entry, session.id, now, maintenance_days
             )
 
         for item in outcome.vocabulary_candidates:
@@ -144,9 +166,12 @@ class LexiconService:
         return report
 
     @staticmethod
-    def _used_in(entry: LexiconEntry, session_id: str, now: datetime) -> LexiconEntry:
+    def _used_in(
+        entry: LexiconEntry, session_id: str, now: datetime, maintenance_days: int
+    ) -> LexiconEntry:
         used = tuple(dict.fromkeys((*entry.used_session_ids, session_id)))
         state = entry.state
+        srs = entry.srs
         if state in {VocabularyState.IDENTIFIED, VocabularyState.REVIEWED}:
             state = VocabularyState.USED
         if (
@@ -155,14 +180,25 @@ class LexiconService:
             and entry.srs.repetitions >= MASTERY_REPETITIONS
         ):
             state = VocabularyState.MASTERED
+            srs = maintenance_schedule(entry.srs, now, maintenance_days)
         return replace(
-            entry, state=state, used_session_ids=used, last_session_id=session_id, updated_at=now
+            entry,
+            state=state,
+            srs=srs,
+            used_session_ids=used,
+            last_session_id=session_id,
+            updated_at=now,
         )
 
     # ----- review ------------------------------------------------------------------
 
     def review(
-        self, learner_id: str, entry_id: str, event_id: str, rating: SrsRating
+        self,
+        learner_id: str,
+        entry_id: str,
+        event_id: str,
+        rating: SrsRating,
+        maintenance_days: int = DEFAULT_MAINTENANCE_DAYS,
     ) -> LexiconEntry:
         entry = self.repository.get(learner_id, entry_id)
         if self.repository.find_review(entry_id, event_id) is not None:
@@ -170,19 +206,32 @@ class LexiconService:
         if entry.archived:
             raise InvalidStateError("Cette entrée est archivée")
         now = self._clock()
-        srs = schedule(entry.srs, rating, now)
         state = entry.state
-        if rating is SrsRating.AGAIN:
-            if state is VocabularyState.MASTERED:
+        if state is VocabularyState.MASTERED:
+            # Maintenance review: a recall keeps the word acquired at the chosen cadence;
+            # a miss sends it back to the active zone on the SM-2 ladder.
+            if rating in {SrsRating.GOOD, SrsRating.EASY}:
+                srs = replace(
+                    maintenance_schedule(entry.srs, now, maintenance_days),
+                    repetitions=entry.srs.repetitions + 1,
+                )
+            else:
                 state = VocabularyState.USED
-        elif state is VocabularyState.IDENTIFIED:
-            state = VocabularyState.REVIEWED
-        if (
-            state is VocabularyState.USED
-            and len(entry.used_session_ids) >= MASTERY_SESSIONS
-            and srs.repetitions >= MASTERY_REPETITIONS
-        ):
-            state = VocabularyState.MASTERED
+                srs = schedule(entry.srs, rating, now)
+        else:
+            srs = schedule(entry.srs, rating, now)
+            if rating is not SrsRating.AGAIN and state is VocabularyState.IDENTIFIED:
+                state = VocabularyState.REVIEWED
+            if (
+                state is VocabularyState.USED
+                and len(entry.used_session_ids) >= MASTERY_SESSIONS
+                and srs.repetitions >= MASTERY_REPETITIONS
+            ):
+                state = VocabularyState.MASTERED
+                srs = replace(
+                    maintenance_schedule(entry.srs, now, maintenance_days),
+                    repetitions=srs.repetitions,
+                )
         updated = replace(entry, srs=srs, state=state, updated_at=now)
         review = LexiconReview(
             id=new_id(), entry_id=entry.id, event_id=event_id, rating=rating, reviewed_at=now
@@ -246,8 +295,16 @@ class LexiconService:
                 key=lambda e: (e.srs.due_at, e.lemma_key),
             )
         )
-        due = tuple(e for e in entries if e.srs.due_at <= now)
+        active = tuple(e for e in entries if e.state is not VocabularyState.MASTERED)
+        acquired = tuple(e for e in entries if e.state is VocabularyState.MASTERED)
         by_state = {state.value: 0 for state in VocabularyState}
         for entry in entries:
             by_state[entry.state.value] += 1
-        return LexiconOverview(due=due, entries=entries, by_state=by_state)
+        return LexiconOverview(
+            due=tuple(e for e in active if e.srs.due_at <= now),
+            entries=entries,
+            by_state=by_state,
+            active=active,
+            acquired=acquired,
+            due_maintenance=tuple(e for e in acquired if e.srs.due_at <= now),
+        )

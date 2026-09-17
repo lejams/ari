@@ -234,7 +234,10 @@ class ConversationOrchestrator:
             )
             self.repository.save_analysis(session_id, outcome.evaluation, metrics, vocabulary)
             if self._lexicon is not None:
-                self._lexicon.ingest_session(session, case, outcome)
+                cadence = self.repository.get_learner(session.learner_id).details
+                self._lexicon.ingest_session(
+                    session, case, outcome, maintenance_days=cadence.maintenance_cadence_days
+                )
         except ProviderError as exc:
             execution = cast(ExecutionRecord, exc.execution)
             self.repository.record_execution(execution)

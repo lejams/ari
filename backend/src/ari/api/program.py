@@ -31,10 +31,12 @@ def completed_since_week_start(
         reviewed = entry.srs.last_reviewed_at
         if reviewed and reviewed >= start:
             # One review day counts as one lexicon slot done, whatever the number of cards.
-            completed.setdefault("lexicon_review", []).append(reviewed)
-    if "lexicon_review" in completed:
-        by_day = {t.date(): t for t in completed["lexicon_review"]}
-        completed["lexicon_review"] = sorted(by_day.values())
+            kind = "lexicon_maintenance" if entry.state.value == "mastered" else "lexicon_review"
+            completed.setdefault(kind, []).append(reviewed)
+    for kind in ("lexicon_review", "lexicon_maintenance"):
+        if kind in completed:
+            by_day = {t.date(): t for t in completed[kind]}
+            completed[kind] = sorted(by_day.values())
     for attempt in services.placement.attempts.list(learner_id):
         if attempt.status == "completed" and attempt.ended_at and attempt.ended_at >= start:
             completed.setdefault("placement", []).append(attempt.ended_at)

@@ -71,6 +71,18 @@ def test_week_plan_per_phase_and_budget(published_container: Container) -> None:
     assert positioning["slots"][0]["kind"] == "placement"
     assert not any(s["kind"].startswith("voice") for s in positioning["slots"])
 
+    maintenance = plan_week(
+        model(declared_level="B1", lexicon_total=3, lexicon_acquired=3, lexicon_maintenance_due=2),
+        cases,
+        practice,
+        TODAY,
+        completed={},
+    )
+    kinds = [s["kind"] for s in maintenance["slots"]]
+    assert "lexicon_review" not in kinds  # every word is acquired: no daily ladder review
+    upkeep = next(s for s in maintenance["slots"] if s["kind"] == "lexicon_maintenance")
+    assert upkeep["date"] == TODAY.isoformat() and "2 mot(s)" in upkeep["rationale"]
+
     prerequisite = plan_week(model(declared_level="A2"), cases, practice, TODAY, completed={})
     assert "B2" in prerequisite["message"] and "vérifier" in prerequisite["message"]
     assert not any(s["kind"].startswith("voice") for s in prerequisite["slots"])

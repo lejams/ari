@@ -203,6 +203,7 @@ def _details(value: dict[str, Any] | None) -> LearnerDetails:
         estimated_level=level("estimated_level"),
         estimated_at=_dt(datetime.fromisoformat(str(estimated_at))) if estimated_at else None,
         placement_attempt_id=value.get("placement_attempt_id") or None,
+        maintenance_cadence_days=int(value.get("maintenance_cadence_days") or 30),
     )
 
 

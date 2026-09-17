@@ -129,6 +129,7 @@ class LearnerDetails:
     estimated_level: CEFRLevel | None = None
     estimated_at: datetime | None = None
     placement_attempt_id: str | None = None
+    maintenance_cadence_days: int = 30  # How often an acquired word comes back: 7 or 30 days.
 
 
 @dataclass(frozen=True, slots=True)
