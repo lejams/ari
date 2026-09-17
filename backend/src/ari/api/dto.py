@@ -21,7 +21,8 @@ class UpdateProfileRequest(ApiModel):
 
     declared_level: CEFRLevel | None = None
     level_source: Literal["self", "certificate"] = "self"
-    certificate_kind: Annotated[str, Field(max_length=80)] | None = None
+    certificate_issuer: Literal["goethe", "telc", "osd", "testdaf", "dsh", "other"] | None = None
+    certificate_level: CEFRLevel | None = None
     certificate_date: date | None = None
     exam_date: date | None = None
     minutes_per_day: Annotated[int, Field(ge=5, le=240)] = 30
@@ -31,6 +32,9 @@ class UpdateProfileRequest(ApiModel):
 
     def apply(self, current: LearnerDetails) -> LearnerDetails:
         changes = self.model_dump(exclude_unset=True)
+        # A declared certificate fixes the declared level: one value, not two that disagree.
+        if changes.get("level_source") == "certificate" and changes.get("certificate_level"):
+            changes["declared_level"] = changes["certificate_level"]
         # Estimated level and its provenance come only from a placement attempt.
         return LearnerDetails(
             **{

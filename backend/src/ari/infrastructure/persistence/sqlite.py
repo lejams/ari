@@ -192,7 +192,8 @@ def _details(value: dict[str, Any] | None) -> LearnerDetails:
     return LearnerDetails(
         declared_level=level("declared_level"),
         level_source=str(value.get("level_source") or "self"),
-        certificate_kind=value.get("certificate_kind") or None,
+        certificate_issuer=value.get("certificate_issuer") or None,
+        certificate_level=level("certificate_level"),
         certificate_date=day("certificate_date"),
         exam_date=day("exam_date"),
         minutes_per_day=int(value.get("minutes_per_day") or 30),

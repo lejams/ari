@@ -14,7 +14,8 @@ async function onboard(page, official = false) {
   await page.getByLabel("Spécialité visée").fill("Médecine interne");
   if (official) {
     await page.getByRole("radio", {name:"Officiel / certifié", exact:true}).check();
-    await page.getByLabel("Certificat obtenu").fill("Goethe-Zertifikat B2");
+    await page.getByLabel("Niveau du certificat").selectOption("B2");
+    await page.getByLabel("Organisme").selectOption("goethe");
     assert.match(await page.locator("#proof-status").innerText(), /aucun document n’est déposé ni vérifié/);
   }
   await page.getByRole("button", {name:"Créer mon profil et pratiquer", exact:true}).click();
@@ -33,7 +34,8 @@ try {
   assert.match(await page.locator("#profile-goal").innerText(), /niveau non mesuré/);
   // The weekly programme is computed from the profile: a declared B2 without estimate is "anamnese".
   assert.match(await page.locator("#week-phase").innerText(), /Anamnèse · niveau B2/);
-  assert.equal(await page.locator("#week-days .slot").count() > 0, true, "the week has slots");
+  assert.equal(await page.locator("#week-days .week-pill").count(), 7, "the week strip has seven days");
+  assert.match(await page.locator("#recommendation h1").innerText(), /./, "the hero names the next step");
   await page.goto(base + "/#cases");
   await page.getByRole("radio", {name: /Examen/}).check();
   // Server commits the start but the browser loses its response: retry must not duplicate it.

@@ -11,14 +11,15 @@ let reviewQueue = [], reviewTotal = 0, reviewEntry = null;
 let placementAttempt = null, placementListens = 0, recorder = null, recordedAudio = null, recordTimer = null, providerMode = 'fake';
 const $ = id => document.getElementById(id);
 const views = ['onboarding', 'home', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress', 'placement'];
-const fields = ['goal', 'land', 'date', 'minutes', 'situation', 'specialty', 'level', 'certificate-kind', 'certificate-date'];
+const fields = ['goal', 'land', 'date', 'minutes', 'situation', 'specialty', 'level', 'certificate-level', 'certificate-issuer', 'certificate-date'];
 // What the onboarding form sends to the profile; land, goal and dates are server-side now.
 function profileDetails() {
   const source = document.querySelector('[name=source]:checked').value;
   return {
-    declared_level: $('draft-level').value,
+    declared_level: source === 'official' ? $('draft-certificate-level').value : $('draft-level').value,
     level_source: source === 'official' ? 'certificate' : 'self',
-    certificate_kind: source === 'official' ? $('draft-certificate-kind').value.trim() || null : null,
+    certificate_issuer: source === 'official' ? $('draft-certificate-issuer').value : null,
+    certificate_level: source === 'official' ? $('draft-certificate-level').value : null,
     certificate_date: source === 'official' ? $('draft-certificate-date').value || null : null,
     exam_date: $('draft-date').value || null,
     minutes_per_day: Number($('draft-minutes').value) || 30,
@@ -31,7 +32,8 @@ function fillFromProfile(details) {
   if (!details) return;
   if (details.declared_level) $('draft-level').value = details.declared_level;
   document.querySelector(`[name=source][value=${details.level_source === 'certificate' ? 'official' : 'self'}]`).checked = true;
-  $('draft-certificate-kind').value = details.certificate_kind || '';
+  if (details.certificate_level) $('draft-certificate-level').value = details.certificate_level;
+  if (details.certificate_issuer) $('draft-certificate-issuer').value = details.certificate_issuer;
   $('draft-certificate-date').value = details.certificate_date || '';
   $('draft-date').value = details.exam_date || '';
   if (details.minutes_per_day) $('draft-minutes').value = String(details.minutes_per_day);
@@ -73,6 +75,7 @@ function sourceState() {
   const official = document.querySelector('[name=source]:checked').value === 'official';
   $('self-note').hidden = official;
   $('official-note').hidden = !official;
+  $('declared-level-block').hidden = official;
   $('date-label').textContent = $('draft-goal').value === 'job' ? 'Date prévue de prise de poste' : 'Date prévue de l’examen';
 }
 function onboardingStep(step, focus = false) {
@@ -222,30 +225,58 @@ async function runSlot(slot) {
   }
   return showCases();
 }
+const DAY_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+let weekProgram = null, weekSelectedOffset = 0;
+function renderHero(program) {
+  const week = program.week, model = program.model, next = week.next;
+  const today = week.slots.filter(slot => slot.state === 'today' || (slot.state === 'done' && slot.date === week.today));
+  const minutesToday = today.reduce((total, slot) => total + slot.minutes, 0);
+  const context = [`${PHASE_LABELS_FR[week.phase] || week.phase}`, `niveau ${model.level.reference || 'non estimé'}`, minutesToday ? `${minutesToday} min prévues aujourd’hui` : 'rien de prévu aujourd’hui'].join(' · ');
+  $('recommendation').replaceChildren(node('p', 'Votre prochaine étape', 'eyebrow'));
+  if (next) {
+    $('recommendation').append(node('h1', slotTitle(next)), node('p', context, 'hero-context'));
+    $('recommendation').append(actionButton(slotButtonLabel(next), () => runSlot(next), true));
+    const why = node('details', undefined, 'hero-why'); why.append(node('summary', 'Pourquoi cette proposition ?'), node('p', next.rationale));
+    $('recommendation').append(why);
+  } else {
+    $('recommendation').append(node('h1', 'Semaine accomplie.'), node('p', context, 'hero-context'), node('p', 'Tous les créneaux prévus sont faits. Le programme se recalcule lundi, ou dès que votre carnet ou votre profil change.'));
+    $('recommendation').append(actionButton('Explorer la bibliothèque →', showCases));
+  }
+}
+function renderWeekDay(offset) {
+  weekSelectedOffset = offset;
+  const week = weekProgram.week;
+  Array.from($('week-days').children).forEach((pill, index) => pill.setAttribute('aria-pressed', String(index === offset)));
+  const day = new Date(week.week_start + 'T00:00:00'); day.setDate(day.getDate() + offset);
+  const slots = week.slots.filter(slot => slot.day_offset === offset);
+  const detail = $('week-day-detail');
+  detail.replaceChildren(node('p', day.toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long'}), 'eyebrow'));
+  if (!slots.length) { detail.append(node('p', 'Rien de prévu ce jour-là.', 'help')); return; }
+  for (const slot of slots) {
+    const row = node('div', undefined, 'slot-row'); row.dataset.state = slot.state;
+    row.append(node('span', SLOT_STATES[slot.state] || '·', 'slot-state'), node('strong', SLOT_LABELS[slot.kind] || slot.kind), node('span', `${slot.minutes} min${slot.recommended?.title ? ` · ${slot.recommended.title}` : ''}`, 'slot-note'));
+    if (slot.state !== 'done') row.append(actionButton(slotButtonLabel(slot), () => runSlot(slot)));
+    detail.append(row);
+  }
+}
 function renderWeek(program) {
+  weekProgram = program;
   const week = program.week, model = program.model;
   $('week-phase').textContent = `${PHASE_LABELS_FR[week.phase] || week.phase} · niveau ${model.level.reference || 'non estimé'}${model.exam.weeks_left !== null ? ` · examen dans ${model.exam.weeks_left} semaine${model.exam.weeks_left > 1 ? 's' : ''}` : ''}`;
-  $('week-budget').textContent = `${week.planned_minutes} / ${week.budget_minutes} min prévues`;
+  $('week-budget').textContent = `${week.planned_minutes} / ${week.budget_minutes} min`;
   $('week-message').textContent = week.message;
   $('week-limitations').textContent = week.limitations;
-  const days = Array.from({length: 7}, (_, offset) => { const day = new Date(week.week_start + 'T00:00:00'); day.setDate(day.getDate() + offset); return day; });
-  $('week-days').replaceChildren(...days.map((day, offset) => {
-    const column = node('div', undefined, 'week-day'); column.setAttribute('role', 'listitem');
-    const key = day.toISOString().slice(0, 10);
-    const isToday = key === week.today;
-    column.append(node('p', day.toLocaleDateString('fr-FR', {weekday: 'short', day: 'numeric'}), `week-day-label${isToday ? ' today' : ''}`));
+  const todayOffset = Math.max(0, Math.round((new Date(week.today + 'T00:00:00') - new Date(week.week_start + 'T00:00:00')) / 86400000));
+  $('week-days').replaceChildren(...DAY_LETTERS.map((letter, offset) => {
     const slots = week.slots.filter(slot => slot.day_offset === offset);
-    if (!slots.length) column.append(node('p', 'repos', 'help'));
-    for (const slot of slots) {
-      const button = node('button', undefined, 'slot'); button.type = 'button'; button.dataset.state = slot.state;
-      button.append(node('span', SLOT_STATES[slot.state] || '·', 'slot-state'), node('strong', SLOT_LABELS[slot.kind] || slot.kind), node('span', `${slot.minutes} min${slot.recommended?.title ? ` · ${slot.recommended.title}` : ''}`, 'slot-note'));
-      button.title = slot.rationale;
-      button.disabled = slot.state === 'done';
-      button.addEventListener('click', () => perform(() => runSlot(slot)));
-      column.append(button);
-    }
-    return column;
+    const state = !slots.length ? 'rest' : slots.every(slot => slot.state === 'done') ? 'done' : slots.some(slot => slot.state === 'missed') ? 'missed' : offset === todayOffset ? 'today' : 'todo';
+    const pill = node('button', undefined, 'week-pill'); pill.type = 'button'; pill.dataset.state = state; pill.setAttribute('role', 'listitem');
+    pill.append(node('span', letter, 'week-pill-day'), node('span', slots.length ? String(slots.length) : '·', 'week-pill-count'));
+    pill.title = slots.map(slot => SLOT_LABELS[slot.kind]).join(', ') || 'repos';
+    pill.addEventListener('click', () => renderWeekDay(offset));
+    return pill;
   }));
+  renderWeekDay(todayOffset);
 }
 async function home() {
   if (!client.profile) { restoreDraft(); view('onboarding', false); return; }
@@ -257,18 +288,9 @@ async function home() {
   $('local-profile-summary').textContent = [details.land, details.minutes_per_day ? `${details.minutes_per_day} min/jour` : '', details.declared_level ? `niveau ${details.declared_level} ${details.level_source === 'certificate' ? 'certifié (déclaré)' : 'auto-évalué'}` : '', details.exam_date ? `examen le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}` : ''].filter(Boolean).join(' · ') || 'Renseignez vos préférences pour calibrer votre pratique.';
   $('placement-cta').textContent = details.estimated_level ? 'Refaire le test de niveau' : 'Passer le test de niveau';
   const program = await client.api('/api/program');
+  renderHero(program);
   renderWeek(program);
-  const next = program.week.next;
-  $('recommendation').replaceChildren(node('p', 'Votre prochaine étape', 'eyebrow'));
-  if (next) {
-    $('recommendation').append(node('h2', slotTitle(next)), node('p', next.rationale));
-    $('recommendation').append(actionButton(slotButtonLabel(next), () => runSlot(next), true));
-    const why = node('details'); why.append(node('summary', 'Pourquoi cette proposition ?'), node('p', `${program.week.message} ${program.week.limitations}`));
-    $('recommendation').append(why);
-  } else {
-    $('recommendation').append(node('h2', 'Semaine accomplie.'), node('p', 'Tous les créneaux prévus sont faits. Le programme se recalcule lundi, ou dès que votre carnet ou votre profil change.'));
-  }
-  view('home'); renderCalendar();
+  view('home');
 }
 async function showCases() { await loadCatalog(); renderCatalog(); view('cases'); }
 async function showExam() {
@@ -317,7 +339,7 @@ async function showHistory() {
   for(const item of historyItems){const card=node('article',undefined,'card');card.append(node('h2',item.content.title),node('p',`${phaseLabel(item.content.phase)} · ${item.mode} · ${stateLabel(item.status)} · ${formatDate(item.ended_at||item.created_at)}`),node('p',`Feedback : ${stateLabel(item.feedback_state)}`,'help'),actionButton(item.has_feedback?'Voir le feedback':'Reprendre cette session',()=>openHistoryItem(item)));$('history-list').append(card);}view('history');
 }
 async function showProgress() {
-  const progress=await client.api('/api/progression');$('progress-note').textContent=progress.limitations;$('progress-list').replaceChildren();
+  const progress=await client.api('/api/progression');historyItems=(await client.api('/api/history')).items;renderCalendar();$('progress-note').textContent=progress.limitations;$('progress-list').replaceChildren();
   if(!progress.groups.length)$('progress-list').append(node('p','Pas de données comparables : terminez un exercice pour retrouver ses dimensions.','availability'));
   for(const excluded of progress.excluded||[])$('progress-list').append(node('p',`${excluded.reason} · session ${excluded.run_id}. Le feedback reste disponible dans l’historique.`,'help'));
   for(const group of progress.groups){const card=node('article',undefined,'card');card.append(node('h2',`${group.content.title} · ${group.mode}`),node('p',`Contenu ${group.content.scenario_id}@${group.content.scenario_version} · rubrique ${group.content.rubric_id}@${group.content.rubric_version}`,'help'));for(const point of group.points){card.append(node('h3',formatDate(point.created_at)));for(const dimension of point.dimensions)card.append(node('p',dimensionText(dimension)));card.append(actionButton('Voir les preuves',()=>openHistoryItem({id:point.run_id,kind:group.kind})));}$('progress-list').append(card);}view('progress');
@@ -505,7 +527,7 @@ $('answer-form').onsubmit=event=>{event.preventDefault();const run=currentRun,te
 for(const action of ['pause','resume','finish'])$(action).onclick=()=>{const run=currentRun;perform(async()=>showRun(await client.action(run,action)));};
 for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>perform(()=>navigate(button.dataset.view));
 window.addEventListener('hashchange',()=>perform(route));
-window.addEventListener('resize',()=>{if(!$('home').hidden){const selected=$('daytrack').querySelector('[aria-pressed=true]');selected?.scrollIntoView({block:'nearest',inline:'nearest'});}});
-window.addEventListener('focus',()=>{const today=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});if($('today-label').textContent!==today){$('today-label').textContent=today;if(!$('home').hidden)renderCalendar();}});
+window.addEventListener('resize',()=>{if(!$('progress').hidden){const selected=$('daytrack').querySelector('[aria-pressed=true]');selected?.scrollIntoView({block:'nearest',inline:'nearest'});}});
+window.addEventListener('focus',()=>{const today=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});if($('today-label').textContent!==today){$('today-label').textContent=today;if(!$('progress').hidden)renderCalendar();}});
 $('today-label').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
 perform(async()=>{await client.restoreProfile();if(location.hash==='#onboarding'&&client.profile){restoreDraft();view('onboarding',false);}else await route();});

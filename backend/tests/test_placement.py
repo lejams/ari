@@ -265,6 +265,24 @@ def test_placement_is_owned_and_unavailable_without_published_set(
         ).json()
         assert updated["details"]["exam_date"] == "2027-03-01"
         assert updated["details"]["minutes_per_day"] == 30
+        # A declared certificate sets the declared level; the estimate is never touched.
+        certified = alice.patch(
+            f"/api/learners/{me['id']}/profile",
+            json={
+                "level_source": "certificate",
+                "certificate_issuer": "goethe",
+                "certificate_level": "B2",
+            },
+        ).json()
+        assert certified["details"]["declared_level"] == "B2"
+        assert certified["details"]["certificate_issuer"] == "goethe"
+        assert certified["details"]["estimated_level"] is None
+        assert (
+            alice.patch(
+                f"/api/learners/{me['id']}/profile", json={"certificate_issuer": "cambridge"}
+            ).status_code
+            == 422
+        )
         assert (
             bob.patch(f"/api/learners/{me['id']}/profile", json={"land": "Berlin"}).status_code
             == 404

@@ -118,7 +118,8 @@ class LearnerDetails:
 
     declared_level: CEFRLevel | None = None
     level_source: str = "self"  # self | certificate
-    certificate_kind: str | None = None
+    certificate_issuer: str | None = None  # goethe | telc | osd | testdaf | dsh | other
+    certificate_level: CEFRLevel | None = None
     certificate_date: date | None = None
     exam_date: date | None = None
     minutes_per_day: int = 30
