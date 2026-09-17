@@ -667,9 +667,11 @@ async function endCall() {
     state.socket.send(JSON.stringify({ type: "call.end" }));
   }
   try {
+    // The end-of-session evaluation is one long LLM call; give it more than the default 20 s.
     const session = await api(`/api/sessions/${state.sessionId}/end`, {
       method: "POST",
       body: "{}",
+      signal: AbortSignal.timeout(120000),
     });
     await stopVoiceMedia();
     setExamPresentation(false);
@@ -726,6 +728,7 @@ async function retryAnalysis() {
     const session = await api(`/api/sessions/${state.sessionId}/analysis/retry`, {
       method: "POST",
       body: "{}",
+      signal: AbortSignal.timeout(120000),
     });
     setExamPresentation(false);
     renderPersistedTranscript(session.turns);

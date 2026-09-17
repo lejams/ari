@@ -38,10 +38,12 @@ export class PlacementClient {
   async speak(attempt, itemId, { audio = null, text = null } = {}) {
     if (!audio && !text) throw new Error("Enregistrez votre réponse avant d’envoyer.");
     const { key, eventId } = this.eventFor(attempt, itemId);
+    // Transcription plus rating of a one-minute recording can take well over the default 20 s.
     const result = await this.api(`/api/placement/attempts/${encodeURIComponent(attempt.id)}/speaking/${encodeURIComponent(itemId)}`, {
       method: "POST",
       body: audio || text,
       headers: { "Content-Type": audio ? "application/octet-stream" : "text/plain", "X-Event-Id": eventId },
+      signal: AbortSignal.timeout(180000),
     });
     this.storage.removeItem(key);
     return result;

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import logging
 import time
 import wave
 from typing import Any
@@ -15,6 +16,8 @@ from ari.application.contracts import ExecutionContext, TranscriptionConfig
 from ari.application.ports.stt import Transcription
 from ari.domain.errors import ProviderError
 from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
+
+logger = logging.getLogger(__name__)
 
 
 def wav_bytes(pcm16: bytes, sample_rate: int) -> bytes:
@@ -32,9 +35,7 @@ def primary_language(locale: str) -> str:
 
 
 class WhisperTranscriber:
-    def __init__(
-        self, api_key: str, *, base_url: str, model: str, timeout_seconds: float
-    ) -> None:
+    def __init__(self, api_key: str, *, base_url: str, model: str, timeout_seconds: float) -> None:
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         self._provider = urlparse(base_url).hostname or "whisper"
         self._model = model
@@ -64,6 +65,14 @@ class WhisperTranscriber:
                 )
         except Exception as exc:
             execution = self._record(context, config, started, ExecutionStatus.FAILED, usage, exc)
+            # The API answer stays generic; the console tells the developer what happened.
+            logger.warning(
+                "Whisper transcription failed (%s, %.1fs of audio, model %s): %s",
+                self._provider,
+                usage["audio_seconds"],
+                self._model,
+                str(exc)[:300],
+            )
             raise ProviderError("Whisper transcription failed", execution=execution) from exc
         text = response.text.strip()
         usage["characters"] = len(text)
