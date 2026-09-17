@@ -222,7 +222,7 @@ class LLMBackedEvaluator:
             ),
             missed_fact_ids=missed_fact_ids,
             language_errors=tuple(
-                EvidenceObservation(item.text, tuple(item.evidence_turn_sequences))
+                EvidenceObservation(item.text, tuple(item.evidence_turn_sequences), item.category)
                 for item in result.value.language_errors
             ),
             criteria=tuple(criteria_payload),

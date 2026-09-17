@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f5f2"><title>ARI — Votre pratique</title><link rel="stylesheet" href="/practice.css?v=20260917c"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f5f2"><title>ARI — Votre pratique</title><link rel="stylesheet" href="/practice.css?v=20260917d"></head>
 <body>
 <a class="skip" href="#main">Aller au contenu</a>
 <aside class="sidebar">
@@ -75,9 +75,19 @@
   <section id="exercise" hidden><div class="row between"><button data-view="cases">← Retour aux cas</button><p id="exercise-meta" class="eyebrow"></p></div><h1 id="exercise-title"></h1><p id="exercise-warning" class="availability"></p><div id="exercise-context" class="card"></div><div id="answer-history"></div><div id="training-feedback" class="card" hidden></div><form id="answer-form" class="card"><p id="question-step" class="eyebrow"></p><h2 id="question" lang="de"></h2><p id="coaching"></p><label for="answer">Votre réponse en allemand</label><textarea id="answer" lang="de" required maxlength="8000" rows="4"></textarea><button class="primary">Envoyer ma réponse</button></form><div class="row wrap"><button id="pause">Mettre en pause</button><button id="resume" hidden>Reprendre</button><button id="finish">Terminer et voir le feedback</button></div><p id="finish-note" class="help"></p><div id="feedback"></div></section>
   <section id="history" hidden><div class="pagehead"><p class="eyebrow">Vos sessions</p><h1>Retrouver un échange.</h1></div><div id="history-list"></div></section>
   <section id="progress" hidden><div class="pagehead"><p class="eyebrow">Progression</p><h1>Observez votre pratique.</h1><p id="progress-note"></p></div>
+    <div id="progress-tiles" class="tiles axes" role="list"></div>
+    <div class="grid">
+      <article class="card axis" id="axis-structure"><h2>Structure de l’anamnèse</h2><p class="help">Couverture de chaque section, session par session. Plus la case est foncée, plus la section a été couverte.</p><div class="heatmap-wrap"><table class="heatmap" id="heatmap"></table></div><p id="axis-structure-note" class="help"></p></article>
+      <article class="card axis" id="axis-communication"><h2>Moments sensibles</h2><p class="help">Votre réaction quand le patient révèle quelque chose de difficile.</p><div id="empathy-timeline" class="timeline"></div><p id="axis-communication-note" class="help"></p></article>
+      <article class="card axis" id="axis-language"><h2>Erreurs qui reviennent</h2><p class="help">Catégories d’erreurs sur vos cinq dernières sessions, comparées aux cinq précédentes.</p><div id="error-bars" class="bars"></div><div id="error-examples"></div></article>
+      <article class="card axis" id="axis-lexicon"><h2>Carnet</h2><div id="lexicon-axis" class="kpis"></div><button data-view="vocab">Ouvrir mon carnet →</button></article>
+      <article class="card axis" id="axis-level"><h2>Niveau estimé</h2><p class="help">Tests de niveau passés. Une estimation, jamais un certificat.</p><div id="level-history"></div><button data-view="placement">Refaire le test →</button></article>
+      <article class="card axis" id="axis-regularity"><h2>Rythme</h2><p class="help">Sessions et minutes vocales par semaine, quatre dernières semaines.</p><div id="week-bars" class="bars"></div></article>
+    </div>
     <article class="card calendar-card" aria-labelledby="calendar-title"><div class="row between"><div><h2 id="calendar-title">Votre régularité</h2><p class="help">21 jours · dates dans votre fuseau local</p></div><div class="row"><button id="cal-prev" aria-label="Jours précédents">←</button><button id="cal-next" aria-label="Jours suivants">→</button></div></div><div id="daytrack" class="daytrack" role="group" aria-label="Calendrier des 21 derniers jours"></div><p id="day-summary" class="daysummary" role="status"></p><div class="legend"><span>✓ Pratique terminée</span><span>— Sans pratique</span><span>○ Aujourd’hui</span></div></article>
-    <button data-view="history">Voir tout mon historique →</button><div id="progress-list"></div></section>
+    <details class="card" open><summary>Détails par contenu et par version</summary><p id="progress-series-note" class="help"></p><button data-view="history">Voir tout mon historique →</button><div id="progress-list"></div></details>
+  </section>
 </main>
 <nav class="bottomnav" aria-label="Navigation mobile"><button data-view="home">Accueil</button><button data-view="cases">Cas</button><button data-view="exam">Examen</button><button data-view="progress">Progrès</button><button data-view="vocab">Carnet</button></nav>
-<script type="module" src="/practice-ui.mjs?v=20260917c"></script>
+<script type="module" src="/practice-ui.mjs?v=20260917d"></script>
 </body></html>

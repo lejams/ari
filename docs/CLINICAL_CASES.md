@@ -102,6 +102,18 @@ uniquement). Le scénario influence la recommandation par trois champs déjà re
 (sections faibles de l'apprenant). Un scénario sans ces champs reste recommandable,
 seulement moins souvent.
 
+### Progression par axes (`progress-axes-v1`)
+
+`GET /api/progression` ajoute `axes` aux séries comparables : structure (carte sections ×
+sessions sur les dix dernières sessions, moyennes, sections les plus faibles, respect de
+l'ordre), communication (verdicts d'empathie, taux de réaction adaptée sur cinq moments
+et sur les cinq précédents), langue (catégories fermées d'erreurs `gender`, `case`,
+`verb_form`, `word_order`, `word_choice`, `register`, `other` sur cinq sessions, erreurs
+récurrentes avec exemples cités), carnet (actif, acquis, ajouts et acquisitions sur trente
+jours), rythme (sessions et minutes vocales par semaine sur quatre semaines) et niveau
+(historique des tests). Tout est déterministe ; les catégories viennent du schéma strict de
+l'évaluation (`evaluation-v6`), jamais d'un texte libre.
+
 ### Exercices structurés
 
 Le scénario peut porter `practice: PracticeSpecification` (`practice-spec-v1`) :

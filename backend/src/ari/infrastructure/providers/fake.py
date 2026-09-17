@@ -288,7 +288,15 @@ class FakeLLMProvider:
                     "evidence_turn_sequences": turns[-1:],
                 },
             ],
-            "language_errors": [],
+            "language_errors": [
+                {
+                    "text": f"Fake : vérifier l'accord dans « {doctor_by_turn[turn][:60]} ».",
+                    "category": "case",
+                    "evidence_turn_sequences": [turn],
+                }
+                for turn in turns
+                if doctor_by_turn.get(turn, "").casefold().startswith("wo haben")
+            ][:6],
             "criteria": [
                 {
                     "criterion_id": str(item["id"]),

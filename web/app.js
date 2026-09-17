@@ -789,6 +789,7 @@ function fillList(id, items) {
 
 const COMPARABLE_EVALUATIONS = new Set(["session-evaluation-v2", "session-evaluation-v3", "session-evaluation-v4"]);
 const VOCABULARY_KIND_LABELS = { missing: "mot manquant", misused: "mal employé", well_used: "bien employé" };
+const ERROR_CATEGORY_LABELS = { gender: "Genre", case: "Cas et déclinaison", verb_form: "Forme verbale", word_order: "Ordre des mots", word_choice: "Choix du mot", register: "Registre", other: "Autre" };
 const EMPATHY_LABELS = {
   acknowledged: "Réaction adaptée", partial: "Réaction minimale", ignored: "Pas de réaction",
   not_reached: "Révélé en fin de session, sans réponse", not_triggered: "Le patient ne l’a pas révélé",
@@ -1010,7 +1011,7 @@ function showFeedback(session) {
     text: `${item.lemma} — ${item.translation} · ${VOCABULARY_KIND_LABELS[item.kind] || "candidat"}`, turns: item.evidence_turn_sequences,
   })), "Aucun mot repéré.");
   const languageErrors = evaluation.language_errors || [];
-  fillEvidence("language-errors", languageErrors.map((item) => ({ text: item.text, turns: item.evidence_turn_sequences })), "Aucune erreur de langue significative relevée.");
+  fillEvidence("language-errors", languageErrors.map((item) => ({ text: `${item.category ? `${ERROR_CATEGORY_LABELS[item.category] || item.category} · ` : ""}${item.text}`, turns: item.evidence_turn_sequences })), "Aucune erreur de langue significative relevée.");
   const codeSwitches = evaluation.code_switches || [];
   fillEvidence("code-switches", codeSwitches.map((item) => ({
     text: `« ${item.fragment} »${item.intended_term ? ` → ${item.intended_term}` : ""}`, turns: [item.turn],

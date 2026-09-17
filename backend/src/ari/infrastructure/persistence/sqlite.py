@@ -924,6 +924,7 @@ class SqliteSessionRepository:
                     evidence_turn_sequences=(
                         tuple(item["evidence_turn_sequences"]) if isinstance(item, dict) else ()
                     ),
+                    category=item.get("category") if isinstance(item, dict) else None,
                 )
                 for item in value[key]
             )

@@ -338,45 +338,88 @@ async function showHistory() {
   if(!historyItems.length)$('history-list').append(node('p','Pas encore de session enregistrée. Choisissez un exercice pour commencer.','availability'));
   for(const item of historyItems){const card=node('article',undefined,'card');card.append(node('h2',item.content.title),node('p',`${phaseLabel(item.content.phase)} · ${item.mode} · ${stateLabel(item.status)} · ${formatDate(item.ended_at||item.created_at)}`),node('p',`Feedback : ${stateLabel(item.feedback_state)}`,'help'),actionButton(item.has_feedback?'Voir le feedback':'Reprendre cette session',()=>openHistoryItem(item)));$('history-list').append(card);}view('history');
 }
+const ERROR_LABELS = {gender: 'Genre', case: 'Cas et déclinaison', verb_form: 'Forme verbale', word_order: 'Ordre des mots', word_choice: 'Choix du mot', register: 'Registre', other: 'Autre'};
+const VERDICT_LABELS = {acknowledged: 'Réaction adaptée', partial: 'Réaction minimale', ignored: 'Pas de réaction'};
+const percent = value => value === null || value === undefined ? '—' : `${Math.round(value * 100)} %`;
+function trendArrow(current, previous, higherIsBetter = true) {
+  if (current === null || current === undefined || previous === null || previous === undefined) return '';
+  if (Math.abs(current - previous) < 0.01) return ' →';
+  const better = higherIsBetter ? current > previous : current < previous;
+  return better ? ' ↑' : ' ↓';
+}
+function progressTile(label, value, note, state) {
+  const tile = node('div', undefined, 'tile'); tile.dataset.state = state; tile.setAttribute('role', 'listitem');
+  tile.append(node('span', value, 'tile-value'), node('strong', label), node('span', note, 'tile-note'));
+  return tile;
+}
+function renderHeatmap(structure) {
+  const table = $('heatmap'); table.replaceChildren();
+  if (!structure.rows.length) { $('axis-structure-note').textContent = 'Aucune session avec sections d’anamnèse pour le moment.'; return; }
+  const head = node('tr'); head.append(node('th', 'Session'));
+  for (const column of structure.columns) { const th = node('th', column.label); th.lang = 'de'; head.append(th); }
+  table.append(head);
+  for (const row of structure.rows) {
+    const tr = node('tr');
+    tr.append(node('th', `${new Date(row.date).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}${row.order_respected ? '' : ' ·'}`));
+    for (const column of structure.columns) {
+      const ratio = row.cells[column.id];
+      const td = node('td', ratio === null || ratio === undefined ? '' : ratio === 1 ? '✓' : ratio === 0 ? '—' : '◐');
+      td.dataset.heat = ratio === null || ratio === undefined ? 'none' : String(Math.round(ratio * 4));
+      td.title = `${column.label} : ${percent(ratio)}`;
+      tr.append(td);
+    }
+    table.append(tr);
+  }
+  const weakest = structure.weakest.map(section => `${section.label} (${percent(section.ratio)})`).join(', ');
+  $('axis-structure-note').textContent = `${structure.sessions} session${structure.sessions > 1 ? 's' : ''} · ordre canonique respecté ${percent(structure.order_respected_rate)} des fois${weakest ? ` · à renforcer : ${weakest}` : ''}. Un point après la date signale un ordre différent.`;
+}
+function renderBars(container, items, max) {
+  container.replaceChildren(...items.map(item => {
+    const row = node('div', undefined, 'bar-row');
+    const fill = node('i'); if (fill.style) fill.style.width = `${max ? Math.round((item.value / max) * 100) : 0}%`;
+    const bar = node('div', undefined, 'bar'); bar.append(fill);
+    row.append(node('span', item.label, 'bar-label'), bar, node('span', item.text, 'bar-value'));
+    return row;
+  }));
+}
+function renderAxes(axes) {
+  const s = axes.structure, c = axes.communication, l = axes.language, x = axes.lexicon, r = axes.regularity, v = axes.level;
+  const lastWeek = r.weeks[r.weeks.length - 1];
+  const weakest = s.weakest[0];
+  const avg = Object.values(s.averages).filter(value => value !== null);
+  const coverage = avg.length ? avg.reduce((a, b) => a + b, 0) / avg.length : null;
+  $('progress-tiles').replaceChildren(
+    progressTile('Structure', percent(coverage), weakest ? `à renforcer : ${weakest.label}` : 'aucune section suivie', coverage === null ? 'none' : coverage >= 0.8 ? 'ok' : coverage >= 0.5 ? 'warn' : 'bad'),
+    progressTile('Moments sensibles', `${percent(c.acknowledged_rate)}${trendArrow(c.acknowledged_rate, c.previous_rate)}`, `${c.counts.acknowledged || 0} adaptées · ${c.counts.ignored || 0} ignorées`, c.acknowledged_rate === null ? 'none' : c.acknowledged_rate >= 0.8 ? 'ok' : c.acknowledged_rate >= 0.5 ? 'warn' : 'bad'),
+    progressTile('Langue', l.errors_per_session === null ? '—' : `${l.errors_per_session}${trendArrow(l.errors_per_session, l.previous_errors_per_session, false)}`, l.recurring.length ? `récurrent : ${ERROR_LABELS[l.recurring[0].category]}` : 'erreurs par session', l.errors_per_session === null ? 'none' : l.errors_per_session <= 1 ? 'ok' : l.errors_per_session <= 2 ? 'warn' : 'bad'),
+    progressTile('Carnet', String(x.acquired), `acquis · ${x.active} à travailler`, x.acquired ? 'ok' : x.active ? 'warn' : 'none'),
+    progressTile('Niveau', v.history.length ? v.history[v.history.length - 1].band : '—', v.history.length ? `estimé le ${new Date(v.history[v.history.length - 1].date).toLocaleDateString('fr-FR')}` : 'test non passé', v.history.length ? 'ok' : 'none'),
+    progressTile('Rythme', String(lastWeek.voice_sessions + lastWeek.practice_runs), `sessions cette semaine · ${lastWeek.voice_minutes} min de voix`, lastWeek.voice_sessions + lastWeek.practice_runs ? 'ok' : 'warn'),
+  );
+  renderHeatmap(s);
+  $('empathy-timeline').replaceChildren(...(c.timeline.length ? c.timeline.map(item => { const dot = node('span', VERDICT_LABELS[item.verdict] || item.verdict, 'verdict'); dot.dataset.verdict = item.verdict; dot.title = `${new Date(item.date).toLocaleDateString('fr-FR')} · ${item.cue}`; return dot; }) : [node('p', 'Aucun moment sensible jugé pour le moment.', 'help')]));
+  $('axis-communication-note').textContent = c.acknowledged_rate === null ? '' : `Réaction adaptée ${percent(c.acknowledged_rate)} sur les cinq derniers moments${c.previous_rate !== null ? ` (avant : ${percent(c.previous_rate)})` : ''}.`;
+  const categories = Object.keys({...l.previous_by_category, ...l.by_category});
+  const maxErrors = Math.max(1, ...categories.map(k => Math.max(l.by_category[k] || 0, l.previous_by_category[k] || 0)));
+  renderBars($('error-bars'), categories.sort((a, b) => (l.by_category[b] || 0) - (l.by_category[a] || 0)).map(k => ({label: ERROR_LABELS[k] || k, value: l.by_category[k] || 0, text: `${l.by_category[k] || 0}${l.previous_by_category[k] !== undefined ? ` (avant ${l.previous_by_category[k]})` : ''}`})), maxErrors);
+  if (!categories.length) $('error-bars').append(node('p', 'Aucune erreur de langue relevée sur vos dernières sessions.', 'help'));
+  $('error-examples').replaceChildren(...l.recurring.flatMap(item => item.examples.map(example => { const quote = node('blockquote', example.text); quote.lang = 'fr'; return quote; })));
+  renderBars($('lexicon-axis'), [
+    {label: 'Acquis', value: x.acquired, text: String(x.acquired)},
+    {label: 'À travailler', value: x.active, text: String(x.active)},
+    {label: 'Ajoutés (30 j)', value: x.added_last_30_days, text: String(x.added_last_30_days)},
+    {label: 'Acquis (30 j)', value: x.acquired_last_30_days, text: String(x.acquired_last_30_days)},
+  ], Math.max(1, x.acquired, x.active, x.added_last_30_days));
+  $('level-history').replaceChildren(...(v.history.length ? v.history.map(item => node('p', `${new Date(item.date).toLocaleDateString('fr-FR')} · ${item.band} · vocabulaire-grammaire ${item.vocab_grammar}, écoute ${item.listening}, oral ${item.speaking || 'non évalué'}${item.speaking && !item.speaking_counted ? ' (non compté)' : ''}`)) : [node('p', 'Aucun test de niveau terminé.', 'help')]));
+  const maxWeek = Math.max(1, ...r.weeks.map(w => w.voice_sessions + w.practice_runs));
+  renderBars($('week-bars'), r.weeks.map(w => ({label: `${new Date(w.start).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}`, value: w.voice_sessions + w.practice_runs, text: `${w.voice_sessions + w.practice_runs} session${w.voice_sessions + w.practice_runs > 1 ? 's' : ''} · ${w.voice_minutes} min`})), maxWeek);
+}
 async function showProgress() {
-  const progress=await client.api('/api/progression');historyItems=(await client.api('/api/history')).items;renderCalendar();$('progress-note').textContent=progress.limitations;$('progress-list').replaceChildren();
+  const progress=await client.api('/api/progression');historyItems=(await client.api('/api/history')).items;renderCalendar();
+  $('progress-note').textContent=progress.axes.limitations;$('progress-series-note').textContent=progress.limitations;renderAxes(progress.axes);$('progress-list').replaceChildren();
   if(!progress.groups.length)$('progress-list').append(node('p','Pas de données comparables : terminez un exercice pour retrouver ses dimensions.','availability'));
   for(const excluded of progress.excluded||[])$('progress-list').append(node('p',`${excluded.reason} · session ${excluded.run_id}. Le feedback reste disponible dans l’historique.`,'help'));
   for(const group of progress.groups){const card=node('article',undefined,'card');card.append(node('h2',`${group.content.title} · ${group.mode}`),node('p',`Contenu ${group.content.scenario_id}@${group.content.scenario_version} · rubrique ${group.content.rubric_id}@${group.content.rubric_version}`,'help'));for(const point of group.points){card.append(node('h3',formatDate(point.created_at)));for(const dimension of point.dimensions)card.append(node('p',dimensionText(dimension)));card.append(actionButton('Voir les preuves',()=>openHistoryItem({id:point.run_id,kind:group.kind})));}$('progress-list').append(card);}view('progress');
-}
-function renderReviewCard() {
-  reviewEntry = reviewQueue[0] || null;
-  $('vocab-review').hidden = !reviewEntry;
-  if (!reviewEntry) return;
-  $('review-progress').textContent = `Révision ${reviewTotal - reviewQueue.length + 1} / ${reviewTotal}`;
-  $('review-source').textContent = reviewEntry.zone === 'acquired' ? `Entretien · ${sourceLabel(reviewEntry.source)}` : sourceLabel(reviewEntry.source);
-  // Recto: the French cue when we have one, else the German word itself (recall the meaning).
-  const hasCue = Boolean(reviewEntry.translation);
-  $('review-front').textContent = hasCue ? reviewEntry.translation : reviewEntry.lemma;
-  $('review-front').lang = hasCue ? 'fr' : 'de';
-  $('review-example').hidden = true; $('review-example').textContent = reviewEntry.example || '';
-  $('review-form').hidden = !hasCue; $('review-input').value = '';
-  $('review-back').hidden = hasCue;
-  $('review-answer').textContent = reviewEntry.lemma;
-  $('review-verdict').textContent = hasCue ? '' : 'Ce mot n’a pas encore de traduction : évaluez votre souvenir de son sens.';
-  $('review-ratings').replaceChildren(...RATINGS.map(rating => actionButton(ratingLabel(rating), () => rateReview(rating), rating === 'good')));
-  if (!hasCue && reviewEntry.example) $('review-example').hidden = false;
-}
-function revealReview(typed) {
-  const suggestion = LexiconClient.suggest(reviewEntry, typed);
-  $('review-form').hidden = true; $('review-back').hidden = false;
-  if (reviewEntry.example) $('review-example').hidden = false;
-  $('review-verdict').textContent = suggestion === 'good' ? 'Votre réponse correspond. Évaluez la facilité du rappel.'
-    : suggestion === 'again' ? `Vous avez écrit « ${typed.trim()} ». Comparez et évaluez honnêtement.` : 'Évaluez votre rappel.';
-  Array.from($('review-ratings').children).forEach(button => button.classList.toggle('primary', suggestion ? button.textContent === ratingLabel(suggestion) : button.textContent === ratingLabel('good')));
-}
-async function rateReview(rating) {
-  const entry = reviewEntry;
-  await lexicon.review(entry, rating);
-  reviewQueue = reviewQueue.filter(item => item.id !== entry.id);
-  if (rating === 'again') reviewQueue.push(entry); // Due again immediately: back of the queue.
-  if (!reviewQueue.length) { await showVocab(); return; }
-  renderReviewCard();
 }
 let vocabZone = 'active', vocabOverview = null;
 function entryCard(entry) {

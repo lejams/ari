@@ -258,6 +258,7 @@ class ConversationTurn:
 class EvidenceObservation:
     text: str
     evidence_turn_sequences: tuple[int, ...]
+    category: str | None = None  # Language errors only: gender, case, verb_form, ...
 
 
 @dataclass(frozen=True, slots=True)

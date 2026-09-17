@@ -44,8 +44,12 @@ creates a local profile, then practises with published, versioned clinical conte
   Recommended content scores published cases by overlap with due lexicon words, weak
   sections and recency. Nothing is stored: the plan is recomputed, done slots are matched
   against what was completed since Monday.
-- History and progression, separated by content version, rubric, method and mode.
-  No overall score, no certified CEFR level, no certification.
+- **Progression by axis** (`progress-axes-v1`): anamnesis structure as a heatmap of
+  sections by session, empathy verdicts over time, recurring language error categories
+  (the evaluator tags each error with a closed category), lexicon acquired versus active,
+  weekly rhythm and placement history. The per-content comparable series remain below,
+  separated by content version, rubric, method and mode. No overall score, no certified
+  CEFR level, no certification.
 
 Without published content the catalogue is empty. Content enters through the clinical
 registry (import, two human reviews, publication), never through code.

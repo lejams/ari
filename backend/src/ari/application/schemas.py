@@ -32,6 +32,25 @@ class EvidenceObservationSchema(StrictModel):
     evidence_turn_sequences: list[int] = Field(min_length=1, max_length=5)
 
 
+LANGUAGE_ERROR_CATEGORIES = (
+    "gender",
+    "case",
+    "verb_form",
+    "word_order",
+    "word_choice",
+    "register",
+    "other",
+)
+
+
+class LanguageErrorSchema(EvidenceObservationSchema):
+    """A meaningful spoken error with a closed category, so recurrences can be counted."""
+
+    category: Literal[
+        "gender", "case", "verb_form", "word_order", "word_choice", "register", "other"
+    ]
+
+
 class CriterionResultSchema(StrictModel):
     criterion_id: str
     score: Annotated[int, Field(ge=0, le=5)]
@@ -68,7 +87,7 @@ class EvaluationOutputSchema(StrictModel):
     summary: Annotated[str, Field(min_length=1, max_length=500)]
     strengths: list[EvidenceObservationSchema] = Field(default_factory=list, max_length=2)
     priorities: list[EvidenceObservationSchema] = Field(default_factory=list, max_length=3)
-    language_errors: list[EvidenceObservationSchema] = Field(default_factory=list, max_length=6)
+    language_errors: list[LanguageErrorSchema] = Field(default_factory=list, max_length=6)
     criteria: list[CriterionResultSchema]
     vocabulary_candidates: list[VocabularyCandidateSchema] = Field(
         default_factory=list, max_length=8

@@ -101,7 +101,7 @@ def public_session(session: ConversationSession) -> dict[str, Any]:
         )
         for name in ("strengths", "priorities", "language_errors"):
             payload[name] = [
-                _fields(item, ("text", "evidence_turn_sequences"))
+                _fields(item, ("text", "evidence_turn_sequences", "category"))
                 for item in getattr(evaluation, name)
             ]
         payload["code_switches"] = [

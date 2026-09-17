@@ -95,8 +95,8 @@ async def test_invented_case_fact_is_rejected_and_traced(container: Container) -
         LLMBackedEvaluator(
             FakeLLMProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v5.txt",
-                "evaluation-v5",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v6.txt",
+                "evaluation-v6",
             ),
             "fr-FR",
         ),
@@ -161,8 +161,8 @@ async def test_code_switch_on_unknown_turn_is_rejected_and_traced(container: Con
         LLMBackedEvaluator(
             CodeSwitchInventingProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v5.txt",
-                "evaluation-v5",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v6.txt",
+                "evaluation-v6",
             ),
             "fr-FR",
         ),
