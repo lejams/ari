@@ -1,12 +1,14 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ari.infrastructure.persistence.base import Base
+from ari.infrastructure.persistence.platform.base import Base
 
-PRACTICE_JSON = JSON(none_as_null=True)
+# none_as_null: ck_practice_feedback_state tests SQL NULL, not a JSON null.
+PRACTICE_JSON = JSONB(none_as_null=True)
 
 
 class PracticeRunRow(Base):

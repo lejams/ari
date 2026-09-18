@@ -23,10 +23,10 @@ from ari.infrastructure.cases.clinical_catalog import ClinicalCatalog
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.placement_store import PlacementStore
 from ari.infrastructure.cases.practice_catalog import PublishedPracticeCatalog
-from ari.infrastructure.persistence.lexicon import SqlLexiconRepository
-from ari.infrastructure.persistence.placement import SqlPlacementRepository
-from ari.infrastructure.persistence.practice import SqlPracticeRepository
-from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
+from ari.infrastructure.persistence.platform.lexicon import SqlLexiconRepository
+from ari.infrastructure.persistence.platform.placement import SqlPlacementRepository
+from ari.infrastructure.persistence.platform.practice import SqlPracticeRepository
+from ari.infrastructure.persistence.platform.repository import SqlSessionRepository
 from ari.infrastructure.providers.fake import (
     FakeLLMProvider,
     FakeRealtimeEngine,
@@ -41,7 +41,7 @@ REALTIME_STACK_ID = "realtime_exam"
 @dataclass(frozen=True, slots=True)
 class Container:
     settings: Settings
-    repository: SqliteSessionRepository
+    repository: SqlSessionRepository
     cases: ClinicalCatalog
     orchestrator: ConversationOrchestrator
     transcriber: UtteranceTranscriber
@@ -108,13 +108,7 @@ def _realtime_stack(settings: Settings) -> VoiceStack:
 
 
 def build_container(settings: Settings) -> Container:
-    if settings.database_url.startswith("sqlite:///"):
-        from pathlib import Path
-
-        Path(settings.database_url.removeprefix("sqlite:///")).parent.mkdir(
-            parents=True, exist_ok=True
-        )
-    repository = SqliteSessionRepository(settings.database_url)
+    repository = SqlSessionRepository(settings.database_url)
     cases = ClinicalCatalog(ClinicalStore(repository.engine))
     patient_prompt = load_prompt(settings.prompt_directory / "patient_v3.txt", "patient-v3")
     evaluation_prompt = load_prompt(

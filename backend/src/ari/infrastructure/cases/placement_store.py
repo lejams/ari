@@ -6,7 +6,7 @@ claim, so a single linguistic approval unlocks publication. Content rows are imm
 
 from typing import Any
 
-from sqlalchemy import Engine, select, update
+from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,7 @@ from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.models import new_id, utc_now
 from ari.domain.placement import PlacementBundle, PlacementReview, PlacementSetVersion
 from ari.infrastructure.cases.clinical_store import decode
-from ari.infrastructure.persistence.placement_rows import (
+from ari.infrastructure.persistence.platform.placement_rows import (
     PlacementEventRow,
     PlacementReviewRow,
     PlacementSetRow,
@@ -72,13 +72,12 @@ class PlacementStore:
 
     @staticmethod
     def _row(db: Session, set_id: str, version: str, *, lock: bool = False) -> PlacementSetRow:
+        statement = select(PlacementSetRow).where(
+            PlacementSetRow.id == set_id, PlacementSetRow.version == version
+        )
         if lock:
-            db.execute(
-                update(PlacementSetRow)
-                .where(PlacementSetRow.id == set_id, PlacementSetRow.version == version)
-                .values(status=PlacementSetRow.status)
-            )
-        row = db.get(PlacementSetRow, (set_id, version), populate_existing=True)
+            statement = statement.with_for_update()
+        row = db.scalar(statement)
         if row is None:
             raise NotFoundError("Test de niveau inconnu")
         return row

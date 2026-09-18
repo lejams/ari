@@ -1,15 +1,13 @@
 """Demo and dev bundles publish through the real import/review/publish path and stay synthetic."""
 
-from pathlib import Path
-
 from conftest import build_test_container
 
 from ari.demo import DEMO_BUNDLES, DEV_BUNDLES, publish_demo_content, seed_bundles
 from ari.infrastructure.cases.yaml_io import bundle_kind, parse_bundle, parse_placement_bundle
 
 
-def test_demo_bundle_publishes_one_voice_case_and_two_exercises(tmp_path: Path) -> None:
-    container = build_test_container(tmp_path / "demo.db")
+def test_demo_bundle_publishes_one_voice_case_and_two_exercises(database_url: str) -> None:
+    container = build_test_container(database_url)
     for path in sorted(DEMO_BUNDLES.glob("*.yaml")):
         text = path.read_text(encoding="utf-8")
         if bundle_kind(text) == "ari-placement-bundle-v1":
@@ -28,10 +26,10 @@ def test_demo_bundle_publishes_one_voice_case_and_two_exercises(tmp_path: Path) 
     assert published is not None and published.id == "ari-placement-demo"
 
 
-def test_new_case_version_supersedes_the_older_one_in_a_kept_database(tmp_path: Path) -> None:
+def test_new_case_version_supersedes_the_older_one_in_a_kept_database(database_url: str) -> None:
     from clinical_fixtures import synthetic_bundle
 
-    container = build_test_container(tmp_path / "dev-evolving.db")
+    container = build_test_container(database_url)
     publish_demo_content(container.cases.store, synthetic_bundle("1"))
     publish_demo_content(container.cases.store, synthetic_bundle("2"))
     listed = container.cases.list()
@@ -42,9 +40,9 @@ def test_new_case_version_supersedes_the_older_one_in_a_kept_database(tmp_path: 
 
 
 def test_dev_bundle_is_a_french_voice_case_and_reseeding_a_kept_database_is_a_no_op(
-    tmp_path: Path,
+    database_url: str,
 ) -> None:
-    container = build_test_container(tmp_path / "dev.db")
+    container = build_test_container(database_url)
     for path in sorted(DEV_BUNDLES.glob("*.yaml")):
         text = path.read_text(encoding="utf-8")
         if bundle_kind(text) == "ari-placement-bundle-v1":

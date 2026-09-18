@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      ARI_PLATFORM_DB_PASSWORD: ${ARI_PLATFORM_DB_PASSWORD:-ari_platform}
+      ARI_CONTENT_DB_PASSWORD: ${ARI_CONTENT_DB_PASSWORD:-ari_content}
+    ports:
+      - "${ARI_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres_data:

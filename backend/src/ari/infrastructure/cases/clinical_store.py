@@ -2,10 +2,9 @@
 
 import json
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Engine, select, update
+from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -21,7 +20,7 @@ from ari.domain.clinical import (
 )
 from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.models import new_id, utc_now
-from ari.infrastructure.persistence.clinical_rows import (
+from ari.infrastructure.persistence.platform.clinical_rows import (
     CaseSourceRow,
     ClinicalCaseRow,
     PublicationEventRow,
@@ -45,20 +44,6 @@ class ClinicalStore:
         # Revalidate even callers using unchecked model_copy/model_construct.
         bundle = decode(ClinicalBundle, bundle.model_dump(mode="json"))
         counts = {"cas_nouveaux": 0, "cas_identiques": 0, "scenarios_nouveaux": 0}
-        database = self.engine.url.database
-        if (
-            dry_run
-            and self.engine.dialect.name == "sqlite"
-            and database
-            and database != ":memory:"
-            and not Path(database).exists()
-        ):
-            # Merely connecting to SQLite would create the file, violating dry-run.
-            return {
-                "cas_nouveaux": len(bundle.cases),
-                "cas_identiques": 0,
-                "scenarios_nouveaux": len(bundle.scenarios),
-            }
         try:
             with Session(self.engine) as db, db.begin():
                 groups: Sequence[tuple[type[Any], Sequence[ClinicalModel]]] = (
@@ -145,17 +130,15 @@ class ClinicalStore:
     def _scenario(
         db: Session, scenario_id: str, version: str, *, lock: bool = False
     ) -> ScenarioRow:
+        statement = select(ScenarioRow).where(
+            ScenarioRow.id == scenario_id, ScenarioRow.version == version
+        )
         if lock:
-            # An UPDATE also serializes writers on SQLite (SELECT FOR UPDATE would not).
-            db.execute(
-                update(ScenarioRow)
-                .where(
-                    ScenarioRow.id == scenario_id,
-                    ScenarioRow.version == version,
-                )
-                .values(status=ScenarioRow.status)
-            )
-        row = db.get(ScenarioRow, (scenario_id, version), populate_existing=True)
+            # Row lock for workflow mutations, held until commit. A missing row locks
+            # nothing: races to *create* the same identity are guarded by unique
+            # constraints plus the IntegrityError re-read, never by this lock.
+            statement = statement.with_for_update()
+        row = db.scalar(statement)
         if row is None:
             raise NotFoundError("Scénario inconnu")
         return row
@@ -221,8 +204,7 @@ class ClinicalStore:
     def _blockers(self, db: Session, row: ScenarioRow, bundle: ClinicalBundle) -> list[str]:
         blockers = list(bundle.cases[0].blockers)
         executable_practice = (
-            row.phase in ("arzt_arzt", "fachbegriffe")
-            and bundle.scenarios[0].practice is not None
+            row.phase in ("arzt_arzt", "fachbegriffe") and bundle.scenarios[0].practice is not None
         )
         if row.phase != "arzt_patient" and not executable_practice:
             blockers.append("Phase modélisée mais non disponible à l'exécution")

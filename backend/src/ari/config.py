@@ -16,7 +16,8 @@ class Settings(BaseSettings):
 
     environment: Literal["development", "test", "production"] = "development"
     provider_mode: Literal["fake", "openai"] = "fake"
-    database_url: str = f"sqlite:///{PROJECT_ROOT / 'var' / 'ari.db'}"
+    # PostgreSQL only; the default matches the docker compose platform database.
+    database_url: str = "postgresql+psycopg://ari_platform:ari_platform@localhost:5432/ari_platform"
     prompt_directory: Path = PROJECT_ROOT / "backend" / "src" / "ari" / "prompts"
     frontend_origin: str = "http://localhost:5173"
     feedback_language: str = "fr-FR"

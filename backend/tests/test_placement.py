@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import wave
 from io import BytesIO
-from pathlib import Path
 
 import pytest
+from conftest import DatabaseFactory
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
@@ -242,7 +242,7 @@ def test_wrong_answers_descend_and_early_finish_ignores_missing_phases(
 
 
 def test_placement_is_owned_and_unavailable_without_published_set(
-    placement_container: Container, tmp_path: Path
+    placement_container: Container, new_database_url: DatabaseFactory
 ) -> None:
     app = create_app(placement_container)
     with TestClient(app) as alice, TestClient(app) as bob:
@@ -292,7 +292,7 @@ def test_placement_is_owned_and_unavailable_without_published_set(
             assert fresh.post("/api/learners", json={"target_cefr": "C2"}).status_code == 422
     from conftest import build_test_container
 
-    empty = build_test_container(tmp_path / "no-placement.db")
+    empty = build_test_container(new_database_url())
     with TestClient(create_app(empty)) as client:
         client.post("/api/learners", json={})
         assert client.get("/api/placement").json()["available"] is False

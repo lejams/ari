@@ -170,15 +170,17 @@ reçoit un nouvel identifiant et les cas corrigés référencent cette nouvelle 
 
 L'import d'un bundle est une transaction unique, ressources avant scénarios.
 Les clés étrangères SQL protègent sources, ressources, scénarios, revues et pins de
-sessions. Des triggers SQLite de la migration initiale interdisent UPDATE/DELETE du contenu.
+sessions. Des triggers PL/pgSQL de la migration initiale interdisent UPDATE/DELETE du
+contenu et lèvent une erreur de classe 23 (`IntegrityError` côté application).
 Le statut du scénario peut changer sans altérer son contenu. La publication et le
-retrait sont sérialisés par verrou d'écriture du scénario (aussi sous SQLite),
-et l'événement d'audit est committé dans la même transaction. Deux tentatives sur le même scénario donnent
-un succès puis un refus métier « n'est plus un brouillon ».
+retrait sont sérialisés par un verrou de ligne (`SELECT … FOR UPDATE`) sur le scénario,
+et l'événement d'audit est committé dans la même transaction. Deux tentatives sur le même
+scénario donnent un succès puis un refus métier « n'est plus un brouillon ».
 
 Les sessions v2 ont un pin séparé vers le scénario/hash immuable, donnant les
 versions/hashes exacts du cas, de la rubrique et du lexique. La création de session
-revérifie le statut sous verrou pour éviter une course avec un retrait.
+prend un verrou partagé (`FOR SHARE`) sur le scénario publié : les sessions démarrent en
+parallèle, un retrait concurrent attend qu'elles soient committées.
 
 ## Scoring `assessment-weighted-v1`
 

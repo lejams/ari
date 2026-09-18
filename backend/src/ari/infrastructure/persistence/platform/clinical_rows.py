@@ -1,20 +1,22 @@
 from typing import Any
 
 from sqlalchemy import (
-    JSON,
     CheckConstraint,
     ForeignKey,
     ForeignKeyConstraint,
+    Identity,
     Index,
+    Integer,
     String,
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ari.infrastructure.persistence.base import Base
+from ari.infrastructure.persistence.platform.base import Base
 
-CLINICAL_JSON = JSON()
+CLINICAL_JSON = JSONB()
 
 
 class SourceRow(Base):
@@ -72,7 +74,7 @@ class ScenarioRow(Base):
             "case_version",
             "phase",
             unique=True,
-            sqlite_where=text("status = 'published'"),
+            postgresql_where=text("status = 'published'"),
         ),
         UniqueConstraint("id", "version", "content_hash"),
         ForeignKeyConstraint(
@@ -129,7 +131,7 @@ class ReviewRow(Base):
             ],
         ),
     )
-    sequence: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    sequence: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     id: Mapped[str] = mapped_column(String, unique=True)
     scenario_id: Mapped[str] = mapped_column(String)
     scenario_version: Mapped[str] = mapped_column(String)

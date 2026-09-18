@@ -1,24 +1,20 @@
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, date, datetime
 from enum import Enum
 from typing import Any
 
 from sqlalchemy import (
-    JSON,
     DateTime,
     ForeignKey,
     Integer,
     String,
     Text,
     UniqueConstraint,
-    create_engine,
-    event,
     select,
-    update,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
@@ -45,27 +41,30 @@ from ari.domain.models import (
     VocabularyState,
     utc_now,
 )
-from ari.infrastructure.persistence.base import Base
-from ari.infrastructure.persistence.clinical_rows import (
+from ari.infrastructure.persistence.platform.base import Base
+from ari.infrastructure.persistence.platform.clinical_rows import (
     ClinicalSessionPinRow,
     ScenarioRow,
     scenario_snapshot,
 )
-from ari.infrastructure.persistence.identity import ProfileCredentialRow as ProfileCredentialRow
-from ari.infrastructure.persistence.lexicon_rows import LexiconEntryRow as LexiconEntryRow
-from ari.infrastructure.persistence.placement_rows import (
+from ari.infrastructure.persistence.platform.engine import create_platform_engine
+from ari.infrastructure.persistence.platform.identity import (
+    ProfileCredentialRow as ProfileCredentialRow,
+)
+from ari.infrastructure.persistence.platform.lexicon_rows import LexiconEntryRow as LexiconEntryRow
+from ari.infrastructure.persistence.platform.placement_rows import (
     PlacementAttemptRow as PlacementAttemptRow,
 )
-from ari.infrastructure.persistence.practice_rows import PracticeRunRow as PracticeRunRow
-from ari.infrastructure.persistence.voice_learning import VoiceLearningRow, VoiceStartRow
+from ari.infrastructure.persistence.platform.practice_rows import PracticeRunRow as PracticeRunRow
+from ari.infrastructure.persistence.platform.voice_learning import VoiceLearningRow, VoiceStartRow
 
 
 class LearnerRow(Base):
     __tablename__ = "learners"
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    goal: Mapped[dict[str, Any]] = mapped_column(JSON)
+    goal: Mapped[dict[str, Any]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    details: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
 
 class SessionRow(Base):
@@ -75,10 +74,10 @@ class SessionRow(Base):
     case_id: Mapped[str] = mapped_column(String)
     case_version: Mapped[str] = mapped_column(String)
     case_hash: Mapped[str] = mapped_column(String)
-    goal: Mapped[dict[str, Any]] = mapped_column(JSON)
+    goal: Mapped[dict[str, Any]] = mapped_column(JSONB)
     voice_stack_id: Mapped[str] = mapped_column(String)
     voice_stack_version: Mapped[str] = mapped_column(String)
-    voice_stack_config: Mapped[dict[str, Any]] = mapped_column(JSON)
+    voice_stack_config: Mapped[dict[str, Any]] = mapped_column(JSONB)
     status: Mapped[str] = mapped_column(String, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     call_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -97,8 +96,8 @@ class TurnRow(Base):
     sequence: Mapped[int] = mapped_column(Integer)
     user_text: Mapped[str] = mapped_column(Text)
     patient_text: Mapped[str] = mapped_column(Text)
-    revealed_fact_ids: Mapped[list[str]] = mapped_column(JSON)
-    selected_fact_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    revealed_fact_ids: Mapped[list[str]] = mapped_column(JSONB)
+    selected_fact_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
     provider_input_item_id: Mapped[str | None] = mapped_column(String, nullable=True)
     provider_response_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     provider_response_status: Mapped[str] = mapped_column(String, default="completed")
@@ -125,13 +124,13 @@ class TurnRow(Base):
 class EvaluationRow(Base):
     __tablename__ = "evaluations"
     session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
 
 class MetricsRow(Base):
     __tablename__ = "session_metrics"
     session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
 
 class VocabularyRow(Base):
@@ -141,7 +140,7 @@ class VocabularyRow(Base):
     lemma: Mapped[str] = mapped_column(String)
     translation: Mapped[str] = mapped_column(String)
     example: Mapped[str] = mapped_column(Text)
-    evidence_turn_sequences: Mapped[list[int]] = mapped_column(JSON, default=list)
+    evidence_turn_sequences: Mapped[list[int]] = mapped_column(JSONB, default=list)
     state: Mapped[str] = mapped_column(String)
     confidence: Mapped[float]
     kind: Mapped[str] = mapped_column(String, default="missing")
@@ -160,7 +159,7 @@ class ExecutionRow(Base):
     case_version: Mapped[str] = mapped_column(String)
     case_hash: Mapped[str] = mapped_column(String)
     latency_ms: Mapped[int] = mapped_column(Integer)
-    usage: Mapped[dict[str, Any]] = mapped_column(JSON)
+    usage: Mapped[dict[str, Any]] = mapped_column(JSONB)
     provider_request_id: Mapped[str | None] = mapped_column(String, nullable=True)
     turn_id: Mapped[str | None] = mapped_column(String, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -225,25 +224,11 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
-def _enable_sqlite_foreign_keys(dbapi_connection: object, connection_record: object) -> None:
-    del connection_record
-    if isinstance(dbapi_connection, sqlite3.Connection):
-        cursor = dbapi_connection.cursor()
-        try:
-            cursor.execute("PRAGMA foreign_keys=ON")
-        finally:
-            cursor.close()
-
-
-class SqliteSessionRepository:
-    """Synchronous repository; API calls are short and SQLite-local in the POC."""
+class SqlSessionRepository:
+    """Synchronous repository over the PostgreSQL platform database; API calls are short."""
 
     def __init__(self, database_url: str) -> None:
-        self.engine = create_engine(
-            database_url,
-            connect_args={"check_same_thread": False} if database_url.startswith("sqlite") else {},
-        )
-        event.listen(self.engine, "connect", _enable_sqlite_foreign_keys)
+        self.engine = create_platform_engine(database_url)
 
     def create_learner(self, learner: LearnerProfile) -> LearnerProfile:
         with Session(self.engine) as db:
@@ -316,20 +301,15 @@ class SqliteSessionRepository:
             snapshot = dict(session.training_snapshot)
             scenario = None
             if snapshot:
-                db.execute(
-                    update(ScenarioRow)
+                # A shared lock lets sessions start concurrently while a publish/withdraw
+                # (FOR UPDATE) waits for them, so the pin below always matches a published row.
+                scenario = db.scalar(
+                    select(ScenarioRow)
                     .where(
                         ScenarioRow.id == snapshot.get("scenario_id"),
                         ScenarioRow.version == snapshot.get("scenario_version"),
                     )
-                    .values(status=ScenarioRow.status)
-                )
-                scenario = db.get(
-                    ScenarioRow,
-                    (
-                        snapshot.get("scenario_id"),
-                        snapshot.get("scenario_version"),
-                    ),
+                    .with_for_update(read=True)
                 )
                 if (
                     scenario is None

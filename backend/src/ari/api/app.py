@@ -36,7 +36,7 @@ from ari.domain.models import (
     MedicalCase,
     SessionStatus,
 )
-from ari.infrastructure.persistence.identity import ProfileCredentials
+from ari.infrastructure.persistence.platform.identity import ProfileCredentials
 
 
 def _payload(value: object) -> Any:
@@ -259,6 +259,3 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     if web_dir.exists():
         app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
     return app
-
-
-app = create_app()

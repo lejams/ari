@@ -14,7 +14,8 @@ from ari.domain.errors import InvalidStateError
 from ari.domain.models import CEFRLevel
 from ari.infrastructure.cases.cli import run
 from ari.infrastructure.cases.yaml_io import parse_bundle
-from ari.infrastructure.persistence.clinical_rows import ClinicalCaseRow
+from ari.infrastructure.persistence.platform.clinical_rows import ClinicalCaseRow
+from ari.infrastructure.persistence.platform.engine import create_platform_engine
 
 
 def bundle_file(tmp_path: Path) -> Path:
@@ -30,15 +31,17 @@ def test_direct_ari_import_rejects_contact_data() -> None:
         parse_bundle(json.dumps(raw))
 
 
-def test_validate_only_and_dry_run_never_create_database(
+def test_validate_only_and_dry_run_write_nothing(
     tmp_path: Path,
+    database_url: str,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    file, database = bundle_file(tmp_path), tmp_path / "must-not-exist.db"
+    file = bundle_file(tmp_path)
     for mode in ("--validate-only", "--dry-run"):
-        assert run(["--database-url", f"sqlite:///{database}", "import", str(file), mode]) == 0
+        assert run(["--database-url", database_url, "import", str(file), mode]) == 0
         assert json.loads(capsys.readouterr().out)["ecriture"] is False
-        assert not database.exists()
+    with Session(create_platform_engine(database_url)) as db:
+        assert db.scalar(select(ClinicalCaseRow)) is None
 
 
 def test_cli_import_idempotence_draft_and_private_inspection(

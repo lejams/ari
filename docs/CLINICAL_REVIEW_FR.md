@@ -6,9 +6,10 @@ Les exemples synthétiques et les reviewers simulés servent uniquement aux test
 
 ## 1. Préparer et inspecter
 
-Faire une sauvegarde locale appropriée, puis `make migrate` explicitement. Valider
-et importer le bundle (`import CHEMIN.yaml`, voir [le schéma](CLINICAL_CASES.md)). La CLI utilise
-SQLite local ; aucune route d'administration publique ni accès distant n'est ajouté.
+Faire une sauvegarde appropriée, puis `make migrate` explicitement. Valider
+et importer le bundle (`import CHEMIN.yaml`, voir [le schéma](CLINICAL_CASES.md)). La CLI
+écrit dans la base PostgreSQL plateforme (`ARI_DATABASE_URL`, ou `--database-url`) ; aucune
+route d'administration publique n'est ajoutée.
 
 ```sh
 PYTHONPATH=backend/src .venv/bin/python -m ari.infrastructure.cases.cli \

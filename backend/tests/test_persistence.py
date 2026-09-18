@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from alembic import command
-from alembic.config import Config
-from conftest import migrated_database_url
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 
-from ari.config import PROJECT_ROOT
 from ari.domain.models import (
     AudioDeliveryStatus,
     ConversationSession,
@@ -20,16 +15,14 @@ from ari.domain.models import (
     LearningGoal,
     new_id,
 )
-from ari.infrastructure.persistence.identity import ProfileCredentials
-from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
+from ari.infrastructure.persistence.platform.identity import ProfileCredentials
+from ari.infrastructure.persistence.platform.repository import SqlSessionRepository
+from ari.infrastructure.persistence.platform.schema import alembic_config
 
 
-def test_migration_creates_schema_matching_models(tmp_path: Path) -> None:
-    url = migrated_database_url(tmp_path / "empty.db")
-    config = Config(PROJECT_ROOT / "alembic.ini")
-    config.attributes["database_url"] = url
-    command.check(config)
-    repository = SqliteSessionRepository(url)
+def test_migration_creates_schema_matching_models(database_url: str) -> None:
+    command.check(alembic_config(database_url))
+    repository = SqlSessionRepository(database_url)
     tables = set(inspect(repository.engine).get_table_names())
     assert {
         "alembic_version",
@@ -46,8 +39,8 @@ def test_migration_creates_schema_matching_models(tmp_path: Path) -> None:
     assert credentials.resolve(credentials.issue(learner.id)) == learner.id
 
 
-def test_sqlite_foreign_keys_are_enabled_on_every_repository_connection(tmp_path: Path) -> None:
-    repository = SqliteSessionRepository(migrated_database_url(tmp_path / "foreign-keys.db"))
+def test_foreign_keys_are_enforced(database_url: str) -> None:
+    repository = SqlSessionRepository(database_url)
     invalid = ConversationSession(
         id=new_id(),
         learner_id="missing-learner",
@@ -56,14 +49,12 @@ def test_sqlite_foreign_keys_are_enabled_on_every_repository_connection(tmp_path
         case_hash="hash",
         goal=LearningGoal(),
     )
-    with repository.engine.connect() as connection:
-        assert connection.scalar(text("PRAGMA foreign_keys")) == 1
     with pytest.raises(IntegrityError):
         repository.create_session(invalid)
 
 
-def test_session_stack_and_delivery_round_trip(tmp_path: Path) -> None:
-    repository = SqliteSessionRepository(migrated_database_url(tmp_path / "round-trip.db"))
+def test_session_stack_and_delivery_round_trip(database_url: str) -> None:
+    repository = SqlSessionRepository(database_url)
     learner = LearnerProfile(id=new_id(), goal=LearningGoal())
     repository.create_learner(learner)
     snapshot = {

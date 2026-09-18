@@ -19,7 +19,7 @@ from ari.domain.placement import PlacementReview
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.placement_store import PlacementStore
 from ari.infrastructure.cases.yaml_io import parse_bundle, parse_placement_bundle, read_yaml
-from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
+from ari.infrastructure.persistence.platform.engine import create_platform_engine
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -225,10 +225,7 @@ def run(argv: list[str] | None = None) -> int:
 
 
 def _store(database_url: str | None) -> ClinicalStore:
-    url = database_url or Settings().database_url
-    if not url.startswith("sqlite:///"):
-        raise ValueError("La CLI locale exige SQLite")
-    return ClinicalStore(SqliteSessionRepository(url).engine)
+    return ClinicalStore(create_platform_engine(database_url or Settings().database_url))
 
 
 if __name__ == "__main__":

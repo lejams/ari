@@ -4,13 +4,16 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Engine, select, update
+from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.models import utc_now
-from ari.infrastructure.persistence.placement_rows import PlacementAnswerRow, PlacementAttemptRow
+from ari.infrastructure.persistence.platform.placement_rows import (
+    PlacementAnswerRow,
+    PlacementAttemptRow,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,12 +76,11 @@ class SqlPlacementRepository:
         )
 
     def _lock(self, db: Session, attempt_id: str, learner_id: str) -> PlacementAttemptRow:
-        db.execute(
-            update(PlacementAttemptRow)
+        row = db.scalar(
+            select(PlacementAttemptRow)
             .where(PlacementAttemptRow.id == attempt_id)
-            .values(status=PlacementAttemptRow.status)
+            .with_for_update()
         )
-        row = db.get(PlacementAttemptRow, attempt_id, populate_existing=True)
         if row is None or row.learner_id != learner_id:
             raise NotFoundError("Test de niveau introuvable")
         return row

@@ -54,19 +54,20 @@ creates a local profile, then practises with published, versioned clinical conte
 Without published content the catalogue is empty. Content enters through the clinical
 registry (import, two human reviews, publication), never through code.
 
-## Try it offline
+## Try it locally
 
 ```sh
 python3 -m venv .venv
 make install-locked
+make db-up                                                        # PostgreSQL via docker compose
 PYTHONPATH=backend/src .venv/bin/python -m ari.demo --port 8010
 ```
 
-Open <http://127.0.0.1:8010>. The demo creates a temporary database, runs the
-migration, imports `cases/demo/ari_demo_bundle.v1.yaml`, records **simulated** reviews,
-publishes one synthetic voice case and two synthetic exercises, and runs with fake
-providers. In fake mode the voice page offers a text field instead of the microphone.
-Nothing outside the temporary directory is read or written; Ctrl+C removes it.
+Open <http://127.0.0.1:8010>. The demo migrates the platform database (`ARI_DATABASE_URL`,
+default: the compose `ari_platform` database), imports the bundles of `cases/demo`, records
+**simulated** reviews, publishes the synthetic content and runs with fake providers. In
+fake mode the voice page offers a text field instead of the microphone. Re-running against
+the same database is a no-op; `make db-reset` wipes every local database.
 
 ## Develop with live providers, in French
 
@@ -87,24 +88,25 @@ ARI_STT_MODEL=whisper-1
 ARI_STT_API_KEY=<same OpenAI key>
 ```
 
-`make dev-fr` runs `python -m ari.demo --provider openai --database var/dev-fr.db
---bundles cases/dev`: the database persists between runs so history and progression
-accumulate, and re-seeding an existing database is a no-op. When the single migration
-has been regenerated since the file was created, the demo refuses to start and asks you
-to delete `var/dev-fr.db`. Everything downstream follows the case language (Whisper,
-Realtime transcription, patient and evaluation prompts).
+`make dev-fr` runs `python -m ari.demo --provider openai --bundles cases/dev` against the
+platform database: it persists between runs so history and progression accumulate, and
+re-seeding an existing database is a no-op. When the single migration has been regenerated
+since the database was created, the demo refuses to start and asks you to run
+`make db-reset`. Everything downstream follows the case language (Whisper, Realtime
+transcription, patient and evaluation prompts).
 Nothing changes for learners: the platform database only holds content published through
 the registry, and only German cases are published there.
 
 ## Run locally
 
 ```sh
+make db-up
 make migrate
 make dev
 ```
 
-`make dev` serves <http://localhost:8000> against `var/ari.db` (override with
-`ARI_DATABASE_URL`). The root is the learner home; `/voice.html` is the voice page.
+`make dev` serves <http://localhost:8000> against the compose platform database (override
+with `ARI_DATABASE_URL`). The root is the learner home; `/voice.html` is the voice page.
 The catalogue stays empty until you publish content with the registry CLI (below).
 
 For live providers set, in `.env` or the environment:
@@ -140,8 +142,8 @@ flowchart LR
     API -->|"training"| TTS["StreamingTTSProvider"]
     API -->|"exam"| STS["RealtimeVoiceEngine (OpenAI Realtime)"]
     API -->|"exam"| Attributor["FactAttributor"] --> LLM
-    Orchestrator --> Repo["SqliteSessionRepository"] --> DB[("SQLite")]
-    Registry["Clinical registry (SQLite tables)"] --> Orchestrator
+    Orchestrator --> Repo["SqlSessionRepository"] --> DB[("PostgreSQL")]
+    Registry["Clinical registry (PostgreSQL tables)"] --> Orchestrator
 ```
 
 Dependencies point inward:
@@ -151,7 +153,7 @@ Dependencies point inward:
 - `application`: ports (`LLMProvider`, `UtteranceTranscriber`, `StreamingTTSProvider`,
   `RealtimeVoiceEngine`, `Evaluator`, `SessionRepository`), patient simulation, fact
   attribution, evaluation, orchestration, progression;
-- `infrastructure`: SQLite persistence, the clinical registry and its CLI, OpenAI,
+- `infrastructure`: PostgreSQL persistence, the clinical registry and its CLI, OpenAI,
   OpenAI Realtime and Whisper adapters, deterministic fakes;
 - `api`: HTTP routes, the two voice WebSocket handlers (push-to-talk pipeline, open
   microphone relay), cookie ownership middleware;
@@ -172,12 +174,14 @@ ari.infrastructure.cases.cli --help` validates, imports, inspects, records human
 reviews, publishes and withdraws. The `placement` subcommands do the same for
 `ari-placement-bundle-v1` documents, with a single linguistic review. Publication requires compatible source rights and one
 clinical plus one linguistic approval of the exact hashes. Content rows are immutable
-(SQLite triggers). See `docs/CLINICAL_REVIEW_FR.md` for the review procedure.
+(PL/pgSQL triggers). See `docs/CLINICAL_REVIEW_FR.md` for the review procedure.
 
 ## Persistence
 
-SQLite through SQLAlchemy Core-style models; one Alembic revision creates the schema
-(`docs/MIGRATIONS.md`). Turns record the facts the patient selected and, separately,
+PostgreSQL only, through SQLAlchemy models; one Alembic revision creates the schema and
+its triggers (`docs/MIGRATIONS.md`). Workflow mutations take row locks; a session pinning a
+published scenario takes a shared lock so a concurrent withdrawal waits for it. Turns
+record the facts the patient selected and, separately,
 the facts credited as heard once the browser confirms full playback. Learner
 transcripts are persisted before the patient answers, so a failed response never loses
 a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connection.
@@ -227,7 +231,7 @@ pnpm --dir web test:e2e
 ## Known limits
 
 - The pipeline is single-process: voice connection state lives in memory, so run one
-  worker. SQLite has a single writer.
+  application worker.
 - No pronunciation scoring. Lexicon promotions are lexical (a token starting with the
   term, short inflection allowed), not a judgement of correct usage; the LLM only
   proposes candidates and flags code switches. In exam mode the speech model refuses

@@ -3,15 +3,15 @@
 import json
 from datetime import UTC, datetime
 
-from sqlalchemy import Engine, select, update
+from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.practice import PracticeAnswer, PracticeContent, PracticeFeedback, PracticeRun
 from ari.infrastructure.cases.clinical_store import ClinicalStore
-from ari.infrastructure.persistence.clinical_rows import ScenarioRow
-from ari.infrastructure.persistence.practice_rows import PracticeAnswerRow, PracticeRunRow
+from ari.infrastructure.persistence.platform.clinical_rows import ScenarioRow
+from ari.infrastructure.persistence.platform.practice_rows import PracticeAnswerRow, PracticeRunRow
 
 
 def _date(value: datetime) -> datetime:
@@ -61,17 +61,13 @@ class SqlPracticeRepository:
         )
 
     def _lock(self, db: Session, run_id: str, learner_id: str) -> PracticeRunRow:
-        # Acquires a SQLite write lock / PostgreSQL row lock before inspecting responses.
-        db.execute(
-            update(PracticeRunRow)
-            .where(
-                PracticeRunRow.id == run_id,
-                PracticeRunRow.learner_id == learner_id,
-            )
-            .values(status=PracticeRunRow.status)
+        # Row lock held until commit, so concurrent answers to the same run serialise.
+        row = db.scalar(
+            select(PracticeRunRow)
+            .where(PracticeRunRow.id == run_id, PracticeRunRow.learner_id == learner_id)
+            .with_for_update()
         )
-        row = db.get(PracticeRunRow, run_id)
-        if row is None or row.learner_id != learner_id:
+        if row is None:
             raise NotFoundError("Exercice introuvable")
         return row
 
@@ -126,15 +122,14 @@ class SqlPracticeRepository:
             return self._same_request(existing, run)
         try:
             with Session(self.engine) as db, db.begin():
-                db.execute(
-                    update(ScenarioRow)
+                row = db.scalar(
+                    select(ScenarioRow)
                     .where(
                         ScenarioRow.id == run.content.scenario_id,
                         ScenarioRow.version == run.content.scenario_version,
                     )
-                    .values(status=ScenarioRow.status)
+                    .with_for_update(read=True)
                 )
-                row = db.get(ScenarioRow, (run.content.scenario_id, run.content.scenario_version))
                 if row is None or row.status != "published":
                     raise InvalidStateError("Scénario non publié ou retiré")
                 bundle = ClinicalStore(self.engine)._bundle(db, row)

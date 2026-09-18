@@ -3,7 +3,7 @@
 from sqlalchemy import CheckConstraint, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ari.infrastructure.persistence.base import Base
+from ari.infrastructure.persistence.platform.base import Base
 
 
 class VoiceLearningRow(Base):

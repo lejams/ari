@@ -217,8 +217,8 @@ def test_next_actions_follow_the_priority_order_and_cap_at_three() -> None:
 
 
 @pytest.mark.asyncio
-async def test_evaluation_judges_empathy_and_reports_structure(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    container = build_test_container(tmp_path / "pedagogy.db")
+async def test_evaluation_judges_empathy_and_reports_structure(database_url: str) -> None:
+    container = build_test_container(database_url)
     publish_with_simulated_reviews(container.cases.store, pedagogical_bundle())
     case = container.cases.list()[0]
     assert [s.id for s in case.anamnesis_sections] == ["aktuelle_beschwerden", "patientendaten"]

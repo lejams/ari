@@ -42,7 +42,10 @@ from ari.domain.placement import (
     shift_level,
 )
 from ari.infrastructure.cases.placement_store import PlacementStore
-from ari.infrastructure.persistence.placement import PlacementAttempt, SqlPlacementRepository
+from ari.infrastructure.persistence.platform.placement import (
+    PlacementAttempt,
+    SqlPlacementRepository,
+)
 
 DEFAULT_START_LEVEL = "A2"
 

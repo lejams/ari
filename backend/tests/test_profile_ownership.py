@@ -10,7 +10,10 @@ from starlette.websockets import WebSocketDisconnect
 from ari.api.app import create_app
 from ari.container import Container
 from ari.domain.models import CEFRLevel
-from ari.infrastructure.persistence.identity import ProfileCredentialRow, ProfileCredentials
+from ari.infrastructure.persistence.platform.identity import (
+    ProfileCredentialRow,
+    ProfileCredentials,
+)
 
 
 @pytest.fixture

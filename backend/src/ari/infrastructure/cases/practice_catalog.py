@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ari.domain.errors import NotFoundError
 from ari.domain.practice import PracticeContent
 from ari.infrastructure.cases.clinical_store import ClinicalStore
-from ari.infrastructure.persistence.clinical_rows import ScenarioRow
+from ari.infrastructure.persistence.platform.clinical_rows import ScenarioRow
 
 
 class PublishedPracticeCatalog:

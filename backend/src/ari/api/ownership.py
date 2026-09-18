@@ -6,8 +6,8 @@ from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from ari.infrastructure.persistence.identity import ProfileCredentials
-from ari.infrastructure.persistence.sqlite import SessionRow
+from ari.infrastructure.persistence.platform.identity import ProfileCredentials
+from ari.infrastructure.persistence.platform.repository import SessionRow
 
 PROFILE_COOKIE = "ari_profile"
 

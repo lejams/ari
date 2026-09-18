@@ -163,8 +163,8 @@ def test_recommendation_prefers_due_words_weak_sections_and_level(
     assert only_other is not None and only_other.id == "OTHER"
 
 
-def test_program_api_reflects_profile_lexicon_and_activity(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    container = build_test_container(tmp_path / "program.db")
+def test_program_api_reflects_profile_lexicon_and_activity(database_url: str) -> None:
+    container = build_test_container(database_url)
     publish_with_simulated_reviews(container.cases.store, synthetic_bundle())
     publish_with_simulated_reviews(container.cases.store, synthetic_practice("fachbegriffe").bundle)
     app = create_app(container)

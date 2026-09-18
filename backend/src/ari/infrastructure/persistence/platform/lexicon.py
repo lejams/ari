@@ -18,7 +18,7 @@ from ari.domain.models import (
     SrsState,
     VocabularyState,
 )
-from ari.infrastructure.persistence.lexicon_rows import (
+from ari.infrastructure.persistence.platform.lexicon_rows import (
     LexiconEntryRow,
     LexiconReviewRow,
     SessionLexiconReportRow,

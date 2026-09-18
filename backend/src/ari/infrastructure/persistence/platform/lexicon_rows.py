@@ -1,10 +1,11 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ari.infrastructure.persistence.base import Base
+from ari.infrastructure.persistence.platform.base import Base
 
 
 class LexiconEntryRow(Base):
@@ -18,10 +19,10 @@ class LexiconEntryRow(Base):
     example: Mapped[str] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String)
     state: Mapped[str] = mapped_column(String)
-    srs: Mapped[dict[str, Any]] = mapped_column(JSON)
+    srs: Mapped[dict[str, Any]] = mapped_column(JSONB)
     first_session_id: Mapped[str | None] = mapped_column(String, nullable=True)
     last_session_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    used_session_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    used_session_ids: Mapped[list[str]] = mapped_column(JSONB, default=list)
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -40,4 +41,4 @@ class LexiconReviewRow(Base):
 class SessionLexiconReportRow(Base):
     __tablename__ = "session_lexicon_reports"
     session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)

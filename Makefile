@@ -6,7 +6,7 @@ RUFF ?= .venv/bin/ruff
 MYPY ?= .venv/bin/mypy
 ALEMBIC ?= .venv/bin/alembic
 
-.PHONY: install install-locked dev dev-fr migrate migration-check test test-backend test-web lint format
+.PHONY: install install-locked db-up db-down db-reset dev dev-fr migrate migration-check test test-backend test-web lint format
 
 install:
 	$(PYTHON) -m pip install -e "backend[dev]"
@@ -14,18 +14,31 @@ install:
 install-locked:
 	$(PYTHON) -m pip install -r backend/requirements.lock
 
+# Local PostgreSQL (docker compose). Tests, the demo and dev-fr all need it.
+db-up:
+	docker compose up -d --wait postgres
+
+db-down:
+	docker compose down
+
+# Drops the data volume: every local database, including the persistent dev-fr content.
+db-reset:
+	docker compose down -v
+	docker compose up -d --wait postgres
+	$(MAKE) migrate
+
 dev:
 	$(PYTHON) -m uvicorn ari.main:app --app-dir backend/src --reload --port 8000
 
-# Live providers (.env), persistent var/dev-fr.db, synthetic French voice case for testing.
+# Live providers (.env), persistent platform database, synthetic French voice case for testing.
 dev-fr:
-	PYTHONPATH=backend/src $(PYTHON) -m ari.demo --provider openai --database var/dev-fr.db --bundles cases/dev
+	PYTHONPATH=backend/src $(PYTHON) -m ari.demo --provider openai --bundles cases/dev
 
 migrate:
-	$(ALEMBIC) -c alembic.ini upgrade head
+	$(ALEMBIC) -c alembic.ini -n platform upgrade head
 
 migration-check:
-	$(ALEMBIC) -c alembic.ini current --check-heads
+	$(ALEMBIC) -c alembic.ini -n platform current --check-heads
 
 test: test-backend test-web
 

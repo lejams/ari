@@ -2,20 +2,21 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
-    JSON,
     CheckConstraint,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Identity,
     Integer,
     String,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ari.infrastructure.persistence.base import Base
+from ari.infrastructure.persistence.platform.base import Base
 
-PLACEMENT_JSON = JSON(none_as_null=True)
+PLACEMENT_JSON = JSONB(none_as_null=True)
 
 
 class PlacementSetRow(Base):
@@ -33,7 +34,7 @@ class PlacementSetRow(Base):
     version: Mapped[str] = mapped_column(String, primary_key=True)
     content_hash: Mapped[str] = mapped_column(String(64))
     language: Mapped[str] = mapped_column(String)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
     status: Mapped[str] = mapped_column(String)
 
 
@@ -41,7 +42,7 @@ class PlacementSourceRow(Base):
     __tablename__ = "placement_sources"
     id: Mapped[str] = mapped_column(String, primary_key=True)
     content_hash: Mapped[str] = mapped_column(String(64))
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
 
 class PlacementReviewRow(Base):
@@ -52,12 +53,12 @@ class PlacementReviewRow(Base):
             ["placement_sets.id", "placement_sets.version", "placement_sets.content_hash"],
         ),
     )
-    sequence: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    sequence: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     id: Mapped[str] = mapped_column(String, unique=True)
     set_id: Mapped[str] = mapped_column(String)
     set_version: Mapped[str] = mapped_column(String)
     set_hash: Mapped[str] = mapped_column(String(64))
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
 
 class PlacementEventRow(Base):
@@ -70,7 +71,7 @@ class PlacementEventRow(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     set_id: Mapped[str] = mapped_column(String)
     set_version: Mapped[str] = mapped_column(String)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
 
 class PlacementAttemptRow(Base):

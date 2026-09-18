@@ -1,23 +1,21 @@
 """Run ARI against synthetic content published through the real registry path.
 
-Default: offline demo, fake providers, temporary database, `cases/demo`.
-Development against live providers, for example a French voice case so the team can
-test the platform without speaking German:
+Default: fake providers, the PostgreSQL platform database from `ARI_DATABASE_URL` (or the
+docker compose default), `cases/demo`. Development against live providers, for example a
+French voice case so the team can test the platform without speaking German:
 
-    python -m ari.demo --provider openai --database var/dev-fr.db --bundles cases/dev
+    python -m ari.demo --provider openai --bundles cases/dev
 
-Reviews are simulated: none of this content is approved for learners.
+Reviews are simulated: none of this content is approved for learners. Re-running against
+the same database is a no-op for identical content.
 """
 
 import argparse
 from datetime import UTC, datetime
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Literal
 
 import uvicorn
-from alembic import command
-from alembic.config import Config
 from pydantic_settings import SettingsConfigDict
 from sqlalchemy import Engine, inspect, select
 from sqlalchemy.orm import Session
@@ -30,8 +28,9 @@ from ari.domain.placement import PlacementBundle, PlacementReview
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.placement_store import PlacementStore
 from ari.infrastructure.cases.yaml_io import bundle_kind, parse_bundle, parse_placement_bundle
-from ari.infrastructure.persistence.clinical_rows import ScenarioRow
-from ari.infrastructure.persistence.sqlite import Base, SqliteSessionRepository
+from ari.infrastructure.persistence.platform import Base, create_platform_engine
+from ari.infrastructure.persistence.platform.clinical_rows import ScenarioRow
+from ari.infrastructure.persistence.platform.schema import upgrade_to_head
 
 DEMO_BUNDLES = PROJECT_ROOT / "cases" / "demo"
 DEV_BUNDLES = PROJECT_ROOT / "cases" / "dev"
@@ -109,8 +108,8 @@ def _ensure_schema(engine: Engine, database_url: str) -> None:
     if missing:
         raise SystemExit(
             f"Base {database_url} créée par une ancienne révision (tables manquantes : "
-            f"{', '.join(sorted(missing))}). Supprimez ce fichier et relancez : la démo le "
-            "recrée et republie le contenu synthétique."
+            f"{', '.join(sorted(missing))}). Recréez-la (`make db-reset`) et relancez : la démo "
+            "republie le contenu synthétique."
         )
 
 
@@ -144,18 +143,14 @@ def seed_bundles(store: ClinicalStore, directory: Path) -> None:
             publish_demo_content(store, parse_bundle(text))
 
 
-def serve(database_url: str, bundles: Path, provider: Literal["fake", "openai"], port: int) -> None:
-    config = Config(PROJECT_ROOT / "alembic.ini")
-    config.attributes["database_url"] = database_url
-    command.upgrade(config, "head")
-    engine = SqliteSessionRepository(database_url).engine
-    _ensure_schema(engine, database_url)
+def serve(settings: Settings, bundles: Path, port: int, database_url: str | None = None) -> None:
+    if database_url is not None:
+        settings = settings.model_copy(update={"database_url": database_url})
+    upgrade_to_head(settings.database_url)
+    engine = create_platform_engine(settings.database_url)
+    _ensure_schema(engine, settings.database_url)
     seed_bundles(ClinicalStore(engine), bundles)
-    # Live providers read their keys from `.env`; the offline demo stays hermetic.
-    settings_class: type[Settings] = Settings if provider == "openai" else DemoSettings
-    settings = settings_class(
-        environment="development", provider_mode=provider, database_url=database_url
-    )
+    engine.dispose()
     uvicorn.run(create_app(settings=settings), host="127.0.0.1", port=port)
 
 
@@ -164,10 +159,9 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8010)
     parser.add_argument("--provider", choices=["fake", "openai"], default="fake")
     parser.add_argument(
-        "--database",
-        type=Path,
+        "--database-url",
         default=None,
-        help="Persistent SQLite file (kept between runs). Default: temporary, removed on exit.",
+        help="PostgreSQL URL. Default: ARI_DATABASE_URL, else the compose platform database.",
     )
     parser.add_argument(
         "--bundles",
@@ -176,13 +170,11 @@ def main() -> None:
         help="Directory of YAML bundles published with simulated reviews.",
     )
     args = parser.parse_args()
-    if args.database is not None:
-        args.database.parent.mkdir(parents=True, exist_ok=True)
-        serve(f"sqlite:///{args.database.resolve()}", args.bundles, args.provider, args.port)
-        return
-    with TemporaryDirectory(prefix="ari-mvp-demo-") as directory:
-        database_url = f"sqlite:///{Path(directory) / 'demo.db'}"
-        serve(database_url, args.bundles, args.provider, args.port)
+    provider: Literal["fake", "openai"] = args.provider
+    # Live providers read their keys from `.env`; the fake demo never reads that file.
+    settings_class: type[Settings] = Settings if provider == "openai" else DemoSettings
+    settings = settings_class(environment="development", provider_mode=provider)
+    serve(settings, args.bundles, args.port, database_url=args.database_url)
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ from sqlalchemy import DateTime, Engine, ForeignKey, String, delete, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from ari.domain.models import utc_now
-from ari.infrastructure.persistence.base import Base
+from ari.infrastructure.persistence.platform.base import Base
 
 
 class ProfileCredentialRow(Base):

@@ -18,7 +18,7 @@ from ari.domain.models import (
     TerminologyTerm,
 )
 from ari.infrastructure.cases.clinical_store import ClinicalStore
-from ari.infrastructure.persistence.clinical_rows import ScenarioRow, scenario_snapshot
+from ari.infrastructure.persistence.platform.clinical_rows import ScenarioRow, scenario_snapshot
 
 
 class ClinicalCatalog:
