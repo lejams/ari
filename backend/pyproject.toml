@@ -55,3 +55,30 @@ python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
 exclude = ["migrations"]
+
+# Architecture rules from AGENTS.md, checked by `make lint` (lint-imports).
+[tool.importlinter]
+root_package = "ari"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Layers point inward: api > infrastructure > application > domain"
+type = "layers"
+layers = ["ari.api", "ari.infrastructure", "ari.application", "ari.domain"]
+
+[[tool.importlinter.contracts]]
+name = "Domain and application never import vendor SDKs or persistence libraries"
+type = "forbidden"
+source_modules = ["ari.domain", "ari.application"]
+forbidden_modules = [
+  "alembic",
+  "fastapi",
+  "httpx",
+  "openai",
+  "psycopg",
+  "pydantic_settings",
+  "sqlalchemy",
+  "starlette",
+  "uvicorn",
+  "yaml",
+]

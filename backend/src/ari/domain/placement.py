@@ -5,9 +5,10 @@ the exact hash, publication. Items are general German (or the development langua
 medical knowledge. The result is an estimate, never a certificate.
 """
 
+from dataclasses import dataclass, field
 from datetime import datetime
 from statistics import median_low
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import Field, model_validator
 
@@ -21,6 +22,7 @@ from ari.domain.clinical import (
     unique,
 )
 from ari.domain.clinical_privacy import contact_locations
+from ari.domain.models import utc_now
 
 Level = Literal["A1", "A2", "B1", "B2", "C1", "C2"]
 LEVELS: tuple[str, ...] = ("A1", "A2", "B1", "B2", "C1", "C2")
@@ -206,3 +208,25 @@ def band(
     if counted and speaking is not None:
         levels.append(speaking)
     return LEVELS[min(level_index(level) for level in levels)], counted
+
+
+@dataclass(frozen=True, slots=True)
+class PlacementAttempt:
+    """A learner's run of a published set: pinned content, staircase state, answers, result."""
+
+    id: str
+    learner_id: str
+    request_id: str
+    set_id: str
+    set_version: str
+    set_hash: str
+    status: str  # active | completed | abandoned
+    phase: str  # mcq | listening | speaking | completed
+    state: dict[str, Any]
+    answers: tuple[dict[str, Any], ...] = ()
+    result: dict[str, Any] | None = None
+    created_at: datetime = field(default_factory=utc_now)
+    ended_at: datetime | None = None
+
+    def answered(self, item_id: str) -> bool:
+        return any(answer["item_id"] == item_id for answer in self.answers)

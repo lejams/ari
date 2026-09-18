@@ -44,6 +44,8 @@ jobs:
         run: .venv/bin/ruff check backend
       - name: Mypy strict
         run: .venv/bin/mypy backend/src
+      - name: Import contracts (layers, no vendor SDK in domain/application)
+        run: PYTHONPATH=backend/src .venv/bin/lint-imports --config backend/pyproject.toml
       - name: JavaScript syntax and PCM resampler
         run: make test-web
       - name: Alembic fresh database and schema drift

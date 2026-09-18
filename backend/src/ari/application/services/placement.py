@@ -17,6 +17,7 @@ from typing import Any
 
 from ari.application.contracts import ExecutionContext, LLMRequest, TranscriptionConfig
 from ari.application.ports.llm import LLMProvider
+from ari.application.ports.placement import PlacementAttemptRepository, PlacementCatalog
 from ari.application.ports.repository import SessionRepository
 from ari.application.ports.stt import UtteranceTranscriber
 from ari.application.ports.tts import StreamingTTSProvider
@@ -32,6 +33,7 @@ from ari.domain.placement import (
     STAIRCASE_MAX_REVERSALS,
     ListeningItem,
     McqItem,
+    PlacementAttempt,
     PlacementSetVersion,
     SpeakingItem,
     band,
@@ -40,11 +42,6 @@ from ari.domain.placement import (
     listening_level,
     next_level,
     shift_level,
-)
-from ari.infrastructure.cases.placement_store import PlacementStore
-from ari.infrastructure.persistence.platform.placement import (
-    PlacementAttempt,
-    SqlPlacementRepository,
 )
 
 DEFAULT_START_LEVEL = "A2"
@@ -66,8 +63,8 @@ def _execution_summary(execution: ExecutionRecord) -> dict[str, Any]:
 class PlacementService:
     def __init__(
         self,
-        store: PlacementStore,
-        attempts: SqlPlacementRepository,
+        store: PlacementCatalog,
+        attempts: PlacementAttemptRepository,
         learners: SessionRepository,
         transcriber: UtteranceTranscriber,
         tts: StreamingTTSProvider,

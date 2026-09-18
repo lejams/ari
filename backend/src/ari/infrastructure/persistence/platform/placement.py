@@ -1,6 +1,5 @@
 """Placement attempts: owned, idempotent start and answers, append-only answers."""
 
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,30 +9,11 @@ from sqlalchemy.orm import Session
 
 from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.models import utc_now
+from ari.domain.placement import PlacementAttempt
 from ari.infrastructure.persistence.platform.placement_rows import (
     PlacementAnswerRow,
     PlacementAttemptRow,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class PlacementAttempt:
-    id: str
-    learner_id: str
-    request_id: str
-    set_id: str
-    set_version: str
-    set_hash: str
-    status: str  # active | completed | abandoned
-    phase: str  # mcq | listening | speaking | completed
-    state: dict[str, Any]
-    answers: tuple[dict[str, Any], ...] = ()
-    result: dict[str, Any] | None = None
-    created_at: datetime = field(default_factory=utc_now)
-    ended_at: datetime | None = None
-
-    def answered(self, item_id: str) -> bool:
-        return any(answer["item_id"] == item_id for answer in self.answers)
 
 
 def _dt(value: datetime) -> datetime:

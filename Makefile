@@ -5,6 +5,7 @@ PYTEST ?= .venv/bin/pytest
 RUFF ?= .venv/bin/ruff
 MYPY ?= .venv/bin/mypy
 ALEMBIC ?= .venv/bin/alembic
+LINT_IMPORTS ?= .venv/bin/lint-imports
 
 .PHONY: install install-locked db-up db-down db-reset dev dev-fr migrate migration-check test test-backend test-web lint format
 
@@ -66,6 +67,7 @@ test-web:
 lint:
 	$(RUFF) check backend
 	$(MYPY) backend/src
+	PYTHONPATH=backend/src $(LINT_IMPORTS) --config backend/pyproject.toml
 
 format:
 	$(RUFF) format backend

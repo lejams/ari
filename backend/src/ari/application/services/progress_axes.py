@@ -13,8 +13,8 @@ from typing import Any
 from ari.application.services.lexicon import LexiconOverview
 from ari.domain.clinical import ANAMNESIS_SECTION_IDS
 from ari.domain.models import ConversationSession, Evaluation, SessionStatus
+from ari.domain.placement import PlacementAttempt
 from ari.domain.practice import PracticeRun
-from ari.infrastructure.persistence.platform.placement import PlacementAttempt
 
 PROGRESS_AXES_VERSION = "progress-axes-v1"
 HEATMAP_SESSIONS = 10
