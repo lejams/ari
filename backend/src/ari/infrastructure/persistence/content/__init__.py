@@ -4,6 +4,12 @@ Separate metadata and Alembic chain from the platform database. The learner appl
 never holds credentials for it; the back-office and the worker do.
 """
 
+from ari.infrastructure.persistence.content.auth_rows import (
+    BackofficeAccountRow,
+    BackofficeAuditRow,
+    BackofficeInvitationRow,
+    BackofficeSessionRow,
+)
 from ari.infrastructure.persistence.content.base import ContentBase
 from ari.infrastructure.persistence.content.engine import create_content_engine
 from ari.infrastructure.persistence.content.rows import (
@@ -20,6 +26,10 @@ from ari.infrastructure.persistence.content.rows import (
 
 __all__ = [
     "AiRunRow",
+    "BackofficeAccountRow",
+    "BackofficeAuditRow",
+    "BackofficeInvitationRow",
+    "BackofficeSessionRow",
     "ContentBase",
     "DocumentPageRow",
     "DocumentRow",

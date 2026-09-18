@@ -20,6 +20,7 @@ from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import NullPool
 
+from ari.backoffice_api.container import Backoffice, build_backoffice
 from ari.config import PROJECT_ROOT, Settings
 from ari.container import Container, build_container
 from ari.content.container import ContentContainer, build_content_container
@@ -179,6 +180,23 @@ def content_container(content_database_url: str, tmp_path: Path) -> Iterator[Con
     result = build_content_test_container(content_database_url, tmp_path / "content")
     yield result
     result.repository.engine.dispose()  # type: ignore[attr-defined]
+
+
+@pytest.fixture
+def backoffice(content_database_url: str, tmp_path: Path) -> Iterator[Backoffice]:
+    """The back-office (content pipeline + accounts) on a fresh content database."""
+    settings = Settings(
+        _env_file=None,
+        environment="test",
+        provider_mode="fake",
+        content_database_url=content_database_url,
+        content_storage_dir=tmp_path / "content",
+        prompt_directory=PROJECT_ROOT / "backend" / "src" / "ari" / "prompts",
+        backoffice_origin="http://backoffice.test",
+    )
+    result = build_backoffice(settings)
+    yield result
+    result.content.repository.engine.dispose()  # type: ignore[attr-defined]
 
 
 @pytest.fixture

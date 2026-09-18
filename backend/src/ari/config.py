@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     content_upload_max_bytes: int = 50 * 1024 * 1024
     worker_poll_seconds: float = 2.0
     worker_id: str | None = None
+    # Back-office (separate application, port 8100): where its pages are served from, and
+    # the lifetimes of its server-side sessions and one-time invitation links.
+    backoffice_origin: str = "http://localhost:8100"
+    backoffice_session_days: int = 7
+    backoffice_invitation_hours: int = 48
     prompt_directory: Path = PROJECT_ROOT / "backend" / "src" / "ari" / "prompts"
     frontend_origin: str = "http://localhost:5173"
     feedback_language: str = "fr-FR"
