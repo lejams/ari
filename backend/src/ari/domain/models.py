@@ -7,6 +7,8 @@ from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
+from ari.domain.geography import Land
+
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
@@ -123,7 +125,7 @@ class LearnerDetails:
     certificate_date: date | None = None
     exam_date: date | None = None
     minutes_per_day: int = 30
-    land: str | None = None
+    land: Land | None = None
     situation: str | None = None  # doctor | student
     specialty: str | None = None
     estimated_level: CEFRLevel | None = None

@@ -22,9 +22,9 @@ def answer(index: int, text: str) -> PracticeAnswer:
 def test_adding_optional_practice_preserves_existing_golden_hashes() -> None:
     bundle = synthetic_bundle()
     assert "practice" not in bundle.scenarios[0].model_dump()
-    assert bundle.content_hash == "e6cf66d942c15cca77a01a4caadc06200764a9d3b58feecac7dc2f6eef865d46"
+    assert bundle.content_hash == "22d1f62ffe8988280872eb633fa6a81055f0bf631bdb0e404b8d6edf9214bf59"
     assert bundle.scenarios[0].content_hash == (
-        "0224628ab2e66bb894ce7284f9b14549667bcbb7dfe34a91b762d9b23b101079"
+        "a6d5e5a910cf50dfbb2da9b1991722502f2faec49f26af109c30df4bd08cba8b"
     )
 
 

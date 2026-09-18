@@ -1,10 +1,13 @@
 """Run ARI against synthetic content published through the real registry path.
 
 Default: fake providers, the PostgreSQL platform database from `ARI_DATABASE_URL` (or the
-docker compose default), `cases/demo`. Development against live providers, for example a
-French voice case so the team can test the platform without speaking German:
+docker compose default), the synthetic French bundles of `cases/dev` (one voice case, two
+text exercises, one placement set). Development against live providers, so the team can
+test the platform without speaking German:
 
-    python -m ari.demo --provider openai --bundles cases/dev
+    python -m ari.demo --provider openai
+
+`cases/demo` only holds the German placement set used by the placement tests.
 
 Reviews are simulated: none of this content is approved for learners. Re-running against
 the same database is a no-op for identical content.
@@ -134,12 +137,14 @@ def publish_placement_content(store: PlacementStore, bundle: PlacementBundle) ->
 
 
 def seed_bundles(store: ClinicalStore, directory: Path) -> None:
+    """Publish every bundle of the directory; other YAML files (a gold protocol) are skipped."""
     placement_store = PlacementStore(store.engine)
     for path in sorted(directory.glob("*.yaml")):
         text = path.read_text(encoding="utf-8")
-        if bundle_kind(text) == "ari-placement-bundle-v1":
+        kind = bundle_kind(text)
+        if kind == "ari-placement-bundle-v1":
             publish_placement_content(placement_store, parse_placement_bundle(text))
-        else:
+        elif kind == "ari-clinical-bundle-v1":
             publish_demo_content(store, parse_bundle(text))
 
 
@@ -166,7 +171,7 @@ def main() -> None:
     parser.add_argument(
         "--bundles",
         type=Path,
-        default=DEMO_BUNDLES,
+        default=DEV_BUNDLES,
         help="Directory of YAML bundles published with simulated reviews.",
     )
     args = parser.parse_args()

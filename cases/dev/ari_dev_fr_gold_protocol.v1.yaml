@@ -1,0 +1,55 @@
+# Protocole gold SYNTHÉTIQUE pour le développement : fiction, aucun examen réel, aucune
+# relecture humaine. Le cas cases/dev/ari_dev_fr.v1.yaml le référence par le SHA-256 de ce
+# fichier (gold_protocol.protocol_hash). Schéma provisoire : le modèle GoldProtocol de la base
+# `content` le remplacera (docs/CLINICAL_CASES.md, « Ouvert pour l'étape 2 »).
+schema_version: ari-gold-protocol-draft
+protocol_id: ARI-DEV-FR-PROTOCOL
+protocol_version: '1'
+synthetic: true
+language: fr-FR
+location:
+  land: Bayern
+  city: null
+  exam_body: null
+  exam_date: null
+  specialty: null
+patient:
+  presentation: Camille Martin, 52 ans, douleur thoracique oppressante apparue il y a deux heures en montant les escaliers.
+anamnesis:
+- id: identity
+  section: patientendaten
+  value: Camille Martin, 52 ans
+- id: reason
+  section: aktuelle_beschwerden
+  value: Douleur thoracique oppressante, comme un poids qui serre
+- id: onset
+  section: aktuelle_beschwerden
+  value: Depuis deux heures, apparue en montant les escaliers
+- id: radiation
+  section: aktuelle_beschwerden
+  value: Irradiation vers le bras gauche
+- id: medication
+  section: medikamente
+  value: Ramipril 5 mg le matin pour la tension
+- id: allergy
+  section: allergien
+  value: Aucune allergie connue
+  polarity: absent
+- id: smoking
+  section: noxen
+  value: Dix cigarettes par jour depuis trente ans
+- id: family_history
+  section: familienanamnese
+  value: Père décédé d'un infarctus à 55 ans
+examiner_questions:
+- part: arzt_arzt
+  question: Présentez-moi brièvement la patiente, nom, âge et motif.
+- part: arzt_arzt
+  question: Quelles informations avons-nous sur les allergies ?
+fachbegriffe:
+- term: oral
+  lay: par la bouche
+- term: bilatéral
+  lay: des deux côtés
+outcome:
+  result: unknown

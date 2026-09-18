@@ -2,8 +2,10 @@
 
 ## Périmètre
 
-Les cas utilisent `clinical-case-v2`, stocké dans le registre SQL après
+Les cas utilisent `clinical-case-v3`, stocké dans le registre PostgreSQL après
 import explicite. Aucune migration/import/publication n'est exécuté au démarrage.
+Un cas v3 dérive toujours d'un **protocole gold** (un protocole d'examen validé par un
+médecin puis par le propriétaire de la plateforme) et porte le Land où l'examen a eu lieu.
 Les brouillons n'apparaissent pas dans le catalogue. Une version retirée reste
 accessible aux sessions historiques mais ne peut plus servir à une nouvelle session.
 
@@ -25,8 +27,19 @@ bundles les utilisent. Les schémas exécutables sont dans `domain/clinical.py`.
 
 - `RawCaseSource` décrit le document immédiat, provenance, date avec fuseau,
   checksum SHA-256 disponible, référence privée et droits pour un usage explicite.
-- `ClinicalCaseVersion` contient langue, région, ville, phrases de réponse,
-  sources/pages, faits, critères et questions non résolues.
+  `source_type` vaut `gold_protocol` pour un protocole validé, `synthetic` pour une
+  fiction (qui exige aussi `synthetic: true`) ; le drapeau `synthetic` marque tout
+  contenu de test ou de développement, y compris un protocole gold fictif.
+- `ClinicalCaseVersion` contient langue, la référence au protocole gold, la localisation,
+  phrases de réponse, sources/pages, faits, critères et questions non résolues.
+  - `gold_protocol: {protocol_id, protocol_version, protocol_hash}` identifie le protocole
+    exact dont le cas dérive ; `protocol_source_id` désigne la source de type
+    `gold_protocol` que **chaque fait** doit citer dans ses `sources`.
+  - `location: {land, city, exam_body, exam_date, specialty}` est copiée du protocole. Les
+    cinq clés sont explicites (`null` si l'information manque, rien n'est déduit). `land`
+    est l'un des seize Länder (`domain/geography.py`, valeurs officielles) ; `city` est
+    normalisée (espaces) ; `exam_body` est la Ärztekammer ; `exam_date` est au format
+    `AAAA-MM`, jamais au jour. Un `land` absent bloque la publication (« Land manquant »).
 - `ClinicalFact` conserve valeur typée, unité contrôlée, temporalité, présence,
   absence ou inconnu, criticité, formulations DE, traduction FR et incertitude.
   Une valeur manquante exige `value: null`, `polarity: unknown`, `unit: null`.
@@ -38,6 +51,23 @@ bundles les utilisent. Les schémas exécutables sont dans `domain/clinical.py`.
   comportement attendu et règle `all` ou `any`.
 - `TrainingScenarioVersion` référence les hashes exacts du cas, de la rubrique et
   du lexique, puis définit persona, difficulté, CEFR, ouverture et objectifs.
+
+### Recalculer les hashes d'un bundle
+
+Chaque ressource est validée par `model_validate_json` puis `content_hash` est lu ; les
+scénarios copient ces valeurs dans `case_hash`, `rubric_hash`, `terminology_hash`. Pour
+`cases/dev/ari_dev_fr.v1.yaml`, le `protocol_hash` et `original_checksum` du protocole gold
+synthétique sont le SHA-256 des octets de `cases/dev/ari_dev_fr_gold_protocol.v1.yaml`.
+Un hash faux échoue bruyamment à l'import (« Hash de référence différent du contenu »).
+
+### Ouvert pour l'étape 2 (pipeline de contenu)
+
+- Le modèle `GoldProtocol` complet (sections, faits extraits, provenance, statut de revue,
+  `content_hash`) vivra dans la base `content` ; le fichier YAML du protocole de dev est un
+  brouillon de schéma haché par ses octets.
+- Vérification de `gold_protocol.protocol_hash` contre la base `content` à l'import et à la
+  publication (les sources `synthetic: true` en sont exemptées).
+- Égalité entre `case.location` et la localisation du protocole.
 
 ### Sections d'anamnèse et moments d'empathie
 

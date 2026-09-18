@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ari.domain.clinical import Identifier
+from ari.domain.geography import Land
 from ari.domain.models import CEFRLevel, LearnerDetails, LearningMode
 
 
@@ -26,7 +27,7 @@ class UpdateProfileRequest(ApiModel):
     certificate_date: date | None = None
     exam_date: date | None = None
     minutes_per_day: Annotated[int, Field(ge=5, le=240)] = 30
-    land: Annotated[str, Field(max_length=40)] | None = None
+    land: Land | None = None
     situation: Literal["doctor", "student"] | None = None
     specialty: Annotated[str, Field(max_length=120)] | None = None
     maintenance_cadence_days: Literal[7, 30] = 30

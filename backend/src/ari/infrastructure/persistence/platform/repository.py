@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from ari.domain.errors import InvalidStateError, NotFoundError
+from ari.domain.geography import Land
 from ari.domain.models import (
     AudioDeliveryStatus,
     CEFRLevel,
@@ -196,7 +197,7 @@ def _details(value: dict[str, Any] | None) -> LearnerDetails:
         certificate_date=day("certificate_date"),
         exam_date=day("exam_date"),
         minutes_per_day=int(value.get("minutes_per_day") or 30),
-        land=value.get("land") or None,
+        land=Land(str(value["land"])) if value.get("land") else None,
         situation=value.get("situation") or None,
         specialty=value.get("specialty") or None,
         estimated_level=level("estimated_level"),

@@ -137,7 +137,7 @@ async function startSelected() {
 function caseCard(item, kind, mode) {
   const card = node('article', undefined, 'card case-card');
   const synthetic = item.provenance === 'synthetic_demo';
-  card.append(node('span', synthetic ? 'Démo synthétique · non validée' : kind === 'voice' ? 'Consultation vocale disponible' : 'Exercice publié', 'badge'));
+  card.append(node('span', synthetic ? 'Démo synthétique · non validée' : kind === 'voice' ? 'Consultation vocale disponible' : `Exercice publié · ${phaseLabel(item.phase)}`, 'badge'));
   const title = node('h2', item.title); title.lang = 'de'; card.append(title);
   card.append(node('p', item.public_summary || item.summary || '', 'muted'));
   if (item.limitation) card.append(node('p', item.limitation, 'help'));

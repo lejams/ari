@@ -1,4 +1,4 @@
-// Opt-in browser acceptance test against `python -m ari.demo` only.
+// Opt-in browser acceptance test against `python -m ari.demo` (synthetic French `cases/dev`).
 // Requires Playwright and Chromium; never uses a provider or private case database.
 import assert from "node:assert/strict";
 import {createRequire} from "node:module";
@@ -42,32 +42,32 @@ try {
   await page.route("**/api/practice/runs", async route => {
     await route.fetch(); await route.abort("failed");
   }, {times: 1});
-  await page.locator("#catalog article").filter({hasText: "Expliquer deux termes"}).getByRole("button", {name: "Commencer en Examen →"}).click();
+  await page.locator("#catalog article").filter({hasText: "Fachbegriffe"}).getByRole("button", {name: "Commencer en Examen →"}).click();
   await page.locator("#error:visible").waitFor();
   await page.getByRole("button", {name: "Réessayer", exact: true}).click();
-  await page.getByRole("heading", {name: "Was bedeutet oral in einfachen Worten?"}).waitFor();
+  await page.getByRole("heading", {name: "Que signifie « oral » en termes simples ?"}).waitFor();
   assert.equal(await page.locator("#coaching").isVisible(), false);
   assert.equal(await page.locator("#training-feedback").isVisible(), false);
-  await page.getByLabel("Votre réponse en allemand").fill("Durch den Mund.");
+  await page.getByLabel("Votre réponse en allemand").fill("Par la bouche.");
   await page.route("**/api/practice/runs/*/answers", async route => {
     await route.fetch(); await route.abort("failed");
   }, {times: 1});
   await page.getByRole("button", {name: "Envoyer ma réponse"}).click();
   await page.locator("#error:visible").waitFor();
   await page.getByRole("button", {name: "Réessayer", exact: true}).click();
-  await page.getByRole("heading", {name: "Was bedeutet bilateral in einfachen Worten?"}).waitFor();
+  await page.getByRole("heading", {name: "Que signifie « bilatéral » en termes simples ?"}).waitFor();
   assert.equal(await page.locator("#training-feedback").isVisible(), false);
   await page.getByRole("button", {name: "Mettre en pause"}).click();
   await page.getByRole("button", {name: "Reprendre", exact: true}).waitFor();
   await page.reload();
   await page.getByRole("button", {name: "Reprendre", exact: true}).click();
-  await page.getByLabel("Votre réponse en allemand").fill("Beidseitig.");
+  await page.getByLabel("Votre réponse en allemand").fill("Des deux côtés.");
   await page.getByRole("button", {name: "Envoyer ma réponse"}).click();
   await page.getByText("Toutes les réponses sont enregistrées.", {exact: false}).waitFor();
   await page.getByRole("button", {name: "Terminer et voir le feedback"}).click();
   await page.getByRole("heading", {name: "Votre feedback · Évalué selon cette méthode"}).waitFor();
   assert.match(await page.locator("#feedback").innerText(), /Lexique : 5.00 \/ 5/);
-  assert.match(await page.locator("#feedback").innerText(), /Durch den Mund/);
+  assert.match(await page.locator("#feedback").innerText(), /Par la bouche/);
   await page.getByRole("button", {name: "Voir ma progression"}).click();
   await page.locator("#progress:not([hidden])").waitFor();
   assert.match(await page.locator("#progress-list").innerText(), /Lexique : 5.00/);
@@ -79,14 +79,14 @@ try {
   await page.getByRole("heading", {name: "Votre feedback · Évalué selon cette méthode"}).waitFor();
   await page.getByRole("button", {name: "Choisir une autre session"}).click();
   await page.getByRole("radio", {name: /Training/}).check();
-  await page.locator("#catalog article").filter({hasText: "Présenter Alex Exemple"}).getByRole("button", {name: "Préparer cette session →"}).click();
+  await page.locator("#catalog article").filter({hasText: "Arzt–Arzt"}).getByRole("button", {name: "Préparer cette session →"}).click();
   await page.getByRole("button", {name:"Commencer la session →", exact:true}).click();
   await page.locator("#coaching:visible").waitFor();
-  assert.match(await page.locator("#exercise-context").innerText(), /inconnue/);
-  await page.getByLabel("Votre réponse en allemand").fill("Alex Beispiel ist 40 Jahre alt und kommt für eine Kommunikationsübung.");
+  assert.match(await page.locator("#exercise-context").innerText(), /Camille Martin/);
+  await page.getByLabel("Votre réponse en allemand").fill("Camille Martin, 52 ans, consulte pour une douleur thoracique.");
   await page.getByRole("button", {name: "Envoyer ma réponse"}).click();
   await page.locator("#training-feedback:visible").waitFor();
-  await page.getByLabel("Votre réponse en allemand").fill("Zu Medikamenten liegen keine Angaben vor.");
+  await page.getByLabel("Votre réponse en allemand").fill("Aucune allergie connue.");
   await page.getByRole("button", {name: "Envoyer ma réponse"}).click();
   await page.getByText("Toutes les réponses sont enregistrées.", {exact: false}).waitFor();
   await page.getByRole("button", {name: "Terminer et voir le feedback"}).click();

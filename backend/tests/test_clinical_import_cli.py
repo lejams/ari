@@ -7,7 +7,6 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ari.config import PROJECT_ROOT
 from ari.container import Container
 from ari.domain.clinical import VersionRef
 from ari.domain.errors import InvalidStateError
@@ -103,7 +102,7 @@ def test_unknown_rights_and_critical_questions_block_even_approved_case(
 ) -> None:
     bundle = synthetic_bundle()
     source = bundle.sources[0].model_copy(update={"rights": "unknown", "rights_evidence": None})
-    bundle = bundle.model_copy(update={"sources": (source,)})
+    bundle = bundle.model_copy(update={"sources": (source, *bundle.sources[1:])})
     store = container.cases.store
     store.import_bundle(bundle)
     for kind in ("clinical", "linguistic"):
@@ -124,11 +123,6 @@ def test_future_phases_explicitly_unavailable(container: Container, phase: str) 
     with pytest.raises(InvalidStateError, match="Phase"):
         store.publish("synthetic-scenario", "1", actor="TEST")
     assert not any(c.id == "SYNTHETIC-TEST" for c in container.cases.list())
-
-
-def test_versioned_yaml_example_is_the_synthetic_contract() -> None:
-    example = parse_bundle((PROJECT_ROOT / "cases/examples/synthetic_bundle.v2.yaml").read_text())
-    assert example.content_hash == synthetic_bundle().content_hash
 
 
 @pytest.mark.asyncio

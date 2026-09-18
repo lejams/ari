@@ -1,15 +1,18 @@
 # Development content in French: fiction, no human review, no clinical validity.
-# Lets the team test voice, exam mode and the feedback loop without speaking German.
-# make dev-fr publishes it (simulated reviews) into var/dev-fr.db with live providers.
+# Lets the team test voice, exam mode, the text exercises and the feedback loop without German.
+# `make dev-fr` publishes it (simulated reviews) into the platform database with live providers.
+# The case traces to the synthetic gold protocol next to it (SHA-256 of that file). After any
+# content change, recompute the hashes with the recipe in docs/CLINICAL_CASES.md.
 schema_version: ari-clinical-bundle-v1
 sources:
-- id: ari-dev-fr-synthetic
-  source_type: synthetic
-  document_reference: cases/dev/ari_dev_fr.v1.yaml
-  original_checksum: null
+- id: ari-dev-fr-gold-protocol
+  source_type: gold_protocol
+  synthetic: true
+  document_reference: cases/dev/ari_dev_fr_gold_protocol.v1.yaml
+  original_checksum: d7b29c89604fc14ab31389ffe166f5c893e85c806bdf9b6a1b030ff404d295be
   immediate_source_checksum: null
-  provenance: Fiction authored for platform development in French. No human review.
-  imported_at: '2026-09-15T00:00:00Z'
+  provenance: Synthetic gold protocol written for platform development in French. No human review.
+  imported_at: '2026-09-18T00:00:00Z'
   rights: compatible
   intended_use: Local development only, not approved training content
   rights_evidence: Synthetic content authored for this repository; no third-party material.
@@ -29,27 +32,55 @@ rubrics:
     max_score: 5
     description: Salutation, empathie, reformulation
   scoring_version: assessment-weighted-v1
+- id: ari-dev-fr-arzt_arzt-rubric
+  version: '1'
+  dimensions:
+  - id: structured_presentation
+    label: Présentation structurée
+    max_score: 5
+    description: Correspondance avec les variantes de ce cas de développement uniquement
+  scoring_version: practice-exact-answer-v1
+- id: ari-dev-fr-fachbegriffe-rubric
+  version: '1'
+  dimensions:
+  - id: lexical
+    label: Lexique
+    max_score: 5
+    description: Explication d'un terme en langage courant, variantes de ce cas uniquement
+  scoring_version: practice-exact-answer-v1
 terminology_sets:
 - id: ari-dev-fr-terms
-  version: '1'
+  version: '2'
   entries:
   - id: oral
     german: oral
     french: par la bouche
+  - id: bilateral
+    german: bilatéral
+    french: des deux côtés
 cases:
 - id: ARI-DEV-FR
-  version: '2'
-  schema_version: clinical-case-v2
+  version: '3'
+  schema_version: clinical-case-v3
   language: fr-FR
-  region: Fiction
-  city: Fiction
+  gold_protocol:
+    protocol_id: ARI-DEV-FR-PROTOCOL
+    protocol_version: '1'
+    protocol_hash: d7b29c89604fc14ab31389ffe166f5c893e85c806bdf9b6a1b030ff404d295be
+  protocol_source_id: ari-dev-fr-gold-protocol
+  location:
+    land: Bayern
+    city: null
+    exam_body: null
+    exam_date: null
+    specialty: null
   title: Dev · Camille Martin, douleur thoracique
   public_summary: Cas fictif en français pour le développement, sans validation clinique ou linguistique.
   transcription_context: Anamnèse aux urgences, douleur thoracique, médicaments, allergies, tabac
   unknown_response: Je ne sais pas, on ne m'a jamais dit ça.
   out_of_scope_response: Excusez-moi docteur, je préfère qu'on parle de ce qui m'amène.
   sources:
-  - source_id: ari-dev-fr-synthetic
+  - source_id: ari-dev-fr-gold-protocol
     pages: []
   unresolved_questions: []
   facts:
@@ -65,7 +96,7 @@ cases:
     translation_fr: null
     disclosure: when_asked
     sources:
-    - source_id: ari-dev-fr-synthetic
+    - source_id: ari-dev-fr-gold-protocol
       pages: []
     uncertainty: null
   - id: reason
@@ -81,7 +112,7 @@ cases:
     translation_fr: null
     disclosure: spontaneous
     sources:
-    - source_id: ari-dev-fr-synthetic
+    - source_id: ari-dev-fr-gold-protocol
       pages: []
     uncertainty: null
   - id: onset
@@ -96,7 +127,7 @@ cases:
     translation_fr: null
     disclosure: when_asked
     sources:
-    - source_id: ari-dev-fr-synthetic
+    - source_id: ari-dev-fr-gold-protocol
       pages: []
     uncertainty: null
   - id: radiation
@@ -111,7 +142,7 @@ cases:
     translation_fr: null
     disclosure: when_asked
     sources:
-    - source_id: ari-dev-fr-synthetic
+    - source_id: ari-dev-fr-gold-protocol
       pages: []
     uncertainty: null
   - id: medication
@@ -126,7 +157,7 @@ cases:
     translation_fr: null
     disclosure: when_asked
     sources:
-    - source_id: ari-dev-fr-synthetic
+    - source_id: ari-dev-fr-gold-protocol
       pages: []
     uncertainty: null
   - id: allergy
@@ -141,7 +172,7 @@ cases:
     translation_fr: null
     disclosure: when_asked
     sources:
-    - source_id: ari-dev-fr-synthetic
+    - source_id: ari-dev-fr-gold-protocol
       pages: []
     uncertainty: null
   - id: smoking
@@ -156,7 +187,7 @@ cases:
     translation_fr: null
     disclosure: when_explicitly_asked
     sources:
-    - source_id: ari-dev-fr-synthetic
+    - source_id: ari-dev-fr-gold-protocol
       pages: []
     uncertainty: null
   - id: family_history
@@ -171,7 +202,7 @@ cases:
     translation_fr: null
     disclosure: when_asked
     sources:
-    - source_id: ari-dev-fr-synthetic
+    - source_id: ari-dev-fr-gold-protocol
       pages: []
     uncertainty: null
   assessment_items:
@@ -239,19 +270,19 @@ cases:
     - Bonjour
 scenarios:
 - id: ari-dev-fr-arzt_patient
-  version: '2'
+  version: '3'
   case:
     id: ARI-DEV-FR
-    version: '2'
-  case_hash: 3d96d39fcf2808249b3fd0d09df4585860f73dc0c8bdf3068b9ee5cc25c7d001
+    version: '3'
+  case_hash: f9d9fa02a1b902d65c2b1f0ab847b050126311f34ed0f11cc1668c30c8c32e75
   rubric:
     id: ari-dev-fr-voice-rubric
     version: '1'
   rubric_hash: cef4cdb12606bb1e7866ed4f49509e56dc1ec005c6dfd2b2bd8265d41a0ad018
   terminology:
     id: ari-dev-fr-terms
-    version: '1'
-  terminology_hash: 5edb16cf08f97748f7b76c2ceff21a52d204aa7844868915a2737cc116342fbc
+    version: '2'
+  terminology_hash: 044a7656d3dc6f0997f0446722fca236ed6d939a2876b3891e24a9fc3f83f4df
   phase: arzt_patient
   persona: Patient fictif, inquiet mais coopératif, répond brièvement
   difficulty: développement
@@ -295,3 +326,120 @@ scenarios:
     label_de: Antécédents familiaux
     fact_ids:
     - family_history
+- id: ari-dev-fr-arzt_arzt
+  version: '1'
+  case:
+    id: ARI-DEV-FR
+    version: '3'
+  case_hash: f9d9fa02a1b902d65c2b1f0ab847b050126311f34ed0f11cc1668c30c8c32e75
+  rubric:
+    id: ari-dev-fr-arzt_arzt-rubric
+    version: '1'
+  rubric_hash: ba608ada334a406daca88ba76f4191e47053f3c94c27fbe9bad2f0cfd37f1a49
+  terminology:
+    id: ari-dev-fr-terms
+    version: '2'
+  terminology_hash: 044a7656d3dc6f0997f0446722fca236ed6d939a2876b3891e24a9fc3f83f4df
+  phase: arzt_arzt
+  persona: Médecin simulé, dialogue scripté
+  difficulty: développement
+  cefr: B2
+  opening: Commençons l'exercice.
+  opening_fact_ids: []
+  objectives:
+  - Tester le parcours médecin-médecin en français, sans certification de niveau
+  duration_minutes: 5
+  practice:
+    schema_version: practice-spec-v1
+    scoring_version: practice-exact-answer-v1
+    context_fact_ids:
+    - identity
+    - reason
+    - allergy
+    questions:
+    - id: first
+      kind: presentation
+      prompt_de: 'Présentez-moi brièvement la patiente : nom, âge et motif.'
+      coaching_fr: Commence par « Je vous présente … ». Reste dans les informations du contexte.
+      assessment_item_id: first
+      term_id: null
+    - id: second
+      kind: followup
+      prompt_de: Merci. Quelles informations avons-nous sur les allergies ?
+      coaching_fr: Rapporte ce que dit le contexte, sans inventer ni déduire.
+      assessment_item_id: second
+      term_id: null
+    assessment_items:
+    - id: first
+      dimension: structured_presentation
+      weight: 1.0
+      expected_behavior: Présenter nom, âge et motif donnés, sans ajout
+      accepted_answers:
+      - Je vous présente Camille Martin, 52 ans, qui consulte pour une douleur thoracique.
+      - Camille Martin, 52 ans, consulte pour une douleur thoracique.
+      evidence_rule: normalized_exact_answer
+    - id: second
+      dimension: structured_presentation
+      weight: 1.0
+      expected_behavior: Rapporter l'absence d'allergie connue
+      accepted_answers:
+      - Aucune allergie connue.
+      - La patiente n'a pas d'allergie connue.
+      evidence_rule: normalized_exact_answer
+- id: ari-dev-fr-fachbegriffe
+  version: '1'
+  case:
+    id: ARI-DEV-FR
+    version: '3'
+  case_hash: f9d9fa02a1b902d65c2b1f0ab847b050126311f34ed0f11cc1668c30c8c32e75
+  rubric:
+    id: ari-dev-fr-fachbegriffe-rubric
+    version: '1'
+  rubric_hash: f9bb690adc7fcdba638f8b271471a7ac8f88210775d295243ebea3c543df6558
+  terminology:
+    id: ari-dev-fr-terms
+    version: '2'
+  terminology_hash: 044a7656d3dc6f0997f0446722fca236ed6d939a2876b3891e24a9fc3f83f4df
+  phase: fachbegriffe
+  persona: Médecin simulé, dialogue scripté
+  difficulty: développement
+  cefr: B2
+  opening: Commençons l'exercice.
+  opening_fact_ids: []
+  objectives:
+  - Tester le parcours lexical en français, sans certification de niveau
+  duration_minutes: 5
+  practice:
+    schema_version: practice-spec-v1
+    scoring_version: practice-exact-answer-v1
+    context_fact_ids: []
+    questions:
+    - id: first
+      kind: term_definition
+      prompt_de: Que signifie « oral » en termes simples ?
+      coaching_fr: Utilise une expression courante.
+      assessment_item_id: first
+      term_id: oral
+    - id: second
+      kind: term_definition
+      prompt_de: Que signifie « bilatéral » en termes simples ?
+      coaching_fr: Indique les côtés concernés.
+      assessment_item_id: second
+      term_id: bilateral
+    assessment_items:
+    - id: first
+      dimension: lexical
+      weight: 1.0
+      expected_behavior: Expliquer oral par la bouche
+      accepted_answers:
+      - Par la bouche.
+      - Par voie orale.
+      evidence_rule: normalized_exact_answer
+    - id: second
+      dimension: lexical
+      weight: 1.0
+      expected_behavior: Expliquer bilatéral par des deux côtés
+      accepted_answers:
+      - Des deux côtés.
+      - Des deux côtés du corps.
+      evidence_rule: normalized_exact_answer

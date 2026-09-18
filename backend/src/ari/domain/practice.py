@@ -54,7 +54,7 @@ class PracticeContent(ClinicalModel):
         if scenario.practice is None:
             raise ValueError("Scénario sans exercice explicite")
         if self.provenance == "synthetic_demo" and any(
-            source.source_type != "synthetic" for source in self.bundle.sources
+            not source.synthetic for source in self.bundle.sources
         ):
             raise ValueError("Une démonstration exige des sources entièrement synthétiques")
         return self

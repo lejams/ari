@@ -4,6 +4,7 @@ schema_version: ari-placement-bundle-v1
 sources:
 - id: ari-placement-dev-synthetic
   source_type: synthetic
+  synthetic: true
   document_reference: cases/dev/ari_placement_dev.v1.yaml
   original_checksum: null
   immediate_source_checksum: null

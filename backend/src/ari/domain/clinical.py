@@ -10,16 +10,19 @@ from pydantic import (
     ConfigDict,
     Field,
     SerializerFunctionWrapHandler,
+    field_validator,
     model_serializer,
     model_validator,
 )
 
 from ari.domain.clinical_privacy import contact_locations
+from ari.domain.geography import Land
 from ari.domain.models import DisclosureRule
 
 Text = Annotated[str, Field(min_length=1, pattern=r"\S")]
 Identifier = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$")]
 Digest = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
+YearMonth = Annotated[str, Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
 
 
 class ClinicalModel(BaseModel):
@@ -49,7 +52,10 @@ class SourceRef(ClinicalModel):
 
 class RawCaseSource(ClinicalModel):
     id: Identifier
-    source_type: Literal["work_export", "original_document", "synthetic"]
+    source_type: Literal["work_export", "original_document", "synthetic", "gold_protocol"]
+    # Fiction written for tests and development. A synthetic gold protocol keeps the
+    # traceability of a real one while staying out of any learner-facing claim.
+    synthetic: bool = False
     document_reference: Text
     original_checksum: Digest | None = None
     immediate_source_checksum: Digest | None = None
@@ -70,7 +76,32 @@ class RawCaseSource(ClinicalModel):
             raise ValueError("Les droits compatibles exigent une justification explicite")
         if self.source_type == "work_export" and self.original_verified:
             raise ValueError("Un export Work ne prouve pas la vérification du PDF")
+        if self.source_type == "synthetic" and not self.synthetic:
+            raise ValueError("Une source de type synthetic doit être marquée synthetic: true")
         return self
+
+
+class GoldProtocolRef(ClinicalModel):
+    """The validated exam protocol a case is derived from; every clinical fact traces to it."""
+
+    protocol_id: Identifier
+    protocol_version: Identifier
+    protocol_hash: Digest
+
+
+class CaseLocation(ClinicalModel):
+    """Where the protocol was examined. Every key is explicit: absent means null, never guessed."""
+
+    land: Land | None
+    city: Text | None
+    exam_body: Text | None  # The examining Ärztekammer, when the protocol names it.
+    exam_date: YearMonth | None  # Month precision on purpose: an exact day helps re-identification.
+    specialty: Text | None
+
+    @field_validator("city", mode="before")
+    @classmethod
+    def normalise_city(cls, value: object) -> object:
+        return " ".join(value.split()) if isinstance(value, str) else value
 
 
 class UnresolvedQuestion(ClinicalModel):
@@ -186,11 +217,12 @@ class TerminologySetVersion(VersionRef):
 
 
 class ClinicalCaseVersion(VersionRef):
-    schema_version: Literal["clinical-case-v2"] = "clinical-case-v2"
+    schema_version: Literal["clinical-case-v3"] = "clinical-case-v3"
     # Published learner content is German. Other languages exist for development bundles only.
     language: Literal["de-DE", "fr-FR", "en-US"] = "de-DE"
-    region: Text
-    city: Text
+    gold_protocol: GoldProtocolRef
+    protocol_source_id: Identifier  # The `gold_protocol` source every fact must cite.
+    location: CaseLocation  # Copied from the gold protocol; lets the catalogue filter by Land.
     title: Text
     public_summary: Text
     transcription_context: Text
@@ -209,9 +241,13 @@ class ClinicalCaseVersion(VersionRef):
         unique(tuple(item.source_id for item in self.sources), "sources")
         fact_ids = {item.id for item in self.facts}
         source_ids = {item.source_id for item in self.sources}
+        if self.protocol_source_id not in source_ids:
+            raise ValueError("La source du protocole gold doit figurer dans les sources du cas")
         for fact in self.facts:
             if {ref.source_id for ref in fact.sources} - source_ids:
                 raise ValueError(f"Source inconnue pour le fait {fact.id}")
+            if all(ref.source_id != self.protocol_source_id for ref in fact.sources):
+                raise ValueError(f"Le fait {fact.id} ne trace pas vers le protocole gold")
         for item in self.assessment_items:
             if set(item.satisfied_by_fact_ids) - fact_ids:
                 raise ValueError(f"Fait inconnu pour l'item {item.id}")
@@ -226,6 +262,7 @@ class ClinicalCaseVersion(VersionRef):
                 for f in self.facts
                 if f.criticality == "critical" and (f.polarity == "unknown" or f.uncertainty)
             ]
+            + (["Land manquant"] if self.location.land is None else [])
         )
 
 
@@ -408,13 +445,16 @@ class ClinicalBundle(ClinicalModel):
             ("scénarios", self.scenarios),
         ):
             unique(tuple(f"{i.id}@{i.version}" for i in items), label)
-        sources = {s.id for s in self.sources}
+        sources = {s.id: s for s in self.sources}
         cases = {(c.id, c.version): c for c in self.cases}
         rubrics = {(r.id, r.version): r for r in self.rubrics}
         terms = {(t.id, t.version): t for t in self.terminology_sets}
         for clinical_case in self.cases:
-            if {s.source_id for s in clinical_case.sources} - sources:
+            if {s.source_id for s in clinical_case.sources} - set(sources):
                 raise ValueError("Référence source inconnue")
+            protocol_source = sources.get(clinical_case.protocol_source_id)
+            if protocol_source is None or protocol_source.source_type != "gold_protocol":
+                raise ValueError("La source du protocole gold doit être de type gold_protocol")
         for scenario in self.scenarios:
             case = cases.get((scenario.case.id, scenario.case.version))
             rubric = rubrics.get((scenario.rubric.id, scenario.rubric.version))

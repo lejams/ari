@@ -1,13 +1,16 @@
 """Entirely synthetic contract examples, not human approvals."""
 
+import hashlib
 from datetime import UTC, datetime
 
 from ari.domain.clinical import (
+    CaseLocation,
     CaseReview,
     ClinicalAssessmentItem,
     ClinicalBundle,
     ClinicalCaseVersion,
     ClinicalFact,
+    GoldProtocolRef,
     RawCaseSource,
     RubricDimension,
     RubricVersion,
@@ -17,13 +20,36 @@ from ari.domain.clinical import (
     TrainingScenarioVersion,
     VersionRef,
 )
+from ari.domain.geography import Land
 from ari.domain.models import DisclosureRule, new_id
+
+SYNTHETIC_PROTOCOL_HASH = hashlib.sha256(b"synthetic gold protocol, not a real exam").hexdigest()
+
+
+def synthetic_gold_source(source_id: str = "synthetic-gold-protocol") -> RawCaseSource:
+    return RawCaseSource(
+        id=source_id,
+        source_type="gold_protocol",
+        synthetic=True,
+        document_reference="isolated-test-fixture:gold-protocol",
+        provenance="Invented protocol, not a real exam",
+        imported_at=datetime(2026, 9, 4, tzinfo=UTC),
+        rights="compatible",
+        intended_use="isolated automated tests",
+        rights_evidence="Synthetic test content authored for this repository",
+        private_material_reference="none:synthetic",
+    )
+
+
+def synthetic_location(land: Land | None = Land.BAYERN) -> CaseLocation:
+    return CaseLocation(land=land, city="Teststadt", exam_body=None, exam_date=None, specialty=None)
 
 
 def synthetic_bundle(version: str = "1") -> ClinicalBundle:
     source = RawCaseSource(
         id="synthetic-source",
         source_type="synthetic",
+        synthetic=True,
         document_reference="isolated-test-fixture",
         provenance="Invented fixture, not a clinical case",
         imported_at=datetime(2026, 9, 4, tzinfo=UTC),
@@ -32,6 +58,7 @@ def synthetic_bundle(version: str = "1") -> ClinicalBundle:
         rights_evidence="Synthetic test content authored for this repository",
         private_material_reference="none:synthetic",
     )
+    gold_source = synthetic_gold_source()
     rubric = RubricVersion(
         id="synthetic-rubric",
         version="1",
@@ -45,12 +72,20 @@ def synthetic_bundle(version: str = "1") -> ClinicalBundle:
         version="1",
         entries=(TerminologyEntry(id="symptom", german="Schmerz", french="douleur"),),
     )
-    source_refs = (SourceRef(source_id=source.id, pages=(1,)),)
+    source_refs = (
+        SourceRef(source_id=gold_source.id, pages=(1,)),
+        SourceRef(source_id=source.id, pages=(1,)),
+    )
     case = ClinicalCaseVersion(
         id="SYNTHETIC-TEST",
         version=version,
-        region="Testregion",
-        city="Teststadt",
+        gold_protocol=GoldProtocolRef(
+            protocol_id="SYNTHETIC-PROTOCOL",
+            protocol_version="1",
+            protocol_hash=SYNTHETIC_PROTOCOL_HASH,
+        ),
+        protocol_source_id=gold_source.id,
+        location=synthetic_location(),
         title="SYNTHETIC — kein realer Fall",
         public_summary="Offline test only",
         transcription_context="Synthetischer Test",
@@ -122,7 +157,7 @@ def synthetic_bundle(version: str = "1") -> ClinicalBundle:
         objectives=("Offline integration test",),
     )
     return ClinicalBundle(
-        sources=(source,),
+        sources=(gold_source, source),
         rubrics=(rubric,),
         terminology_sets=(terms,),
         cases=(case,),

@@ -64,15 +64,18 @@ PYTHONPATH=backend/src .venv/bin/python -m ari.demo --port 8010
 ```
 
 Open <http://127.0.0.1:8010>. The demo migrates the platform database (`ARI_DATABASE_URL`,
-default: the compose `ari_platform` database), imports the bundles of `cases/demo`, records
-**simulated** reviews, publishes the synthetic content and runs with fake providers. In
-fake mode the voice page offers a text field instead of the microphone. Re-running against
-the same database is a no-op; `make db-reset` wipes every local database.
+default: the compose `ari_platform` database), imports the synthetic French bundles of
+`cases/dev` (one voice case, two text exercises, one placement set), records **simulated**
+reviews, publishes them and runs with fake providers. In fake mode the voice page offers a
+text field instead of the microphone. Re-running against the same database is a no-op;
+`make db-reset` wipes every local database. `cases/demo` only holds a German placement set.
 
 ## Develop with live providers, in French
 
 You do not need to speak German to exercise the platform. `cases/dev/ari_dev_fr.v1.yaml`
-is a synthetic French voice case (fiction, simulated reviews, never learner content):
+is a synthetic French case with a voice scenario and two text exercises (fiction, simulated
+reviews, never learner content), derived from the synthetic gold protocol
+`cases/dev/ari_dev_fr_gold_protocol.v1.yaml` as every `clinical-case-v3` must be:
 
 ```sh
 make dev-fr             # http://127.0.0.1:8010
@@ -88,7 +91,7 @@ ARI_STT_MODEL=whisper-1
 ARI_STT_API_KEY=<same OpenAI key>
 ```
 
-`make dev-fr` runs `python -m ari.demo --provider openai --bundles cases/dev` against the
+`make dev-fr` runs `python -m ari.demo --provider openai` against the
 platform database: it persists between runs so history and progression accumulate, and
 re-seeding an existing database is a no-op. When the single migration has been regenerated
 since the database was created, the demo refuses to start and asks you to run
