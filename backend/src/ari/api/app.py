@@ -26,9 +26,11 @@ from ari.api.program import program_router
 from ari.api.realtime_socket import RealtimeVoiceSocket
 from ari.api.voice_session_dto import public_session
 from ari.api.voice_socket import VoiceLifecycles, VoiceSocket
+from ari.application.services.catalog import land_summary
 from ari.config import Settings, get_settings
 from ari.container import Container, build_container
 from ari.domain.errors import AriError, InvalidStateError, NotFoundError, ProviderError
+from ari.domain.geography import Land
 from ari.domain.models import (
     CEFRLevel,
     LearnerDetails,
@@ -53,6 +55,8 @@ def _public_case(case: MedicalCase) -> dict[str, object]:
         "public_summary": case.public_summary,
         "difficulty": case.difficulty,
         "cefr": case.cefr,
+        "land": case.land.value if case.land else None,
+        "city": case.city,
         "educational_target": {
             "exam": case.educational_target.exam,
             "phase": case.educational_target.phase,
@@ -120,6 +124,22 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     @app.get("/api/cases")
     async def list_cases() -> list[dict[str, object]]:
         return [_public_case(case) for case in services.cases.list()]
+
+    @app.get("/api/reference/laender")
+    async def reference_laender() -> list[str]:
+        """The closed list of Länder, the same one the case contract and the profile use."""
+        return [land.value for land in Land]
+
+    @app.get("/api/cases/summary")
+    async def cases_summary(request: Request) -> dict[str, object]:
+        learner_id = request.state.learner_id
+        learner = services.repository.get_learner(learner_id)
+        worked = {
+            session.case_id
+            for session in services.repository.list_sessions(learner_id)
+            if session.status is SessionStatus.COMPLETED
+        }
+        return land_summary(services.cases.list(), worked, learner.details.land)
 
     @app.post("/api/learners", status_code=201)
     async def create_learner(

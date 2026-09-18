@@ -42,7 +42,7 @@ function fillFromProfile(details) {
   $('draft-specialty').value = details.specialty || '';
 }
 let currentRun = null, retryAction = null, busy = false, selected = null;
-let catalog = [], voiceCases = [], historyItems = [];
+let catalog = [], voiceCases = [], historyItems = [], laender = [];
 const node = (tag, text, className) => {
   const element = document.createElement(tag);
   if (text !== undefined) element.textContent = text;
@@ -117,8 +117,23 @@ async function perform(action) {
   finally { busy = false; $('main').setAttribute('aria-busy', 'false'); }
 }
 async function loadCatalog() {
-  const [exercises, cases] = await Promise.all([client.api('/api/exercises'), client.api('/api/cases?approved_only=true')]);
+  const [exercises, cases] = await Promise.all([client.api('/api/exercises'), client.api('/api/cases')]);
   catalog = exercises.items; voiceCases = cases;
+}
+// One list of Länder for the profile form and the catalogue filter: the server's closed list.
+async function loadLaender() {
+  if (laender.length) return;
+  try { laender = await client.api('/api/reference/laender'); } catch { laender = []; return; }
+  for (const id of ['draft-land', 'case-land']) {
+    const select = $(id), current = select.value;
+    for (const land of laender) { const option = document.createElement('option'); option.value = land; option.textContent = land; select.append(option); }
+    if (current) select.value = current;
+  }
+}
+function renderLandSummary(summary) {
+  const plural = (count, word) => `${count} ${word}${count > 1 ? 's' : ''}`;
+  const parts = summary.laender.map(entry => `${entry.land} : ${plural(entry.cases, 'cas publié')}, ${entry.worked} déjà travaillé${entry.worked > 1 ? 's' : ''} (${Math.round(entry.share_worked * 100)} %)`);
+  $('land-summary').textContent = parts.length ? parts.join(' · ') : '';
 }
 function prepare(item, kind, mode = 'training') {
   selected = {item, kind, mode};
@@ -147,9 +162,10 @@ function caseCard(item, kind, mode) {
 function renderCatalog() {
   const query = $('case-search').value.trim().toLocaleLowerCase('fr-FR');
   const filter = $('case-filter').value;
+  const land = $('case-land').value;
   const mode = document.querySelector('[name=mode]:checked').value;
   $('voice-cases').replaceChildren(); $('catalog').replaceChildren();
-  const matches = item => [item.title, item.public_summary, item.summary].filter(Boolean).join(' ').toLocaleLowerCase('fr-FR').includes(query);
+  const matches = item => (!land || item.land === land) && [item.title, item.public_summary, item.summary].filter(Boolean).join(' ').toLocaleLowerCase('fr-FR').includes(query);
   for (const item of voiceCases) if (['all', 'voice'].includes(filter) && matches(item)) $('voice-cases').append(caseCard(item, 'voice', mode));
   for (const item of catalog) if ((filter === 'all' || filter === item.phase) && matches(item)) $('catalog').append(caseCard(item, 'practice', mode));
   $('catalog-empty').hidden = Boolean($('catalog').children.length + $('voice-cases').children.length);
@@ -292,7 +308,13 @@ async function home() {
   renderWeek(program);
   view('home');
 }
-async function showCases() { await loadCatalog(); renderCatalog(); view('cases'); }
+async function showCases() {
+  await loadLaender(); await loadCatalog();
+  // The filter starts on the learner's Land until they change it themselves.
+  if (!$('case-land').dataset.touched) $('case-land').value = client.profile?.details?.land || '';
+  renderCatalog(); view('cases');
+  try { renderLandSummary(await client.api('/api/cases/summary')); } catch { $('land-summary').textContent = ''; }
+}
 async function showExam() {
   await loadCatalog();
   $('exam-cases').replaceChildren(...voiceCases.map(item => caseCard(item,'voice','exam')), ...catalog.map(item => caseCard(item,'practice','exam')));
@@ -614,7 +636,7 @@ $('profile-form').addEventListener('change',()=>{sourceState();writeDraft();});
 $('profile-form').onsubmit=event=>{event.preventDefault();if($('person-step').hidden)return;if(!$('draft-land').value){onboardingStep(1);$('draft-land').reportValidity();return;}if(!$('draft-specialty').reportValidity())return;const draft=writeDraft();const details=profileDetails();perform(async()=>{const created=!client.profile;if(!client.profile){await client.restoreProfile();if(!client.profile)await client.createProfile($('target').value,details);try{localStorage.setItem(localKey(),JSON.stringify(draft));localStorage.removeItem('ari:onboarding:v3:anonymous');}catch{}}if(!created||client.profile.details?.declared_level!==details.declared_level){await client.updateProfile(details);}if(client.profile.goal.target_cefr!==$('target').value){await client.api(`/api/learners/${encodeURIComponent(client.profile.id)}/goal`,{method:'PATCH',body:JSON.stringify({target_cefr:$('target').value})});await client.restoreProfile();}if(created&&!client.profile.details?.estimated_level){await showPlacement();return;}await home();});};
 $('goal-form').onsubmit=event=>{event.preventDefault();perform(async()=>{await client.api(`/api/learners/${encodeURIComponent(client.profile.id)}/goal`,{method:'PATCH',body:JSON.stringify({target_cefr:$('goal-target').value})});await client.restoreProfile();await home();});};
 $('edit-profile').onclick=()=>{restoreDraft();history.replaceState(null,'','#onboarding');view('onboarding',false);};
-$('case-search').oninput=renderCatalog;$('case-filter').onchange=renderCatalog;document.querySelectorAll('[name=mode]').forEach(input=>input.onchange=renderCatalog);
+$('case-search').oninput=renderCatalog;$('case-filter').onchange=renderCatalog;$('case-land').onchange=()=>{$('case-land').dataset.touched='1';renderCatalog();};document.querySelectorAll('[name=mode]').forEach(input=>input.onchange=renderCatalog);
 $('warmup-start').onclick=()=>perform(startSelected);
 $('placement-start').onclick=()=>perform(()=>startPlacement(false));
 $('placement-resume').onclick=()=>perform(()=>startPlacement(true));
@@ -637,4 +659,4 @@ window.addEventListener('hashchange',()=>perform(route));
 window.addEventListener('resize',()=>{if(!$('progress').hidden){const selected=$('daytrack').querySelector('[aria-pressed=true]');selected?.scrollIntoView({block:'nearest',inline:'nearest'});}});
 window.addEventListener('focus',()=>{const today=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});if($('today-label').textContent!==today){$('today-label').textContent=today;if(!$('progress').hidden)renderCalendar();}});
 $('today-label').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
-perform(async()=>{await client.restoreProfile();if(location.hash==='#onboarding'&&client.profile){restoreDraft();view('onboarding',false);}else await route();});
+perform(async()=>{await loadLaender();await client.restoreProfile();if(location.hash==='#onboarding'&&client.profile){restoreDraft();view('onboarding',false);}else await route();});

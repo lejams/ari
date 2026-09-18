@@ -35,7 +35,7 @@ creates a local profile, then practises with published, versioned clinical conte
   *estimated* level per skill and an overall band stored as `estimated_level`. Its
   content is a separate registry bundle (`ari-placement-bundle-v1`) with one linguistic
   review; see `docs/CLINICAL_CASES.md`.
-- **Weekly programme** (`program-rules-v1`): a learner model is computed on every read
+- **Weekly programme** (`program-rules-v2`): a learner model is computed on every read
   from deterministic signals only (reference level, lexicon due words, section coverage
   over the last sessions, required items missed, empathy verdict counts, recent
   activity, exam horizon) and turned into this week's slots, bounded by the declared
@@ -197,7 +197,9 @@ a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connect
 - `GET /api/placement`, `POST /api/placement/attempts`, `GET /api/placement/attempts/{id}`,
   `POST .../answers`, `GET .../items/{item_id}/audio` (WAV), `POST .../speaking/{item_id}`
   (PCM16 24 kHz body, `X-Event-Id` header; `text/plain` in fake mode), `POST .../finish`
-- `GET /api/cases`
+- `GET /api/cases` (each case carries the `land` and `city` of its gold protocol),
+  `GET /api/cases/summary` (published cases per Land and the share this learner worked),
+  `GET /api/reference/laender` (the closed list of the sixteen Länder)
 - `POST /api/sessions`, `GET /api/sessions/{id}`, `POST /api/sessions/{id}/end`,
   `POST /api/sessions/{id}/analysis/retry`
 - `WebSocket /ws/sessions/{id}/voice`: binary PCM16 24 kHz frames, `user.turn.finish`,

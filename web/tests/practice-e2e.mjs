@@ -37,6 +37,9 @@ try {
   assert.equal(await page.locator("#week-days .week-pill").count(), 7, "the week strip has seven days");
   assert.match(await page.locator("#recommendation h1").innerText(), /./, "the hero names the next step");
   await page.goto(base + "/#cases");
+  // The catalogue opens on the learner's Land (Bayern, from onboarding) and counts its cases.
+  await page.getByText(/Bayern : 1 cas publié/).waitFor();
+  assert.equal(await page.locator("#case-land").inputValue(), "Bayern");
   await page.getByRole("radio", {name: /Examen/}).check();
   // Server commits the start but the browser loses its response: retry must not duplicate it.
   await page.route("**/api/practice/runs", async route => {

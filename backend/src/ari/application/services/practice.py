@@ -38,6 +38,8 @@ def content_summary(content: PracticeContent) -> dict[str, Any]:
         "phase": scenario.phase,
         "title": case.title,
         "summary": case.public_summary,
+        "land": case.location.land.value if case.location.land else None,
+        "city": case.location.city,
         "provenance": content.provenance,
         "duration_minutes": scenario.duration_minutes,
         "scoring_version": "practice-exact-answer-v1",

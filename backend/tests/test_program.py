@@ -22,6 +22,7 @@ from ari.application.services.program import (
     week_start,
 )
 from ari.container import Container
+from ari.domain.geography import Land
 from ari.domain.models import CEFRLevel, LearnerDetails
 
 TODAY = date(2026, 9, 17)  # a Thursday
@@ -161,6 +162,19 @@ def test_recommendation_prefers_due_words_weak_sections_and_level(
     assert compatible(model(declared_level="B1"), other) is False
     only_other, _ = recommend_case(model(declared_level="B1"), (other,), TODAY)
     assert only_other is not None and only_other.id == "OTHER"
+
+
+def test_recommendation_prefers_the_learner_land(published_container: Container) -> None:
+    case = published_container.cases.list()[0]  # examined in Bayern
+    elsewhere = replace(case, id="ELSEWHERE", land=Land.BERLIN)
+    chosen, reasons = recommend_case(model(land="Bayern"), (elsewhere, case), TODAY)
+    assert chosen is not None and chosen.id == case.id
+    assert "cas situé dans votre Land" in reasons
+    chosen, _ = recommend_case(model(land="Berlin"), (case, elsewhere), TODAY)
+    assert chosen is not None and chosen.id == "ELSEWHERE"
+    # Without a Land on the profile the bonus never applies, whatever the case says.
+    _, reasons = recommend_case(model(land=None), (case,), TODAY)
+    assert "cas situé dans votre Land" not in reasons
 
 
 def test_program_api_reflects_profile_lexicon_and_activity(database_url: str) -> None:

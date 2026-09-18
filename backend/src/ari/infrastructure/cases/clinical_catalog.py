@@ -139,4 +139,6 @@ class ClinicalCatalog:
                 for s in scenario.anamnesis_sections
             ),
             cefr=scenario.cefr,
+            land=case.location.land,
+            city=case.location.city,
         )

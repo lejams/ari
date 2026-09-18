@@ -1,9 +1,10 @@
-"""Weekly programme, program-rules-v1: a policy recomputed on every read, never a stored plan.
+"""Weekly programme, program-rules-v2: a policy recomputed on every read, never a stored plan.
 
 The week runs Monday to Sunday. Slots are derived from the learner model; volume is
 bounded by the declared minutes per day; recommendations score published content by
-overlap with due lexicon words, weak anamnesis sections and recency. Done slots are
-matched greedily against what was actually completed since Monday.
+overlap with due lexicon words, weak anamnesis sections, recency and, since v2, the Land
+the learner prepares for. Done slots are matched greedily against what was actually
+completed since Monday.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from ari.domain.placement import LEVELS, level_index
 from ari.domain.practice import PracticeContent
 from ari.domain.text import normalize_answer
 
-PROGRAM_RULES_VERSION = "program-rules-v1"
+PROGRAM_RULES_VERSION = "program-rules-v2"
 EXAM_PHASE_WEEKS = 8
 RECENCY_DAYS = 14
 
@@ -102,6 +103,9 @@ def score_case(model: LearnerModel, case: MedicalCase, today: date) -> tuple[int
     if last is None or (today - last.date()).days >= RECENCY_DAYS:
         score += 1
         reasons.append("pas fait récemment")
+    if case.land is not None and model.land == case.land.value:
+        score += 1
+        reasons.append("cas situé dans votre Land")
     return score, reasons
 
 

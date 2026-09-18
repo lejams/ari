@@ -31,6 +31,7 @@ class Element {
 
 function installDom(hash) {
   const nodes = new Map(ids.map(id => [id, new Element(id, id.startsWith("draft-") || id === "target" ? "SELECT" : "DIV")]));
+  nodes.get("case-filter").value = "all"; // A real <select> starts on its first option.
   const radios = { source: { value: "self", checked: true }, mode: { value: "training", checked: true } };
   globalThis.document = {
     body: new Element("body"),
@@ -81,8 +82,12 @@ const progression = {
   },
 };
 const placement = { available: true, set: { description_fr: "d" }, limitations: "l", latest: null, declared_level: "B1" };
+const laender = ["Baden-Württemberg", "Bayern", "Berlin"];
+const voiceCase = { id: "CASE", version: "1", title: "Fall", public_summary: "s", language: "de-DE", land: "Bayern", city: null, cefr: "B2", educational_target: { exam: "FSP", phase: "arzt_patient", duration_minutes: 10 } };
+const casesSummary = { learner_land: "Bayern", laender: [{ land: "Bayern", cases: 1, worked: 0, share_worked: 0 }], without_land: 0 };
 const responses = {
-  "/api/profile": profile, "/api/program": program, "/api/exercises": { items: [] }, "/api/cases?approved_only=true": [],
+  "/api/profile": profile, "/api/program": program, "/api/exercises": { items: [] }, "/api/cases": [voiceCase],
+  "/api/reference/laender": laender, "/api/cases/summary": casesSummary,
   "/api/history": { items: [] }, "/api/lexicon": lexicon, "/api/progression": progression, "/api/placement": placement,
 };
 
@@ -122,5 +127,12 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   const { nodes } = await load("#home");
   assert.match(nodes.get("recommendation").children[1].textContent, /Réviser mon carnet/);
   assert.equal(nodes.get("week-days").children.length, 7);
+}
+{
+  const { nodes } = await load("#cases");
+  assert.equal(nodes.get("draft-land").children.length, laender.length, "the profile select is filled from the server list");
+  assert.equal(nodes.get("case-land").value, "Bayern", "the Land filter defaults to the profile's Land");
+  assert.equal(nodes.get("voice-cases").children.length, 1, "the Bayern case passes the Land filter");
+  assert.match(nodes.get("land-summary").textContent, /Bayern : 1 cas publié, 0 déjà travaillé \(0 %\)/);
 }
 console.log("Practice DOM: every route renders without a caught error; Carnet, Progression and home show their data");

@@ -68,7 +68,7 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
 
 {
   const result = await load("?session=session-1", {
-    "/api/health": health, "/api/cases?approved_only=true": [caseItem], "/api/sessions/session-1": activeExam,
+    "/api/health": health, "/api/cases": [caseItem], "/api/sessions/session-1": activeExam,
   });
   assert.equal(result.body.classList.contains("exam-active"), true);
   assert.equal(result.nodes.get("transcript").children.length, 0, "exam restores no transcript nodes");
@@ -97,7 +97,7 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
     lexicon: { added: [{ lemma: "der Schmerz", translation: "la douleur", state: "identified" }], promoted: [], wrong_language_turns: [1] },
   };
   const result = await load("?session=session-1", {
-    "/api/health": health, "/api/cases?approved_only=true": [caseItem], "/api/sessions/session-1": completed,
+    "/api/health": health, "/api/cases": [caseItem], "/api/sessions/session-1": completed,
   });
   assert.equal(result.nodes.get("transcript").children.length > 0, true, "feedback restores the transcript after completion");
   assert.equal(result.nodes.get("feedback").classList.contains("hidden"), false);
@@ -137,7 +137,7 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
     evaluation: { schema_version: "session-evaluation-v2", summary: "Retour", criteria: [], strengths: [], priorities: [] },
   };
   const result = await load("?session=session-1", {
-    "/api/health": health, "/api/cases?approved_only=true": [caseItem], "/api/sessions/session-1": legacy,
+    "/api/health": health, "/api/cases": [caseItem], "/api/sessions/session-1": legacy,
   });
   assert.equal(result.nodes.get("feedback").classList.contains("hidden"), false);
   assert.match(result.nodes.get("lexicon-summary").textContent, /indisponible/);
@@ -153,7 +153,7 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
 
 {
   const result = await load("?case=case-1&mode=training", {
-    "/api/health": health, "/api/cases?approved_only=true": [caseItem],
+    "/api/health": health, "/api/cases": [caseItem],
   });
   const subtitles = result.nodes.get("subtitles-toggle");
   assert.equal(subtitles.hidden, false);
@@ -164,7 +164,7 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
 
 {
   const result = await load("?case=missing&mode=exam", {
-    "/api/health": health, "/api/cases?approved_only=true": [caseItem],
+    "/api/health": health, "/api/cases": [caseItem],
   });
   assert.equal(result.nodes.get("start").disabled, true, "invalid explicit case does not fall back");
   assert.equal(result.calls.some(path => path.startsWith("/api/sessions/")), false);

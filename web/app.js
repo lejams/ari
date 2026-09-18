@@ -280,7 +280,7 @@ async function restoreSession() {
 }
 
 async function initialize() {
-  const [health, cases] = await Promise.all([api("/api/health"), api("/api/cases?approved_only=true")]);
+  const [health, cases] = await Promise.all([api("/api/health"), api("/api/cases")]);
   state.providerMode = health.provider_mode;
   state.cases = cases;
 

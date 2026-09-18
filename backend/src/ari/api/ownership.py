@@ -33,6 +33,7 @@ class OwnershipMiddleware:
             )
         ) or path in (
             "/api/profile",
+            "/api/cases/summary",
             "/api/progression",
             "/api/history",
             "/api/program",

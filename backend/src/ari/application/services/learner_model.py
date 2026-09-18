@@ -59,6 +59,7 @@ class LearnerModel:
     last_completed_by_practice: dict[str, datetime] = field(default_factory=dict)
     lexicon_acquired: int = 0
     lexicon_maintenance_due: int = 0
+    land: str | None = None  # The Land the learner prepares for; recommendations favour it.
 
     @property
     def level_reference(self) -> str | None:
@@ -83,6 +84,7 @@ class LearnerModel:
                 "weeks_left": self.weeks_left,
             },
             "minutes_per_day": self.minutes_per_day,
+            "land": self.land,
             "lexicon": {
                 "total": self.lexicon_total,
                 "due": self.lexicon_due,
@@ -206,6 +208,7 @@ class LearnerModelService:
             last_completed_by_practice=by_practice,
             lexicon_acquired=len(overview.acquired),
             lexicon_maintenance_due=len(overview.due_maintenance),
+            land=details.land.value if details.land else None,
         )
 
 
