@@ -14,6 +14,7 @@ dependencies = [
   "openai>=1.99,<3",
   "psycopg[binary]>=3.2,<4",
   "pydantic>=2.11,<3",
+  "pymupdf>=1.25,<2",
   "pydantic-settings>=2.10,<3",
   "pyyaml>=6.0,<7",
   "sqlalchemy>=2.0,<3",
@@ -67,9 +68,27 @@ type = "layers"
 layers = ["ari.api", "ari.infrastructure", "ari.application", "ari.domain"]
 
 [[tool.importlinter.contracts]]
+name = "The learner application never imports the content pipeline"
+type = "forbidden"
+source_modules = ["ari.api", "ari.application", "ari.container", "ari.main", "ari.infrastructure.providers"]
+forbidden_modules = ["ari.content", "ari.worker"]
+
+[[tool.importlinter.contracts]]
+name = "Content domain, ports, schemas and services stay free of infrastructure and the learner app"
+type = "forbidden"
+source_modules = [
+  "ari.content.domain",
+  "ari.content.ports",
+  "ari.content.schemas",
+  "ari.content.fake_handlers",
+  "ari.content.services",
+]
+forbidden_modules = ["ari.infrastructure", "ari.api", "ari.application.services", "ari.container"]
+
+[[tool.importlinter.contracts]]
 name = "Domain and application never import vendor SDKs or persistence libraries"
 type = "forbidden"
-source_modules = ["ari.domain", "ari.application"]
+source_modules = ["ari.domain", "ari.application", "ari.content.domain", "ari.content.services"]
 forbidden_modules = [
   "alembic",
   "fastapi",

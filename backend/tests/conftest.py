@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -21,6 +22,7 @@ from sqlalchemy.pool import NullPool
 
 from ari.config import PROJECT_ROOT, Settings
 from ari.container import Container, build_container
+from ari.content.container import ContentContainer, build_content_container
 from ari.domain.clinical import ClinicalBundle
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.persistence.schema import Database, upgrade_to_head
@@ -157,6 +159,26 @@ def published_container(database_url: str) -> Iterator[Container]:
     publish_with_simulated_reviews(result.cases.store, synthetic_bundle())
     yield result
     result.repository.engine.dispose()
+
+
+def build_content_test_container(content_database_url: str, storage_dir: Path) -> ContentContainer:
+    settings = Settings(
+        _env_file=None,
+        environment="test",
+        provider_mode="fake",
+        content_database_url=content_database_url,
+        content_storage_dir=storage_dir,
+        prompt_directory=PROJECT_ROOT / "backend" / "src" / "ari" / "prompts",
+    )
+    return build_content_container(settings)
+
+
+@pytest.fixture
+def content_container(content_database_url: str, tmp_path: Path) -> Iterator[ContentContainer]:
+    """The content pipeline on a fresh content database, fake model, files under tmp_path."""
+    result = build_content_test_container(content_database_url, tmp_path / "content")
+    yield result
+    result.repository.engine.dispose()  # type: ignore[attr-defined]
 
 
 @pytest.fixture

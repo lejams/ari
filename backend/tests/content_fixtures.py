@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from ari.content.domain.protocol import (
@@ -27,6 +28,40 @@ from ari.domain.geography import Land
 
 DOCUMENT_ID = "c" * 64
 FROZEN_AT = datetime(2026, 9, 18, 12, 0, tzinfo=UTC)
+
+PROTOCOL_PAGE = """Protokoll {number} - Fachsprachprüfung
+Land: {land}
+Stadt: München
+Datum: 2026-03
+Patientin, {age} Jahre, kam in die Notaufnahme.
+Beschwerden: Drückender Thoraxschmerz seit zwei Stunden
+Die Prüfer fragten nach Dyspnoe und Vorerkrankungen.
+{outcome}
+"""
+
+
+def synthetic_protocol_pdf(path: Path, count: int = 3, *, land: str = "Bayern") -> Path:
+    """A text-native PDF: a table of contents page, then one fictional protocol per page."""
+    import pymupdf
+
+    document = pymupdf.open()
+    cover = document.new_page()
+    cover.insert_text((72, 72), "Inhaltsverzeichnis\nGesammelte Erfahrungsberichte", fontsize=12)
+    for number in range(1, count + 1):
+        page = document.new_page()
+        page.insert_text(
+            (72, 72),
+            PROTOCOL_PAGE.format(
+                number=number,
+                land=land,
+                age=40 + number,
+                outcome="Ergebnis: bestanden" if number % 2 else "Über das Ergebnis steht nichts.",
+            ),
+            fontsize=11,
+        )
+    document.save(path)
+    document.close()
+    return path
 
 
 def synthetic_record(**overrides: Any) -> ProtocolRecord:

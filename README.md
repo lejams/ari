@@ -169,6 +169,16 @@ its sentences are stored verbatim and audited afterwards, so a fact is credited 
 when the audit finds it and the browser confirms playback. Prompt injection and
 off-topic requests are answered in character in both modes.
 
+### Content pipeline (gold protocols)
+
+Real cases start as PDFs of FSP exam protocols. `python -m ari.content.cli ingest` stores a
+PDF with its provenance and rights declaration; the worker (`make worker`) extracts the text,
+lets the model split the document into protocols and draft one structured
+`ProtocolRecord` per protocol, with explicit uncertainties and questions instead of guesses;
+a physician corrects and approves, the owner validates, and the record is frozen as a
+**gold protocol**, the ground truth every `clinical-case-v3` derives from. Everything lives in
+the separate `content` database. See `docs/CONTENT_PIPELINE.md`.
+
 ### Clinical registry
 
 Content is a YAML `ari-clinical-bundle-v1` document (see `docs/CLINICAL_CASES.md`)

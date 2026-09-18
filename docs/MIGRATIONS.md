@@ -10,18 +10,19 @@ make migration-check    # verify the database is at head
 make db-reset           # drop the docker volume, recreate the server, migrate again
 ```
 
-`alembic.ini` has one section per database. Today there is `[platform]` (learners, sessions,
-the clinical and placement registries), invoked with `-n platform`; the content pipeline adds
-`[content]` with its own `env.py`, metadata and revision chain. The default URL is the docker
-compose platform database, `postgresql+psycopg://ari_platform:ari_platform@localhost:5432/ari_platform`;
+`alembic.ini` has one section per database: `[platform]` (learners, sessions, the clinical and
+placement registries; `ARI_DATABASE_URL`, `-n platform`) and `[content]` (the protocol
+pipeline; `ARI_CONTENT_DATABASE_URL`, `-n content`, `make migrate-content`). Each has its own
+`env.py`, metadata (`Base`, `ContentBase`) and revision chain under `backend/migrations/`.
 `docker-compose.yml` and `deploy/postgres/init/01-databases.sh` create the `ari_platform` and
 `ari_content` roles and databases, each role unable to connect to the other database.
 
-There is a single revision per database, `0001_initial`, which creates the current schema and
-then the PL/pgSQL triggers that keep published clinical content, reviews, practice answers and
-voice start receipts immutable. The trigger function `ari_immutable()` raises with SQLSTATE
-class 23 (`integrity_constraint_violation`) so psycopg surfaces it as `IntegrityError`, exactly
-like a violated constraint; the shared helpers live in
+There is a single revision per database (`0001_initial`, `0001_content_initial`), which
+creates the schema and then the PL/pgSQL triggers: `ari_immutable()` refuses UPDATE/DELETE on
+append-only tables and `ari_only_columns_mutable('status', ...)` lets only the listed columns
+of a content row change. Both raise with SQLSTATE class 23
+(`integrity_constraint_violation`) so psycopg surfaces `IntegrityError`, exactly like a
+violated constraint; the shared helpers live in
 `backend/src/ari/infrastructure/persistence/ddl.py`. Row locks (`SELECT ... FOR UPDATE`, or
 `FOR SHARE` when a session pins a published scenario) serialise workflow mutations.
 

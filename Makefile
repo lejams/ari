@@ -7,7 +7,7 @@ MYPY ?= .venv/bin/mypy
 ALEMBIC ?= .venv/bin/alembic
 LINT_IMPORTS ?= .venv/bin/lint-imports
 
-.PHONY: install install-locked db-up db-down db-reset dev dev-fr migrate migration-check test test-backend test-web lint format
+.PHONY: install install-locked db-up db-down db-reset dev dev-fr worker migrate migrate-content migration-check migration-check-content test test-backend test-web lint format
 
 install:
 	$(PYTHON) -m pip install -e "backend[dev]"
@@ -26,7 +26,11 @@ db-down:
 db-reset:
 	docker compose down -v
 	docker compose up -d --wait postgres
-	$(MAKE) migrate
+	$(MAKE) migrate migrate-content
+
+# Content pipeline worker (PDF → protocol drafts); needs the content database migrated.
+worker:
+	PYTHONPATH=backend/src $(PYTHON) -m ari.worker
 
 dev:
 	$(PYTHON) -m uvicorn ari.main:app --app-dir backend/src --reload --port 8000
@@ -40,6 +44,12 @@ migrate:
 
 migration-check:
 	$(ALEMBIC) -c alembic.ini -n platform current --check-heads
+
+migrate-content:
+	$(ALEMBIC) -c alembic.ini -n content upgrade head
+
+migration-check-content:
+	$(ALEMBIC) -c alembic.ini -n content current --check-heads
 
 test: test-backend test-web
 

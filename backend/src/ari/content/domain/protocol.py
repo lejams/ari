@@ -305,7 +305,7 @@ class ProtocolReview(ClinicalModel):
     reviewer_account_id: Identifier
     reviewer_name: Text
     reviewed_at: datetime
-    notes: Text
+    notes: str = ""  # Empty is fine for an approval; a refusal should say why.
     pii_override_note: Text | None = None
 
     @model_validator(mode="after")

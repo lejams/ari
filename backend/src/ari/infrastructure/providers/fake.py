@@ -6,8 +6,8 @@ import math
 import re
 import struct
 import time
-from collections.abc import AsyncIterator
-from typing import TypeVar, cast
+from collections.abc import AsyncIterator, Callable, Mapping
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -157,13 +157,23 @@ def foreign_language(utterance: str, simulation_language: str) -> bool:
     )
 
 
+FakeHandler = Callable[[dict[str, Any]], dict[str, Any]]
+
+
 class FakeLLMProvider:
+    def __init__(self, handlers: Mapping[type[BaseModel], FakeHandler] | None = None) -> None:
+        # Other bounded contexts (the content pipeline) register their schemas here instead
+        # of this module importing them: the learner application never imports `ari.content`.
+        self._handlers: dict[type[BaseModel], FakeHandler] = dict(handlers or {})
+
     async def generate_structured(
         self, request: LLMRequest, response_model: type[T]
     ) -> ProviderResult[T]:
         started = time.perf_counter()
         payload = json.loads(request.messages[-1]["content"])
-        if response_model is PatientResponseSchema:
+        if response_model in self._handlers:
+            result = self._handlers[response_model](payload)
+        elif response_model is PatientResponseSchema:
             result = self._patient(payload)
         elif response_model is EvaluationOutputSchema:
             result = self._evaluation(payload)
@@ -172,7 +182,8 @@ class FakeLLMProvider:
         else:
             raise TypeError(f"Unsupported fake schema: {response_model.__name__}")
         elapsed = int((time.perf_counter() - started) * 1000)
-        value = response_model.model_validate(result)
+        # Through JSON, like a real provider's output: strict schemas then accept enum values.
+        value = response_model.model_validate_json(json.dumps(result))
         return ProviderResult(
             value=value,
             execution=_execution(

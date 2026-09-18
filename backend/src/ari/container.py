@@ -159,6 +159,8 @@ def build_container(settings: Settings) -> Container:
             evaluation_model=settings.evaluation_model,
             patient_timeout_seconds=settings.patient_timeout_seconds,
             evaluation_timeout_seconds=settings.evaluation_timeout_seconds,
+            content_model=settings.content_model,
+            content_timeout_seconds=settings.content_timeout_seconds,
         )
         transcriber = WhisperTranscriber(
             settings.stt_api_key,
