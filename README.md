@@ -179,6 +179,13 @@ a physician corrects and approves, the owner validates, and the record is frozen
 **gold protocol**, the ground truth every `clinical-case-v3` derives from. Everything lives in
 the separate `content` database. See `docs/CONTENT_PIPELINE.md`.
 
+The review happens in the **back-office** (`make backoffice`, <http://localhost:8100>,
+pages in `backoffice-web/`): accounts by invitation with owner, physician and linguistic
+roles, upload with declaration, the review screen with the source page beside the
+structured record and a blocking checklist, the owner's validation to gold, accounts and a
+dashboard. `docker compose --profile serve up -d` deploys learner app, back-office, worker and
+an HTTPS proxy on one server. See `docs/BACKOFFICE.md`.
+
 ### Clinical registry
 
 Content is a YAML `ari-clinical-bundle-v1` document (see `docs/CLINICAL_CASES.md`)

@@ -7,7 +7,7 @@ MYPY ?= .venv/bin/mypy
 ALEMBIC ?= .venv/bin/alembic
 LINT_IMPORTS ?= .venv/bin/lint-imports
 
-.PHONY: install install-locked db-up db-down db-reset dev dev-fr worker migrate migrate-content migration-check migration-check-content test test-backend test-web lint format
+.PHONY: install install-locked db-up db-down db-reset dev dev-fr backoffice worker migrate migrate-content migration-check migration-check-content test test-backend test-web test-backoffice-web lint format
 
 install:
 	$(PYTHON) -m pip install -e "backend[dev]"
@@ -32,6 +32,11 @@ db-reset:
 worker:
 	PYTHONPATH=backend/src $(PYTHON) -m ari.worker
 
+# Back-office (accounts by invitation, uploads, review, validation) on http://localhost:8100.
+# First account: PYTHONPATH=backend/src $(PYTHON) -m ari.backoffice_api.cli create-owner --email … --name …
+backoffice:
+	$(PYTHON) -m uvicorn ari.backoffice:app --app-dir backend/src --reload --port 8100
+
 dev:
 	$(PYTHON) -m uvicorn ari.main:app --app-dir backend/src --reload --port 8000
 
@@ -51,7 +56,13 @@ migrate-content:
 migration-check-content:
 	$(ALEMBIC) -c alembic.ini -n content current --check-heads
 
-test: test-backend test-web
+test: test-backend test-web test-backoffice-web
+
+test-backoffice-web:
+	$(NODE) --check backoffice-web/api.mjs
+	$(NODE) --check backoffice-web/app.mjs
+	$(NODE) backoffice-web/tests/api.test.mjs
+	$(NODE) backoffice-web/tests/backoffice-dom.test.mjs
 
 test-backend:
 	$(PYTEST) backend/tests

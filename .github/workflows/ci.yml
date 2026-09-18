@@ -51,6 +51,8 @@ jobs:
         run: PYTHONPATH=backend/src .venv/bin/lint-imports --config backend/pyproject.toml
       - name: JavaScript syntax and PCM resampler
         run: make test-web
+      - name: Back-office web client and DOM tests
+        run: make test-backoffice-web
       - name: Alembic fresh database and schema drift
         run: |
           .venv/bin/alembic -c alembic.ini -n platform upgrade head

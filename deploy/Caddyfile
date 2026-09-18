@@ -1,0 +1,13 @@
+# Two hostnames, two applications. Caddy obtains and renews the certificates itself.
+{$ARI_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:8000
+}
+
+{$ARI_BACKOFFICE_DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 60MB
+	}
+	reverse_proxy backoffice:8100
+}
