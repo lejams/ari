@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Literal
 
 import uvicorn
+from pydantic import ValidationError
 from pydantic_settings import SettingsConfigDict
 from sqlalchemy import Engine, inspect, select
 from sqlalchemy.orm import Session
@@ -26,8 +27,10 @@ from sqlalchemy.orm import Session
 from ari.api.app import create_app
 from ari.config import PROJECT_ROOT, Settings
 from ari.domain.clinical import CaseReview, ClinicalBundle, TrainingScenarioVersion, VersionRef
+from ari.domain.errors import InvalidStateError
 from ari.domain.models import new_id
 from ari.domain.placement import PlacementBundle, PlacementReview
+from ari.infrastructure.cases.clinical_catalog import ClinicalCatalog
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.placement_store import PlacementStore
 from ari.infrastructure.cases.yaml_io import bundle_kind, parse_bundle, parse_placement_bundle
@@ -116,6 +119,22 @@ def _ensure_schema(engine: Engine, database_url: str) -> None:
         )
 
 
+def _ensure_content_decodes(store: ClinicalStore, database_url: str) -> None:
+    """Published content written under an older case contract cannot be read any more.
+
+    The registry is immutable, so the only remedy for a development database is to
+    recreate it; say so at startup rather than failing on the learner's home page.
+    """
+    try:
+        ClinicalCatalog(store).list()
+    except (ValidationError, InvalidStateError) as exc:
+        raise SystemExit(
+            f"Base {database_url} : du contenu publié ne correspond plus au contrat de cas "
+            f"actuel ({type(exc).__name__}). Recréez-la (`make db-reset`) et relancez : la démo "
+            "republie le contenu synthétique."
+        ) from exc
+
+
 def publish_placement_content(store: PlacementStore, bundle: PlacementBundle) -> None:
     """Placement sets need one linguistic approval; here it is simulated, like the cases."""
     store.import_bundle(bundle)
@@ -154,7 +173,9 @@ def serve(settings: Settings, bundles: Path, port: int, database_url: str | None
     upgrade_to_head(settings.database_url)
     engine = create_platform_engine(settings.database_url)
     _ensure_schema(engine, settings.database_url)
-    seed_bundles(ClinicalStore(engine), bundles)
+    store = ClinicalStore(engine)
+    _ensure_content_decodes(store, settings.database_url)
+    seed_bundles(store, bundles)
     engine.dispose()
     uvicorn.run(create_app(settings=settings), host="127.0.0.1", port=port)
 
