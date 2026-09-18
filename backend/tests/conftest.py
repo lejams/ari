@@ -1,8 +1,9 @@
-"""Isolated PostgreSQL databases per test, cloned from a template migrated once per session.
+"""Isolated PostgreSQL databases per test, cloned from templates migrated once per session.
 
 `ARI_TEST_DATABASE_URL` points at a maintenance database with a role allowed to create
 databases (the docker compose superuser by default). Without a reachable server the whole
-run stops: a skipped suite would let CI pass on nothing.
+run stops: a skipped suite would let CI pass on nothing. One template per ARI database
+(`platform`, `content`), each migrated with its own Alembic chain.
 """
 
 from __future__ import annotations
@@ -22,12 +23,12 @@ from ari.config import PROJECT_ROOT, Settings
 from ari.container import Container, build_container
 from ari.domain.clinical import ClinicalBundle
 from ari.infrastructure.cases.clinical_store import ClinicalStore
-from ari.infrastructure.persistence.platform.schema import upgrade_to_head
+from ari.infrastructure.persistence.schema import Database, upgrade_to_head
 
 ADMIN_URL = os.environ.get(
     "ARI_TEST_DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
 )
-TEMPLATE_DATABASE = "ari_test_template"
+TEMPLATES: dict[Database, str] = {"platform": "ari_test_template", "content": "ari_test_content"}
 DatabaseFactory = Callable[[], str]
 
 
@@ -39,50 +40,87 @@ def _url_for(database: str) -> str:
     return make_url(ADMIN_URL).set(database=database).render_as_string(hide_password=False)
 
 
-@pytest.fixture(scope="session")
-def template_database() -> Iterator[str]:
+def _create_template(section: Database) -> str:
+    """Drop leftovers of a crashed run, create the template and migrate it to head."""
+    name = TEMPLATES[section]
     engine = _admin_engine()
     try:
         with engine.connect() as connection:
             leftovers = connection.execute(
-                text("SELECT datname FROM pg_database WHERE datname LIKE 'ari_test_%'")
+                text("SELECT datname FROM pg_database WHERE datname LIKE :pattern"),
+                {"pattern": f"{name}%"},
             ).scalars()
-            for name in list(leftovers):
-                connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
-            connection.execute(text(f"CREATE DATABASE {TEMPLATE_DATABASE}"))
+            for leftover in list(leftovers):
+                connection.execute(text(f'DROP DATABASE IF EXISTS "{leftover}" WITH (FORCE)'))
+            connection.execute(text(f"CREATE DATABASE {name}"))
     except OperationalError as exc:
         pytest.exit(f"PostgreSQL de test inaccessible ({ADMIN_URL}) : lancez `make db-up`. {exc}")
-    upgrade_to_head(_url_for(TEMPLATE_DATABASE))
-    yield TEMPLATE_DATABASE
+    finally:
+        engine.dispose()
+    upgrade_to_head(_url_for(name), section)
+    return name
+
+
+def _drop(name: str) -> None:
+    engine = _admin_engine()
     with engine.connect() as connection:
-        connection.execute(text(f"DROP DATABASE IF EXISTS {TEMPLATE_DATABASE} WITH (FORCE)"))
+        connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
     engine.dispose()
 
 
-@pytest.fixture
-def new_database_url(template_database: str) -> Iterator[DatabaseFactory]:
-    """A factory for tests that need more than one isolated database."""
+def _factory(template: str) -> Iterator[DatabaseFactory]:
     engine = _admin_engine()
     created: list[str] = []
 
     def make() -> str:
-        name = f"ari_test_{uuid4().hex[:12]}"
+        name = f"{template}_{uuid4().hex[:12]}"
         with engine.connect() as connection:
-            connection.execute(text(f"CREATE DATABASE {name} TEMPLATE {template_database}"))
+            connection.execute(text(f"CREATE DATABASE {name} TEMPLATE {template}"))
         created.append(name)
         return _url_for(name)
 
     yield make
     with engine.connect() as connection:
         for name in created:
-            connection.execute(text(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)"))
+            connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
     engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def template_database() -> Iterator[str]:
+    name = _create_template("platform")
+    yield name
+    _drop(name)
+
+
+@pytest.fixture(scope="session")
+def content_template_database() -> Iterator[str]:
+    name = _create_template("content")
+    yield name
+    _drop(name)
+
+
+@pytest.fixture
+def new_database_url(template_database: str) -> Iterator[DatabaseFactory]:
+    """A factory for tests that need more than one isolated platform database."""
+    yield from _factory(template_database)
+
+
+@pytest.fixture
+def new_content_database_url(content_template_database: str) -> Iterator[DatabaseFactory]:
+    yield from _factory(content_template_database)
 
 
 @pytest.fixture
 def database_url(new_database_url: DatabaseFactory) -> str:
-    """One fresh, fully migrated database for this test."""
+    """One fresh, fully migrated platform database for this test."""
     return new_database_url()
+
+
+@pytest.fixture
+def content_database_url(new_content_database_url: DatabaseFactory) -> str:
+    """One fresh, fully migrated content database for this test."""
+    return new_content_database_url()
 
 
 def build_test_container(database_url: str) -> Container:

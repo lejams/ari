@@ -82,8 +82,8 @@ make dev-fr             # http://127.0.0.1:8010
 ```
 
 `.env` at the project root must define `ARI_OPENAI_API_KEY` and `ARI_STT_API_KEY` (start
-from `.env.example` only if you have no `.env` yet, `cp` overwrites). Whisper goes to Groq
-by default; with a single OpenAI key add:
+from `deploy/env.example` only if you have no `.env` yet, `cp` overwrites). Whisper goes to
+Groq by default; with a single OpenAI key add:
 
 ```sh
 ARI_STT_BASE_URL=https://api.openai.com/v1

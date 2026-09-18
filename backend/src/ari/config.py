@@ -16,8 +16,19 @@ class Settings(BaseSettings):
 
     environment: Literal["development", "test", "production"] = "development"
     provider_mode: Literal["fake", "openai"] = "fake"
-    # PostgreSQL only; the default matches the docker compose platform database.
+    # PostgreSQL only; the defaults match the docker compose databases. The learner
+    # application only ever receives the platform URL; the content pipeline (back-office,
+    # worker) needs both.
     database_url: str = "postgresql+psycopg://ari_platform:ari_platform@localhost:5432/ari_platform"
+    content_database_url: str = (
+        "postgresql+psycopg://ari_content:ari_content@localhost:5432/ari_content"
+    )
+    content_storage_dir: Path = PROJECT_ROOT / "var" / "content"
+    content_model: str = "gpt-5.6-terra"
+    content_timeout_seconds: float = 300.0
+    content_upload_max_bytes: int = 50 * 1024 * 1024
+    worker_poll_seconds: float = 2.0
+    worker_id: str | None = None
     prompt_directory: Path = PROJECT_ROOT / "backend" / "src" / "ari" / "prompts"
     frontend_origin: str = "http://localhost:5173"
     feedback_language: str = "fr-FR"

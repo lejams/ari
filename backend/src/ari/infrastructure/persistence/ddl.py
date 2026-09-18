@@ -23,6 +23,20 @@ END $$
 """
 DROP_IMMUTABLE_FUNCTION = "DROP FUNCTION IF EXISTS ari_immutable()"
 
+# Content rows whose status moves but whose content never does: the allowed column names
+# are passed as trigger arguments and removed from both row images before comparing.
+ONLY_COLUMNS_MUTABLE_FUNCTION = """
+CREATE FUNCTION ari_only_columns_mutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF (to_jsonb(OLD) - TG_ARGV) <> (to_jsonb(NEW) - TG_ARGV) THEN
+    RAISE EXCEPTION 'Immutable content in %', TG_TABLE_NAME
+      USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END $$
+"""
+DROP_ONLY_COLUMNS_MUTABLE_FUNCTION = "DROP FUNCTION IF EXISTS ari_only_columns_mutable()"
+
 
 def changed(columns: Sequence[str]) -> str:
     """A trigger WHEN condition: true when any of the given columns differs (null-safe)."""
@@ -44,3 +58,15 @@ def create_append_only_triggers(op: Operations, tables: Sequence[str], message: 
     for table in tables:
         for action in ("UPDATE", "DELETE"):
             create_immutable_trigger(op, f"{table}_no_{action.lower()}", action, table, message)
+
+
+def create_column_guard(
+    op: Operations, table: str, mutable_columns: Sequence[str], message: str
+) -> None:
+    """Allow UPDATE on the listed columns only, refuse DELETE (uses ari_only_columns_mutable)."""
+    arguments = ", ".join(f"'{column}'" for column in mutable_columns)
+    op.execute(
+        f"CREATE TRIGGER {table}_content_guard BEFORE UPDATE ON {table} FOR EACH ROW "
+        f"EXECUTE FUNCTION ari_only_columns_mutable({arguments})"
+    )
+    create_immutable_trigger(op, f"{table}_no_delete", "DELETE", table, message)

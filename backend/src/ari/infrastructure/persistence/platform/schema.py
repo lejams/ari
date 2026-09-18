@@ -1,18 +1,15 @@
-"""Alembic access for the platform database; the only place that knows the ini section."""
+"""Alembic access for the platform database (section `platform` of alembic.ini)."""
 
-from alembic import command
 from alembic.config import Config
 
-from ari.config import PROJECT_ROOT
+from ari.infrastructure.persistence import schema
 
-INI_SECTION = "platform"
+INI_SECTION: schema.Database = "platform"
 
 
 def alembic_config(database_url: str) -> Config:
-    config = Config(PROJECT_ROOT / "alembic.ini", ini_section=INI_SECTION)
-    config.attributes["database_url"] = database_url
-    return config
+    return schema.alembic_config(database_url, INI_SECTION)
 
 
 def upgrade_to_head(database_url: str) -> None:
-    command.upgrade(alembic_config(database_url), "head")
+    schema.upgrade_to_head(database_url, INI_SECTION)
