@@ -83,11 +83,12 @@ const responses = {
   "/api/gold": {items: [], total: 0}, "/api/accounts": {items: [{id: "owner-1", email: "o@example.org", display_name: "Owner", roles: ["owner"], active: true, has_password: true, created_at: "2026-09-18T00:00:00Z"}], total: 1},
 };
 
-async function load(hash, {signedIn = true} = {}) {
+async function load(hash, {signedIn = true, roles = me.roles} = {}) {
   const nodes = installDom(hash);
   const calls = [];
   globalThis.fetch = async path => {
     calls.push(String(path));
+    if (path === "/api/auth/me" && signedIn) return {ok: true, status: 200, json: async () => ({...me, roles})};
     if (path === "/api/auth/me" && !signedIn) return {ok: false, status: 401, json: async () => ({detail: "Connexion requise"})};
     const body = responses[String(path)];
     return {ok: body !== undefined, status: body === undefined ? 404 : 200, json: async () => body ?? {detail: `no stub for ${path}`}};
@@ -122,6 +123,12 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   assert.match(nodes.get("page-image").src, /pages\/2\/image$/);
   const actions = nodes.get("decision-actions").children.map(b => b.textContent);
   assert.deepEqual(actions, ["Enregistrer une version", "Approuver", "Demander des corrections", "Rejeter"], "a physician sees the doctor decisions");
+}
+{
+  const {nodes} = await load("#/protocols/P-cccccccc-000", {roles: ["owner"]});
+  const actions = nodes.get("decision-actions").children.map(b => b.textContent);
+  assert.deepEqual(actions, ["Enregistrer une version"], "an owner without the physician role cannot approve a protocol in doctor review");
+  assert.equal(nodes.get("decision-help").textContent, "Statut « À relire ». La décision revient à un compte « Relecteur médecin ». Votre compte : Propriétaire.");
 }
 {
   const {nodes} = await load("#/review");

@@ -298,7 +298,11 @@ function renderDecision() {
   } else if (protocol.status === 'doctor_approved' && owner) {
     $('decision-help').textContent = 'Approuvé par le médecin. Valider gèle le protocole comme gold, vérité terrain des futurs cas.';
     actions.append(button('Valider en gold', () => decide('owner', 'approve'), 'primary'), button('Renvoyer au médecin', () => decide('owner', 'request_changes')), button('Rejeter', () => decide('owner', 'reject'), 'danger'));
-  } else $('decision-help').textContent = `Statut ${statusLabel(protocol.status)} : aucune décision ne vous revient ici.`;
+  } else {
+    const mine = client.me.roles.map(role => ROLE_LABELS[role] || role).join(', ');
+    const needed = doctorStage ? 'un compte « Relecteur médecin »' : protocol.status === 'doctor_approved' ? 'un compte « Propriétaire »' : protocol.status === 'extracted' ? 'le propriétaire, qui doit d’abord l’envoyer en relecture' : 'personne : le protocole est clos';
+    $('decision-help').textContent = `Statut « ${statusLabel(protocol.status)} ». La décision revient à ${needed}. Votre compte : ${mine}.`;
+  }
 }
 async function saveVersion() {
   const protocol = current.protocol;
