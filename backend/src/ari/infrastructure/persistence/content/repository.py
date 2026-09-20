@@ -11,6 +11,12 @@ from typing import Any
 from sqlalchemy import Engine, func, select, update
 from sqlalchemy.orm import Session
 
+from ari.content.domain.bundles import (
+    BundleDraft,
+    BundleDraftStatus,
+    BundleVariantRequest,
+    ScenarioRef,
+)
 from ari.content.domain.documents import (
     Actor,
     AiRun,
@@ -33,6 +39,7 @@ from ari.content.domain.protocol import (
 from ari.domain.geography import Land
 from ari.infrastructure.persistence.content.rows import (
     AiRunRow,
+    BundleDraftRow,
     DocumentPageRow,
     DocumentRow,
     DocumentSegmentRow,
@@ -441,6 +448,78 @@ class SqlContentTransaction:
         return tuple(
             GoldProtocol.model_validate_json(json.dumps(row.payload))
             for row in self.db.scalars(statement)
+        )
+
+    # ----- bundle drafts -----------------------------------------------------------
+
+    def add_bundle_draft(self, draft: BundleDraft) -> None:
+        self.db.add(
+            BundleDraftRow(
+                id=draft.id,
+                gold_protocol_id=draft.gold_protocol_id,
+                gold_hash=draft.gold_hash,
+                request=draft.request.model_dump(mode="json"),
+                status=draft.status.value,
+                bundle=draft.bundle,
+                bundle_hash=draft.bundle_hash,
+                case_id=draft.case_id,
+                case_version=draft.case_version,
+                scenario_refs=[
+                    {"id": ref.id, "version": ref.version, "phase": ref.phase}
+                    for ref in draft.scenario_refs
+                ],
+                validation_errors=list(draft.validation_errors),
+                ai_run_id=draft.ai_run_id,
+                created_by_account_id=draft.created_by_account_id,
+                created_at=draft.created_at,
+                imported_at=draft.imported_at,
+            )
+        )
+        self.db.flush()
+
+    def get_bundle_draft(self, draft_id: str, *, lock: bool = False) -> BundleDraft | None:
+        statement = select(BundleDraftRow).where(BundleDraftRow.id == draft_id)
+        if lock:
+            statement = statement.with_for_update()
+        row = self.db.scalar(statement)
+        return self._bundle_draft(row) if row else None
+
+    def list_bundle_drafts(self, *, gold_protocol_id: str | None = None) -> tuple[BundleDraft, ...]:
+        statement = select(BundleDraftRow).order_by(
+            BundleDraftRow.created_at.desc(), BundleDraftRow.id
+        )
+        if gold_protocol_id is not None:
+            statement = statement.where(BundleDraftRow.gold_protocol_id == gold_protocol_id)
+        return tuple(self._bundle_draft(row) for row in self.db.scalars(statement))
+
+    def mark_bundle_draft_imported(self, draft_id: str) -> None:
+        self.db.execute(
+            update(BundleDraftRow)
+            .where(BundleDraftRow.id == draft_id)
+            .values(status=BundleDraftStatus.IMPORTED.value, imported_at=datetime.now(UTC))
+        )
+
+    @staticmethod
+    def _bundle_draft(row: BundleDraftRow) -> BundleDraft:
+        return BundleDraft(
+            id=row.id,
+            gold_protocol_id=row.gold_protocol_id,
+            gold_hash=row.gold_hash,
+            request=BundleVariantRequest.model_validate_json(json.dumps(row.request)),
+            status=BundleDraftStatus(row.status),
+            bundle=row.bundle,
+            bundle_hash=row.bundle_hash,
+            case_id=row.case_id,
+            case_version=row.case_version,
+            scenario_refs=tuple(
+                ScenarioRef(id=ref["id"], version=ref["version"], phase=ref["phase"])
+                for ref in row.scenario_refs
+            ),
+            validation_errors=tuple(row.validation_errors),
+            ai_run_id=row.ai_run_id,
+            created_by_account_id=row.created_by_account_id,
+            created_at=_dt(row.created_at),
+            imported_at=_dt(row.imported_at) if row.imported_at else None,
         )
 
     def add_ai_run(self, run: AiRun) -> None:

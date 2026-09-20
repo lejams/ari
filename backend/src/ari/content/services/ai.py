@@ -14,7 +14,7 @@ from ari.application.ports.llm import LLMProvider
 from ari.application.prompting import VersionedPrompt
 from ari.content.domain.documents import AiRun, DocumentDeclaration
 from ari.content.domain.protocol import PROTOCOL_SCHEMA_VERSION
-from ari.content.schemas import ExtractionOutput, SegmentationOutput
+from ari.content.schemas import BundleDraftOutput, ExtractionOutput, SegmentationOutput
 from ari.domain.errors import ProviderError
 from ari.domain.models import ExecutionRecord
 
@@ -22,12 +22,14 @@ T = TypeVar("T", bound=BaseModel)
 
 SEGMENTATION_OPERATION = "protocol_segmentation"
 EXTRACTION_OPERATION = "protocol_extraction"
+BUNDLE_DRAFT_OPERATION = "bundle_draft"
 
 
 @dataclass(frozen=True, slots=True)
 class ContentPrompts:
     segmentation: VersionedPrompt
     extraction: VersionedPrompt
+    bundle_draft: VersionedPrompt
 
 
 class ModelCallFailed(Exception):
@@ -96,6 +98,25 @@ class ContentModel:
             segment_id=segment_id,
         )
 
+    async def draft_bundle(
+        self,
+        *,
+        job_id: str,
+        document_id: str,
+        protocol_id: str,
+        payload: dict[str, Any],
+    ) -> tuple[BundleDraftOutput, AiRun]:
+        """Fill a bundle skeleton (built by the generator) with patient phrases and coaching."""
+        return await self._call(
+            self._prompts.bundle_draft,
+            BUNDLE_DRAFT_OPERATION,
+            BundleDraftOutput,
+            payload,
+            job_id=job_id,
+            document_id=document_id,
+            protocol_id=protocol_id,
+        )
+
     async def _call(
         self,
         prompt: VersionedPrompt,
@@ -106,6 +127,7 @@ class ContentModel:
         job_id: str,
         document_id: str,
         segment_id: str | None = None,
+        protocol_id: str | None = None,
     ) -> tuple[T, AiRun]:
         body = json.dumps(payload, ensure_ascii=False)
         input_hash = sha256(body.encode("utf-8")).hexdigest()
@@ -138,6 +160,7 @@ class ContentModel:
                 input_hash=input_hash,
                 document_id=document_id,
                 segment_id=segment_id,
+                protocol_id=protocol_id,
                 status=execution.status.value,
                 latency_ms=execution.latency_ms,
                 usage=dict(execution.usage),

@@ -14,6 +14,7 @@ from ari.infrastructure.persistence.content.base import ContentBase
 from ari.infrastructure.persistence.content.engine import create_content_engine
 from ari.infrastructure.persistence.content.rows import (
     AiRunRow,
+    BundleDraftRow,
     DocumentPageRow,
     DocumentRow,
     DocumentSegmentRow,
@@ -30,6 +31,7 @@ __all__ = [
     "BackofficeAuditRow",
     "BackofficeInvitationRow",
     "BackofficeSessionRow",
+    "BundleDraftRow",
     "ContentBase",
     "DocumentPageRow",
     "DocumentRow",

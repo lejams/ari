@@ -9,6 +9,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Protocol
 
+from ari.content.domain.bundles import BundleDraft
 from ari.content.domain.documents import (
     AiRun,
     Document,
@@ -134,6 +135,16 @@ class ContentTransaction(Protocol):
     def get_gold(self, protocol_id: str) -> GoldProtocol | None: ...
 
     def list_gold(self, *, land: Land | None = None) -> tuple[GoldProtocol, ...]: ...
+
+    def add_bundle_draft(self, draft: BundleDraft) -> None: ...
+
+    def get_bundle_draft(self, draft_id: str, *, lock: bool = False) -> BundleDraft | None: ...
+
+    def list_bundle_drafts(
+        self, *, gold_protocol_id: str | None = None
+    ) -> tuple[BundleDraft, ...]: ...
+
+    def mark_bundle_draft_imported(self, draft_id: str) -> None: ...
 
     def add_ai_run(self, run: AiRun) -> None: ...
 

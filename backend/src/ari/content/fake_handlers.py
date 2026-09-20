@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from ari.content.schemas import ExtractionOutput, SegmentationOutput
+from ari.content.schemas import BundleDraftOutput, ExtractionOutput, SegmentationOutput
 from ari.domain.geography import Land
 
 PROTOCOL_MARKER = "Protokoll"
@@ -151,7 +151,64 @@ def extraction(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def bundle_draft(payload: dict[str, Any]) -> dict[str, Any]:
+    """Fill every id of the skeleton with plain, predictable text. Never invents an id."""
+    facts = payload["facts"]
+    complaint = next((f for f in facts if f["section"] == "aktuelle_beschwerden"), None)
+    opening_fact = complaint or (facts[0] if facts else None)
+    persona = payload.get("persona_instruction_de", "kooperativ")
+    complaint_de = payload["patient"].get("presenting_complaint_de") or "Anamnese"
+    opens = bool(opening_fact and opening_fact["value_de"])
+    return {
+        "title_de": f"Fall {payload['case_id']}: {complaint_de}",
+        "public_summary_fr": "Cas d'entraînement généré à partir d'un protocole gold, à relire.",
+        "transcription_context_de": "Anamnesegespräch in der Notaufnahme, Fachsprachprüfung.",
+        "unknown_response_de": "Das weiß ich nicht, das hat mir niemand gesagt.",
+        "out_of_scope_response_de": "Entschuldigung, darüber möchte ich jetzt nicht sprechen.",
+        "persona_de": f"Simulierte Patientin oder simulierter Patient, {persona}",
+        "opening_de": (
+            f"Guten Tag, Herr Doktor. {opening_fact['value_de']}"
+            if opens and opening_fact
+            else "Guten Tag, Herr Doktor."
+        ),
+        "opening_fact_ids": [opening_fact["id"]] if opens and opening_fact else [],
+        "objectives_fr": ["Recueillir une anamnèse complète et structurée"],
+        "facts": [
+            {
+                "fact_id": fact["id"],
+                "patient_phrases_de": [
+                    fact["value_de"] or f"{fact['label_de']}? Das weiß ich nicht."
+                ],
+                "translation_fr": None,
+            }
+            for fact in facts
+        ],
+        "empathy_moments": [],
+        "behaviour_items": [
+            {"item_id": item["item_id"], "doctor_phrases": PHRASES.get(item["item_id"], ["Danke"])}
+            for item in payload["behaviour_items"]
+        ],
+        "practice_answers": [
+            {
+                "question_id": question["id"],
+                "expected_behavior": f"Répondre : {question['prompt_de']}",
+                "accepted_answers": [question["hint_de"] or f"Antwort auf {question['id']}"],
+                "coaching_fr": "Réponds avec les seules informations du protocole.",
+            }
+            for question in payload["practice_questions"]
+        ],
+    }
+
+
+PHRASES = {
+    "greeting": ["Guten Tag", "Hallo"],
+    "introduction": ["Mein Name ist", "Ich bin"],
+    "closing": ["Zusammenfassend", "Ich fasse zusammen"],
+}
+
+
 FAKE_CONTENT_HANDLERS: dict[type[BaseModel], Callable[[dict[str, Any]], dict[str, Any]]] = {
     SegmentationOutput: segmentation,
     ExtractionOutput: extraction,
+    BundleDraftOutput: bundle_draft,
 }

@@ -277,3 +277,37 @@ class AiRunRow(ContentBase):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     retryable: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+BUNDLE_DRAFT_STATUSES = ("draft", "invalid", "imported")
+
+
+class BundleDraftRow(ContentBase):
+    """A generated training bundle for one gold protocol; only `status` and `imported_at` move."""
+
+    __tablename__ = "bundle_drafts"
+    __table_args__ = (
+        CheckConstraint(f"status IN ({_in(BUNDLE_DRAFT_STATUSES)})", name="ck_bundle_draft_status"),
+        CheckConstraint(
+            "(status = 'invalid') = (bundle IS NULL)", name="ck_bundle_draft_bundle_presence"
+        ),
+    )
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    gold_protocol_id: Mapped[str] = mapped_column(
+        ForeignKey("gold_protocols.protocol_id"), index=True
+    )
+    gold_hash: Mapped[str] = mapped_column(String(64))
+    request: Mapped[dict[str, Any]] = mapped_column(CONTENT_JSON)
+    status: Mapped[str] = mapped_column(String)
+    bundle: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
+    bundle_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    case_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    case_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    scenario_refs: Mapped[list[dict[str, Any]]] = mapped_column(CONTENT_JSON)
+    validation_errors: Mapped[list[str]] = mapped_column(CONTENT_JSON)
+    ai_run_id: Mapped[str | None] = mapped_column(ForeignKey("ai_runs.id"), nullable=True)
+    created_by_account_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    imported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

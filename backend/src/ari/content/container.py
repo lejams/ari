@@ -12,6 +12,7 @@ from ari.content.domain.documents import Job, JobType
 from ari.content.fake_handlers import FAKE_CONTENT_HANDLERS
 from ari.content.ports import ContentRepository, DocumentStorage, JobQueue, PdfTextExtractor
 from ari.content.services.ai import ContentModel, ContentPrompts
+from ari.content.services.bundle_drafting import BundleDrafting
 from ari.content.services.extraction import ProtocolExtraction
 from ari.content.services.ingestion import DocumentIngestion
 from ari.content.services.segmentation import Segmentation
@@ -37,6 +38,7 @@ class ContentContainer:
     model: ContentModel
     ingestion: DocumentIngestion
     workflow: ProtocolWorkflow
+    drafting: BundleDrafting
     handlers: dict[JobType, JobHandler]
 
 
@@ -74,17 +76,16 @@ def build_content_container(
             extraction=load_prompt(
                 prompts_dir / "protocol_extraction_v1.txt", "protocol-extraction-v1"
             ),
+            bundle_draft=load_prompt(prompts_dir / "bundle_draft_v1.txt", "bundle-draft-v1"),
         ),
     )
     text_extraction = TextExtraction(repository, storage, extractor, queue)
     segmentation = Segmentation(repository, model, queue)
     extraction = ProtocolExtraction(repository, model)
+    drafting = BundleDrafting(repository, model, queue)
 
     async def extract_text(job: Job) -> None:
         text_extraction.run(job)
-
-    async def generate_bundle_draft(job: Job) -> None:
-        raise NotImplementedError("La génération de bundles arrive avec l'étape 4")
 
     return ContentContainer(
         settings=settings,
@@ -97,10 +98,11 @@ def build_content_container(
             repository, storage, queue, max_bytes=settings.content_upload_max_bytes
         ),
         workflow=ProtocolWorkflow(repository),
+        drafting=drafting,
         handlers={
             JobType.EXTRACT_TEXT: extract_text,
             JobType.SEGMENT_DOCUMENT: segmentation.run,
             JobType.EXTRACT_PROTOCOL: extraction.run,
-            JobType.GENERATE_BUNDLE_DRAFT: generate_bundle_draft,
+            JobType.GENERATE_BUNDLE_DRAFT: drafting.run,
         },
     )

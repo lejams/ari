@@ -138,3 +138,49 @@ class ExtractionOutput(StrictModel):
     unresolved_questions: list[ExtractedOpenQuestion]
     field_uncertainties: list[ExtractedFieldUncertainty]
     pseudonymisation: ExtractedPseudonymisation
+
+
+# ----- bundle draft: the model fills a skeleton the generator built from a gold protocol -----
+# Every id below comes from the skeleton; the generator refuses unknown or missing ids.
+
+
+class DraftFactText(StrictModel):
+    fact_id: str
+    # One to three ways the simulated patient states this fact, in the persona's register.
+    patient_phrases_de: Annotated[list[Short], Field(min_length=1, max_length=3)]
+    translation_fr: Short | None
+
+
+class DraftEmpathyMoment(StrictModel):
+    fact_id: str
+    cue_fr: Short
+    expected_fr: Short
+
+
+class DraftBehaviourItem(StrictModel):
+    item_id: str
+    # Exact phrases matched case-insensitively in the transcript.
+    doctor_phrases: Annotated[list[Short], Field(min_length=1, max_length=6)]
+
+
+class DraftPracticeAnswer(StrictModel):
+    question_id: str
+    expected_behavior: Short
+    accepted_answers: Annotated[list[Short], Field(min_length=1, max_length=6)]
+    coaching_fr: Short
+
+
+class BundleDraftOutput(StrictModel):
+    title_de: Short  # No person name, no institution.
+    public_summary_fr: Long
+    transcription_context_de: Long
+    unknown_response_de: Short
+    out_of_scope_response_de: Short
+    persona_de: Short
+    opening_de: Long
+    opening_fact_ids: list[str]
+    objectives_fr: Annotated[list[Short], Field(min_length=1, max_length=5)]
+    facts: list[DraftFactText]
+    empathy_moments: Annotated[list[DraftEmpathyMoment], Field(max_length=3)]
+    behaviour_items: list[DraftBehaviourItem]
+    practice_answers: list[DraftPracticeAnswer]
