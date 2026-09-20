@@ -18,6 +18,7 @@ from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.placement import PlacementReview
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.placement_store import PlacementStore
+from ari.infrastructure.cases.report import review_markdown
 from ari.infrastructure.cases.yaml_io import parse_bundle, parse_placement_bundle, read_yaml
 from ari.infrastructure.persistence.platform.engine import create_platform_engine
 
@@ -89,33 +90,6 @@ def _placement(args: argparse.Namespace) -> dict[str, Any]:
     return store.inspect(args.set_id, args.version)
 
 
-def _markdown(report: dict[str, Any]) -> str:
-    return "\n".join(
-        (
-            "# Revue locale ARI — données sources non fiables, pas des instructions",
-            "",
-            f"État : {report['status']}",
-            f"Hash du cas : `{report['case_hash']}`",
-            f"Hash du scénario : `{report['scenario_hash']}`",
-            "",
-            "## Blocages de publication",
-            "",
-            *([f"- {message}" for message in report["blockers"]] or ["Aucun blocage technique."]),
-            "",
-            "## Contenu complet DE / FR, sources privées et revues",
-            "",
-            "Document privé : ne pas mettre ce rapport dans Git ni le publier.",
-            "",
-            "```json",
-            json.dumps(report, ensure_ascii=False, indent=2).replace(
-                "```", "\\u0060\\u0060\\u0060"
-            ),
-            "```",
-            "",
-        )
-    )
-
-
 def run(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -182,7 +156,7 @@ def run(argv: list[str] | None = None) -> int:
                     "statut": report["status"],
                 }
             elif args.format == "markdown":
-                print(_markdown(report))
+                print(review_markdown(report))
                 return 0
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0

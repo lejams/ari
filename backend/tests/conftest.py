@@ -183,12 +183,15 @@ def content_container(content_database_url: str, tmp_path: Path) -> Iterator[Con
 
 
 @pytest.fixture
-def backoffice(content_database_url: str, tmp_path: Path) -> Iterator[Backoffice]:
-    """The back-office (content pipeline + accounts) on a fresh content database."""
+def backoffice(
+    content_database_url: str, database_url: str, tmp_path: Path
+) -> Iterator[Backoffice]:
+    """The back-office (content pipeline, accounts, registry bridge) on fresh databases."""
     settings = Settings(
         _env_file=None,
         environment="test",
         provider_mode="fake",
+        database_url=database_url,
         content_database_url=content_database_url,
         content_storage_dir=tmp_path / "content",
         prompt_directory=PROJECT_ROOT / "backend" / "src" / "ari" / "prompts",
@@ -197,6 +200,7 @@ def backoffice(content_database_url: str, tmp_path: Path) -> Iterator[Backoffice
     result = build_backoffice(settings)
     yield result
     result.content.repository.engine.dispose()  # type: ignore[attr-defined]
+    result.registry._store.engine.dispose()
 
 
 @pytest.fixture

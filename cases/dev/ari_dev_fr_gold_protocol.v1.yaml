@@ -1,55 +1,184 @@
 # Protocole gold SYNTHÉTIQUE pour le développement : fiction, aucun examen réel, aucune
-# relecture humaine. Le cas cases/dev/ari_dev_fr.v1.yaml le référence par le SHA-256 de ce
-# fichier (gold_protocol.protocol_hash). Schéma provisoire : le modèle GoldProtocol de la base
-# `content` le remplacera (docs/CLINICAL_CASES.md, « Ouvert pour l'étape 2 »).
-schema_version: ari-gold-protocol-draft
+# relecture humaine. C'est un `GoldProtocol` complet (backend/src/ari/content/domain/protocol.py),
+# le même modèle que la base `content` fige après validation du propriétaire. Le cas
+# cases/dev/ari_dev_fr.v1.yaml le référence par `protocol_hash` (hash de `record`). Aucune
+# `schema_version` : le semis (`python -m ari.demo`) ignore ce fichier. Recette dans
+# docs/CLINICAL_CASES.md.
 protocol_id: ARI-DEV-FR-PROTOCOL
-protocol_version: '1'
-synthetic: true
-language: fr-FR
+protocol_version: 1
+protocol_hash: 0b003423d73658ad76ddb4e1de13cda80177313b058a435cc351c0f7a7d644e0
 location:
   land: Bayern
   city: null
   exam_body: null
   exam_date: null
   specialty: null
-patient:
-  presentation: Camille Martin, 52 ans, douleur thoracique oppressante apparue il y a deux heures en montant les escaliers.
-anamnesis:
-- id: identity
-  section: patientendaten
-  value: Camille Martin, 52 ans
-- id: reason
-  section: aktuelle_beschwerden
-  value: Douleur thoracique oppressante, comme un poids qui serre
-- id: onset
-  section: aktuelle_beschwerden
-  value: Depuis deux heures, apparue en montant les escaliers
-- id: radiation
-  section: aktuelle_beschwerden
-  value: Irradiation vers le bras gauche
-- id: medication
-  section: medikamente
-  value: Ramipril 5 mg le matin pour la tension
-- id: allergy
-  section: allergien
-  value: Aucune allergie connue
-  polarity: absent
-- id: smoking
-  section: noxen
-  value: Dix cigarettes par jour depuis trente ans
-- id: family_history
-  section: familienanamnese
-  value: Père décédé d'un infarctus à 55 ans
-examiner_questions:
-- part: arzt_arzt
-  question: Présentez-moi brièvement la patiente, nom, âge et motif.
-- part: arzt_arzt
-  question: Quelles informations avons-nous sur les allergies ?
-fachbegriffe:
-- term: oral
-  lay: par la bouche
-- term: bilatéral
-  lay: des deux côtés
-outcome:
-  result: unknown
+record:
+  schema_version: fsp-protocol-v1
+  language: fr-FR
+  source:
+    document_id: b9b4b0249f020d87fd5d0689fc0d0b145b05cf55b2378878f85bc921155b43c9
+    segment_index: 0
+    page_from: 1
+    page_to: 1
+    title_hint: Cas de développement en français
+    date_hint: null
+    land_hint: null
+    city_hint: null
+  location:
+    land: Bayern
+    city: null
+    exam_body: null
+    exam_date: null
+    specialty: null
+  patient:
+    age_years: 52
+    sex: female
+    occupation_de: null
+    presenting_complaint_de: Douleur thoracique oppressante
+    summary_de: Camille Martin, 52 ans, douleur thoracique oppressante apparue il y a deux heures en montant
+      les escaliers.
+    uncertainty: null
+  anamnesis:
+  - id: identity
+    section: patientendaten
+    label_de: Identité
+    value_de: Camille Martin, 52 ans
+    polarity: present
+    temporality: null
+    quote_de: null
+    source_pages:
+    - 1
+    uncertainty: null
+  - id: reason
+    section: aktuelle_beschwerden
+    label_de: Motif
+    value_de: Douleur thoracique oppressante, comme un poids qui serre
+    polarity: present
+    temporality: null
+    quote_de: null
+    source_pages:
+    - 1
+    uncertainty: null
+  - id: onset
+    section: aktuelle_beschwerden
+    label_de: Début
+    value_de: Depuis deux heures, apparue en montant les escaliers
+    polarity: present
+    temporality: 2 heures
+    quote_de: null
+    source_pages:
+    - 1
+    uncertainty: null
+  - id: radiation
+    section: aktuelle_beschwerden
+    label_de: Irradiation
+    value_de: Irradiation vers le bras gauche
+    polarity: present
+    temporality: null
+    quote_de: null
+    source_pages:
+    - 1
+    uncertainty: null
+  - id: medication
+    section: medikamente
+    label_de: Médicaments
+    value_de: Ramipril 5 mg le matin pour la tension
+    polarity: present
+    temporality: null
+    quote_de: null
+    source_pages:
+    - 1
+    uncertainty: null
+  - id: allergy
+    section: allergien
+    label_de: Allergies
+    value_de: Aucune allergie connue
+    polarity: absent
+    temporality: null
+    quote_de: null
+    source_pages:
+    - 1
+    uncertainty: null
+  - id: smoking
+    section: noxen
+    label_de: Tabac
+    value_de: Dix cigarettes par jour depuis trente ans
+    polarity: present
+    temporality: 30 ans
+    quote_de: null
+    source_pages:
+    - 1
+    uncertainty: null
+  - id: family_history
+    section: familienanamnese
+    label_de: Antécédents familiaux
+    value_de: Père décédé d'un infarctus à 55 ans
+    polarity: present
+    temporality: null
+    quote_de: null
+    source_pages:
+    - 1
+    uncertainty: null
+  diagnosis:
+    suspected_de: Syndrome coronarien aigu
+    differentials_de:
+    - Embolie pulmonaire
+    - Dissection aortique
+    uncertainty: null
+  examiner_questions:
+  - id: q01
+    part: arzt_arzt
+    question_de: 'Présentez-moi brièvement la patiente : nom, âge et motif.'
+    expected_answer_de: null
+    candidate_answer_de: null
+    source_pages:
+    - 1
+    uncertainty: null
+  - id: q02
+    part: arzt_arzt
+    question_de: Quelles informations avons-nous sur les allergies ?
+    expected_answer_de: null
+    candidate_answer_de: null
+    source_pages:
+    - 1
+    uncertainty: null
+  arzt_arzt:
+    presentation_summary_de: Camille Martin, 52 ans, consulte pour une douleur thoracique.
+    discussion_points_de: []
+    uncertainty: null
+  fachbegriffe:
+  - id: oral
+    german: oral
+    lay_german: par la bouche
+    french: par la bouche
+    asked: true
+  - id: bilateral
+    german: bilatéral
+    lay_german: des deux côtés
+    french: des deux côtés
+    asked: true
+  arztbrief_notes_de: null
+  outcome:
+    result: unknown
+    examiner_feedback_de: []
+    candidate_tips_de: []
+    uncertainty: null
+  unresolved_questions: []
+  field_uncertainties: []
+  pseudonymisation:
+    removed_kinds: []
+    notes: []
+  pedagogy:
+    critical_pitfalls:
+    - text_fr: Oublier de demander les allergies
+      related_item_ids:
+      - allergy
+    pitfalls: []
+    difficulty: mittel
+    notes_fr: Fiction de développement, aucune validité clinique.
+document_id: b9b4b0249f020d87fd5d0689fc0d0b145b05cf55b2378878f85bc921155b43c9
+rights: compatible
+rights_evidence: Synthetic content authored for this repository; no third-party material.
+frozen_at: '2026-09-20T00:00:00Z'
+frozen_by_account_id: null

@@ -17,8 +17,9 @@ pipeline; `ARI_CONTENT_DATABASE_URL`, `-n content`, `make migrate-content`). Eac
 `docker-compose.yml` and `deploy/postgres/init/01-databases.sh` create the `ari_platform` and
 `ari_content` roles and databases, each role unable to connect to the other database.
 
-There is a single revision per database (`0001_initial`, `0001_content_initial`), which
-creates the schema and then the PL/pgSQL triggers: `ari_immutable()` refuses UPDATE/DELETE on
+The first revision of each database (`0001_initial`, `0001_content_initial`) creates the schema
+and then the PL/pgSQL triggers (`0002_backoffice_auth` and `0003_bundle_drafts` extend the
+content chain the same way): `ari_immutable()` refuses UPDATE/DELETE on
 append-only tables and `ari_only_columns_mutable('status', ...)` lets only the listed columns
 of a content row change. Both raise with SQLSTATE class 23
 (`integrity_constraint_violation`) so psycopg surfaces `IntegrityError`, exactly like a

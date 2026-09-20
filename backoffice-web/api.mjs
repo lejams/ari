@@ -53,6 +53,16 @@ export class BackofficeApi {
   decide(id, stage, decision) { return this.api(`/api/protocols/${encodeURIComponent(id)}/decisions/${stage}`, {method: "POST", body: JSON.stringify(decision)}); }
   releaseProtocol(id) { return this.api(`/api/protocols/${encodeURIComponent(id)}/release`, {method: "POST"}); }
   gold(land = "") { return this.api(`/api/gold${land ? `?land=${encodeURIComponent(land)}` : ""}`); }
+  goldDetail(id) { return this.api(`/api/gold/${encodeURIComponent(id)}`); }
+  bundleDrafts(goldId) { return this.api(`/api/gold/${encodeURIComponent(goldId)}/bundle-drafts`); }
+  requestBundleDraft(goldId, request) { return this.api(`/api/gold/${encodeURIComponent(goldId)}/bundle-drafts`, {method: "POST", body: JSON.stringify(request)}); }
+  bundleDraft(id) { return this.api(`/api/bundle-drafts/${encodeURIComponent(id)}`); }
+  importBundleDraft(id) { return this.api(`/api/bundle-drafts/${encodeURIComponent(id)}/import`, {method: "POST"}); }
+  registryScenarios(status = "") { return this.api(`/api/registry/scenarios${status ? `?status=${encodeURIComponent(status)}` : ""}`); }
+  registryScenario(id, version) { return this.api(`/api/registry/scenarios/${encodeURIComponent(id)}/${encodeURIComponent(version)}`); }
+  registryReview(id, version, review) { return this.api(`/api/registry/scenarios/${encodeURIComponent(id)}/${encodeURIComponent(version)}/reviews`, {method: "POST", body: JSON.stringify(review)}); }
+  registryPublish(id, version) { return this.api(`/api/registry/scenarios/${encodeURIComponent(id)}/${encodeURIComponent(version)}/publish`, {method: "POST"}); }
+  registryWithdraw(id, version) { return this.api(`/api/registry/scenarios/${encodeURIComponent(id)}/${encodeURIComponent(version)}/withdraw`, {method: "POST"}); }
   accounts() { return this.api("/api/accounts"); }
   createAccount(account) { return this.api("/api/accounts", {method: "POST", body: JSON.stringify(account)}); }
   deactivate(id) { return this.api(`/api/accounts/${encodeURIComponent(id)}/deactivate`, {method: "POST"}); }
@@ -62,9 +72,13 @@ export const STATUS_LABELS = {
   uploaded: "Déposé", text_extracted: "Texte extrait", segmented: "Découpé", extracted: "Extrait", failed: "En échec",
   doctor_review: "À relire", changes_requested: "Corrections demandées", doctor_approved: "À valider", gold: "Gold", rejected: "Rejeté", superseded: "Remplacé",
   pending: "En attente", too_long: "Trop long", discarded: "Écarté", queued: "En file", running: "En cours", succeeded: "Terminé", dead: "Abandonné",
+  draft: "Brouillon", invalid: "Invalide", imported: "Importé", draft_unvalidated: "À relire", published: "Publié", withdrawn: "Retiré",
 };
 export const statusLabel = status => STATUS_LABELS[status] || status;
-export const statusTone = status => ({gold: "ok", succeeded: "ok", extracted: "ok", doctor_approved: "warn", changes_requested: "warn", too_long: "warn", failed: "bad", dead: "bad", rejected: "bad"}[status] || "");
+export const statusTone = status => ({gold: "ok", succeeded: "ok", extracted: "ok", published: "ok", imported: "ok", doctor_approved: "warn", changes_requested: "warn", too_long: "warn", draft: "warn", failed: "bad", dead: "bad", rejected: "bad", invalid: "bad", withdrawn: "bad"}[status] || "");
+export const PHASE_LABELS = {arzt_patient: "Arzt–Patient", arzt_arzt: "Arzt–Arzt", fachbegriffe: "Fachbegriffe", arztbrief: "Arztbrief"};
+export const PERSONA_LABELS = {standard: "coopératif", anxious: "anxieux", talkative: "bavard", terse: "laconique"};
+export const REVIEW_TYPE_LABELS = {clinical: "clinique", linguistic: "linguistique"};
 export const ROLE_LABELS = {owner: "Propriétaire", physician_reviewer: "Relecteur médecin", linguistic_reviewer: "Relecteur linguistique"};
 export const SECTION_LABELS = {patientendaten: "Patientendaten", aktuelle_beschwerden: "Aktuelle Beschwerden", vorerkrankungen: "Vorerkrankungen", medikamente: "Medikamente", allergien: "Allergien", noxen: "Noxen", familienanamnese: "Familienanamnese", sozialanamnese: "Sozialanamnese", vegetative_anamnese: "Vegetative Anamnese", sonstiges: "Sonstiges"};
 export const UNCERTAINTY_PATHS = ["location.land", "location.city", "location.exam_body", "location.exam_date", "location.specialty", "patient.age_years", "patient.sex", "diagnosis.suspected_de", "outcome.result", "arzt_arzt"];

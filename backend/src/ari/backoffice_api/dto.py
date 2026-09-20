@@ -51,3 +51,19 @@ class SegmentRequest(ApiModel):
 
 class SegmentStatusRequest(ApiModel):
     status: Literal["discarded", "pending"]
+
+
+Phase = Literal["arzt_patient", "arzt_arzt", "fachbegriffe"]
+
+
+class BundleDraftRequest(ApiModel):
+    phases: Annotated[list[Phase], Field(min_length=1)]
+    persona_variant: Literal["standard", "anxious", "talkative", "terse"] = "standard"
+    cefr: Literal["B1", "B2", "C1"] = "B2"
+    revision: Annotated[int, Field(ge=1, le=999)] = 1
+
+
+class RegistryReviewRequest(ApiModel):
+    review_type: Literal["clinical", "linguistic"]
+    decision: Literal["approve", "request_changes", "reject"]
+    notes: Annotated[str, Field(min_length=1, max_length=4000)]

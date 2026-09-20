@@ -183,8 +183,11 @@ The review happens in the **back-office** (`make backoffice`, <http://localhost:
 pages in `backoffice-web/`): accounts by invitation with owner, physician and linguistic
 roles, upload with declaration, the review screen with the source page beside the
 structured record and a blocking checklist, the owner's validation to gold, accounts and a
-dashboard. `docker compose --profile serve up -d` deploys learner app, back-office, worker and
-an HTTPS proxy on one server. See `docs/BACKOFFICE.md`.
+dashboard. From a gold protocol the owner generates training bundles (deterministic skeleton,
+model-written patient phrases, strict `BundleDraftOutput`), imports them into the clinical
+registry, collects the clinical and linguistic reviews from two accounts and publishes to
+learners, all from the back-office. `docker compose --profile serve up -d` deploys learner app,
+back-office, worker and an HTTPS proxy on one server. See `docs/BACKOFFICE.md`.
 
 ### Clinical registry
 

@@ -28,6 +28,7 @@ class Element {
 function installDom(hash) {
   const nodes = new Map(ids.map(id => [id, new Element(id, id.includes("status") || id.endsWith("-land") ? "SELECT" : "DIV")]));
   nodes.get("review-status").value = "doctor_review"; // A real <select> starts on its `selected` option.
+  nodes.get("registry-status").value = "draft_unvalidated";
   globalThis.document = {
     getElementById: id => nodes.get(id) ?? null,
     querySelector: () => null,
@@ -74,7 +75,28 @@ const document_ = {
   segments: [{id: "s", index: 0, page_from: 2, page_to: 2, start_marker: "Protokoll 1", confidence: 0.9, origin: "ai", status: "extracted", protocol: {id: "P-cccccccc-000", version: 1, status: "doctor_review"}}],
   jobs: {succeeded: 3}, last_error: null,
 };
+const gold = {
+  protocol_id: "P-cccccccc-000", protocol_version: 2, protocol_hash: "b".repeat(64), location: {land: "Bayern", city: null, exam_body: null, exam_date: "2026-03", specialty: null},
+  record: {...record, pedagogy: {critical_pitfalls: [{text_fr: "Oublier les allergies", related_item_ids: ["a02"]}], pitfalls: [], difficulty: "mittel", notes_fr: null}},
+  document_id: "c".repeat(64), rights: "compatible", rights_evidence: "ok", frozen_at: "2026-09-19T00:00:00Z", frozen_by_account_id: "owner-1",
+};
+const draft = {
+  id: "draft-1", gold_protocol_id: "P-cccccccc-000", gold_hash: "d".repeat(64), request: {phases: ["arzt_patient", "arzt_arzt"], persona_variant: "anxious", cefr: "B2", revision: 1},
+  status: "draft", bundle_hash: "e".repeat(64), case_id: "FSP-BY-P-cccccccc-000", case_version: "1",
+  scenario_refs: [{id: "FSP-BY-P-cccccccc-000-arzt_patient", version: "1", phase: "arzt_patient"}, {id: "FSP-BY-P-cccccccc-000-arzt_arzt", version: "1", phase: "arzt_arzt"}],
+  validation_errors: [], ai_run_id: "run-1", created_by_account_id: "owner-1", created_at: "2026-09-20T00:00:00Z", imported_at: null,
+};
+const scenarioReport = {
+  status: "draft_unvalidated", case_hash: "f".repeat(64), scenario_hash: "1".repeat(64),
+  blockers: ["Approbation humaine clinical manquante pour le contenu exact", "Approbation humaine linguistic manquante pour le contenu exact"],
+  reviews: [], markdown: "# Revue locale ARI",
+  bundle: {cases: [{id: "FSP-BY-P-cccccccc-000", version: "1", title: "Fall: Thoraxschmerz", location: {land: "Bayern"}, facts: [{id: "a01"}, {id: "a02"}]}], scenarios: [{id: "FSP-BY-P-cccccccc-000-arzt_patient", version: "1", phase: "arzt_patient"}]},
+};
 const responses = {
+  "/api/gold/P-cccccccc-000": gold,
+  "/api/gold/P-cccccccc-000/bundle-drafts": {items: [draft], total: 1, jobs: [{id: "job-1", status: "queued", attempts: 0, last_error: null, request: draft.request, created_at: "2026-09-20T00:00:00Z"}], available_phases: ["arzt_patient", "arzt_arzt", "fachbegriffe"], next_revision: 2},
+  "/api/registry/scenarios?status=draft_unvalidated": {items: [{id: "FSP-BY-P-cccccccc-000-arzt_patient", version: "1", status: "draft_unvalidated", phase: "arzt_patient", case_id: "FSP-BY-P-cccccccc-000", case_version: "1", case_hash: "f".repeat(64), scenario_hash: "1".repeat(64), title: "Fall: Thoraxschmerz", land: "Bayern", language: "de-DE"}], total: 1},
+  "/api/registry/scenarios/FSP-BY-P-cccccccc-000-arzt_patient/1": scenarioReport,
   "/api/auth/me": me, "/api/meta/lands": ["Baden-Württemberg", "Bayern"],
   "/api/dashboard": {jobs_by_status: {succeeded: 3}, documents_by_status: {extracted: 1}, protocols_by_status: {doctor_review: 1}, review_queue: 1, owner_queue: 0, gold_by_land: {}, gold_total: 0, me},
   "/api/documents": {items: [document_.document], total: 1}, [`/api/documents/${"c".repeat(64)}`]: document_,
@@ -104,7 +126,7 @@ async function load(hash, {signedIn = true, roles = me.roles} = {}) {
   assert.equal(nodes.get("login").hidden, false, "signed out visitors land on the login page");
   assert.equal(nodes.get("sidebar").hidden, true);
 }
-for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"], [`#/documents/${"c".repeat(64)}`, "document"], ["#/review", "review"], ["#/protocols/P-cccccccc-000", "protocol"], ["#/gold", "gold"], ["#/accounts", "accounts"]]) {
+for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"], [`#/documents/${"c".repeat(64)}`, "document"], ["#/review", "review"], ["#/protocols/P-cccccccc-000", "protocol"], ["#/gold", "gold"], ["#/gold/P-cccccccc-000", "gold-detail"], ["#/registry", "registry"], ["#/registry/FSP-BY-P-cccccccc-000-arzt_patient/1", "scenario"], ["#/accounts", "accounts"]]) {
   const {nodes} = await load(hash);
   assert.equal(nodes.get("error").hidden, true, `${hash}: ${nodes.get("error-text").textContent}`);
   assert.equal(nodes.get(section).hidden, false, `${hash} shows ${section}`);
@@ -135,4 +157,27 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   assert.equal(nodes.get("review-list").children.length, 1);
   assert.equal(nodes.get("review-land").children.length, 2, "the Land filter is filled from the server list");
 }
-console.log("Back-office DOM: login gate, every route renders, the review screen shows checklist, PII, source page and decisions");
+{
+  const {nodes} = await load("#/gold/P-cccccccc-000");
+  assert.equal(nodes.get("draft-revision").value, "2", "the next revision is proposed");
+  assert.equal(nodes.get("draft-jobs").children.length, 2, "one pending generation job listed");
+  const row = nodes.get("draft-table").children[1];
+  assert.equal(row.children[2].children[0].textContent, "Brouillon");
+  assert.deepEqual(row.children[6].children[0].children.map(b => b.textContent), ["Importer dans le registre"], "an owner can import a validated draft");
+}
+{
+  const {nodes} = await load("#/registry/FSP-BY-P-cccccccc-000-arzt_patient/1");
+  assert.equal(nodes.get("scenario-title").textContent, "Fall: Thoraxschmerz");
+  assert.equal(nodes.get("scenario-blockers").children.length, 2);
+  const [publish] = nodes.get("scenario-actions").children;
+  assert.equal(publish.textContent, "Publier aux apprenants");
+  assert.equal(publish.disabled, true, "publication stays disabled while blockers remain");
+  assert.deepEqual(nodes.get("review-type").children.map(o => o.value), ["clinical"], "an owner who is also a physician reviews clinically only");
+  assert.equal(nodes.get("review-form").hidden, false);
+}
+{
+  const {nodes} = await load("#/registry/FSP-BY-P-cccccccc-000-arzt_patient/1", {roles: ["linguistic_reviewer"]});
+  assert.deepEqual(nodes.get("review-type").children.map(o => o.value), ["linguistic"]);
+  assert.equal(nodes.get("scenario-actions").children.length, 0, "no publication for a reviewer");
+}
+console.log("Back-office DOM: login gate, every route renders, review screen, gold drafts and registry publication guard");

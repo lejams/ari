@@ -56,18 +56,27 @@ bundles les utilisent. Les schémas exécutables sont dans `domain/clinical.py`.
 
 Chaque ressource est validée par `model_validate_json` puis `content_hash` est lu ; les
 scénarios copient ces valeurs dans `case_hash`, `rubric_hash`, `terminology_hash`. Pour
-`cases/dev/ari_dev_fr.v1.yaml`, le `protocol_hash` et `original_checksum` du protocole gold
-synthétique sont le SHA-256 des octets de `cases/dev/ari_dev_fr_gold_protocol.v1.yaml`.
-Un hash faux échoue bruyamment à l'import (« Hash de référence différent du contenu »).
+`cases/dev/ari_dev_fr.v1.yaml`, `gold_protocol.protocol_hash` est le `content_hash` du
+`record` du `GoldProtocol` synthétique `cases/dev/ari_dev_fr_gold_protocol.v1.yaml` (fichier
+sans `schema_version`, ignoré par le semis), et `original_checksum` le SHA-256 des octets de ce
+fichier. Un hash faux échoue bruyamment à l'import (« Hash de référence différent du contenu »).
 
-### Ouvert pour l'étape 2 (pipeline de contenu)
+### Du protocole gold au cas (étape 4)
 
-- Le modèle `GoldProtocol` complet (sections, faits extraits, provenance, statut de revue,
-  `content_hash`) vivra dans la base `content` ; le fichier YAML du protocole de dev est un
-  brouillon de schéma haché par ses octets.
-- Vérification de `gold_protocol.protocol_hash` contre la base `content` à l'import et à la
-  publication (les sources `synthetic: true` en sont exemptées).
-- Égalité entre `case.location` et la localisation du protocole.
+Les cas réels ne s'écrivent plus à la main : `ari.content.services.bundle_generator` dérive
+d'un `GoldProtocol` un squelette déterministe (identifiant `FSP-{code Land}-{protocole}`, un
+`ClinicalFact` par élément d'anamnèse avec la section pour catégorie et `critical` si un piège
+grave le cite, items d'évaluation par section, rubriques partagées `fsp-anamnesis@1`,
+`fsp-arzt-arzt@1`, `fsp-fachbegriffe@1`, questions d'exercice depuis les questions des
+examinateurs et les Fachbegriffe demandés). Le modèle ne remplit que les phrases du patient,
+les traductions, le coaching et les réponses acceptées (`BundleDraftOutput`) ; tout identifiant
+inventé ou manquant rend le brouillon `invalid`. Le brouillon importé par le propriétaire passe
+ensuite par les deux revues humaines et la publication décrites ci-dessous, depuis le
+back-office (`docs/BACKOFFICE.md`). `RegistryBridge.import_draft` vérifie que
+`gold_protocol.protocol_hash` est celui du protocole gold figé dans la base `content` ; seules
+les sources `synthetic: true` (fixture de dev) en sont exemptées. `CaseReview` porte désormais
+`reviewer_account_id` (omis de la forme canonique quand absent : les revues existantes gardent
+leur hash) et un même compte ne peut pas donner les deux approbations d'un contenu.
 
 ### Sections d'anamnèse et moments d'empathie
 

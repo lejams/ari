@@ -33,11 +33,21 @@ base plateforme : l'application apprenant n'en a jamais les identifiants.
    gèle un `GoldProtocol` (Land obligatoire, PII vide ou note de dérogation, droits non
    incompatibles), `request_changes` renvoie au médecin, `reject` clôt.
 
+6. **Cas d'entraînement** (tâche `generate_bundle_draft`, `bundle-draft-v1`). Le propriétaire
+   demande, pour un protocole gold, des phases (Arzt-Patient, Arzt-Arzt, Fachbegriffe), un
+   tempérament de patient et un niveau CEFR. Le code construit le squelette du bundle
+   `clinical-case-v3` (identifiants, faits, sections, items, rubriques partagées) ; le modèle
+   rend un `BundleDraftOutput` strict (phrases du patient, traductions, coaching, réponses
+   acceptées). Le résultat est un `bundle_drafts` figé : `draft` (bundle valide, prêt à
+   importer), ou `invalid` avec les raisons (identifiant inconnu, coordonnées détectées…).
+   `RegistryBridge` importe ensuite le brouillon dans le registre plateforme, où deux revues
+   humaines et la publication suivent (`docs/CLINICAL_CASES.md`, `docs/BACKOFFICE.md`).
+
 Chaque appel de modèle est tracé dans `ai_runs` (fournisseur, modèle, version et hash du
 prompt, hash de l'entrée, usage, latence, erreur). Chaque transition écrit `protocol_events`,
 chaque décision `protocol_reviews`. Ces tables, ainsi que `document_pages` et `gold_protocols`,
-sont append-only par trigger ; `documents`, `document_segments` et `protocols` ne changent que
-de statut.
+sont append-only par trigger ; `documents`, `document_segments`, `protocols` et `bundle_drafts` ne
+changent que de statut.
 
 ## Le `ProtocolRecord` (`fsp-protocol-v1`)
 

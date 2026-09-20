@@ -10,6 +10,7 @@
     <button data-route="/documents"><span aria-hidden="true">▤</span>Documents</button>
     <button data-route="/review"><span aria-hidden="true">✎</span>Relecture</button>
     <button data-route="/gold"><span aria-hidden="true">★</span>Gold</button>
+    <button data-route="/registry"><span aria-hidden="true">▣</span>Registre</button>
     <button data-route="/accounts" data-role="owner"><span aria-hidden="true">☺</span>Comptes</button>
   </nav>
   <p class="sidefoot"><span id="me-name"></span><br><span id="me-roles" class="muted"></span><br><button type="button" id="logout" class="link">Se déconnecter</button></p>
@@ -116,6 +117,57 @@
     <p id="gold-empty" class="availability" hidden>Aucun protocole gold pour le moment.</p>
   </section>
 
+  <section id="gold-detail" hidden>
+    <div class="pagehead"><p class="eyebrow">Protocole gold</p><h1 id="gold-title"></h1><p id="gold-meta" class="help"></p></div>
+    <div class="grid">
+      <article class="card"><h2>Résumé</h2><dl id="gold-summary" class="dl"></dl><div class="row wrap"><a id="gold-protocol-link" class="button">Voir le protocole et son historique</a></div></article>
+      <article class="card" data-role="owner"><h2>Générer des cas d’entraînement</h2>
+        <form id="draft-form" novalidate>
+          <fieldset class="level-options" id="draft-phases"><legend>Phases</legend>
+            <label><input type="checkbox" name="phase" value="arzt_patient" checked> Arzt–Patient (anamnèse vocale)</label>
+            <label><input type="checkbox" name="phase" value="arzt_arzt" checked> Arzt–Arzt (présentation)</label>
+            <label><input type="checkbox" name="phase" value="fachbegriffe" checked> Fachbegriffe (lexique)</label>
+          </fieldset>
+          <div class="form-grid">
+            <div><label for="draft-persona">Tempérament du patient simulé</label><select id="draft-persona"><option value="standard">Coopératif</option><option value="anxious">Anxieux</option><option value="talkative">Bavard</option><option value="terse">Laconique</option></select></div>
+            <div><label for="draft-cefr">Niveau de langue visé</label><select id="draft-cefr"><option value="B1">B1</option><option value="B2" selected>B2</option><option value="C1">C1</option></select></div>
+            <div><label for="draft-revision">Révision (devient la version du cas)</label><input id="draft-revision" type="number" min="1" max="999" value="1"></div>
+          </div>
+          <div class="form-actions"><button class="primary">Générer en arrière-plan</button></div>
+        </form>
+        <p class="help">Le squelette (faits, sections, questions, rubriques) vient du protocole gold ; le modèle n’écrit que les phrases du patient, les traductions, le coaching et les réponses acceptées. Tout identifiant inventé rend le brouillon invalide.</p>
+      </article>
+    </div>
+    <article class="card"><div class="row between wrap"><h2>Générations en cours</h2><span id="draft-jobs-count" class="help"></span></div><table id="draft-jobs" class="table"></table></article>
+    <article class="card"><h2>Brouillons</h2><table id="draft-table" class="table"></table><p id="draft-empty" class="availability" hidden>Aucun brouillon pour ce protocole.</p></article>
+  </section>
+
+  <section id="registry" hidden>
+    <div class="pagehead"><p class="eyebrow">Registre</p><h1>Les cas d’entraînement.</h1><p>Chaque scénario importé attend une revue clinique et une revue linguistique sur son contenu exact, par deux comptes distincts, avant que le propriétaire le publie aux apprenants.</p></div>
+    <div class="row wrap"><label for="registry-status" class="sr-only">Statut</label><select id="registry-status"><option value="">Tous les statuts</option><option value="draft_unvalidated" selected>À relire</option><option value="published">Publiés</option><option value="withdrawn">Retirés</option></select></div>
+    <table id="registry-table" class="table"></table>
+    <p id="registry-empty" class="availability" hidden>Aucun scénario dans cet état.</p>
+  </section>
+
+  <section id="scenario" hidden>
+    <div class="pagehead"><p class="eyebrow" id="scenario-eyebrow"></p><h1 id="scenario-title"></h1><p id="scenario-meta" class="help"></p></div>
+    <div class="grid">
+      <article class="card"><h2>Blocages de publication</h2><ul id="scenario-blockers" class="checklist"></ul><p id="scenario-ok" class="ok" hidden>Aucun blocage : le scénario peut être publié.</p><p id="scenario-help" class="help"></p><div class="form-actions wrap" id="scenario-actions"></div></article>
+      <article class="card"><h2>Revues</h2><table id="scenario-reviews" class="table"></table>
+        <form id="review-form" novalidate>
+          <div class="form-grid">
+            <div><label for="review-type">Type de revue</label><select id="review-type"></select></div>
+            <div><label for="review-decision">Décision</label><select id="review-decision"><option value="approve">Approuver</option><option value="request_changes">Demander des corrections</option><option value="reject">Rejeter</option></select></div>
+          </div>
+          <label for="review-notes">Notes (obligatoires)</label><textarea id="review-notes" rows="2" maxlength="4000" required></textarea>
+          <div class="form-actions"><button class="primary">Enregistrer la revue</button></div>
+        </form>
+        <p id="review-help" class="help"></p>
+      </article>
+    </div>
+    <details class="card"><summary>Contenu complet du bundle (DE / FR)</summary><div class="source"><pre id="scenario-bundle"></pre></div></details>
+  </section>
+
   <section id="accounts" hidden>
     <div class="pagehead"><p class="eyebrow">Comptes</p><h1>Qui relit, qui valide.</h1><p>Un compte reçoit un lien d'invitation à usage unique pour choisir son mot de passe. Un nouveau lien sert aussi de réinitialisation.</p></div>
     <form id="account-form" class="card form-grid" novalidate>
@@ -128,6 +180,6 @@
     <table id="accounts-table" class="table"></table>
   </section>
 </main>
-<script type="module" src="/app.mjs?v=20260920a"></script>
+<script type="module" src="/app.mjs?v=20260920b"></script>
 </body>
 </html>

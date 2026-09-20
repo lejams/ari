@@ -1,17 +1,17 @@
 # Development content in French: fiction, no human review, no clinical validity.
 # Lets the team test voice, exam mode, the text exercises and the feedback loop without German.
 # `make dev-fr` publishes it (simulated reviews) into the platform database with live providers.
-# The case traces to the synthetic gold protocol next to it (SHA-256 of that file). After any
-# content change, recompute the hashes with the recipe in docs/CLINICAL_CASES.md.
+# The case traces to the synthetic GoldProtocol next to it (`protocol_hash` = hash of its record).
+# After any content change, recompute the hashes with the recipe in docs/CLINICAL_CASES.md.
 schema_version: ari-clinical-bundle-v1
 sources:
 - id: ari-dev-fr-gold-protocol
   source_type: gold_protocol
   synthetic: true
   document_reference: cases/dev/ari_dev_fr_gold_protocol.v1.yaml
-  original_checksum: d7b29c89604fc14ab31389ffe166f5c893e85c806bdf9b6a1b030ff404d295be
+  original_checksum: 774c08f969dd37ba0d0e56c61c52dbdf7afbf5f4eea138bee27df09178178793
   immediate_source_checksum: null
-  provenance: Synthetic gold protocol written for platform development in French. No human review.
+  provenance: Synthetic GoldProtocol written for platform development in French. No human review.
   imported_at: '2026-09-18T00:00:00Z'
   rights: compatible
   intended_use: Local development only, not approved training content
@@ -60,13 +60,13 @@ terminology_sets:
     french: des deux côtés
 cases:
 - id: ARI-DEV-FR
-  version: '3'
+  version: '4'
   schema_version: clinical-case-v3
   language: fr-FR
   gold_protocol:
     protocol_id: ARI-DEV-FR-PROTOCOL
     protocol_version: '1'
-    protocol_hash: d7b29c89604fc14ab31389ffe166f5c893e85c806bdf9b6a1b030ff404d295be
+    protocol_hash: 0b003423d73658ad76ddb4e1de13cda80177313b058a435cc351c0f7a7d644e0
   protocol_source_id: ari-dev-fr-gold-protocol
   location:
     land: Bayern
@@ -119,7 +119,7 @@ cases:
     category: onset
     value: Depuis deux heures, apparue en montant les escaliers
     unit: null
-    temporality: '2 heures'
+    temporality: 2 heures
     polarity: present
     criticality: normal
     patient_phrases_de:
@@ -179,7 +179,7 @@ cases:
     category: smoking
     value: Dix cigarettes par jour depuis trente ans
     unit: null
-    temporality: '30 ans'
+    temporality: 30 ans
     polarity: present
     criticality: normal
     patient_phrases_de:
@@ -270,11 +270,11 @@ cases:
     - Bonjour
 scenarios:
 - id: ari-dev-fr-arzt_patient
-  version: '3'
+  version: '4'
   case:
     id: ARI-DEV-FR
-    version: '3'
-  case_hash: f9d9fa02a1b902d65c2b1f0ab847b050126311f34ed0f11cc1668c30c8c32e75
+    version: '4'
+  case_hash: 1e3bce8ad16d9dfc187f6d44612015b6c2fcb9d3bff8436a222878ef4053268d
   rubric:
     id: ari-dev-fr-voice-rubric
     version: '1'
@@ -327,11 +327,11 @@ scenarios:
     fact_ids:
     - family_history
 - id: ari-dev-fr-arzt_arzt
-  version: '1'
+  version: '2'
   case:
     id: ARI-DEV-FR
-    version: '3'
-  case_hash: f9d9fa02a1b902d65c2b1f0ab847b050126311f34ed0f11cc1668c30c8c32e75
+    version: '4'
+  case_hash: 1e3bce8ad16d9dfc187f6d44612015b6c2fcb9d3bff8436a222878ef4053268d
   rubric:
     id: ari-dev-fr-arzt_arzt-rubric
     version: '1'
@@ -387,11 +387,11 @@ scenarios:
       - La patiente n'a pas d'allergie connue.
       evidence_rule: normalized_exact_answer
 - id: ari-dev-fr-fachbegriffe
-  version: '1'
+  version: '2'
   case:
     id: ARI-DEV-FR
-    version: '3'
-  case_hash: f9d9fa02a1b902d65c2b1f0ab847b050126311f34ed0f11cc1668c30c8c32e75
+    version: '4'
+  case_hash: 1e3bce8ad16d9dfc187f6d44612015b6c2fcb9d3bff8436a222878ef4053268d
   rubric:
     id: ari-dev-fr-fachbegriffe-rubric
     version: '1'

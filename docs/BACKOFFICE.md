@@ -39,11 +39,24 @@ Désactiver un compte révoque ses sessions.
    précédente, revues, détections PII masquées. Valider exige un Land, aucune détection PII ou
    une note de dérogation, des droits non incompatibles ; le protocole devient **gold**, figé par
    hash. Renvoyer au médecin ou rejeter sont les autres issues.
-5. **Gold** : liste par Land, export JSONL réservé au propriétaire.
+5. **Gold** : liste par Land, export JSONL réservé au propriétaire. La page d'un protocole gold
+   permet au propriétaire de **générer des cas d'entraînement** : phases (Arzt-Patient,
+   Arzt-Arzt, Fachbegriffe, selon ce que le protocole permet), tempérament du patient simulé,
+   niveau de langue, numéro de révision. Le worker produit un brouillon de bundle ; la page
+   liste les générations en cours et les brouillons (valides ou invalides avec leurs raisons).
+   **Importer dans le registre** copie un brouillon valide dans le registre plateforme.
+6. **Registre** : les scénarios importés, par statut. La page d'un scénario montre les blocages
+   de publication, les revues, le bundle complet DE/FR, un formulaire de revue (clinique pour
+   un relecteur médecin, linguistique pour un relecteur linguistique, notes obligatoires) et,
+   pour le propriétaire, **Publier aux apprenants** (actif quand la liste des blocages est
+   vide) ou **Retirer**. Deux approbations par deux comptes distincts sur le contenu exact sont
+   nécessaires ; le même compte ne peut pas donner les deux.
 
 Ce que le serveur refuse quoi qu'affiche l'interface : approuver avec des points ouverts,
 décider sur une version qui n'est plus la courante, modifier un protocole gold, rejeté ou
-remplacé, valider sans Land.
+remplacé, valider sans Land, importer un brouillon invalide ou dont le cas ne trace pas vers
+le protocole gold figé, publier avec un blocage, donner les deux approbations depuis un même
+compte.
 
 ## Sécurité
 
@@ -55,7 +68,9 @@ l'entrée ; l'app apprenant n'a pas les identifiants de la base `content`.
 
 ## Déploiement sur un serveur
 
-Un seul serveur, docker compose, deux noms DNS (app apprenant, back-office) pointant dessus.
+Un seul serveur, docker compose, deux noms DNS (app apprenant, back-office) pointant dessus. Le
+back-office reçoit les identifiants des deux bases : `content` pour les protocoles, `platform`
+pour importer et publier les cas dans le registre que lit l'app apprenant.
 
 ```sh
 cp deploy/env.example .env          # puis : mots de passe Postgres, clé OpenAI, ARI_PROVIDER_MODE=openai,

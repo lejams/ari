@@ -177,6 +177,37 @@ class ClinicalStore:
                 raise InvalidStateError("Intégrité de la ressource invalide")
         return bundle
 
+    def list_scenarios(self, status: str | None = None) -> list[dict[str, Any]]:
+        """Every scenario of the registry with its case title, newest first."""
+        statement = (
+            select(ScenarioRow, ClinicalCaseRow.payload)
+            .join(
+                ClinicalCaseRow,
+                (ClinicalCaseRow.id == ScenarioRow.case_id)
+                & (ClinicalCaseRow.version == ScenarioRow.case_version),
+            )
+            .order_by(ScenarioRow.case_id, ScenarioRow.case_version.desc(), ScenarioRow.phase)
+        )
+        if status is not None:
+            statement = statement.where(ScenarioRow.status == status)
+        with Session(self.engine) as db:
+            return [
+                {
+                    "id": row.id,
+                    "version": row.version,
+                    "status": row.status,
+                    "phase": row.phase,
+                    "case_id": row.case_id,
+                    "case_version": row.case_version,
+                    "case_hash": row.case_hash,
+                    "scenario_hash": row.content_hash,
+                    "title": case_payload.get("title"),
+                    "land": (case_payload.get("location") or {}).get("land"),
+                    "language": case_payload.get("language"),
+                }
+                for row, case_payload in db.execute(statement)
+            ]
+
     def inspect(self, scenario_id: str, version: str) -> dict[str, Any]:
         with Session(self.engine) as db:
             row = self._scenario(db, scenario_id, version)

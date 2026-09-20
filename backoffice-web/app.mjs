@@ -1,10 +1,10 @@
-import {BackofficeApi, ROLE_LABELS, SECTION_LABELS, UNCERTAINTY_PATHS, blockers, statusLabel, statusTone} from './api.mjs';
+import {BackofficeApi, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LABELS, SECTION_LABELS, UNCERTAINTY_PATHS, blockers, statusLabel, statusTone} from './api.mjs';
 
 const client = new BackofficeApi();
 const $ = id => document.getElementById(id);
-const views = ['login', 'invitation', 'dashboard', 'documents', 'document', 'review', 'protocol', 'gold', 'accounts'];
+const views = ['login', 'invitation', 'dashboard', 'documents', 'document', 'review', 'protocol', 'gold', 'gold-detail', 'registry', 'scenario', 'accounts'];
 let lands = [], busy = false;
-let current = {protocol: null, record: null, page: 1, textMode: false, documentId: null};
+let current = {protocol: null, record: null, page: 1, textMode: false, documentId: null, goldId: null, scenario: null};
 
 const node = (tag, text, className) => { const element = document.createElement(tag); if (text !== undefined) element.textContent = text; if (className) element.className = className; return element; };
 const badge = status => node('span', statusLabel(status), `badge ${statusTone(status)}`.trim());
@@ -337,11 +337,87 @@ async function showProtocol(id, preloaded = null) {
 // ----- gold and accounts -----------------------------------------------------------------------------
 async function showGold() {
   const data = await client.gold($('gold-land').value);
-  table($('gold-table'), ['Protocole', 'Land', 'Ville', 'Spécialité', 'Mois', 'Motif', 'Difficulté', 'Figé le'], data.items.map(g => [link(g.protocol_id, `/protocols/${g.protocol_id}`), g.land, g.city, g.specialty, g.exam_date, g.presenting_complaint_de, g.difficulty, formatDate(g.frozen_at)]));
+  table($('gold-table'), ['Protocole', 'Land', 'Ville', 'Spécialité', 'Mois', 'Motif', 'Difficulté', 'Figé le'], data.items.map(g => [link(g.protocol_id, `/gold/${g.protocol_id}`), g.land, g.city, g.specialty, g.exam_date, g.presenting_complaint_de, g.difficulty, formatDate(g.frozen_at)]));
   $('gold-empty').hidden = data.items.length > 0;
   view('gold');
 }
 $('gold-land').onchange = () => perform(showGold);
+
+// ----- gold detail: bundle drafts -----------------------------------------------------------------------
+const describeRequest = request => request ? `${(request.phases || []).map(p => PHASE_LABELS[p] || p).join(' + ')} · patient ${PERSONA_LABELS[request.persona_variant] || request.persona_variant} · ${request.cefr} · révision ${request.revision}` : '—';
+async function showGoldDetail(id) {
+  current.goldId = id;
+  const [gold, drafts] = await Promise.all([client.goldDetail(id), client.bundleDrafts(id)]);
+  const record = gold.record;
+  $('gold-title').textContent = gold.protocol_id;
+  $('gold-meta').textContent = [gold.location.land, gold.location.city, gold.location.specialty, gold.location.exam_date, `version ${gold.protocol_version}`, `figé le ${formatDate(gold.frozen_at)}`].filter(Boolean).join(' · ');
+  const dl = $('gold-summary'); dl.replaceChildren();
+  for (const [label, value] of [['Motif', record.patient.presenting_complaint_de], ['Patient', [record.patient.age_years ? `${record.patient.age_years} ans` : null, {female: 'femme', male: 'homme'}[record.patient.sex]].filter(Boolean).join(', ')], ['Diagnostic suspecté', record.diagnosis.suspected_de], ['Éléments d’anamnèse', String(record.anamnesis.length)], ['Fachbegriffe demandés', String(record.fachbegriffe.filter(t => t.asked).length)], ['Difficulté', record.pedagogy.difficulty], ['Pièges graves', record.pedagogy.critical_pitfalls.map(p => p.text_fr).join(' · ')], ['Droits', gold.rights], ['Hash gold', gold.protocol_hash.slice(0, 16) + '…']]) dl.append(node('dt', label), node('dd', value || '—'));
+  $('gold-protocol-link').href = `#/protocols/${gold.protocol_id}`;
+  for (const input of document.querySelectorAll('[name=phase]')) input.disabled = !drafts.available_phases.includes(input.value);
+  $('draft-revision').value = String(drafts.next_revision);
+  $('draft-jobs-count').textContent = drafts.jobs.length ? `${drafts.jobs.length} en attente ou en échec` : 'aucune';
+  table($('draft-jobs'), ['Demandé le', 'Requête', 'Statut', 'Tentatives', 'Dernière erreur'], drafts.jobs.map(job => [formatDate(job.created_at), describeRequest(job.request), badge(job.status), String(job.attempts), job.last_error]));
+  table($('draft-table'), ['Créé le', 'Requête', 'Statut', 'Cas', 'Scénarios', 'Détail', ''], drafts.items.map(draft => {
+    const scenarios = node('div', undefined, 'row wrap');
+    for (const ref of draft.scenario_refs) scenarios.append(draft.status === 'imported' ? link(PHASE_LABELS[ref.phase] || ref.phase, `/registry/${ref.id}/${ref.version}`) : node('span', PHASE_LABELS[ref.phase] || ref.phase));
+    const actions = node('div', undefined, 'row wrap');
+    if (draft.status === 'draft' && client.has('owner')) actions.append(button('Importer dans le registre', () => client.importBundleDraft(draft.id).then(() => { notice('Brouillon importé : les scénarios attendent leurs deux revues.'); return showGoldDetail(id); }), 'primary'));
+    return [formatDate(draft.created_at), describeRequest(draft.request), badge(draft.status), draft.case_id ? `${draft.case_id}@${draft.case_version}` : '—', scenarios, draft.validation_errors.length ? draft.validation_errors.join(' · ') : (draft.imported_at ? `importé le ${formatDate(draft.imported_at)}` : '—'), actions];
+  }));
+  $('draft-empty').hidden = drafts.items.length > 0;
+  view('gold-detail');
+}
+$('draft-form').onsubmit = event => { event.preventDefault(); perform(async () => {
+  const phases = [...document.querySelectorAll('[name=phase]:checked')].map(input => input.value);
+  if (!phases.length) throw new Error('Choisissez au moins une phase.');
+  const revision = Number($('draft-revision').value || 1);
+  const job = await client.requestBundleDraft(current.goldId, {phases, persona_variant: $('draft-persona').value, cefr: $('draft-cefr').value, revision});
+  notice(`Génération en file (tâche ${job.id.slice(0, 8)}…). Rechargez la page dans quelques instants.`);
+  await showGoldDetail(current.goldId);
+}); };
+
+// ----- registry -------------------------------------------------------------------------------------------
+async function showRegistry() {
+  const data = await client.registryScenarios($('registry-status').value);
+  table($('registry-table'), ['Cas', 'Phase', 'Version', 'Land', 'Titre', 'Statut', ''], data.items.map(s => [s.case_id, PHASE_LABELS[s.phase] || s.phase, s.version, s.land, s.title, badge(s.status), button('Ouvrir', () => { location.hash = `#/registry/${s.id}/${s.version}`; return route(); })]));
+  $('registry-empty').hidden = data.items.length > 0;
+  view('registry');
+}
+$('registry-status').onchange = () => perform(showRegistry);
+function reviewTypesFor() { return [['clinical', 'physician_reviewer'], ['linguistic', 'linguistic_reviewer']].filter(([, role]) => client.has(role)).map(([type]) => type); }
+async function showScenario(id, version) {
+  const report = await client.registryScenario(id, version);
+  current.scenario = {id, version, report};
+  const bundle = report.bundle, scenario = bundle.scenarios[0], case_ = bundle.cases[0];
+  $('scenario-eyebrow').textContent = `Registre · ${PHASE_LABELS[scenario.phase] || scenario.phase} · version ${version}`;
+  $('scenario-title').textContent = case_.title;
+  $('scenario-meta').textContent = [statusLabel(report.status), case_.location.land || 'Land ?', `${case_.facts.length} faits`, `cas ${case_.id}@${case_.version}`, `hash ${report.scenario_hash.slice(0, 12)}…`].filter(Boolean).join(' · ');
+  $('scenario-blockers').replaceChildren(...report.blockers.map(text => node('li', text)));
+  $('scenario-ok').hidden = report.blockers.length > 0;
+  table($('scenario-reviews'), ['Quand', 'Type', 'Décision', 'Par', 'Notes'], report.reviews.map(r => [formatDate(r.reviewed_at), REVIEW_TYPE_LABELS[r.review_type] || r.review_type, r.decision, r.reviewer_name, r.notes]));
+  const types = reviewTypesFor(), select = $('review-type'); select.replaceChildren();
+  for (const type of types) { const option = document.createElement('option'); option.value = type; option.textContent = `Revue ${REVIEW_TYPE_LABELS[type]}`; select.append(option); }
+  const reviewable = report.status === 'draft_unvalidated' && types.length > 0;
+  $('review-form').hidden = !reviewable;
+  $('review-help').textContent = report.status !== 'draft_unvalidated' ? 'Un scénario publié ou retiré ne se relit plus : une correction passe par une nouvelle version.' : types.length ? 'Votre revue porte sur le contenu exact affiché (hash). Une approbation clinique et une approbation linguistique, par deux comptes distincts, débloquent la publication.' : 'Les revues reviennent aux comptes « Relecteur médecin » (clinique) et « Relecteur linguistique » (langue).';
+  const actions = $('scenario-actions'); actions.replaceChildren();
+  if (client.has('owner')) {
+    if (report.status === 'draft_unvalidated') { const publish = button('Publier aux apprenants', () => client.registryPublish(id, version).then(() => { notice('Scénario publié.'); return showScenario(id, version); }), 'primary'); publish.disabled = report.blockers.length > 0; actions.append(publish); }
+    if (report.status === 'published') actions.append(button('Retirer', () => client.registryWithdraw(id, version).then(() => { notice('Scénario retiré.'); return showScenario(id, version); }), 'danger'));
+    $('scenario-help').textContent = report.status === 'draft_unvalidated' ? 'Le bouton s’active quand la liste est vide.' : '';
+  } else $('scenario-help').textContent = 'La publication revient au propriétaire.';
+  $('scenario-bundle').textContent = JSON.stringify(bundle, null, 2);
+  view('scenario');
+}
+$('review-form').onsubmit = event => { event.preventDefault(); perform(async () => {
+  const notes = $('review-notes').value.trim();
+  if (!notes) throw new Error('Expliquez votre décision dans les notes.');
+  const {id, version} = current.scenario;
+  await client.registryReview(id, version, {review_type: $('review-type').value, decision: $('review-decision').value, notes});
+  $('review-notes').value = ''; notice('Revue enregistrée.');
+  await showScenario(id, version);
+}); };
 async function showAccounts() {
   const data = await client.accounts();
   table($('accounts-table'), ['Nom', 'E-mail', 'Rôles', 'État', ''], data.items.map(account => {
@@ -367,9 +443,13 @@ async function route() {
   if (!client.me) return showLogin();
   const protocol = path.match(/^\/protocols\/([A-Za-z0-9_.-]+)$/);
   const document_ = path.match(/^\/documents\/([a-f0-9]{64})$/);
+  const gold = path.match(/^\/gold\/([A-Za-z0-9_.-]+)$/);
+  const scenario = path.match(/^\/registry\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/);
   if (protocol) return showProtocol(protocol[1]);
   if (document_) return showDocument(document_[1]);
-  const routes = {'/': showDashboard, '/documents': showDocuments, '/review': showReview, '/gold': showGold, '/accounts': showAccounts, '/login': showDashboard};
+  if (gold) return showGoldDetail(gold[1]);
+  if (scenario) return showScenario(scenario[1], scenario[2]);
+  const routes = {'/': showDashboard, '/documents': showDocuments, '/review': showReview, '/gold': showGold, '/registry': showRegistry, '/accounts': showAccounts, '/login': showDashboard};
   return (routes[path] || showDashboard)();
 }
 for (const element of document.querySelectorAll('[data-route]')) element.onclick = () => { location.hash = `#${element.dataset.route}`; };

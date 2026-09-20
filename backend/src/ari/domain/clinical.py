@@ -406,6 +406,8 @@ class CaseReview(ClinicalModel):
     scenario_hash: Digest
     review_type: Literal["clinical", "linguistic"]
     reviewer_name: Text
+    # The back-office account behind the name, when the review came through it.
+    reviewer_account_id: Identifier | None = None
     reviewed_at: datetime
     decision: Literal["approve", "request_changes", "reject"]
     notes: Text
@@ -415,6 +417,16 @@ class CaseReview(ClinicalModel):
         if self.reviewed_at.tzinfo is None:
             raise ValueError("La date de revue doit avoir un fuseau horaire")
         return self
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_serialization(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = handler(self)
+        # Additive optional field: reviews written before it keep their canonical bytes.
+        if self.reviewer_account_id is None:
+            payload.pop("reviewer_account_id", None)
+        return payload
 
 
 def unique(values: tuple[str, ...], label: str) -> None:
