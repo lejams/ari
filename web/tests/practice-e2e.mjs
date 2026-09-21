@@ -9,7 +9,7 @@ const browser = await chromium.launch({headless: true,
   ...(process.env.ARI_E2E_CHROME ? {executablePath: process.env.ARI_E2E_CHROME} : {})});
 const errors = [];
 async function onboard(page, official = false) {
-  await page.getByLabel("Land", {exact:true}).selectOption("Bayern");
+  await page.locator("#profile-form").getByLabel("Land", {exact:true}).selectOption("Bayern");
   await page.getByRole("button", {name:"Continuer →", exact:true}).click();
   await page.getByLabel("Spécialité visée").fill("Médecine interne");
   if (official) {
