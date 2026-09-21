@@ -21,6 +21,7 @@ class PatientOutcome:
     selected_fact_ids: tuple[str, ...]
     execution: ExecutionRecord
     source_refs: tuple[str, ...] = ()
+    response_kind: str = "sources"
 
 
 class PatientSimulator:
@@ -123,7 +124,9 @@ class PatientSimulator:
             spoken_text = " ".join(
                 rendered_sources[source_ref] for source_ref in result.value.source_refs
             )
-        elif result.value.response_kind == "out_of_scope":
+        elif result.value.response_kind in {"out_of_scope", "wrong_language"}:
+            # A patient who did not understand the language answers like an off-topic
+            # request: the authored phrase, no fact, and the turn keeps the kind as evidence.
             spoken_text = case.out_of_scope_response
         else:
             spoken_text = case.unknown_response
@@ -143,4 +146,5 @@ class PatientSimulator:
             selected_fact_ids=selected_fact_ids,
             execution=result.execution,
             source_refs=tuple(result.value.source_refs),
+            response_kind=result.value.response_kind,
         )

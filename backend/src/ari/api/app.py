@@ -16,21 +16,29 @@ from ari.api.dto import (
     CreateLearnerRequest,
     CreateSessionRequest,
     UpdateGoalRequest,
+    UpdateProfileRequest,
 )
+from ari.api.lexicon import lexicon_router, public_report
 from ari.api.ownership import PROFILE_COOKIE, OwnershipMiddleware
+from ari.api.placement import placement_router
 from ari.api.practice import practice_router
+from ari.api.program import program_router
 from ari.api.realtime_socket import RealtimeVoiceSocket
 from ari.api.voice_session_dto import public_session
 from ari.api.voice_socket import VoiceLifecycles, VoiceSocket
+from ari.application.services.catalog import land_summary
 from ari.config import Settings, get_settings
 from ari.container import Container, build_container
 from ari.domain.errors import AriError, InvalidStateError, NotFoundError, ProviderError
+from ari.domain.geography import Land
 from ari.domain.models import (
+    CEFRLevel,
+    LearnerDetails,
     LearningGoal,
     MedicalCase,
     SessionStatus,
 )
-from ari.infrastructure.persistence.identity import ProfileCredentials
+from ari.infrastructure.persistence.platform.identity import ProfileCredentials
 
 
 def _payload(value: object) -> Any:
@@ -46,6 +54,9 @@ def _public_case(case: MedicalCase) -> dict[str, object]:
         "language": case.language,
         "public_summary": case.public_summary,
         "difficulty": case.difficulty,
+        "cefr": case.cefr,
+        "land": case.land.value if case.land else None,
+        "city": case.city,
         "educational_target": {
             "exam": case.educational_target.exam,
             "phase": case.educational_target.phase,
@@ -64,6 +75,21 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     app = FastAPI(title="ARI FSP POC", version="0.1.0")
     app.state.container = services
     app.include_router(practice_router(services))
+    app.include_router(lexicon_router(services))
+    app.include_router(placement_router(services))
+    app.include_router(program_router(services))
+
+    def _session_view(session_id: str) -> Any:
+        session = services.repository.get_session(session_id)
+        result = public_session(session)
+        # The lexicon report is only shown once the analysis is complete.
+        result["lexicon"] = (
+            public_report(services.lexicon.repository.get_report(session_id))
+            if session.status is SessionStatus.COMPLETED
+            else None
+        )
+        return result
+
     credentials = ProfileCredentials(services.repository.engine)
     app.add_middleware(
         OwnershipMiddleware,
@@ -99,6 +125,22 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     async def list_cases() -> list[dict[str, object]]:
         return [_public_case(case) for case in services.cases.list()]
 
+    @app.get("/api/reference/laender")
+    async def reference_laender() -> list[str]:
+        """The closed list of Länder, the same one the case contract and the profile use."""
+        return [land.value for land in Land]
+
+    @app.get("/api/cases/summary")
+    async def cases_summary(request: Request) -> dict[str, object]:
+        learner_id = request.state.learner_id
+        learner = services.repository.get_learner(learner_id)
+        worked = {
+            session.case_id
+            for session in services.repository.list_sessions(learner_id)
+            if session.status is SessionStatus.COMPLETED
+        }
+        return land_summary(services.cases.list(), worked, learner.details.land)
+
     @app.post("/api/learners", status_code=201)
     async def create_learner(
         body: CreateLearnerRequest,
@@ -107,7 +149,10 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     ) -> Any:
         if request.state.learner_id:
             return _payload(services.repository.get_learner(request.state.learner_id))
-        learner = services.orchestrator.create_learner(body.target_cefr)
+        learner = services.orchestrator.create_learner(
+            body.target_cefr,
+            details=body.details.apply(LearnerDetails()) if body.details else None,
+        )
         token = credentials.issue(learner.id)
         response.set_cookie(
             PROFILE_COOKIE,
@@ -141,8 +186,15 @@ def create_app(container: Container | None = None, settings: Settings | None = N
 
     @app.patch("/api/learners/{learner_id}/goal")
     async def update_goal(learner_id: str, body: UpdateGoalRequest) -> Any:
-        goal = LearningGoal(body.target_exam, body.target_cefr, body.rubric_version)
+        goal = LearningGoal(body.target_exam, CEFRLevel(body.target_cefr), body.rubric_version)
         return _payload(services.orchestrator.update_goal(learner_id, goal).goal)
+
+    @app.patch("/api/learners/{learner_id}/profile")
+    async def update_profile(learner_id: str, body: UpdateProfileRequest) -> Any:
+        current = services.repository.get_learner(learner_id)
+        return _payload(
+            services.orchestrator.update_details(learner_id, body.apply(current.details))
+        )
 
     @app.post("/api/sessions", status_code=201)
     async def create_session(body: CreateSessionRequest, request: Request) -> Any:
@@ -179,7 +231,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
 
     @app.get("/api/sessions/{session_id}")
     async def get_session(session_id: str) -> Any:
-        return public_session(services.repository.get_session(session_id))
+        return _session_view(session_id)
 
     @app.post("/api/sessions/{session_id}/end")
     async def end_session(session_id: str) -> Any:
@@ -195,7 +247,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
                 raise InvalidStateError("Voice session is still being finalized") from exc
         async with analysis_locks.setdefault(session_id, asyncio.Lock()):
             await services.orchestrator.end_session(session_id)
-            return public_session(services.repository.get_session(session_id))
+            return _session_view(session_id)
 
     @app.post("/api/sessions/{session_id}/analysis/retry")
     async def retry_analysis(session_id: str) -> Any:
@@ -208,7 +260,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             raise InvalidStateError(f"Cannot retry analysis for a {session.status} session")
         async with analysis_locks.setdefault(session_id, asyncio.Lock()):
             await services.orchestrator.end_session(session_id)
-            return public_session(services.repository.get_session(session_id))
+            return _session_view(session_id)
 
     @app.get("/api/learners/{learner_id}/sessions")
     async def list_sessions(learner_id: str) -> Any:
@@ -227,6 +279,3 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     if web_dir.exists():
         app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
     return app
-
-
-app = create_app()

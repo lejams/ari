@@ -1,29 +1,29 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 import yaml
 from alembic import command
-from alembic.config import Config
 from clinical_fixtures import simulated_review, synthetic_bundle
-from conftest import migrated_database_url
 from pydantic import ValidationError
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ari.application.services.assessment import weighted_assessment
-from ari.config import PROJECT_ROOT
 from ari.container import Container
 from ari.domain.clinical import ClinicalBundle, ClinicalFact
 from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.models import AudioDeliveryStatus, CEFRLevel, ConversationTurn
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.yaml_io import parse_bundle
-from ari.infrastructure.persistence.clinical_rows import ClinicalCaseRow, PublicationEventRow
-from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
+from ari.infrastructure.persistence.platform.clinical_rows import (
+    ClinicalCaseRow,
+    PublicationEventRow,
+)
+from ari.infrastructure.persistence.platform.repository import SqlSessionRepository
+from ari.infrastructure.persistence.platform.schema import alembic_config
 
 
 def approve(store: ClinicalStore, bundle: ClinicalBundle) -> None:
@@ -201,12 +201,9 @@ def test_weighted_delivery_and_behavior_evidence(container: Container) -> None:
     assert weighted_assessment(session, replace(case, assessment_items=()))[0]["score"] == 0
 
 
-def test_migrated_registry_immutability_and_foreign_keys(tmp_path: Path) -> None:
-    url = migrated_database_url(tmp_path / "registry.db")
-    config = Config(PROJECT_ROOT / "alembic.ini")
-    config.attributes["database_url"] = url
-    command.check(config)
-    repo = SqliteSessionRepository(url)
+def test_migrated_registry_immutability_and_foreign_keys(database_url: str) -> None:
+    command.check(alembic_config(database_url))
+    repo = SqlSessionRepository(database_url)
     store = ClinicalStore(repo.engine)
     store.import_bundle(synthetic_bundle())
     with pytest.raises(IntegrityError), repo.engine.begin() as db:
@@ -269,12 +266,11 @@ def test_mismatched_resource_hash_refuses_publication(container: Container) -> N
     bundle = synthetic_bundle()
     store = container.cases.store
     store.import_bundle(bundle)
-    from ari.infrastructure.persistence.clinical_rows import SourceRow
+    from ari.infrastructure.persistence.platform.clinical_rows import SourceRow
 
     with store.engine.begin() as db:
         # Simulate storage corruption behind the immutability trigger's back.
-        db.execute(text("DROP TRIGGER clinical_sources_no_update"))
+        db.execute(text("DROP TRIGGER clinical_sources_no_update ON clinical_sources"))
         db.execute(update(SourceRow).values(content_hash="0" * 64))
     with pytest.raises(InvalidStateError, match="Intégrité"):
         store.inspect("synthetic-scenario", "1")
-

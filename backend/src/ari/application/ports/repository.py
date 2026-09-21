@@ -48,6 +48,7 @@ class SessionRepository(Protocol):
         selected_fact_ids: tuple[str, ...],
         provider_response_id: str | None,
         provider_response_status: str,
+        patient_response_kind: str = "sources",
     ) -> ConversationTurn: ...
 
     def mark_turn_response_failed(self, turn_id: str) -> ConversationTurn: ...

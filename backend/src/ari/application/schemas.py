@@ -8,7 +8,7 @@ class StrictModel(BaseModel):
 
 
 class PatientResponseSchema(StrictModel):
-    response_kind: Literal["sources", "unknown", "out_of_scope"]
+    response_kind: Literal["sources", "unknown", "out_of_scope", "wrong_language"]
     source_refs: list[str] = Field(default_factory=list, max_length=12)
 
     @field_validator("source_refs")
@@ -22,7 +22,7 @@ class PatientResponseSchema(StrictModel):
     def facts_match_response_kind(self) -> Self:
         if self.response_kind == "sources" and not self.source_refs:
             raise ValueError("source responses require at least one source reference")
-        if self.response_kind in {"unknown", "out_of_scope"} and self.source_refs:
+        if self.response_kind != "sources" and self.source_refs:
             raise ValueError("non-source responses cannot reference case sources")
         return self
 
@@ -30,6 +30,25 @@ class PatientResponseSchema(StrictModel):
 class EvidenceObservationSchema(StrictModel):
     text: Annotated[str, Field(min_length=1, max_length=350)]
     evidence_turn_sequences: list[int] = Field(min_length=1, max_length=5)
+
+
+LANGUAGE_ERROR_CATEGORIES = (
+    "gender",
+    "case",
+    "verb_form",
+    "word_order",
+    "word_choice",
+    "register",
+    "other",
+)
+
+
+class LanguageErrorSchema(EvidenceObservationSchema):
+    """A meaningful spoken error with a closed category, so recurrences can be counted."""
+
+    category: Literal[
+        "gender", "case", "verb_form", "word_order", "word_choice", "register", "other"
+    ]
 
 
 class CriterionResultSchema(StrictModel):
@@ -45,16 +64,45 @@ class VocabularyCandidateSchema(StrictModel):
     example: Annotated[str, Field(min_length=1, max_length=250)]
     confidence: Annotated[float, Field(ge=0, le=1)]
     evidence_turn_sequences: list[int] = Field(min_length=1, max_length=5)
+    # missing: the learner needed it and did not have it; misused: said wrongly;
+    # well_used: said correctly (never added to the lexicon, only promotes an entry).
+    kind: Literal["missing", "misused", "well_used"] = "missing"
+
+
+class CodeSwitchSchema(StrictModel):
+    turn: int
+    fragment: Annotated[str, Field(min_length=1, max_length=120)]
+    # The key word or short phrase, in the simulation language, the learner needed.
+    intended_term: Annotated[str, Field(min_length=1, max_length=80)] | None = None
+
+
+class EmpathyJudgementSchema(StrictModel):
+    moment_id: str
+    verdict: Literal["acknowledged", "partial", "ignored"]
+    feedback: Annotated[str, Field(min_length=1, max_length=350)]
+    evidence_turn_sequences: list[int] = Field(min_length=1, max_length=2)
 
 
 class EvaluationOutputSchema(StrictModel):
     summary: Annotated[str, Field(min_length=1, max_length=500)]
     strengths: list[EvidenceObservationSchema] = Field(default_factory=list, max_length=2)
     priorities: list[EvidenceObservationSchema] = Field(default_factory=list, max_length=3)
-    language_errors: list[EvidenceObservationSchema] = Field(default_factory=list, max_length=6)
+    language_errors: list[LanguageErrorSchema] = Field(default_factory=list, max_length=6)
     criteria: list[CriterionResultSchema]
     vocabulary_candidates: list[VocabularyCandidateSchema] = Field(
         default_factory=list, max_length=8
+    )
+    code_switches: list[CodeSwitchSchema] = Field(default_factory=list, max_length=8)
+    empathy: list[EmpathyJudgementSchema] = Field(default_factory=list, max_length=8)
+
+
+class SpeakingRatingSchema(StrictModel):
+    """CEFR estimate of one short spoken production, from its transcript."""
+
+    estimated_level: Literal["A1", "A2", "B1", "B2", "C1", "C2"]
+    confidence: Annotated[float, Field(ge=0, le=1)]
+    observations: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
+        default_factory=list, max_length=4
     )
 
 

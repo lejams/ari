@@ -2,8 +2,10 @@
 
 ## Périmètre
 
-Les cas utilisent `clinical-case-v2`, stocké dans le registre SQL après
+Les cas utilisent `clinical-case-v3`, stocké dans le registre PostgreSQL après
 import explicite. Aucune migration/import/publication n'est exécuté au démarrage.
+Un cas v3 dérive toujours d'un **protocole gold** (un protocole d'examen validé par un
+médecin puis par le propriétaire de la plateforme) et porte le Land où l'examen a eu lieu.
 Les brouillons n'apparaissent pas dans le catalogue. Une version retirée reste
 accessible aux sessions historiques mais ne peut plus servir à une nouvelle session.
 
@@ -25,8 +27,19 @@ bundles les utilisent. Les schémas exécutables sont dans `domain/clinical.py`.
 
 - `RawCaseSource` décrit le document immédiat, provenance, date avec fuseau,
   checksum SHA-256 disponible, référence privée et droits pour un usage explicite.
-- `ClinicalCaseVersion` contient langue, région, ville, phrases de réponse,
-  sources/pages, faits, critères et questions non résolues.
+  `source_type` vaut `gold_protocol` pour un protocole validé, `synthetic` pour une
+  fiction (qui exige aussi `synthetic: true`) ; le drapeau `synthetic` marque tout
+  contenu de test ou de développement, y compris un protocole gold fictif.
+- `ClinicalCaseVersion` contient langue, la référence au protocole gold, la localisation,
+  phrases de réponse, sources/pages, faits, critères et questions non résolues.
+  - `gold_protocol: {protocol_id, protocol_version, protocol_hash}` identifie le protocole
+    exact dont le cas dérive ; `protocol_source_id` désigne la source de type
+    `gold_protocol` que **chaque fait** doit citer dans ses `sources`.
+  - `location: {land, city, exam_body, exam_date, specialty}` est copiée du protocole. Les
+    cinq clés sont explicites (`null` si l'information manque, rien n'est déduit). `land`
+    est l'un des seize Länder (`domain/geography.py`, valeurs officielles) ; `city` est
+    normalisée (espaces) ; `exam_body` est la Ärztekammer ; `exam_date` est au format
+    `AAAA-MM`, jamais au jour. Un `land` absent bloque la publication (« Land manquant »).
 - `ClinicalFact` conserve valeur typée, unité contrôlée, temporalité, présence,
   absence ou inconnu, criticité, formulations DE, traduction FR et incertitude.
   Une valeur manquante exige `value: null`, `polarity: unknown`, `unit: null`.
@@ -38,6 +51,109 @@ bundles les utilisent. Les schémas exécutables sont dans `domain/clinical.py`.
   comportement attendu et règle `all` ou `any`.
 - `TrainingScenarioVersion` référence les hashes exacts du cas, de la rubrique et
   du lexique, puis définit persona, difficulté, CEFR, ouverture et objectifs.
+
+### Recalculer les hashes d'un bundle
+
+Chaque ressource est validée par `model_validate_json` puis `content_hash` est lu ; les
+scénarios copient ces valeurs dans `case_hash`, `rubric_hash`, `terminology_hash`. Pour
+`cases/dev/ari_dev_fr.v1.yaml`, `gold_protocol.protocol_hash` est le `content_hash` du
+`record` du `GoldProtocol` synthétique `cases/dev/ari_dev_fr_gold_protocol.v1.yaml` (fichier
+sans `schema_version`, ignoré par le semis), et `original_checksum` le SHA-256 des octets de ce
+fichier. Un hash faux échoue bruyamment à l'import (« Hash de référence différent du contenu »).
+
+### Du protocole gold au cas (étape 4)
+
+Les cas réels ne s'écrivent plus à la main : `ari.content.services.bundle_generator` dérive
+d'un `GoldProtocol` un squelette déterministe (identifiant `FSP-{code Land}-{protocole}`, un
+`ClinicalFact` par élément d'anamnèse avec la section pour catégorie et `critical` si un piège
+grave le cite, items d'évaluation par section, rubriques partagées `fsp-anamnesis@1`,
+`fsp-arzt-arzt@1`, `fsp-fachbegriffe@1`, questions d'exercice depuis les questions des
+examinateurs et les Fachbegriffe demandés). Le modèle ne remplit que les phrases du patient,
+les traductions, le coaching et les réponses acceptées (`BundleDraftOutput`) ; tout identifiant
+inventé ou manquant rend le brouillon `invalid`. Le brouillon importé par le propriétaire passe
+ensuite par les deux revues humaines et la publication décrites ci-dessous, depuis le
+back-office (`docs/BACKOFFICE.md`). `RegistryBridge.import_draft` vérifie que
+`gold_protocol.protocol_hash` est celui du protocole gold figé dans la base `content` ; seules
+les sources `synthetic: true` (fixture de dev) en sont exemptées. `CaseReview` porte désormais
+`reviewer_account_id` (omis de la forme canonique quand absent : les revues existantes gardent
+leur hash) et un même compte ne peut pas donner les deux approbations d'un contenu.
+
+### Sections d'anamnèse et moments d'empathie
+
+Le scénario (couche pédagogique, jamais le cas) peut porter deux extensions
+optionnelles, omises de la représentation canonique quand elles sont vides : les
+hashes et revues des scénarios existants ne changent pas.
+
+- `anamnesis_sections` : liste de `{id, label_de, fact_ids}` où `id` appartient aux
+  sections canoniques FSP (`patientendaten`, `aktuelle_beschwerden`, `vorerkrankungen`,
+  `medikamente`, `allergien`, `noxen`, `familienanamnese`, `sozialanamnese`,
+  `vegetative_anamnese`, `sonstiges`). Chaque fait appartient à au plus une section ;
+  un fait hors section n'est simplement pas compté. L'évaluation calcule de façon
+  déterministe (`anamnesis-sections-v1`) la couverture par section à partir des faits
+  livrés, la première apparition de chaque section et le respect de l'ordre canonique.
+  C'est une checklist, pas un jugement de raisonnement clinique.
+- `empathy_moments` : liste de `{id, fact_id, cue_fr, expected_fr}`. Le déclencheur est
+  déterministe : premier tour où le fait est livré ; la réponse jugée est le tour
+  suivant de l'apprenant. Seul le verdict (`acknowledged`, `partial`, `ignored`) est
+  demandé au fournisseur, une fois par moment déclenché, avec le tour de réponse comme
+  preuve ; `not_triggered` et `not_reached` sont posés par l'application. Ces verdicts
+  restent qualitatifs et n'entrent jamais dans les scores `assessment-weighted-v1`.
+
+Trois « prochaines actions » au plus sont dérivées de signaux déterministes, dans cet
+ordre : item obligatoire manqué, section non couverte, moment d'empathie ignoré ou
+partiel, mots ajoutés au carnet.
+
+### Test de niveau (`ari-placement-bundle-v1`)
+
+Le test de niveau est du contenu de langue générale, pas un cas clinique. Il passe par le
+même registre local : `placement import`, une revue **linguistique** du hash exact
+(`placement review`), puis `placement publish` ; le contenu est immuable, seul le statut
+change, et publier une version retire la précédente du même identifiant.
+
+Un `placement-set-v1` porte `language`, `title`, `description_fr`, ses `sources` (droits
+compatibles exigés) et trois familles d'items : `mcq_items` (`skill` vocabulaire ou
+grammaire, `level`, `stem`, 3 ou 4 `options`, `answer_index` ; en pratique 6 à 8 items
+par niveau évitent que le test s'arrête faute de questions), `listening_items` (`script`
+lu par la synthèse vocale, jamais affiché avant la réponse, `question`, `options`,
+`answer_index`) et exactement deux `speaking_items` (`prompt_fr`, `prompt_target`,
+`target_seconds`). Au moins 4 QCM et 1 écoute par niveau A1 à B2 sont exigés.
+
+Méthode `placement-staircase-v1`, déterministe : départ au niveau déclaré (sinon A2) ;
+deux bonnes réponses consécutives montent d'un niveau, deux mauvaises descendent ; arrêt
+après 14 questions, 3 renversements de direction ou épuisement des items du niveau
+atteint (aucun emprunt à un autre niveau, qui biaiserait l'estimation) ; l'estimation
+vocabulaire-grammaire est la médiane basse des niveaux des 6 dernières questions
+présentées. Quatre écoutes autour de ce niveau donnent le niveau d'écoute (≥ 75 % de
+bonnes réponses : +1 ; ≥ 50 % : égal ; sinon −1). Les deux productions orales sont
+transcrites puis notées par le fournisseur (`placement-speaking-v1`, schéma strict :
+niveau, confiance, observations citées). Le résultat global est le plus faible des
+niveaux mesurés ; l'oral n'est compté que si sa confiance atteint 0,6. Il est copié dans
+le profil comme `estimated_level`, avec la date et l'identifiant de la tentative. Ce
+n'est ni un certificat ni le niveau requis pour l'inscription à la FSP.
+
+### Programme hebdomadaire (`program-rules-v2`)
+
+Le programme n'est pas du contenu et n'est jamais stocké : il est recalculé à chaque
+lecture à partir du modèle apprenant (`learner-model-v1`, signaux déterministes
+uniquement). Le scénario influence la recommandation par trois champs déjà revus :
+`cefr` (un cas au plus un niveau au-dessus du niveau de référence est proposé),
+`terminology` (recouvrement avec les mots dus du carnet) et `anamnesis_sections`
+(sections faibles de l'apprenant). Un scénario sans ces champs reste recommandable,
+seulement moins souvent. Depuis `program-rules-v2`, un cas dont `location.land` est le Land
+du profil de l'apprenant reçoit un point de plus ; le catalogue s'ouvre filtré sur ce Land et
+`GET /api/cases/summary` compte les cas publiés par Land et la part déjà travaillée.
+
+### Progression par axes (`progress-axes-v1`)
+
+`GET /api/progression` ajoute `axes` aux séries comparables : structure (carte sections ×
+sessions sur les dix dernières sessions, moyennes, sections les plus faibles, respect de
+l'ordre), communication (verdicts d'empathie, taux de réaction adaptée sur cinq moments
+et sur les cinq précédents), langue (catégories fermées d'erreurs `gender`, `case`,
+`verb_form`, `word_order`, `word_choice`, `register`, `other` sur cinq sessions, erreurs
+récurrentes avec exemples cités), carnet (actif, acquis, ajouts et acquisitions sur trente
+jours), rythme (sessions et minutes vocales par semaine sur quatre semaines) et niveau
+(historique des tests). Tout est déterministe ; les catégories viennent du schéma strict de
+l'évaluation (`evaluation-v6`), jamais d'un texte libre.
 
 ### Exercices structurés
 
@@ -95,15 +211,17 @@ reçoit un nouvel identifiant et les cas corrigés référencent cette nouvelle 
 
 L'import d'un bundle est une transaction unique, ressources avant scénarios.
 Les clés étrangères SQL protègent sources, ressources, scénarios, revues et pins de
-sessions. Des triggers SQLite de la migration initiale interdisent UPDATE/DELETE du contenu.
+sessions. Des triggers PL/pgSQL de la migration initiale interdisent UPDATE/DELETE du
+contenu et lèvent une erreur de classe 23 (`IntegrityError` côté application).
 Le statut du scénario peut changer sans altérer son contenu. La publication et le
-retrait sont sérialisés par verrou d'écriture du scénario (aussi sous SQLite),
-et l'événement d'audit est committé dans la même transaction. Deux tentatives sur le même scénario donnent
-un succès puis un refus métier « n'est plus un brouillon ».
+retrait sont sérialisés par un verrou de ligne (`SELECT … FOR UPDATE`) sur le scénario,
+et l'événement d'audit est committé dans la même transaction. Deux tentatives sur le même
+scénario donnent un succès puis un refus métier « n'est plus un brouillon ».
 
 Les sessions v2 ont un pin séparé vers le scénario/hash immuable, donnant les
 versions/hashes exacts du cas, de la rubrique et du lexique. La création de session
-revérifie le statut sous verrou pour éviter une course avec un retrait.
+prend un verrou partagé (`FOR SHARE`) sur le scénario publié : les sessions démarrent en
+parallèle, un retrait concurrent attend qu'elles soient committées.
 
 ## Scoring `assessment-weighted-v1`
 

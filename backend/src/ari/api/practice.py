@@ -1,11 +1,13 @@
 """Owned exercise API; every response uses an explicit non-answer-leaking projection."""
 
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ari.application.services.practice import content_summary, public_practice_run
+from ari.application.services.progress_axes import progress_axes
 from ari.application.services.progression import (
     practice_history,
     practice_progression,
@@ -96,11 +98,20 @@ def practice_router(services: Container) -> APIRouter:
     @router.get("/api/progression")
     def progression(request: Request) -> dict[str, Any]:
         owner = request.state.learner_id
-        result = practice_progression(practice.repository.list(owner))
-        voice = voice_progression(services.repository.list_sessions(owner), services.cases)
+        runs = practice.repository.list(owner)
+        sessions = services.repository.list_sessions(owner)
+        result = practice_progression(runs)
+        voice = voice_progression(sessions, services.cases)
         result["groups"].extend(voice["groups"])
         result["excluded"] = voice["excluded"]
         result["state"] = "available" if result["groups"] else "no_data"
+        result["axes"] = progress_axes(
+            sessions,
+            runs,
+            services.lexicon.overview(owner),
+            services.placement.attempts.list(owner),
+            datetime.now(UTC),
+        )
         return result
 
     return router

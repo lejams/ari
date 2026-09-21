@@ -6,8 +6,8 @@ from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from ari.infrastructure.persistence.identity import ProfileCredentials
-from ari.infrastructure.persistence.sqlite import SessionRow
+from ari.infrastructure.persistence.platform.identity import ProfileCredentials
+from ari.infrastructure.persistence.platform.repository import SessionRow
 
 PROFILE_COOKIE = "ari_profile"
 
@@ -23,11 +23,20 @@ class OwnershipMiddleware:
         connection = HTTPConnection(scope)
         path = connection.url.path
         protected = path.startswith(
-            ("/api/learners/", "/api/sessions", "/ws/sessions/", "/api/practice/")
+            (
+                "/api/learners/",
+                "/api/sessions",
+                "/ws/sessions/",
+                "/api/practice/",
+                "/api/lexicon",
+                "/api/placement",
+            )
         ) or path in (
             "/api/profile",
+            "/api/cases/summary",
             "/api/progression",
             "/api/history",
+            "/api/program",
             "/api/technical/voice-metrics",
         )
         origin = connection.headers.get("origin")

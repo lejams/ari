@@ -21,8 +21,13 @@ export class PracticeClient {
     catch (error) { if (error.status !== 404) throw error; this.profile = null; }
     return this.profile;
   }
-  async createProfile(target) {
-    this.profile = await this.api("/api/learners", {method: "POST", body: JSON.stringify({target_cefr: target})});
+  async createProfile(target, details = null) {
+    const body = details ? {target_cefr: target, details} : {target_cefr: target};
+    this.profile = await this.api("/api/learners", {method: "POST", body: JSON.stringify(body)});
+    return this.profile;
+  }
+  async updateProfile(details) {
+    this.profile = await this.api(`/api/learners/${encodeURIComponent(this.profile.id)}/profile`, {method: "PATCH", body: JSON.stringify(details)});
     return this.profile;
   }
   async start(content, mode) {

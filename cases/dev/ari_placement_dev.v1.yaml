@@ -1,0 +1,81 @@
+# Development placement items in French, so the team can run the whole test without German.
+# Fiction authored for this repository; the dev launcher simulates the linguistic approval.
+schema_version: ari-placement-bundle-v1
+sources:
+- id: ari-placement-dev-synthetic
+  source_type: synthetic
+  synthetic: true
+  document_reference: cases/dev/ari_placement_dev.v1.yaml
+  original_checksum: null
+  immediate_source_checksum: null
+  provenance: Items written for local development from public CEFR descriptors; no third-party test material.
+  imported_at: '2026-09-16T00:00:00Z'
+  rights: compatible
+  intended_use: Local development only
+  rights_evidence: Original synthetic content authored for this repository.
+  private_material_reference: none:synthetic
+  declared_original: null
+  original_verified: false
+sets:
+- id: ari-placement-dev-fr
+  version: '1'
+  schema_version: placement-set-v1
+  language: fr-FR
+  title: Test de niveau · français général (dev)
+  description_fr: Version de développement en français. Une quinzaine de questions adaptatives, quatre écoutes, deux prises de parole.
+  sources:
+  - source_id: ari-placement-dev-synthetic
+    pages: []
+  mcq_items:
+  - {id: a1-1, skill: grammar, level: A1, stem: 'Bonjour, je ___ médecin.', options: [es, suis, est], answer_index: 1}
+  - {id: a1-2, skill: vocabulary, level: A1, stem: '___ vous appelez-vous ?', options: [Comment, Où, Quand], answer_index: 0}
+  - {id: a1-3, skill: grammar, level: A1, stem: 'C''est ___ hôpital.', options: [une, des, un], answer_index: 2}
+  - {id: a1-4, skill: vocabulary, level: A1, stem: 'Merci ___ !', options: [beaucoup, beaucoups, beaucoupe], answer_index: 0}
+  - {id: a2-1, skill: grammar, level: A2, stem: 'Hier, je ___ malade.', options: [suis, serai, étais], answer_index: 2}
+  - {id: a2-2, skill: grammar, level: A2, stem: 'Je prends un médicament ___ j''ai mal à la tête.', options: [parce que, donc, mais], answer_index: 0}
+  - {id: a2-3, skill: grammar, level: A2, stem: 'Pouvez-vous me donner ___ formulaire ?', options: [la, le, les], answer_index: 1}
+  - {id: a2-4, skill: vocabulary, level: A2, stem: 'Il s''intéresse ___ médecine.', options: [de la, pour la, à la], answer_index: 2}
+  - {id: b1-1, skill: grammar, level: B1, stem: 'Si j''avais le temps, je ___ plus de sport.', options: [ferais, ferai, fais], answer_index: 0}
+  - {id: b1-2, skill: grammar, level: B1, stem: 'Le patient ___ est venu hier est rentré chez lui.', options: [que, dont, qui], answer_index: 2}
+  - {id: b1-3, skill: grammar, level: B1, stem: 'Il faut prendre les comprimés ___.', options: [régulier, régulièrement, régulière], answer_index: 1}
+  - {id: b1-4, skill: vocabulary, level: B1, stem: 'Je me réjouis ___ votre visite.', options: [de, à, pour], answer_index: 0}
+  - {id: b2-1, skill: vocabulary, level: B2, stem: 'L''examen a été reporté ___ l''urgence.', options: [malgré, en raison de, pendant], answer_index: 1}
+  - {id: b2-2, skill: grammar, level: B2, stem: 'Les résultats doivent être ___ d''ici demain.', options: [analyser, analysant, analysés], answer_index: 2}
+  - {id: b2-3, skill: vocabulary, level: B2, stem: 'Ce médicament est bien ___.', options: [toléré, tolérant, tolérable], answer_index: 0}
+  - {id: b2-4, skill: grammar, level: B2, stem: '___ son âge, il est très en forme.', options: [À cause de, Malgré, Pendant], answer_index: 1}
+  listening_items:
+  - id: l-a1
+    level: A1
+    script: Bonjour, je m'appelle Anne Martin. J'ai trente-quatre ans et je viens de Lyon.
+    question: "D'où vient Anne ?"
+    options: [De Paris, De Lyon, De Marseille]
+    answer_index: 1
+  - id: l-a2
+    level: A2
+    script: J'ai de la fièvre et je tousse depuis deux jours. Ce matin, j'ai pris un comprimé.
+    question: "Depuis quand la personne a-t-elle de la fièvre ?"
+    options: [Depuis ce matin, Depuis une semaine, Depuis deux jours]
+    answer_index: 2
+  - id: l-b1
+    level: B1
+    script: Pendant que vous prenez ces comprimés, vous ne devez pas boire d'alcool. Sinon, le médicament peut agir plus fort que prévu.
+    question: "Que faut-il éviter pendant le traitement ?"
+    options: [L'alcool, Le café, Le sport]
+    answer_index: 0
+  - id: l-b2
+    level: B2
+    script: Bien que les symptômes aient diminué, nous recommandons de poursuivre le traitement jusqu'au bout afin que l'infection ne revienne pas.
+    question: "Pourquoi faut-il poursuivre le traitement ?"
+    options: [Parce que les symptômes s'aggravent, Pour que l'infection ne revienne pas, Parce que le médicament est bon marché]
+    answer_index: 1
+  speaking_items:
+  - id: s-1
+    level_hint: A2
+    prompt_fr: "Présentez-vous pendant environ une minute : votre nom, votre pays, votre métier et pourquoi vous apprenez cette langue."
+    prompt_target: Présentez-vous. Dites comment vous vous appelez, d'où vous venez, ce que vous faites comme métier et pourquoi vous apprenez cette langue.
+    target_seconds: 60
+  - id: s-2
+    level_hint: B1
+    prompt_fr: "Racontez une journée de travail typique. Qu'est-ce qui vous plaît, qu'est-ce qui est difficile ?"
+    prompt_target: "Décrivez une journée de travail typique. Qu'est-ce qui vous plaît, et qu'est-ce que vous trouvez difficile ?"
+    target_seconds: 90

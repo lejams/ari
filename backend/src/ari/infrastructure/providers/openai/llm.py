@@ -13,6 +13,9 @@ from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
 
 T = TypeVar("T", bound=BaseModel)
 
+# Operations of the content pipeline run on the content model with its long timeout.
+CONTENT_OPERATIONS = frozenset({"protocol_segmentation", "protocol_extraction", "bundle_draft"})
+
 
 class OpenAILLMProvider:
     def __init__(
@@ -23,27 +26,30 @@ class OpenAILLMProvider:
         evaluation_model: str,
         patient_timeout_seconds: float,
         evaluation_timeout_seconds: float,
+        content_model: str | None = None,
+        content_timeout_seconds: float | None = None,
     ) -> None:
         self._client = AsyncOpenAI(api_key=api_key)
         self._patient_model = patient_model
         self._evaluation_model = evaluation_model
         self._patient_timeout_seconds = patient_timeout_seconds
         self._evaluation_timeout_seconds = evaluation_timeout_seconds
+        self._content_model = content_model or evaluation_model
+        self._content_timeout_seconds = content_timeout_seconds or evaluation_timeout_seconds
+
+    def _model_and_timeout(self, operation: str) -> tuple[str, float]:
+        if operation == "session_evaluation":
+            return self._evaluation_model, self._evaluation_timeout_seconds
+        if operation in CONTENT_OPERATIONS:
+            return self._content_model, self._content_timeout_seconds
+        return self._patient_model, self._patient_timeout_seconds
 
     async def generate_structured(
         self, request: LLMRequest, response_model: type[T]
     ) -> ProviderResult[T]:
-        if request.context.operation == "session_evaluation":
-            model = self._evaluation_model
-        else:
-            model = self._patient_model
+        model, timeout = self._model_and_timeout(request.context.operation)
         started = time.perf_counter()
         try:
-            timeout = (
-                self._evaluation_timeout_seconds
-                if request.context.operation == "session_evaluation"
-                else self._patient_timeout_seconds
-            )
             async with asyncio.timeout(timeout):
                 response = await self._client.chat.completions.parse(
                     model=model,

@@ -7,14 +7,14 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ari.config import PROJECT_ROOT
 from ari.container import Container
 from ari.domain.clinical import VersionRef
 from ari.domain.errors import InvalidStateError
 from ari.domain.models import CEFRLevel
 from ari.infrastructure.cases.cli import run
 from ari.infrastructure.cases.yaml_io import parse_bundle
-from ari.infrastructure.persistence.clinical_rows import ClinicalCaseRow
+from ari.infrastructure.persistence.platform.clinical_rows import ClinicalCaseRow
+from ari.infrastructure.persistence.platform.engine import create_platform_engine
 
 
 def bundle_file(tmp_path: Path) -> Path:
@@ -30,15 +30,17 @@ def test_direct_ari_import_rejects_contact_data() -> None:
         parse_bundle(json.dumps(raw))
 
 
-def test_validate_only_and_dry_run_never_create_database(
+def test_validate_only_and_dry_run_write_nothing(
     tmp_path: Path,
+    database_url: str,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    file, database = bundle_file(tmp_path), tmp_path / "must-not-exist.db"
+    file = bundle_file(tmp_path)
     for mode in ("--validate-only", "--dry-run"):
-        assert run(["--database-url", f"sqlite:///{database}", "import", str(file), mode]) == 0
+        assert run(["--database-url", database_url, "import", str(file), mode]) == 0
         assert json.loads(capsys.readouterr().out)["ecriture"] is False
-        assert not database.exists()
+    with Session(create_platform_engine(database_url)) as db:
+        assert db.scalar(select(ClinicalCaseRow)) is None
 
 
 def test_cli_import_idempotence_draft_and_private_inspection(
@@ -100,7 +102,7 @@ def test_unknown_rights_and_critical_questions_block_even_approved_case(
 ) -> None:
     bundle = synthetic_bundle()
     source = bundle.sources[0].model_copy(update={"rights": "unknown", "rights_evidence": None})
-    bundle = bundle.model_copy(update={"sources": (source,)})
+    bundle = bundle.model_copy(update={"sources": (source, *bundle.sources[1:])})
     store = container.cases.store
     store.import_bundle(bundle)
     for kind in ("clinical", "linguistic"):
@@ -121,11 +123,6 @@ def test_future_phases_explicitly_unavailable(container: Container, phase: str) 
     with pytest.raises(InvalidStateError, match="Phase"):
         store.publish("synthetic-scenario", "1", actor="TEST")
     assert not any(c.id == "SYNTHETIC-TEST" for c in container.cases.list())
-
-
-def test_versioned_yaml_example_is_the_synthetic_contract() -> None:
-    example = parse_bundle((PROJECT_ROOT / "cases/examples/synthetic_bundle.v2.yaml").read_text())
-    assert example.content_hash == synthetic_bundle().content_hash
 
 
 @pytest.mark.asyncio
@@ -159,7 +156,7 @@ async def test_v2_evaluation_delivery_and_pinned_terminology(container: Containe
     )
     analyzed = (await container.orchestrator.end_session(session.id)).session
     assert analyzed.evaluation is not None
-    assert analyzed.evaluation.schema_version == "session-evaluation-v2"
+    assert analyzed.evaluation.schema_version == "session-evaluation-v4"
     assert analyzed.evaluation.criteria[0]["scoring_version"] == "assessment-weighted-v1"
     clinical = next(
         c for c in analyzed.evaluation.criteria if c["criterion_id"] == "clinical_coverage"

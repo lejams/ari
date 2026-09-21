@@ -1,0 +1,110 @@
+# Local development: `make db-up` starts only postgres. Deployment on one server:
+# `docker compose --profile serve up -d` runs the learner app, the back-office, the worker and a
+# TLS reverse proxy (Caddy) in front of them, with ARI_DOMAIN / ARI_BACKOFFICE_DOMAIN from .env.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      ARI_PLATFORM_DB_PASSWORD: ${ARI_PLATFORM_DB_PASSWORD:-ari_platform}
+      ARI_CONTENT_DB_PASSWORD: ${ARI_CONTENT_DB_PASSWORD:-ari_content}
+    ports:
+      - "${ARI_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Runs both Alembic chains once, then exits; the other services wait for it.
+  migrate:
+    profiles: ["serve"]
+    build: .
+    env_file: .env
+    environment:
+      ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
+      ARI_CONTENT_DATABASE_URL: postgresql+psycopg://ari_content:${ARI_CONTENT_DB_PASSWORD:-ari_content}@postgres:5432/ari_content
+    command: >
+      sh -c "alembic -c alembic.ini -n platform upgrade head &&
+             alembic -c alembic.ini -n content upgrade head"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Learner application: platform database only, never the content credentials.
+  app:
+    profiles: ["serve"]
+    build: .
+    env_file: .env
+    environment:
+      ARI_ENVIRONMENT: production
+      ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
+      ARI_FRONTEND_ORIGIN: https://${ARI_DOMAIN:-localhost}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  backoffice:
+    profiles: ["serve"]
+    build: .
+    env_file: .env
+    environment:
+      ARI_ENVIRONMENT: production
+      ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
+      ARI_CONTENT_DATABASE_URL: postgresql+psycopg://ari_content:${ARI_CONTENT_DB_PASSWORD:-ari_content}@postgres:5432/ari_content
+      ARI_CONTENT_STORAGE_DIR: /data/content
+      ARI_BACKOFFICE_ORIGIN: https://${ARI_BACKOFFICE_DOMAIN:-localhost}
+    command: ["python", "-m", "uvicorn", "ari.backoffice:app", "--host", "0.0.0.0", "--port", "8100"]
+    volumes:
+      - content_storage:/data/content
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    profiles: ["serve"]
+    build: .
+    env_file: .env
+    environment:
+      ARI_ENVIRONMENT: production
+      ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
+      ARI_CONTENT_DATABASE_URL: postgresql+psycopg://ari_content:${ARI_CONTENT_DB_PASSWORD:-ari_content}@postgres:5432/ari_content
+      ARI_CONTENT_STORAGE_DIR: /data/content
+    command: ["python", "-m", "ari.worker"]
+    volumes:
+      - content_storage:/data/content
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # HTTPS in front of both applications (Let's Encrypt). Requires the two DNS names to
+  # point at this server; ports 80 and 443 open.
+  proxy:
+    profiles: ["serve"]
+    image: caddy:2-alpine
+    environment:
+      ARI_DOMAIN: ${ARI_DOMAIN:-localhost}
+      ARI_BACKOFFICE_DOMAIN: ${ARI_BACKOFFICE_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+      - backoffice
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  content_storage:
+  caddy_data:
+  caddy_config:

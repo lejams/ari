@@ -1,3 +1,1 @@
-from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
-
-__all__ = ["SqliteSessionRepository"]
+"""Persistence adapters, one subpackage per database (``platform`` today, ``content`` later)."""

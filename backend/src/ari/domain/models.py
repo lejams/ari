@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Any
 from uuid import uuid4
+
+from ari.domain.geography import Land
 
 
 def utc_now() -> datetime:
@@ -13,8 +15,12 @@ def utc_now() -> datetime:
 
 
 class CEFRLevel(StrEnum):
+    A1 = "A1"
+    A2 = "A2"
+    B1 = "B1"
     B2 = "B2"
     C1 = "C1"
+    C2 = "C2"
 
 
 class LearningMode(StrEnum):
@@ -36,10 +42,33 @@ class ExecutionStatus(StrEnum):
 
 
 class VocabularyState(StrEnum):
-    IDENTIFIED = "identified"
-    USED = "used"
-    RECALLED = "recalled"
-    MASTERED = "mastered"
+    """Personal lexicon lifecycle; every promotion needs learner evidence, never a guess."""
+
+    IDENTIFIED = "identified"  # Seen once: evaluation candidate, unused case term, code switch.
+    REVIEWED = "reviewed"  # Recalled at least once in a spaced-repetition review.
+    USED = "used"  # Spoken spontaneously in a voice session after entering the lexicon.
+    MASTERED = "mastered"  # Used in two distinct later sessions and reviewed three times.
+
+
+class LexiconSource(StrEnum):
+    EVALUATION_CANDIDATE = "evaluation_candidate"
+    TERMINOLOGY_UNUSED = "terminology_unused"
+    CODE_SWITCH = "code_switch"
+    MANUAL = "manual"
+
+
+class SrsRating(StrEnum):
+    AGAIN = "again"
+    HARD = "hard"
+    GOOD = "good"
+    EASY = "easy"
+
+
+class PatientResponseKind(StrEnum):
+    SOURCES = "sources"
+    UNKNOWN = "unknown"
+    OUT_OF_SCOPE = "out_of_scope"
+    WRONG_LANGUAGE = "wrong_language"  # Learner spoke another language than the simulation.
 
 
 class AudioDeliveryStatus(StrEnum):
@@ -86,10 +115,31 @@ class EducationalTarget:
 
 
 @dataclass(frozen=True, slots=True)
+class LearnerDetails:
+    """What the learner declared plus what ARI estimated. Never a certified level."""
+
+    declared_level: CEFRLevel | None = None
+    level_source: str = "self"  # self | certificate
+    certificate_issuer: str | None = None  # goethe | telc | osd | testdaf | dsh | other
+    certificate_level: CEFRLevel | None = None
+    certificate_date: date | None = None
+    exam_date: date | None = None
+    minutes_per_day: int = 30
+    land: Land | None = None
+    situation: str | None = None  # doctor | student
+    specialty: str | None = None
+    estimated_level: CEFRLevel | None = None
+    estimated_at: datetime | None = None
+    placement_attempt_id: str | None = None
+    maintenance_cadence_days: int = 30  # How often an acquired word comes back: 7 or 30 days.
+
+
+@dataclass(frozen=True, slots=True)
 class LearnerProfile:
     id: str
     goal: LearningGoal
     created_at: datetime = field(default_factory=utc_now)
+    details: LearnerDetails = field(default_factory=LearnerDetails)
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +178,28 @@ class RubricCriterion:
 
 
 @dataclass(frozen=True, slots=True)
+class TerminologyTerm:
+    id: str
+    german: str
+    french: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EmpathyMomentSpec:
+    id: str
+    fact_id: str
+    cue: str
+    expected: str
+
+
+@dataclass(frozen=True, slots=True)
+class AnamnesisSectionSpec:
+    id: str
+    label: str
+    fact_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class MedicalCase:
     id: str
     version: str
@@ -150,6 +222,12 @@ class MedicalCase:
     assessment_items: tuple[AssessmentItem, ...] = ()
     training_snapshot: Mapping[str, str] = field(default_factory=dict)
     available_for_new_sessions: bool = True
+    terminology: tuple[TerminologyTerm, ...] = ()
+    empathy_moments: tuple[EmpathyMomentSpec, ...] = ()
+    anamnesis_sections: tuple[AnamnesisSectionSpec, ...] = ()
+    cefr: str | None = None  # Authored scenario level; the programme filters on it.
+    land: Land | None = None  # Where the source protocol was examined; catalogue filter.
+    city: str | None = None
 
     @property
     def fact_ids(self) -> frozenset[str]:
@@ -177,12 +255,23 @@ class ConversationTurn:
     audio_started_at: datetime | None = None
     audio_delivered_at: datetime | None = None
     created_at: datetime = field(default_factory=utc_now)
+    patient_response_kind: str = PatientResponseKind.SOURCES.value
 
 
 @dataclass(frozen=True, slots=True)
 class EvidenceObservation:
     text: str
     evidence_turn_sequences: tuple[int, ...]
+    category: str | None = None  # Language errors only: gender, case, verb_form, ...
+
+
+@dataclass(frozen=True, slots=True)
+class CodeSwitch:
+    """A fragment the learner said in another language than the simulation."""
+
+    turn: int
+    fragment: str
+    intended_term: str | None = None  # The key term in the simulation language.
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,6 +288,13 @@ class Evaluation:
     language_errors: tuple[EvidenceObservation, ...]
     criteria: tuple[dict[str, Any], ...]
     created_at: datetime = field(default_factory=utc_now)
+    code_switches: tuple[CodeSwitch, ...] = ()
+    # Deterministic section coverage (anamnesis-sections-v1), None when the scenario has none.
+    structure: dict[str, Any] | None = None
+    # One judgement per authored empathy moment: deterministic trigger, LLM verdict with evidence.
+    empathy: tuple[dict[str, Any], ...] = ()
+    # At most three concrete next steps, derived from deterministic signals only.
+    next_actions: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,6 +318,49 @@ class VocabularyObservation:
     evidence_turn_sequences: tuple[int, ...]
     state: VocabularyState = VocabularyState.IDENTIFIED
     confidence: float = 0.0
+    kind: str = "missing"  # missing | misused | well_used, as judged by the evaluator.
+
+
+@dataclass(frozen=True, slots=True)
+class SrsState:
+    """Spaced-repetition schedule of one lexicon entry (see domain/srs.py)."""
+
+    due_at: datetime
+    interval_days: int = 0
+    ease: float = 2.5
+    repetitions: int = 0
+    lapses: int = 0
+    last_reviewed_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LexiconEntry:
+    """One word or phrase in a learner's personal lexicon, across all sessions."""
+
+    id: str
+    learner_id: str
+    lemma_key: str
+    lemma: str
+    translation: str
+    example: str
+    source: LexiconSource
+    state: VocabularyState
+    srs: SrsState
+    first_session_id: str | None = None
+    last_session_id: str | None = None
+    used_session_ids: tuple[str, ...] = ()
+    archived: bool = False
+    created_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now)
+
+
+@dataclass(frozen=True, slots=True)
+class LexiconReview:
+    id: str
+    entry_id: str
+    event_id: str
+    rating: SrsRating
+    reviewed_at: datetime = field(default_factory=utc_now)
 
 
 @dataclass(frozen=True, slots=True)

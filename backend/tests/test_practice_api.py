@@ -16,8 +16,8 @@ from ari.domain.clinical import ClinicalBundle
 from ari.domain.errors import InvalidStateError
 from ari.domain.models import CEFRLevel, new_id, utc_now
 from ari.domain.practice import PracticeRun
-from ari.infrastructure.persistence.practice import SqlPracticeRepository
-from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
+from ari.infrastructure.persistence.platform.practice import SqlPracticeRepository
+from ari.infrastructure.persistence.platform.repository import SqlSessionRepository
 
 
 @pytest.mark.parametrize("phase", ["arzt_arzt", "fachbegriffe"])
@@ -201,7 +201,7 @@ def test_published_label_is_not_authorization(container: Container) -> None:
         container.practice.repository.create(forged)
 
 
-def test_sqlite_concurrent_retry_and_immutable_results(practice_container: Container) -> None:
+def test_concurrent_retry_and_immutable_results(practice_container: Container) -> None:
     learner = practice_container.orchestrator.create_learner(CEFRLevel.C1)
     request_id = new_id()
 
@@ -236,7 +236,7 @@ def test_sqlite_concurrent_retry_and_immutable_results(practice_container: Conta
         with pytest.raises(IntegrityError), practice_container.repository.engine.begin() as db:
             db.execute(text(sql))
     # A separate engine/process reads the same pinned results and identity.
-    fresh = SqliteSessionRepository(practice_container.settings.database_url)
+    fresh = SqlSessionRepository(practice_container.settings.database_url)
     assert SqlPracticeRepository(fresh.engine).get(run_id, learner.id).status == "completed"
 
 

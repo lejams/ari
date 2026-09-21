@@ -8,14 +8,17 @@ from sqlalchemy.orm import Session
 
 from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.models import (
+    AnamnesisSectionSpec,
     AssessmentItem,
     EducationalTarget,
+    EmpathyMomentSpec,
     MedicalCase,
     MedicalFact,
     RubricCriterion,
+    TerminologyTerm,
 )
 from ari.infrastructure.cases.clinical_store import ClinicalStore
-from ari.infrastructure.persistence.clinical_rows import ScenarioRow, scenario_snapshot
+from ari.infrastructure.persistence.platform.clinical_rows import ScenarioRow, scenario_snapshot
 
 
 class ClinicalCatalog:
@@ -65,6 +68,7 @@ class ClinicalCatalog:
     def _runtime(self, db: Session, row: ScenarioRow) -> MedicalCase:
         bundle = self.store._bundle(db, row)
         case, scenario, rubric = bundle.cases[0], bundle.scenarios[0], bundle.rubrics[0]
+        terminology = bundle.terminology_sets[0]
         return MedicalCase(
             id=case.id,
             version=case.version,
@@ -122,4 +126,19 @@ class ClinicalCatalog:
             ),
             training_snapshot=MappingProxyType(scenario_snapshot(row)),
             available_for_new_sessions=row.status == "published",
+            terminology=tuple(
+                TerminologyTerm(id=t.id, german=t.german, french=t.french)
+                for t in terminology.entries
+            ),
+            empathy_moments=tuple(
+                EmpathyMomentSpec(id=m.id, fact_id=m.fact_id, cue=m.cue_fr, expected=m.expected_fr)
+                for m in scenario.empathy_moments
+            ),
+            anamnesis_sections=tuple(
+                AnamnesisSectionSpec(id=s.id, label=s.label_de, fact_ids=s.fact_ids)
+                for s in scenario.anamnesis_sections
+            ),
+            cefr=scenario.cefr,
+            land=case.location.land,
+            city=case.location.city,
         )

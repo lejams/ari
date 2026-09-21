@@ -211,6 +211,9 @@ function showCallActions({ canStart, canEnd, canRetry, canCreateNew }) {
   $("end").disabled = !canEnd;
   $("retry-analysis").classList.toggle("hidden", !canRetry);
   $("new-session").classList.toggle("hidden", !canCreateNew);
+  // Redoing the same case right after the feedback is where the correction sticks.
+  const knownCase = state.cases.some((item) => item.id === state.case?.id && item.version === state.case?.version);
+  $("retry-case").classList.toggle("hidden", !(canCreateNew && knownCase && ["training", "exam"].includes(state.learningMode)));
   if (canStart || canRetry || canCreateNew) $("talk").classList.add("hidden");
 }
 
@@ -277,7 +280,7 @@ async function restoreSession() {
 }
 
 async function initialize() {
-  const [health, cases] = await Promise.all([api("/api/health"), api("/api/cases?approved_only=true")]);
+  const [health, cases] = await Promise.all([api("/api/health"), api("/api/cases")]);
   state.providerMode = health.provider_mode;
   state.cases = cases;
 
@@ -664,9 +667,11 @@ async function endCall() {
     state.socket.send(JSON.stringify({ type: "call.end" }));
   }
   try {
+    // The end-of-session evaluation is one long LLM call; give it more than the default 20 s.
     const session = await api(`/api/sessions/${state.sessionId}/end`, {
       method: "POST",
       body: "{}",
+      signal: AbortSignal.timeout(120000),
     });
     await stopVoiceMedia();
     setExamPresentation(false);
@@ -723,6 +728,7 @@ async function retryAnalysis() {
     const session = await api(`/api/sessions/${state.sessionId}/analysis/retry`, {
       method: "POST",
       body: "{}",
+      signal: AbortSignal.timeout(120000),
     });
     setExamPresentation(false);
     renderPersistedTranscript(session.turns);
@@ -735,8 +741,7 @@ async function retryAnalysis() {
   }
 }
 
-function newSession() {
-  if (!state.cases.length) { location.href = "/"; return; }
+function resetForNewSession(mode, selectedCase) {
   localStorage.removeItem("ari.current_session_id");
   history.replaceState(null, "", "/voice.html");
   state.storedSessionId = null;
@@ -744,19 +749,31 @@ function newSession() {
   state.persistedTurns = 0;
   state.completedTurns = 0;
   state.ending = false;
-  state.learningMode = "training";
+  state.learningMode = mode;
   setExamPresentation(false);
-  $("learning-mode").value = "training";
+  $("learning-mode").value = mode;
   syncLearningModeButtons();
   clearTranscript();
   $("feedback").classList.add("hidden");
   $("case-select").disabled = false;
   $("learning-mode").disabled = false;
-  $("learning-mode").value = "training";
-  renderCase(state.cases[0]);
+  renderCase(selectedCase);
   $("start").textContent = "Commencer l’appel";
   showCallActions({ canStart: true, canEnd: false, canRetry: false, canCreateNew: false });
   setStatus("Prêt");
+}
+
+function newSession() {
+  if (!state.cases.length) { location.href = "/"; return; }
+  resetForNewSession("training", state.cases[0]);
+}
+
+async function retryCase() {
+  // Same case, same mode, a fresh session: the feedback is still on screen to guide it.
+  const current = state.cases.find((item) => item.id === state.case?.id && item.version === state.case?.version);
+  if (!current) { newSession(); return; }
+  resetForNewSession(state.learningMode, current);
+  await startCall();
 }
 
 function fillList(id, items) {
@@ -770,43 +787,272 @@ function fillList(id, items) {
   );
 }
 
-function showFeedback(session) {
-  const evaluation = session.evaluation;
-  $("score").textContent = "Provisoire";
-  $("score-label").textContent = "analyse automatisée · aucun score global ni niveau certifié";
-  $("voice-dimensions").replaceChildren();
-  if (evaluation.schema_version !== "session-evaluation-v2") {
+const COMPARABLE_EVALUATIONS = new Set(["session-evaluation-v2", "session-evaluation-v3", "session-evaluation-v4"]);
+const VOCABULARY_KIND_LABELS = { missing: "mot manquant", misused: "mal employé", well_used: "bien employé" };
+const ERROR_CATEGORY_LABELS = { gender: "Genre", case: "Cas et déclinaison", verb_form: "Forme verbale", word_order: "Ordre des mots", word_choice: "Choix du mot", register: "Registre", other: "Autre" };
+const EMPATHY_LABELS = {
+  acknowledged: "Réaction adaptée", partial: "Réaction minimale", ignored: "Pas de réaction",
+  not_reached: "Révélé en fin de session, sans réponse", not_triggered: "Le patient ne l’a pas révélé",
+};
+const MODE_LABELS = { training: "Training", exam: "Examen", unknown: "Historique" };
+const TILE_STATES = { ok: "✓", warn: "◐", bad: "✗", none: "—" };
+const plural = (count, singular, pluralForm = `${singular}s`) => `${count} ${count > 1 ? pluralForm : singular}`;
+const formatScore = (value) => (Number.isInteger(value) ? String(value) : value.toFixed(1).replace(".", ","));
+const turnsLabel = (sequences) => `tour${sequences.length > 1 ? "s" : ""} ${sequences.join(", ")}`;
+
+// A cited turn is a link into the transcript under the feedback.
+function turnLink(sequence) {
+  const link = document.createElement("a");
+  link.className = "turn-ref";
+  link.href = `#fb-turn-${sequence}`;
+  link.textContent = `tour ${sequence}`;
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    const target = $(`fb-turn-${sequence}`);
+    if (!target) return;
+    for (const item of $("feedback-transcript").children) item.classList?.remove("focused");
+    target.classList.add("focused");
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  return link;
+}
+
+// textContent carries the observation; the turn references follow as links.
+function evidenceItem(text, sequences) {
+  const li = document.createElement("li");
+  li.textContent = text;
+  if (sequences?.length) {
+    li.append(document.createTextNode(" ("));
+    sequences.forEach((sequence, index) => {
+      if (index) li.append(document.createTextNode(", "));
+      li.append(turnLink(sequence));
+    });
+    li.append(document.createTextNode(")"));
+  }
+  return li;
+}
+
+function fillEvidence(id, items, emptyText) {
+  const node = $(id);
+  node.replaceChildren(...(items.length ? items.map((item) => evidenceItem(item.text, item.turns)) : [evidenceItem(emptyText, [])]));
+  node.classList.toggle("empty-list", !items.length);
+  const count = $(`${id}-count`);
+  if (count) count.textContent = `(${items.length})`;
+}
+
+function setTile(name, state, note) {
+  $(`tile-${name}-state`).textContent = TILE_STATES[state];
+  $(`tile-${name}`).dataset.state = state;
+  $(`tile-${name}-note`).textContent = note;
+}
+
+function renderDimensions(criteria, comparable) {
+  const node = $("voice-dimensions");
+  node.replaceChildren();
+  if (!comparable) {
     const notice = document.createElement("p");
     notice.textContent = "Évaluation historique non comparable : les anciennes notes ne sont pas utilisées dans la progression.";
-    $("voice-dimensions").append(notice);
-  } else for (const criterion of evaluation.criteria) {
-    const line = document.createElement("p");
-    line.textContent = `${criterion.criterion_id} : ${criterion.score} · ${criterion.feedback} · preuves aux tours ${criterion.evidence_turn_sequences.join(", ") || "aucun"}`;
-    $("voice-dimensions").append(line);
+    node.append(notice);
+    return;
   }
+  for (const criterion of criteria) {
+    const max = criterion.max_score || 5;
+    const row = document.createElement("div");
+    row.className = "dimension";
+    row.title = criterion.feedback || "";
+    const label = document.createElement("span");
+    label.className = "dimension-label";
+    label.textContent = criterion.label || criterion.criterion_id;
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    const fill = document.createElement("i");
+    if (fill.style) fill.style.width = `${Math.round((criterion.score / max) * 100)}%`;
+    bar.append(fill);
+    const value = document.createElement("span");
+    value.className = "dimension-value";
+    value.textContent = `${formatScore(criterion.score)} / ${max}`;
+    row.append(label, bar, value);
+    if (criterion.evidence_turn_sequences?.length) {
+      const refs = document.createElement("span");
+      refs.className = "dimension-refs";
+      criterion.evidence_turn_sequences.forEach((sequence, index) => {
+        if (index) refs.append(document.createTextNode(", "));
+        refs.append(turnLink(sequence));
+      });
+      row.append(refs);
+    }
+    node.append(row);
+  }
+}
+
+function renderStructure(structure) {
+  const node = $("structure");
+  node.replaceChildren();
+  if (!structure) {
+    node.append(Object.assign(document.createElement("p"), { textContent: "Ce scénario ne définit pas de sections d’anamnèse." }));
+    $("structure-count").textContent = "";
+    setTile("structure", "none", "non définie pour ce scénario");
+    return;
+  }
+  const order = structure.order_observed.length > 1 ? (structure.canonical_order_respected ? " · ordre canonique respecté" : " · ordre différent de l’anamnèse canonique") : "";
+  const intro = document.createElement("p");
+  intro.textContent = `${plural(structure.covered_count, "section complète", "sections complètes")} sur ${structure.total_count}${order}`;
+  node.append(intro);
+  const list = document.createElement("ul");
+  for (const section of structure.sections) {
+    const li = document.createElement("li");
+    const complete = section.missing_fact_ids.length === 0;
+    const started = section.covered_fact_ids.length > 0;
+    li.textContent = `${complete ? "✓" : started ? "◐" : "—"} ${section.label} · ${section.covered_fact_ids.length}/${section.fact_ids.length}` +
+      (complete ? "" : ` · manque : ${section.missing_fact_ids.join(", ")}`);
+    li.dataset.state = complete ? "ok" : started ? "warn" : "none";
+    li.lang = "de";
+    if (section.first_turn) { li.append(document.createTextNode(" (dès le ")); li.append(turnLink(section.first_turn)); li.append(document.createTextNode(")")); }
+    list.append(li);
+  }
+  node.append(list);
+  $("structure-count").textContent = `(${structure.covered_count}/${structure.total_count})`;
+  const state = structure.covered_count === structure.total_count ? "ok" : structure.covered_count ? "warn" : "bad";
+  setTile("structure", state, `${structure.covered_count}/${structure.total_count} sections${structure.order_observed.length > 1 ? (structure.canonical_order_respected ? " · ordre respecté" : " · ordre à revoir") : ""}`);
+}
+
+function renderEmpathy(moments) {
+  const node = $("empathy");
+  node.replaceChildren();
+  if (!moments.length) {
+    node.append(Object.assign(document.createElement("p"), { textContent: "Ce scénario ne définit pas de moment sensible." }));
+    $("empathy-count").textContent = "";
+    setTile("empathy", "none", "aucun moment défini");
+    return;
+  }
+  const list = document.createElement("ul");
+  for (const moment of moments) {
+    const li = evidenceItem(`${moment.cue} : ${EMPATHY_LABELS[moment.verdict] || moment.verdict}`, moment.response_turn ? [moment.response_turn] : []);
+    li.dataset.state = moment.verdict === "acknowledged" ? "ok" : moment.verdict === "partial" ? "warn" : moment.verdict === "ignored" ? "bad" : "none";
+    if (moment.feedback) {
+      const detail = document.createElement("p");
+      detail.className = "muted";
+      detail.textContent = moment.feedback;
+      li.append(detail);
+    }
+    list.append(li);
+  }
+  node.append(list);
+  $("empathy-count").textContent = `(${moments.length})`;
+  const verdicts = moments.map((moment) => moment.verdict);
+  const judged = moments.filter((moment) => ["acknowledged", "partial", "ignored"].includes(moment.verdict));
+  const state = verdicts.includes("ignored") ? "bad" : verdicts.includes("partial") ? "warn" : judged.length ? "ok" : "none";
+  const first = judged[0];
+  setTile("empathy", state, first ? `${EMPATHY_LABELS[first.verdict]} (tour ${first.response_turn})` : EMPATHY_LABELS[verdicts[0]] || "");
+}
+
+function renderNextActions(actions) {
+  const node = $("next-actions");
+  node.replaceChildren(...actions.map((action) => {
+    const li = document.createElement("li");
+    li.textContent = action.text;
+    return li;
+  }));
+  $("next-actions-block").classList.toggle("hidden", !actions.length);
+}
+
+function citedTurns(evaluation, session) {
+  const cited = new Set();
+  const add = (sequences) => (sequences || []).forEach((sequence) => cited.add(sequence));
+  for (const group of ["criteria", "strengths", "priorities", "language_errors"]) for (const item of evaluation[group] || []) add(item.evidence_turn_sequences);
+  for (const item of evaluation.code_switches || []) cited.add(item.turn);
+  for (const item of evaluation.empathy || []) if (item.response_turn) cited.add(item.response_turn);
+  for (const item of session.vocabulary || []) add(item.evidence_turn_sequences);
+  return cited;
+}
+
+function renderFeedbackTranscript(session, cited) {
+  const node = $("feedback-transcript");
+  node.replaceChildren(...session.turns.map((turn) => {
+    const sequence = turn.sequence ?? session.turns.indexOf(turn) + 1;
+    const li = document.createElement("li");
+    li.id = `fb-turn-${sequence}`;
+    li.className = `fb-turn${cited.has(sequence) ? " cited" : ""}`;
+    const number = document.createElement("span");
+    number.className = "fb-n";
+    number.textContent = String(sequence);
+    const you = document.createElement("p");
+    you.className = "fb-you";
+    you.textContent = turn.user_text;
+    you.lang = caseLanguage();
+    li.append(number, you);
+    const incomplete = turn.provider_response_status !== "completed";
+    if (turn.patient_text || incomplete) {
+      const patient = document.createElement("p");
+      patient.className = "fb-patient";
+      patient.lang = caseLanguage();
+      patient.textContent = incomplete ? `${turn.patient_text || "[Réponse interrompue]"} [exclue de l’évaluation]` : turn.patient_text;
+      li.append(patient);
+    }
+    return li;
+  }));
+}
+
+function showFeedback(session) {
+  const evaluation = session.evaluation;
+  if (!evaluation) return;
+  const comparable = COMPARABLE_EVALUATIONS.has(evaluation.schema_version);
+  $("score").textContent = "Provisoire";
+  $("score-label").textContent = "analyse automatisée · aucun score global ni niveau certifié";
+  $("feedback-meta").textContent = [state.case?.title, MODE_LABELS[session.learning_mode || "unknown"], plural(session.turns.length, "tour")].filter(Boolean).join(" · ");
   $("summary").textContent = evaluation.summary;
-  fillList(
-    "strengths",
-    evaluation.strengths.map(
-      (item) => `${item.text} (tours ${item.evidence_turn_sequences.join(", ")})`,
-    ),
-  );
-  fillList(
-    "priorities",
-    evaluation.priorities.map(
-      (item) => `${item.text} (tours ${item.evidence_turn_sequences.join(", ")})`,
-    ),
-  );
-  fillList(
-    "vocabulary",
-    session.vocabulary.map(
-      (item) =>
-        `${item.lemma} — ${item.translation} (tour${item.evidence_turn_sequences.length > 1 ? "s" : ""} ${item.evidence_turn_sequences.join(", ")})`,
-    ),
-  );
+  renderNextActions(evaluation.next_actions || []);
+  renderDimensions(evaluation.criteria || [], comparable);
+  renderStructure(evaluation.structure || null);
+  renderEmpathy(evaluation.empathy || []);
+  fillEvidence("strengths", evaluation.strengths.map((item) => ({ text: item.text, turns: item.evidence_turn_sequences })), "Aucun point fort relevé.");
+  fillEvidence("priorities", evaluation.priorities.map((item) => ({ text: item.text, turns: item.evidence_turn_sequences })), "Aucune priorité relevée.");
+  fillEvidence("vocabulary", (session.vocabulary || []).map((item) => ({
+    text: `${item.lemma} — ${item.translation} · ${VOCABULARY_KIND_LABELS[item.kind] || "candidat"}`, turns: item.evidence_turn_sequences,
+  })), "Aucun mot repéré.");
+  const languageErrors = evaluation.language_errors || [];
+  fillEvidence("language-errors", languageErrors.map((item) => ({ text: `${item.category ? `${ERROR_CATEGORY_LABELS[item.category] || item.category} · ` : ""}${item.text}`, turns: item.evidence_turn_sequences })), "Aucune erreur de langue significative relevée.");
+  const codeSwitches = evaluation.code_switches || [];
+  fillEvidence("code-switches", codeSwitches.map((item) => ({
+    text: `« ${item.fragment} »${item.intended_term ? ` → ${item.intended_term}` : ""}`, turns: [item.turn],
+  })), "Vous êtes resté dans la langue de la consultation.");
+  const languageIssues = languageErrors.length + codeSwitches.length;
+  setTile("language", languageIssues ? "warn" : "ok", languageIssues
+    ? [languageErrors.length ? plural(languageErrors.length, "erreur") : "", codeSwitches.length ? plural(codeSwitches.length, "passage en autre langue", "passages en autre langue") : ""].filter(Boolean).join(" · ")
+    : "aucune erreur relevée");
+  const lexicon = session.lexicon;
+  if (lexicon) {
+    const added = lexicon.added.length, promoted = lexicon.promoted.length, wrong = lexicon.wrong_language_turns.length;
+    $("lexicon-summary").textContent = [
+      added ? `${plural(added, "mot ajouté", "mots ajoutés")} à votre carnet.` : "Aucun nouveau mot ajouté.",
+      promoted ? `${plural(promoted, "mot de votre carnet utilisé", "mots de votre carnet utilisés")} en session.` : "",
+      wrong ? `Le patient n’a pas compris ${plural(wrong, "question posée", "questions posées")} dans une autre langue.` : "",
+    ].filter(Boolean).join(" ");
+    fillList("lexicon-added", lexicon.added.map((item) => `${item.lemma}${item.translation ? ` — ${item.translation}` : ""}`));
+    fillList("lexicon-promoted", lexicon.promoted.map((item) => `${item.lemma} · ${item.state === "mastered" ? "maîtrisé" : "utilisé"}`));
+    $("lexicon-count").textContent = `(+${added}${promoted ? ` · ${promoted} utilisé${promoted > 1 ? "s" : ""}` : ""})`;
+    setTile("lexicon", promoted ? "ok" : added ? "warn" : "none", `${added ? `+${plural(added, "mot")}` : "aucun ajout"}${promoted ? ` · ${promoted} utilisé${promoted > 1 ? "s" : ""}` : ""}`);
+  } else {
+    $("lexicon-summary").textContent = "Carnet indisponible pour cette session.";
+    fillList("lexicon-added", []);
+    fillList("lexicon-promoted", []);
+    $("lexicon-count").textContent = "";
+    setTile("lexicon", "none", "indisponible");
+  }
+  renderFeedbackTranscript(session, citedTurns(evaluation, session));
   $("feedback").classList.remove("hidden");
   $("feedback").scrollIntoView({ behavior: "smooth" });
 }
+
+for (const tile of document.querySelectorAll("[data-open]")) {
+  tile.addEventListener("click", () => {
+    const details = $(tile.dataset.open);
+    if (!details) return;
+    details.open = true;
+    details.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+$("feedback-retry").addEventListener("click", retryCase);
 
 $("case-select").addEventListener("change", (event) => {
   const selected = state.cases.find(
@@ -835,6 +1081,7 @@ $("end").addEventListener("click", endCall);
 $("retry-analysis").addEventListener("click", retryAnalysis);
 $("retry-audio").addEventListener("click", retryAudio);
 $("new-session").addEventListener("click", newSession);
+$("retry-case").addEventListener("click", retryCase);
 $("debug-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = $("debug-input");

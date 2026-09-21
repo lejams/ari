@@ -9,6 +9,12 @@ from ari.domain.errors import AriError
 from ari.domain.models import ConversationSession
 from ari.domain.practice import PracticeRun
 
+# v3 and v4 add qualitative fields (code switches, empathy) and deterministic extras
+# (section coverage); the criteria and their scoring method are unchanged, so all compare.
+COMPARABLE_EVALUATION_SCHEMAS = frozenset(
+    {"session-evaluation-v2", "session-evaluation-v3", "session-evaluation-v4"}
+)
+
 
 def practice_history(runs: tuple[PracticeRun, ...]) -> list[dict[str, Any]]:
     return [
@@ -97,7 +103,10 @@ def voice_progression(
             continue
         # The historical fact-count score remains readable in its original session,
         # but is not silently promoted to comparable measured progression.
-        if evaluation.schema_version != "session-evaluation-v2" or not session.training_snapshot:
+        if (
+            evaluation.schema_version not in COMPARABLE_EVALUATION_SCHEMAS
+            or not session.training_snapshot
+        ):
             excluded.append(
                 {"run_id": session.id, "reason": "Évaluation historique non comparable"}
             )
@@ -160,11 +169,15 @@ def voice_progression(
                 "points": [],
             },
         )
+        structure = evaluation.structure
         group["points"].append(
             {
                 "run_id": session.id,
                 "created_at": session.created_at.isoformat(),
                 "state": state,
+                # Deterministic checklist, comparable across sessions of the same scenario.
+                "sections_covered": structure["covered_count"] if structure else None,
+                "sections_total": structure["total_count"] if structure else None,
                 "dimensions": [
                     {
                         "id": c["criterion_id"],

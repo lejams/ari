@@ -1,14 +1,7 @@
 """Deterministic weighted v2 scoring; legacy scoring is deliberately not changed."""
 
-import re
-
 from ari.domain.models import AudioDeliveryStatus, ConversationSession, MedicalCase
-
-
-def _phrase_present(phrase: str, text: str) -> bool:
-    normalized = " ".join(text.casefold().split())
-    expected = " ".join(phrase.casefold().split())
-    return re.search(r"(?<!\w)" + re.escape(expected) + r"(?!\w)", normalized) is not None
+from ari.domain.text import phrase_present as _phrase_present
 
 
 def weighted_assessment(session: ConversationSession, case: MedicalCase) -> list[dict[str, object]]:
@@ -65,6 +58,8 @@ def weighted_assessment(session: ConversationSession, case: MedicalCase) -> list
         results.append(
             {
                 "criterion_id": dimension.id,
+                "label": dimension.label,
+                "max_score": dimension.max_score,
                 "score": round(score, 6),
                 "evidence_turn_sequences": sorted(evidence),
                 "feedback": f"Évaluation pondérée: {earned:g}/{total_weight:g} poids satisfaits.",

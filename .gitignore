@@ -28,3 +28,6 @@ benchmarks/**/*.raw
 private-case-sources/
 ARI_Freiburg_cases_draft.json
 ARI_Freiburg_cases_draft.xlsx
+
+# Local project guide, not versioned
+docs/GUIDE_DU_PROJET.md

@@ -7,6 +7,22 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ARI_TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/postgres
+      ARI_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ari_platform
+      ARI_CONTENT_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ari_content
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,20 +37,28 @@ jobs:
         run: python -m venv .venv
       - name: Install locked Python dependencies
         run: make install-locked
+      - name: Create the platform and content databases
+        run: |
+          psql postgresql://postgres:postgres@localhost:5432/postgres -c 'CREATE DATABASE ari_platform'
+          psql postgresql://postgres:postgres@localhost:5432/postgres -c 'CREATE DATABASE ari_content'
       - name: Backend tests
         run: make test-backend
       - name: Ruff
         run: .venv/bin/ruff check backend
       - name: Mypy strict
         run: .venv/bin/mypy backend/src
+      - name: Import contracts (layers, no vendor SDK in domain/application)
+        run: PYTHONPATH=backend/src .venv/bin/lint-imports --config backend/pyproject.toml
       - name: JavaScript syntax and PCM resampler
         run: make test-web
+      - name: Back-office web client and DOM tests
+        run: make test-backoffice-web
       - name: Alembic fresh database and schema drift
-        env:
-          ARI_DATABASE_URL: sqlite:///${{ runner.temp }}/ari-ci.db
         run: |
-          .venv/bin/alembic -c alembic.ini upgrade head
-          .venv/bin/alembic -c alembic.ini check
+          .venv/bin/alembic -c alembic.ini -n platform upgrade head
+          .venv/bin/alembic -c alembic.ini -n platform check
+          .venv/bin/alembic -c alembic.ini -n content upgrade head
+          .venv/bin/alembic -c alembic.ini -n content check
       - uses: pnpm/action-setup@v4
         with:
           version: "11.19.0"

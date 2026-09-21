@@ -6,8 +6,8 @@ import math
 import re
 import struct
 import time
-from collections.abc import AsyncIterator
-from typing import TypeVar, cast
+from collections.abc import AsyncIterator, Callable, Mapping
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -23,6 +23,7 @@ from ari.application.ports.stt import Transcription
 from ari.application.schemas import (
     EvaluationOutputSchema,
     PatientResponseSchema,
+    SpeakingRatingSchema,
 )
 from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
 
@@ -104,22 +105,85 @@ KEYWORD_HINTS: dict[str, tuple[str, ...]] = {
     "warum": ("reason",),
     "beschwerden": ("reason", "symptom"),
 }
+# Deterministic language markers: a doctor utterance carrying markers of a language other
+# than the simulation language is answered with response_kind=wrong_language.
+LANGUAGE_MARKERS: dict[str, frozenset[str]] = {
+    "fr": frozenset(
+        {
+            "est-ce que",
+            "avez-vous",
+            "vous avez",
+            "depuis quand",
+            "bonjour",
+            "docteur",
+            "douleur",
+            "médicament",
+            "fièvre",
+            "où avez",
+            "quels sont",
+        }
+    ),
+    "en": frozenset(
+        {
+            "do you",
+            "have you",
+            "since when",
+            "hello",
+            "how long",
+            "where does",
+            "pain",
+            "medication",
+            "fever",
+        }
+    ),
+    "de": frozenset(
+        {"haben sie", "seit wann", "guten tag", "schmerz", "medikament", "fieber", "wo haben"}
+    ),
+}
+# Tiny glossary so the fake evaluator can name the German word a French code switch needed.
+FAKE_GLOSSARY_FR_DE = {"douleur": "Schmerz", "fièvre": "Fieber", "médicament": "Medikament"}
+EMPATHY_MARKERS = ("leid", "désolé", "verstehe", "comprends", "schwer", "difficile", "sorry")
+
+
+def foreign_language(utterance: str, simulation_language: str) -> bool:
+    """True when the utterance carries markers of another language than the simulation."""
+    primary = simulation_language.split("-")[0].lower()
+    text = utterance.casefold()
+    return any(
+        marker in text
+        for language, markers in LANGUAGE_MARKERS.items()
+        if language != primary
+        for marker in markers
+    )
+
+
+FakeHandler = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 class FakeLLMProvider:
+    def __init__(self, handlers: Mapping[type[BaseModel], FakeHandler] | None = None) -> None:
+        # Other bounded contexts (the content pipeline) register their schemas here instead
+        # of this module importing them: the learner application never imports `ari.content`.
+        self._handlers: dict[type[BaseModel], FakeHandler] = dict(handlers or {})
+
     async def generate_structured(
         self, request: LLMRequest, response_model: type[T]
     ) -> ProviderResult[T]:
         started = time.perf_counter()
         payload = json.loads(request.messages[-1]["content"])
-        if response_model is PatientResponseSchema:
+        if response_model in self._handlers:
+            result = self._handlers[response_model](payload)
+        elif response_model is PatientResponseSchema:
             result = self._patient(payload)
         elif response_model is EvaluationOutputSchema:
             result = self._evaluation(payload)
+        elif response_model is SpeakingRatingSchema:
+            result = self._speaking(payload)
         else:
             raise TypeError(f"Unsupported fake schema: {response_model.__name__}")
         elapsed = int((time.perf_counter() - started) * 1000)
-        value = response_model.model_validate(result)
+        # Through JSON, like a real provider's output: strict schemas then accept enum values.
+        value = response_model.model_validate_json(json.dumps(result))
         return ProviderResult(
             value=value,
             execution=_execution(
@@ -142,6 +206,11 @@ class FakeLLMProvider:
         question = str(utterance).casefold()
         if any(term in question for term in BLOCKED_TERMS):
             return {"response_kind": "out_of_scope", "source_refs": []}
+        # Only the doctor's utterance is language-checked; the patient audit never is.
+        if "doctor_latest_utterance" in payload and foreign_language(
+            question, str(payload.get("simulation_language", "de-DE"))
+        ):
+            return {"response_kind": "wrong_language", "source_refs": []}
         allowed_refs = {
             item["ref"] for item in cast(list[dict[str, str]], case["available_sources"])
         }
@@ -177,6 +246,40 @@ class FakeLLMProvider:
         rubric = cast(list[dict[str, object]], payload["rubric"])
         turns = [int(str(item["turn"])) for item in transcript]
         score = min(5, max(1, len(turns)))
+        doctor_by_turn = {
+            int(str(item["turn"])): str(item.get("doctor", "")) for item in transcript
+        }
+        code_switches = []
+        for item in transcript:
+            doctor = str(item.get("doctor", "")).casefold()
+            if item.get("patient_response_kind") != "wrong_language":
+                continue
+            intended = next((de for fr, de in FAKE_GLOSSARY_FR_DE.items() if fr in doctor), None)
+            code_switches.append(
+                {
+                    "turn": int(str(item["turn"])),
+                    "fragment": str(item.get("doctor", ""))[:120],
+                    "intended_term": intended,
+                }
+            )
+        # Empathy: the learner acknowledged when the response turn carries a sympathy marker.
+        empathy = []
+        for moment in cast(list[dict[str, object]], payload.get("empathy_moments", [])):
+            response_turn = int(str(moment["response_turn"]))
+            spoken = doctor_by_turn.get(response_turn, "")
+            acknowledged = any(m in spoken.casefold() for m in EMPATHY_MARKERS)
+            empathy.append(
+                {
+                    "moment_id": str(moment["id"]),
+                    "verdict": "acknowledged" if acknowledged else "ignored",
+                    "feedback": (
+                        f"Vous avez réagi au vécu du patient : « {spoken[:80]} »."
+                        if acknowledged
+                        else "Vous avez enchaîné sur la question suivante sans réagir."
+                    ),
+                    "evidence_turn_sequences": [response_turn],
+                }
+            )
         return {
             "summary": (
                 "Entretien compréhensible et structuré. Priorisez la couverture "
@@ -196,7 +299,15 @@ class FakeLLMProvider:
                     "evidence_turn_sequences": turns[-1:],
                 },
             ],
-            "language_errors": [],
+            "language_errors": [
+                {
+                    "text": f"Fake : vérifier l'accord dans « {doctor_by_turn[turn][:60]} ».",
+                    "category": "case",
+                    "evidence_turn_sequences": [turn],
+                }
+                for turn in turns
+                if doctor_by_turn.get(turn, "").casefold().startswith("wo haben")
+            ][:6],
             "criteria": [
                 {
                     "criterion_id": str(item["id"]),
@@ -213,8 +324,27 @@ class FakeLLMProvider:
                     "example": "Strahlen die Schmerzen in die Schulter aus?",
                     "confidence": 0.8,
                     "evidence_turn_sequences": turns[-1:],
+                    "kind": "missing",
                 }
             ],
+            "code_switches": code_switches[:8],
+            "empathy": empathy[:8],
+        }
+
+    @staticmethod
+    def _speaking(payload: dict[str, object]) -> dict[str, object]:
+        """Deterministic: a longer connected production rates B2 with confidence, else B1."""
+        words = len(str(payload.get("transcript", "")).split())
+        if words >= 40:
+            return {
+                "estimated_level": "B2",
+                "confidence": 0.8,
+                "observations": ["Production fictive longue : niveau B2 attribué par le fake."],
+            }
+        return {
+            "estimated_level": "B1",
+            "confidence": 0.5,
+            "observations": ["Production fictive courte : niveau B1 attribué par le fake."],
         }
 
 

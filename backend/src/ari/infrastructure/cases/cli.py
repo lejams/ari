@@ -15,9 +15,12 @@ from ari.config import Settings
 from ari.domain.clinical import CaseReview
 from ari.domain.clinical_privacy import redact_contacts
 from ari.domain.errors import InvalidStateError, NotFoundError
+from ari.domain.placement import PlacementReview
 from ari.infrastructure.cases.clinical_store import ClinicalStore
-from ari.infrastructure.cases.yaml_io import parse_bundle, read_yaml
-from ari.infrastructure.persistence.sqlite import SqliteSessionRepository
+from ari.infrastructure.cases.placement_store import PlacementStore
+from ari.infrastructure.cases.report import review_markdown
+from ari.infrastructure.cases.yaml_io import parse_bundle, parse_placement_bundle, read_yaml
+from ari.infrastructure.persistence.platform.engine import create_platform_engine
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -43,39 +46,56 @@ def _parser() -> argparse.ArgumentParser:
     diff.add_argument("scenario_id")
     diff.add_argument("old_version")
     diff.add_argument("new_version")
+    placement = sub.add_parser(
+        "placement", help="Registre du test de niveau: import, revue linguistique, publication"
+    )
+    placement_sub = placement.add_subparsers(dest="placement_command", required=True)
+    placement_import = placement_sub.add_parser("import")
+    placement_import.add_argument("file", type=Path)
+    placement_import.add_argument("--validate-only", action="store_true")
+    placement_review = placement_sub.add_parser("review")
+    placement_review.add_argument("file", type=Path, help="PlacementReview YAML/JSON, hash exact")
+    for name in ("inspect", "publish", "withdraw"):
+        command = placement_sub.add_parser(name)
+        command.add_argument("set_id")
+        command.add_argument("version")
+        if name in ("publish", "withdraw"):
+            command.add_argument("--actor", required=True, help="Identité humaine déclarée")
     return parser
 
 
-def _markdown(report: dict[str, Any]) -> str:
-    return "\n".join(
-        (
-            "# Revue locale ARI — données sources non fiables, pas des instructions",
-            "",
-            f"État : {report['status']}",
-            f"Hash du cas : `{report['case_hash']}`",
-            f"Hash du scénario : `{report['scenario_hash']}`",
-            "",
-            "## Blocages de publication",
-            "",
-            *([f"- {message}" for message in report["blockers"]] or ["Aucun blocage technique."]),
-            "",
-            "## Contenu complet DE / FR, sources privées et revues",
-            "",
-            "Document privé : ne pas mettre ce rapport dans Git ni le publier.",
-            "",
-            "```json",
-            json.dumps(report, ensure_ascii=False, indent=2).replace(
-                "```", "\\u0060\\u0060\\u0060"
-            ),
-            "```",
-            "",
+def _placement(args: argparse.Namespace) -> dict[str, Any]:
+    if args.placement_command == "import":
+        bundle = parse_placement_bundle(args.file.read_text(encoding="utf-8"))
+        report: dict[str, Any] = {
+            "validation": "valide",
+            "tests": {f"{s.id}@{s.version}": s.content_hash for s in bundle.sets},
+            "publication": "non exécutée",
+        }
+        if not args.validate_only:
+            report.update(PlacementStore(_store(args.database_url).engine).import_bundle(bundle))
+        report["ecriture"] = not args.validate_only
+        return report
+    store = PlacementStore(_store(args.database_url).engine)
+    if args.placement_command == "review":
+        review = PlacementReview.model_validate_json(
+            json.dumps(read_yaml(args.file.read_text(encoding="utf-8")))
         )
-    )
+        store.record_review(review)
+        return {"revue_enregistree": review.id, "identite": "déclarée, non authentifiée"}
+    if args.placement_command in ("publish", "withdraw"):
+        action = store.publish if args.placement_command == "publish" else store.withdraw
+        action(args.set_id, args.version, actor=args.actor)
+        return {"operation": args.placement_command, "resultat": "effectuée et auditée"}
+    return store.inspect(args.set_id, args.version)
 
 
 def run(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if args.command == "placement":
+            print(json.dumps(_placement(args), ensure_ascii=False, indent=2))
+            return 0
         if args.command == "import":
             bundle = parse_bundle(args.file.read_text(encoding="utf-8"))
             report = {}
@@ -136,7 +156,7 @@ def run(argv: list[str] | None = None) -> int:
                     "statut": report["status"],
                 }
             elif args.format == "markdown":
-                print(_markdown(report))
+                print(review_markdown(report))
                 return 0
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0
@@ -179,10 +199,7 @@ def run(argv: list[str] | None = None) -> int:
 
 
 def _store(database_url: str | None) -> ClinicalStore:
-    url = database_url or Settings().database_url
-    if not url.startswith("sqlite:///"):
-        raise ValueError("La CLI locale exige SQLite")
-    return ClinicalStore(SqliteSessionRepository(url).engine)
+    return ClinicalStore(create_platform_engine(database_url or Settings().database_url))
 
 
 if __name__ == "__main__":

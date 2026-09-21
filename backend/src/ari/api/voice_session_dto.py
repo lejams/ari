@@ -27,6 +27,7 @@ TURN_FIELDS = (
     "audio_started_at",
     "audio_delivered_at",
     "created_at",
+    "patient_response_kind",
 )
 SESSION_FIELDS = (
     "id",
@@ -100,14 +101,41 @@ def public_session(session: ConversationSession) -> dict[str, Any]:
         )
         for name in ("strengths", "priorities", "language_errors"):
             payload[name] = [
-                _fields(item, ("text", "evidence_turn_sequences"))
+                _fields(item, ("text", "evidence_turn_sequences", "category"))
                 for item in getattr(evaluation, name)
             ]
+        payload["code_switches"] = [
+            _fields(item, ("turn", "fragment", "intended_term"))
+            for item in evaluation.code_switches
+        ]
+        payload["structure"] = jsonable_encoder(evaluation.structure)
+        payload["empathy"] = [
+            {
+                name: jsonable_encoder(item.get(name))
+                for name in (
+                    "moment_id",
+                    "cue",
+                    "expected",
+                    "trigger_turn",
+                    "response_turn",
+                    "verdict",
+                    "feedback",
+                    "evidence_turn_sequences",
+                )
+            }
+            for item in evaluation.empathy
+        ]
+        payload["next_actions"] = [
+            {name: jsonable_encoder(item.get(name)) for name in ("kind", "text", "target")}
+            for item in evaluation.next_actions
+        ]
         payload["criteria"] = [
             {
                 name: jsonable_encoder(item[name])
                 for name in (
                     "criterion_id",
+                    "label",
+                    "max_score",
                     "score",
                     "evidence_turn_sequences",
                     "feedback",
@@ -147,6 +175,7 @@ def public_session(session: ConversationSession) -> dict[str, Any]:
                     "evidence_turn_sequences",
                     "state",
                     "confidence",
+                    "kind",
                 ),
             )
             for item in session.vocabulary

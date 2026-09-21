@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f5f2"><title>ARI — Back-office</title><link rel="stylesheet" href="/styles.css?v=20260918a"></head>
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+<aside class="sidebar" id="sidebar" hidden>
+  <a class="brand" href="#/"><span class="brandmark" aria-hidden="true">A</span><span>ARI<small>BACK-OFFICE</small></span></a>
+  <nav aria-label="Navigation principale">
+    <button data-route="/"><span aria-hidden="true">⌂</span>Tableau de bord</button>
+    <button data-route="/documents"><span aria-hidden="true">▤</span>Documents</button>
+    <button data-route="/review"><span aria-hidden="true">✎</span>Relecture</button>
+    <button data-route="/gold"><span aria-hidden="true">★</span>Gold</button>
+    <button data-route="/registry"><span aria-hidden="true">▣</span>Registre</button>
+    <button data-route="/accounts" data-role="owner"><span aria-hidden="true">☺</span>Comptes</button>
+  </nav>
+  <p class="sidefoot"><span id="me-name"></span><br><span id="me-roles" class="muted"></span><br><button type="button" id="logout" class="link">Se déconnecter</button></p>
+</aside>
+<main id="main">
+  <p id="notice" role="status" aria-live="polite"></p>
+  <div id="error" class="error" role="alert" hidden><span id="error-text"></span><button id="error-close" type="button">Fermer</button></div>
+
+  <section id="login" hidden>
+    <div class="pagehead"><p class="eyebrow">Back-office ARI</p><h1>Connexion</h1><p>Réservé aux comptes invités : relecteurs médecins, relecteurs linguistiques et propriétaire.</p></div>
+    <form id="login-form" class="card narrow" novalidate>
+      <label for="login-email">Adresse e-mail</label><input id="login-email" type="email" autocomplete="username" required>
+      <label for="login-password">Mot de passe</label><input id="login-password" type="password" autocomplete="current-password" required>
+      <div class="form-actions"><button class="primary">Se connecter</button></div>
+    </form>
+  </section>
+
+  <section id="invitation" hidden>
+    <div class="pagehead"><p class="eyebrow">Invitation</p><h1>Choisissez votre mot de passe</h1><p id="invitation-who"></p></div>
+    <form id="invitation-form" class="card narrow" novalidate>
+      <label for="invitation-password">Mot de passe (12 caractères au moins)</label><input id="invitation-password" type="password" autocomplete="new-password" minlength="12" required>
+      <label for="invitation-confirm">Confirmation</label><input id="invitation-confirm" type="password" autocomplete="new-password" minlength="12" required>
+      <div class="form-actions"><button class="primary">Enregistrer et entrer</button></div>
+    </form>
+  </section>
+
+  <section id="dashboard" hidden>
+    <div class="pagehead"><p class="eyebrow">Tableau de bord</p><h1>Où en est la banque de cas.</h1></div>
+    <div id="dashboard-tiles" class="tiles"></div>
+    <div class="grid"><article class="card"><h2>Protocoles par statut</h2><table id="dashboard-protocols" class="table"></table></article><article class="card"><h2>Protocoles gold par Land</h2><table id="dashboard-gold" class="table"></table></article></div>
+    <article class="card"><h2>File de tâches</h2><table id="dashboard-jobs" class="table"></table><p class="help">Le worker traite les tâches en arrière-plan ; une tâche <em>dead</em> a épuisé ses trois tentatives et se relance depuis la page du document.</p></article>
+  </section>
+
+  <section id="documents" hidden>
+    <div class="pagehead"><p class="eyebrow">Documents</p><h1>Déposer et suivre les PDF.</h1><p>Chaque PDF est identifié par son empreinte ; un même fichier déposé deux fois n'est traité qu'une fois.</p></div>
+    <details class="card" id="upload-card" data-role="owner"><summary>Déposer un PDF de protocoles</summary>
+      <form id="upload-form" novalidate>
+        <label for="upload-file">Fichier PDF (texte natif, 50 Mo au plus)</label><input id="upload-file" type="file" accept="application/pdf" required>
+        <div class="form-grid">
+          <div><label for="upload-land">Land de l'examen (si connu)</label><select id="upload-land"><option value="">Inconnu</option></select></div>
+          <div><label for="upload-city">Ville</label><input id="upload-city" maxlength="120"></div>
+          <div><label for="upload-exam-body">Ärztekammer</label><input id="upload-exam-body" maxlength="200"></div>
+          <div><label for="upload-exam-date">Mois de l'examen (AAAA-MM)</label><input id="upload-exam-date" pattern="\d{4}-(0[1-9]|1[0-2])" placeholder="2026-03"></div>
+          <div><label for="upload-specialty">Spécialité</label><input id="upload-specialty" maxlength="200"></div>
+          <div><label for="upload-rights">Droits d'usage</label><select id="upload-rights"><option value="unknown">Inconnus (bloque la publication)</option><option value="compatible">Compatibles avec l'usage prévu</option><option value="incompatible">Incompatibles</option></select></div>
+        </div>
+        <label for="upload-rights-evidence">Preuve des droits (accord écrit, licence…)</label><input id="upload-rights-evidence" maxlength="2000">
+        <label for="upload-provenance">Provenance : qui a fourni le fichier, quand, dans quel cadre</label><textarea id="upload-provenance" rows="2" maxlength="2000" required></textarea>
+        <label for="upload-consent">Consentement : ce que la personne a accepté</label><textarea id="upload-consent" rows="2" maxlength="2000" required></textarea>
+        <div class="form-actions"><button class="primary">Déposer et lancer l'extraction</button></div>
+      </form>
+    </details>
+    <div class="row wrap"><label for="documents-status" class="sr-only">Statut</label><select id="documents-status"><option value="">Tous les statuts</option><option value="uploaded">Déposé</option><option value="text_extracted">Texte extrait</option><option value="segmented">Découpé</option><option value="extracted">Extrait</option><option value="failed">En échec</option></select></div>
+    <div id="documents-list" class="list"></div>
+    <p id="documents-empty" class="availability" hidden>Aucun document.</p>
+  </section>
+
+  <section id="document" hidden>
+    <div class="pagehead"><p class="eyebrow">Document</p><h1 id="document-title"></h1><p id="document-meta" class="help"></p></div>
+    <div class="grid">
+      <article class="card"><h2>Déclaration</h2><dl id="document-declaration" class="dl"></dl><div class="row wrap"><a id="document-original" class="button" download>Télécharger le PDF</a></div></article>
+      <article class="card"><h2>Traitement</h2><table id="document-jobs" class="table"></table><p id="document-error" class="help"></p><div class="row wrap" data-role="owner"><button type="button" id="document-release">Envoyer les protocoles extraits en relecture</button></div></article>
+    </div>
+    <article class="card"><div class="row between wrap"><h2>Protocoles trouvés</h2><span id="document-segments-count" class="help"></span></div><table id="document-segments" class="table"></table>
+      <details data-role="owner"><summary>Ajouter un protocole manquant (découpage manuel)</summary><form id="segment-form" class="form-grid" novalidate><div><label for="segment-from">Première page</label><input id="segment-from" type="number" min="1" required></div><div><label for="segment-to">Dernière page</label><input id="segment-to" type="number" min="1" required></div><div class="span2"><label for="segment-marker">Premiers mots du protocole, copiés exactement</label><input id="segment-marker" maxlength="200" required></div><div class="form-actions span2"><button class="primary">Créer et extraire</button></div></form></details>
+    </article>
+  </section>
+
+  <section id="review" hidden>
+    <div class="pagehead"><p class="eyebrow">Relecture</p><h1>Les protocoles à relire.</h1><p>Chaque protocole extrait par l'IA doit être relu par un médecin, puis validé par le propriétaire avant de devenir gold.</p></div>
+    <div class="row wrap"><label for="review-status" class="sr-only">Statut</label><select id="review-status"><option value="">Tous les statuts</option><option value="extracted">Extrait, pas encore en relecture</option><option value="doctor_review" selected>À relire (médecin)</option><option value="changes_requested">Corrections demandées</option><option value="doctor_approved">À valider (propriétaire)</option><option value="gold">Gold</option><option value="rejected">Rejetés</option></select><label for="review-land" class="sr-only">Land</label><select id="review-land"><option value="">Tous les Länder</option></select></div>
+    <div id="review-list" class="list"></div>
+    <p id="review-empty" class="availability" hidden>Aucun protocole dans cet état.</p>
+  </section>
+
+  <section id="protocol" hidden>
+    <div class="pagehead"><p class="eyebrow" id="protocol-eyebrow"></p><h1 id="protocol-title"></h1><p id="protocol-meta" class="help"></p></div>
+    <div class="split">
+      <aside class="card source">
+        <div class="row between wrap"><h2>Source</h2><div class="row"><button type="button" id="page-prev">◂</button><span id="page-label"></span><button type="button" id="page-next">▸</button><button type="button" id="page-toggle">Texte</button></div></div>
+        <img id="page-image" alt="Page du protocole" hidden>
+        <pre id="page-text" hidden></pre>
+      </aside>
+      <div class="editor">
+        <article class="card" id="checklist-card"><h2>Points à résoudre</h2><ul id="checklist" class="checklist"></ul><p id="checklist-ok" class="ok" hidden>Aucun point ouvert : le protocole peut être approuvé.</p></article>
+        <article class="card" id="pii-card" hidden><h2>Détections PII</h2><table id="pii-table" class="table"></table><p class="help">Extraits masqués. Le propriétaire ne peut valider qu'après correction ou avec une note de dérogation.</p></article>
+        <form id="record-form" novalidate><div id="record-sections"></div></form>
+        <article class="card" id="decision-card">
+          <h2>Décision</h2>
+          <p id="decision-help" class="help"></p>
+          <label for="decision-notes">Notes (obligatoires pour une demande de corrections ou un rejet)</label><textarea id="decision-notes" rows="2" maxlength="4000"></textarea>
+          <div id="pii-override-block" hidden><label for="pii-override">Note de dérogation PII (propriétaire)</label><input id="pii-override" maxlength="2000"></div>
+          <div class="form-actions wrap" id="decision-actions"></div>
+        </article>
+        <details class="card"><summary>Historique et versions</summary><table id="protocol-history" class="table"></table><h3>Différences avec la version précédente</h3><table id="protocol-diff" class="table"></table></details>
+      </div>
+    </div>
+  </section>
+
+  <section id="gold" hidden>
+    <div class="pagehead"><p class="eyebrow">Gold</p><h1>La vérité terrain.</h1><p>Protocoles validés par le propriétaire, figés par hash. Les cas d'entraînement en dérivent.</p></div>
+    <div class="row wrap"><label for="gold-land" class="sr-only">Land</label><select id="gold-land"><option value="">Tous les Länder</option></select><a class="button" id="gold-export" href="/api/gold/export" data-role="owner" download>Exporter (JSONL)</a></div>
+    <table id="gold-table" class="table"></table>
+    <p id="gold-empty" class="availability" hidden>Aucun protocole gold pour le moment.</p>
+  </section>
+
+  <section id="gold-detail" hidden>
+    <div class="pagehead"><p class="eyebrow">Protocole gold</p><h1 id="gold-title"></h1><p id="gold-meta" class="help"></p></div>
+    <div class="grid">
+      <article class="card"><h2>Résumé</h2><dl id="gold-summary" class="dl"></dl><div class="row wrap"><a id="gold-protocol-link" class="button">Voir le protocole et son historique</a></div></article>
+      <article class="card" data-role="owner"><h2>Générer des cas d’entraînement</h2>
+        <form id="draft-form" novalidate>
+          <fieldset class="level-options" id="draft-phases"><legend>Phases</legend>
+            <label><input type="checkbox" name="phase" value="arzt_patient" checked> Arzt–Patient (anamnèse vocale)</label>
+            <label><input type="checkbox" name="phase" value="arzt_arzt" checked> Arzt–Arzt (présentation)</label>
+            <label><input type="checkbox" name="phase" value="fachbegriffe" checked> Fachbegriffe (lexique)</label>
+          </fieldset>
+          <div class="form-grid">
+            <div><label for="draft-persona">Tempérament du patient simulé</label><select id="draft-persona"><option value="standard">Coopératif</option><option value="anxious">Anxieux</option><option value="talkative">Bavard</option><option value="terse">Laconique</option></select></div>
+            <div><label for="draft-cefr">Niveau de langue visé</label><select id="draft-cefr"><option value="B1">B1</option><option value="B2" selected>B2</option><option value="C1">C1</option></select></div>
+            <div><label for="draft-revision">Révision (devient la version du cas)</label><input id="draft-revision" type="number" min="1" max="999" value="1"></div>
+          </div>
+          <div class="form-actions"><button class="primary">Générer en arrière-plan</button></div>
+        </form>
+        <p class="help">Le squelette (faits, sections, questions, rubriques) vient du protocole gold ; le modèle n’écrit que les phrases du patient, les traductions, le coaching et les réponses acceptées. Tout identifiant inventé rend le brouillon invalide.</p>
+      </article>
+    </div>
+    <article class="card"><div class="row between wrap"><h2>Générations en cours</h2><span id="draft-jobs-count" class="help"></span></div><table id="draft-jobs" class="table"></table></article>
+    <article class="card"><h2>Brouillons</h2><table id="draft-table" class="table"></table><p id="draft-empty" class="availability" hidden>Aucun brouillon pour ce protocole.</p></article>
+  </section>
+
+  <section id="registry" hidden>
+    <div class="pagehead"><p class="eyebrow">Registre</p><h1>Les cas d’entraînement.</h1><p>Chaque scénario importé attend une revue clinique et une revue linguistique sur son contenu exact, par deux comptes distincts, avant que le propriétaire le publie aux apprenants.</p></div>
+    <div class="row wrap"><label for="registry-status" class="sr-only">Statut</label><select id="registry-status"><option value="">Tous les statuts</option><option value="draft_unvalidated" selected>À relire</option><option value="published">Publiés</option><option value="withdrawn">Retirés</option></select></div>
+    <table id="registry-table" class="table"></table>
+    <p id="registry-empty" class="availability" hidden>Aucun scénario dans cet état.</p>
+  </section>
+
+  <section id="scenario" hidden>
+    <div class="pagehead"><p class="eyebrow" id="scenario-eyebrow"></p><h1 id="scenario-title"></h1><p id="scenario-meta" class="help"></p></div>
+    <div class="grid">
+      <article class="card"><h2>Blocages de publication</h2><ul id="scenario-blockers" class="checklist"></ul><p id="scenario-ok" class="ok" hidden>Aucun blocage : le scénario peut être publié.</p><p id="scenario-help" class="help"></p><div class="form-actions wrap" id="scenario-actions"></div></article>
+      <article class="card"><h2>Revues</h2><table id="scenario-reviews" class="table"></table>
+        <form id="review-form" novalidate>
+          <div class="form-grid">
+            <div><label for="review-type">Type de revue</label><select id="review-type"></select></div>
+            <div><label for="review-decision">Décision</label><select id="review-decision"><option value="approve">Approuver</option><option value="request_changes">Demander des corrections</option><option value="reject">Rejeter</option></select></div>
+          </div>
+          <label for="review-notes">Notes (obligatoires)</label><textarea id="review-notes" rows="2" maxlength="4000" required></textarea>
+          <div class="form-actions"><button class="primary">Enregistrer la revue</button></div>
+        </form>
+        <p id="review-help" class="help"></p>
+      </article>
+    </div>
+    <details class="card"><summary>Contenu complet du bundle (DE / FR)</summary><div class="source"><pre id="scenario-bundle"></pre></div></details>
+  </section>
+
+  <section id="accounts" hidden>
+    <div class="pagehead"><p class="eyebrow">Comptes</p><h1>Qui relit, qui valide.</h1><p>Un compte reçoit un lien d'invitation à usage unique pour choisir son mot de passe. Un nouveau lien sert aussi de réinitialisation.</p></div>
+    <form id="account-form" class="card form-grid" novalidate>
+      <div><label for="account-email">Adresse e-mail</label><input id="account-email" type="email" required></div>
+      <div><label for="account-name">Nom affiché</label><input id="account-name" maxlength="120" required></div>
+      <fieldset class="span2 level-options"><legend>Rôles</legend><label><input type="checkbox" name="role" value="physician_reviewer" checked> Relecteur médecin</label><label><input type="checkbox" name="role" value="linguistic_reviewer"> Relecteur linguistique</label><label><input type="checkbox" name="role" value="owner"> Propriétaire</label></fieldset>
+      <div class="form-actions span2"><button class="primary">Créer le compte et obtenir le lien</button></div>
+    </form>
+    <p id="invitation-link" class="card" hidden></p>
+    <table id="accounts-table" class="table"></table>
+  </section>
+</main>
+<script type="module" src="/app.mjs?v=20260920b"></script>
+</body>
+</html>

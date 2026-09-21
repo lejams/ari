@@ -16,38 +16,74 @@ creates a local profile, then practises with published, versioned clinical conte
   them. The transcript stays hidden until the session ends.
 - **Arzt–Arzt** and **Fachbegriffe**: deterministic text exercises with authored answer
   variants. No AI call is involved.
-- History and progression, separated by content version, rubric, method and mode.
-  No overall score, no measured CEFR level, no certification.
+- **Personal lexicon**: every analysed voice session feeds a per-learner word list
+  (evaluator candidates tagged missing or misused, case terms the learner never used,
+  words said in another language) with spaced-repetition review (`srs-sm2-v1`). A word
+  is promoted to *used* only when the learner says it spontaneously in a later session,
+  and to *mastered* after two such sessions and three successful reviews. In training a
+  question asked in another language than the case gets the authored off-topic answer
+  and is recorded as `wrong_language`, never a fact.
+- **Structure and empathy**: a scenario may map its facts to the canonical FSP
+  anamnesis sections (deterministic coverage checklist) and flag empathy moments (a
+  disclosure the doctor should acknowledge). The trigger is deterministic; only the
+  verdict on the learner's next turn is asked of the LLM, with the turn as evidence.
+  Each feedback ends with at most three next actions derived from these signals.
+- **Profile and placement test**: the onboarding facts (declared level, certificate,
+  exam date, minutes per day, Land, specialty) live in the learner profile. A short
+  placement test (`placement-staircase-v1`: adaptive MCQ, four listening items read by
+  the TTS provider, two spoken tasks transcribed and rated by the LLM) yields an
+  *estimated* level per skill and an overall band stored as `estimated_level`. Its
+  content is a separate registry bundle (`ari-placement-bundle-v1`) with one linguistic
+  review; see `docs/CLINICAL_CASES.md`.
+- **Weekly programme** (`program-rules-v2`): a learner model is computed on every read
+  from deterministic signals only (reference level, lexicon due words, section coverage
+  over the last sessions, required items missed, empathy verdict counts, recent
+  activity, exam horizon) and turned into this week's slots, bounded by the declared
+  minutes per day. Phases: positionnement, prérequis (below B1, with the general-German
+  prerequisite stated as information to verify per Land), fondations, anamnèse, examen.
+  Recommended content scores published cases by overlap with due lexicon words, weak
+  sections and recency. Nothing is stored: the plan is recomputed, done slots are matched
+  against what was completed since Monday.
+- **Progression by axis** (`progress-axes-v1`): anamnesis structure as a heatmap of
+  sections by session, empathy verdicts over time, recurring language error categories
+  (the evaluator tags each error with a closed category), lexicon acquired versus active,
+  weekly rhythm and placement history. The per-content comparable series remain below,
+  separated by content version, rubric, method and mode. No overall score, no certified
+  CEFR level, no certification.
 
 Without published content the catalogue is empty. Content enters through the clinical
 registry (import, two human reviews, publication), never through code.
 
-## Try it offline
+## Try it locally
 
 ```sh
 python3 -m venv .venv
 make install-locked
+make db-up                                                        # PostgreSQL via docker compose
 PYTHONPATH=backend/src .venv/bin/python -m ari.demo --port 8010
 ```
 
-Open <http://127.0.0.1:8010>. The demo creates a temporary database, runs the
-migration, imports `cases/demo/ari_demo_bundle.v1.yaml`, records **simulated** reviews,
-publishes one synthetic voice case and two synthetic exercises, and runs with fake
-providers. In fake mode the voice page offers a text field instead of the microphone.
-Nothing outside the temporary directory is read or written; Ctrl+C removes it.
+Open <http://127.0.0.1:8010>. The demo migrates the platform database (`ARI_DATABASE_URL`,
+default: the compose `ari_platform` database), imports the synthetic French bundles of
+`cases/dev` (one voice case, two text exercises, one placement set), records **simulated**
+reviews, publishes them and runs with fake providers. In fake mode the voice page offers a
+text field instead of the microphone. Re-running against the same database is a no-op;
+`make db-reset` wipes every local database. `cases/demo` only holds a German placement set.
 
 ## Develop with live providers, in French
 
 You do not need to speak German to exercise the platform. `cases/dev/ari_dev_fr.v1.yaml`
-is a synthetic French voice case (fiction, simulated reviews, never learner content):
+is a synthetic French case with a voice scenario and two text exercises (fiction, simulated
+reviews, never learner content), derived from the synthetic gold protocol
+`cases/dev/ari_dev_fr_gold_protocol.v1.yaml` as every `clinical-case-v3` must be:
 
 ```sh
 make dev-fr             # http://127.0.0.1:8010
 ```
 
 `.env` at the project root must define `ARI_OPENAI_API_KEY` and `ARI_STT_API_KEY` (start
-from `.env.example` only if you have no `.env` yet, `cp` overwrites). Whisper goes to Groq
-by default; with a single OpenAI key add:
+from `deploy/env.example` only if you have no `.env` yet, `cp` overwrites). Whisper goes to
+Groq by default; with a single OpenAI key add:
 
 ```sh
 ARI_STT_BASE_URL=https://api.openai.com/v1
@@ -55,22 +91,25 @@ ARI_STT_MODEL=whisper-1
 ARI_STT_API_KEY=<same OpenAI key>
 ```
 
-`make dev-fr` runs `python -m ari.demo --provider openai --database var/dev-fr.db
---bundles cases/dev`: the database persists between runs so history and progression
-accumulate, and re-seeding an existing database is a no-op. Everything downstream follows
-the case language (Whisper, Realtime transcription, patient and evaluation prompts).
+`make dev-fr` runs `python -m ari.demo --provider openai` against the
+platform database: it persists between runs so history and progression accumulate, and
+re-seeding an existing database is a no-op. When the single migration has been regenerated
+since the database was created, the demo refuses to start and asks you to run
+`make db-reset`. Everything downstream follows the case language (Whisper, Realtime
+transcription, patient and evaluation prompts).
 Nothing changes for learners: the platform database only holds content published through
 the registry, and only German cases are published there.
 
 ## Run locally
 
 ```sh
+make db-up
 make migrate
 make dev
 ```
 
-`make dev` serves <http://localhost:8000> against `var/ari.db` (override with
-`ARI_DATABASE_URL`). The root is the learner home; `/voice.html` is the voice page.
+`make dev` serves <http://localhost:8000> against the compose platform database (override
+with `ARI_DATABASE_URL`). The root is the learner home; `/voice.html` is the voice page.
 The catalogue stays empty until you publish content with the registry CLI (below).
 
 For live providers set, in `.env` or the environment:
@@ -106,8 +145,8 @@ flowchart LR
     API -->|"training"| TTS["StreamingTTSProvider"]
     API -->|"exam"| STS["RealtimeVoiceEngine (OpenAI Realtime)"]
     API -->|"exam"| Attributor["FactAttributor"] --> LLM
-    Orchestrator --> Repo["SqliteSessionRepository"] --> DB[("SQLite")]
-    Registry["Clinical registry (SQLite tables)"] --> Orchestrator
+    Orchestrator --> Repo["SqlSessionRepository"] --> DB[("PostgreSQL")]
+    Registry["Clinical registry (PostgreSQL tables)"] --> Orchestrator
 ```
 
 Dependencies point inward:
@@ -117,7 +156,7 @@ Dependencies point inward:
 - `application`: ports (`LLMProvider`, `UtteranceTranscriber`, `StreamingTTSProvider`,
   `RealtimeVoiceEngine`, `Evaluator`, `SessionRepository`), patient simulation, fact
   attribution, evaluation, orchestration, progression;
-- `infrastructure`: SQLite persistence, the clinical registry and its CLI, OpenAI,
+- `infrastructure`: PostgreSQL persistence, the clinical registry and its CLI, OpenAI,
   OpenAI Realtime and Whisper adapters, deterministic fakes;
 - `api`: HTTP routes, the two voice WebSocket handlers (push-to-talk pipeline, open
   microphone relay), cookie ownership middleware;
@@ -130,19 +169,42 @@ its sentences are stored verbatim and audited afterwards, so a fact is credited 
 when the audit finds it and the browser confirms playback. Prompt injection and
 off-topic requests are answered in character in both modes.
 
+### Content pipeline (gold protocols)
+
+Real cases start as PDFs of FSP exam protocols. `python -m ari.content.cli ingest` stores a
+PDF with its provenance and rights declaration; the worker (`make worker`) extracts the text,
+lets the model split the document into protocols and draft one structured
+`ProtocolRecord` per protocol, with explicit uncertainties and questions instead of guesses;
+a physician corrects and approves, the owner validates, and the record is frozen as a
+**gold protocol**, the ground truth every `clinical-case-v3` derives from. Everything lives in
+the separate `content` database. See `docs/CONTENT_PIPELINE.md`.
+
+The review happens in the **back-office** (`make backoffice`, <http://localhost:8100>,
+pages in `backoffice-web/`): accounts by invitation with owner, physician and linguistic
+roles, upload with declaration, the review screen with the source page beside the
+structured record and a blocking checklist, the owner's validation to gold, accounts and a
+dashboard. From a gold protocol the owner generates training bundles (deterministic skeleton,
+model-written patient phrases, strict `BundleDraftOutput`), imports them into the clinical
+registry, collects the clinical and linguistic reviews from two accounts and publishes to
+learners, all from the back-office. `docker compose --profile serve up -d` deploys learner app,
+back-office, worker and an HTTPS proxy on one server. See `docs/BACKOFFICE.md`.
+
 ### Clinical registry
 
 Content is a YAML `ari-clinical-bundle-v1` document (see `docs/CLINICAL_CASES.md`)
 with sources, rubrics, terminology, cases and scenarios. `python -m
 ari.infrastructure.cases.cli --help` validates, imports, inspects, records human
-reviews, publishes and withdraws. Publication requires compatible source rights and one
+reviews, publishes and withdraws. The `placement` subcommands do the same for
+`ari-placement-bundle-v1` documents, with a single linguistic review. Publication requires compatible source rights and one
 clinical plus one linguistic approval of the exact hashes. Content rows are immutable
-(SQLite triggers). See `docs/CLINICAL_REVIEW_FR.md` for the review procedure.
+(PL/pgSQL triggers). See `docs/CLINICAL_REVIEW_FR.md` for the review procedure.
 
 ## Persistence
 
-SQLite through SQLAlchemy Core-style models; one Alembic revision creates the schema
-(`docs/MIGRATIONS.md`). Turns record the facts the patient selected and, separately,
+PostgreSQL only, through SQLAlchemy models; one Alembic revision creates the schema and
+its triggers (`docs/MIGRATIONS.md`). Workflow mutations take row locks; a session pinning a
+published scenario takes a shared lock so a concurrent withdrawal waits for it. Turns
+record the facts the patient selected and, separately,
 the facts credited as heard once the browser confirms full playback. Learner
 transcripts are persisted before the patient answers, so a failed response never loses
 a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connection.
@@ -150,8 +212,14 @@ a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connect
 ## API
 
 - `POST /api/learners`, `GET /api/profile`, `DELETE /api/profile`
-- `GET/PATCH /api/learners/{id}/goal`, `GET /api/learners/{id}/sessions`
-- `GET /api/cases`
+- `GET/PATCH /api/learners/{id}/goal`, `PATCH /api/learners/{id}/profile`,
+  `GET /api/learners/{id}/sessions`
+- `GET /api/placement`, `POST /api/placement/attempts`, `GET /api/placement/attempts/{id}`,
+  `POST .../answers`, `GET .../items/{item_id}/audio` (WAV), `POST .../speaking/{item_id}`
+  (PCM16 24 kHz body, `X-Event-Id` header; `text/plain` in fake mode), `POST .../finish`
+- `GET /api/cases` (each case carries the `land` and `city` of its gold protocol),
+  `GET /api/cases/summary` (published cases per Land and the share this learner worked),
+  `GET /api/reference/laender` (the closed list of the sixteen Länder)
 - `POST /api/sessions`, `GET /api/sessions/{id}`, `POST /api/sessions/{id}/end`,
   `POST /api/sessions/{id}/analysis/retry`
 - `WebSocket /ws/sessions/{id}/voice`: binary PCM16 24 kHz frames, `user.turn.finish`,
@@ -160,7 +228,12 @@ a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connect
   `push_to_talk` (training) or `open_microphone` (exam, frames stream continuously).
 - `GET /api/exercises`, `POST /api/practice/runs`, `GET /api/practice/runs/{id}`,
   `POST /api/practice/runs/{id}/{answers|pause|resume|finish}`
-- `GET /api/history`, `GET /api/progression`
+- `GET /api/lexicon`, `POST /api/lexicon/entries`, `PATCH /api/lexicon/entries/{id}`
+  (archive), `POST /api/lexicon/entries/{id}/reviews` (idempotent per `event_id`).
+  A completed session's `GET /api/sessions/{id}` carries `lexicon` (words added and
+  promoted by that session) and `evaluation.code_switches`.
+- `GET /api/history`, `GET /api/progression`, `GET /api/program` (learner model and
+  this week's slots)
 
 ## Quality checks
 
@@ -183,8 +256,11 @@ pnpm --dir web test:e2e
 ## Known limits
 
 - The pipeline is single-process: voice connection state lives in memory, so run one
-  worker. SQLite has a single writer.
-- No pronunciation scoring; vocabulary entries are candidates, never "mastered".
+  application worker.
+- No pronunciation scoring. Lexicon promotions are lexical (a token starting with the
+  term, short inflection allowed), not a judgement of correct usage; the LLM only
+  proposes candidates and flags code switches. In exam mode the speech model refuses
+  other languages in character, but the turn is not tagged `wrong_language`.
 - Text exercises match whole answers after normalisation; unrecognised phrasings are
   reported as unrecognised, not as wrong.
 - All shipped content is synthetic. Real cases require human clinical and linguistic
