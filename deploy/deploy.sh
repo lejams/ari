@@ -11,6 +11,36 @@ cd "$(dirname "$0")/.."
 
 compose() { docker compose --profile serve "$@"; }
 
+has_migrated_schema() {
+	if ! compose ps --all --services | grep -qx postgres; then
+		return 1
+	fi
+	if ! compose ps --status running --services | grep -qx postgres; then
+		echo "Postgres exists but is not running; refusing to deploy without a backup." >&2
+		exit 1
+	fi
+
+	local platform_version content_version
+	if ! platform_version="$(docker compose exec -T postgres psql -U postgres -d ari_platform -tAc \
+		"SELECT to_regclass('public.alembic_version')" | tr -d '[:space:]')"; then
+		echo "Could not inspect ari_platform; refusing to deploy without a backup." >&2
+		exit 1
+	fi
+	if ! content_version="$(docker compose exec -T postgres psql -U postgres -d ari_content -tAc \
+		"SELECT to_regclass('public.alembic_version')" | tr -d '[:space:]')"; then
+		echo "Could not inspect ari_content; refusing to deploy without a backup." >&2
+		exit 1
+	fi
+	if [ "$platform_version" = "alembic_version" ] && [ "$content_version" = "alembic_version" ]; then
+		return 0
+	fi
+	if [ -n "$platform_version" ] || [ -n "$content_version" ]; then
+		echo "Database state is inconsistent; refusing to deploy without a backup." >&2
+		exit 1
+	fi
+	return 1
+}
+
 # Refuse to deploy anything but a clean main checkout.
 if [ -n "$(git status --porcelain)" ]; then
 	echo "Working tree is dirty; commit or stash before deploying." >&2
@@ -35,8 +65,13 @@ tag="$(git rev-parse --short HEAD)"
 export ARI_IMAGE_TAG="$tag"
 echo "Deploying $tag (was $prev)."
 
-# The rollback point: a full backup taken before any migration runs.
-deploy/backup.sh "predeploy-$tag"
+# The rollback point: a full backup taken before any migration runs. On the first deployment,
+# the databases have been created by Postgres but have no Alembic schema to back up yet.
+if has_migrated_schema; then
+	deploy/backup.sh "predeploy-$tag"
+else
+	echo "No previous deployment detected; skipping pre-deploy backup."
+fi
 
 compose build --pull
 # up re-runs migrate (both Alembic chains) then starts the rest; --wait blocks on healthchecks.
