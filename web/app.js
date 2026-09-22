@@ -72,7 +72,10 @@ async function api(path, options = {}) {
     ...options,
   });
   if (!response.ok) {
-    const error = new Error((await response.json()).detail || `HTTP ${response.status}`);
+    // A paused service (503) or a proxy error page (401/502) may not be JSON; fall back to
+    // the status code rather than surfacing a JSON parse error to the learner.
+    const body = await response.json().catch(() => ({}));
+    const error = new Error(body.detail || `HTTP ${response.status}`);
     error.status = response.status;
     throw error;
   }

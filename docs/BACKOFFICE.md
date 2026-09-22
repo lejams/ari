@@ -68,23 +68,12 @@ l'entrée ; l'app apprenant n'a pas les identifiants de la base `content`.
 
 ## Déploiement sur un serveur
 
-Un seul serveur, docker compose, deux noms DNS (app apprenant, back-office) pointant dessus. Le
-back-office reçoit les identifiants des deux bases : `content` pour les protocoles, `platform`
-pour importer et publier les cas dans le registre que lit l'app apprenant.
-
-```sh
-cp deploy/env.example .env          # puis : mots de passe Postgres, clé OpenAI, ARI_PROVIDER_MODE=openai,
-                                    # ARI_DOMAIN=app.exemple.org, ARI_BACKOFFICE_DOMAIN=admin.exemple.org
-docker compose --profile serve up -d --build
-docker compose --profile serve run --rm backoffice \
-  python -m ari.backoffice_api.cli create-owner --email vous@exemple.org --name "Votre nom"
-```
-
-Le service `migrate` applique les deux chaînes Alembic avant que `app`, `backoffice` et `worker`
-démarrent ; `proxy` (Caddy) obtient les certificats et met le back-office derrière HTTPS, ce que
-les cookies `Secure` de la production exigent. Les PDF vivent dans le volume `content_storage`,
-les bases dans `postgres_data` : à sauvegarder ensemble. Le lien d'invitation imprimé par
-`create-owner` s'ouvre sur `https://admin.exemple.org/#/invitation/…`.
+La procédure complète (VPS, DNS, secrets, premier déploiement, sauvegardes, restauration,
+retour arrière) est dans [docs/DEPLOYMENT.md](DEPLOYMENT.md). En résumé : un seul serveur, docker
+compose, deux noms DNS ; le service `migrate` applique les deux chaînes Alembic avant que `app`,
+`backoffice` et `worker` démarrent ; `proxy` (Caddy) met les applications derrière HTTPS, ce que
+les cookies `Secure` de la production exigent. Le compte propriétaire se crée avec
+`create-owner` (voir le runbook).
 
 En local, `make backoffice` sert le back-office sur <http://localhost:8100> avec rechargement,
 `make worker` lance le worker ; le premier compte se crée avec la même commande `create-owner`

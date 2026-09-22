@@ -1,15 +1,60 @@
 # Local development: `make db-up` starts only postgres. Deployment on one server:
 # `docker compose --profile serve up -d` runs the learner app, the back-office, the worker and a
-# TLS reverse proxy (Caddy) in front of them, with ARI_DOMAIN / ARI_BACKOFFICE_DOMAIN from .env.
+# TLS reverse proxy (Caddy), with ARI_DOMAIN / ARI_BACKOFFICE_DOMAIN from .env.
+#
+# Production settings are passed through explicit `environment:` lists built from the anchors
+# below, never through `env_file`. This keeps the content-database credentials out of the learner
+# `app` container: it receives the platform URL and the provider keys only.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+# The single application image, tagged so a deploy can pin and roll back by git SHA. All four
+# application services build the same context, so compose builds the image once and reuses it.
+x-ari-image: &ari-image
+  image: "ari:${ARI_IMAGE_TAG:-local}"
+  build: .
+  logging: *logging
+
+# Keys the learner app and the pipeline share. Only string settings live here; numeric tunables
+# (timeouts, VAD, sample rate) are intentionally left to their code defaults so no empty string
+# can ever reach a float field.
+x-provider-env: &provider-env
+  ARI_PROVIDER_MODE: "${ARI_PROVIDER_MODE:-fake}"
+  ARI_OPENAI_API_KEY: "${ARI_OPENAI_API_KEY:-}"
+  ARI_STT_API_KEY: "${ARI_STT_API_KEY:-}"
+  ARI_STT_BASE_URL: "${ARI_STT_BASE_URL:-https://api.groq.com/openai/v1}"
+  ARI_STT_MODEL: "${ARI_STT_MODEL:-whisper-large-v3}"
+  ARI_PATIENT_MODEL: "${ARI_PATIENT_MODEL:-gpt-5.6-luna}"
+  ARI_EVALUATION_MODEL: "${ARI_EVALUATION_MODEL:-gpt-5.6-terra}"
+  ARI_TTS_MODEL: "${ARI_TTS_MODEL:-gpt-4o-mini-tts}"
+  ARI_TTS_VOICE: "${ARI_TTS_VOICE:-alloy}"
+  ARI_REALTIME_MODEL: "${ARI_REALTIME_MODEL:-gpt-realtime-mini}"
+  ARI_REALTIME_VOICE: "${ARI_REALTIME_VOICE:-marin}"
+  ARI_REALTIME_TRANSCRIPTION_MODEL: "${ARI_REALTIME_TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}"
+  ARI_FEEDBACK_LANGUAGE: "${ARI_FEEDBACK_LANGUAGE:-fr-FR}"
+  ARI_APPLICATION_VERSION: "${ARI_APPLICATION_VERSION:-}"
+
+# Content pipeline credentials and storage: back-office and worker only, never the learner app.
+x-content-env: &content-env
+  ARI_CONTENT_DATABASE_URL: "postgresql+psycopg://ari_content:${ARI_CONTENT_DB_PASSWORD:-ari_content}@postgres:5432/ari_content"
+  ARI_CONTENT_STORAGE_DIR: /data/content
+  ARI_CONTENT_MODEL: "${ARI_CONTENT_MODEL:-gpt-5.6-terra}"
+
 services:
   postgres:
     image: postgres:16-alpine
+    logging: *logging
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       ARI_PLATFORM_DB_PASSWORD: ${ARI_PLATFORM_DB_PASSWORD:-ari_platform}
       ARI_CONTENT_DB_PASSWORD: ${ARI_CONTENT_DB_PASSWORD:-ari_content}
     ports:
-      - "${ARI_POSTGRES_PORT:-5432}:5432"
+      # Bound to localhost: reachable for local dev and the tests, never from outside the VPS.
+      - "127.0.0.1:${ARI_POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -21,9 +66,8 @@ services:
 
   # Runs both Alembic chains once, then exits; the other services wait for it.
   migrate:
+    <<: *ari-image
     profiles: ["serve"]
-    build: .
-    env_file: .env
     environment:
       ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
       ARI_CONTENT_DATABASE_URL: postgresql+psycopg://ari_content:${ARI_CONTENT_DB_PASSWORD:-ari_content}@postgres:5432/ari_content
@@ -34,31 +78,42 @@ services:
       postgres:
         condition: service_healthy
 
-  # Learner application: platform database only, never the content credentials.
+  # Learner application: platform database and provider keys only, never content credentials.
   app:
+    <<: *ari-image
     profiles: ["serve"]
-    build: .
-    env_file: .env
     environment:
+      <<: *provider-env
       ARI_ENVIRONMENT: production
       ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
       ARI_FRONTEND_ORIGIN: https://${ARI_DOMAIN:-localhost}
+      ARI_SERVICE_PAUSED: "${ARI_SERVICE_PAUSED:-false}"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     depends_on:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
 
   backoffice:
+    <<: *ari-image
     profiles: ["serve"]
-    build: .
-    env_file: .env
     environment:
+      <<: [*provider-env, *content-env]
       ARI_ENVIRONMENT: production
       ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
-      ARI_CONTENT_DATABASE_URL: postgresql+psycopg://ari_content:${ARI_CONTENT_DB_PASSWORD:-ari_content}@postgres:5432/ari_content
-      ARI_CONTENT_STORAGE_DIR: /data/content
       ARI_BACKOFFICE_ORIGIN: https://${ARI_BACKOFFICE_DOMAIN:-localhost}
     command: ["python", "-m", "uvicorn", "ari.backoffice:app", "--host", "0.0.0.0", "--port", "8100"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8100/api/health', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     volumes:
       - content_storage:/data/content
     depends_on:
@@ -67,15 +122,21 @@ services:
     restart: unless-stopped
 
   worker:
+    <<: *ari-image
     profiles: ["serve"]
-    build: .
-    env_file: .env
     environment:
+      <<: [*provider-env, *content-env]
       ARI_ENVIRONMENT: production
       ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
-      ARI_CONTENT_DATABASE_URL: postgresql+psycopg://ari_content:${ARI_CONTENT_DB_PASSWORD:-ari_content}@postgres:5432/ari_content
-      ARI_CONTENT_STORAGE_DIR: /data/content
+      ARI_WORKER_HEARTBEAT_PATH: /tmp/ari-worker-heartbeat
     command: ["python", "-m", "ari.worker"]
+    healthcheck:
+      # A running worker touches the file every poll; 600s tolerates a job up to the content timeout.
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time() - os.stat('/tmp/ari-worker-heartbeat').st_mtime < 600 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     volumes:
       - content_storage:/data/content
     depends_on:
@@ -84,13 +145,16 @@ services:
     restart: unless-stopped
 
   # HTTPS in front of both applications (Let's Encrypt). Requires the two DNS names to
-  # point at this server; ports 80 and 443 open.
+  # point at this server; ports 80 and 443 open. Basic auth guards the learner domain.
   proxy:
+    image: caddy:2.10-alpine
     profiles: ["serve"]
-    image: caddy:2-alpine
+    logging: *logging
     environment:
       ARI_DOMAIN: ${ARI_DOMAIN:-localhost}
       ARI_BACKOFFICE_DOMAIN: ${ARI_BACKOFFICE_DOMAIN:-localhost}
+      ARI_APP_BASIC_AUTH_USER: ${ARI_APP_BASIC_AUTH_USER:-ari}
+      ARI_APP_BASIC_AUTH_HASH: ${ARI_APP_BASIC_AUTH_HASH:-}
     ports:
       - "80:80"
       - "443:443"
@@ -99,8 +163,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - app
-      - backoffice
+      app:
+        condition: service_healthy
+      backoffice:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

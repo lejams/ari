@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     content_upload_max_bytes: int = 50 * 1024 * 1024
     worker_poll_seconds: float = 2.0
     worker_id: str | None = None
+    # Liveness heartbeat: the worker touches this file on every loop iteration so a container
+    # healthcheck can tell a running worker from a wedged one. Unset in local development.
+    worker_heartbeat_path: Path | None = None
     # Back-office (separate application, port 8100): where its pages are served from, and
     # the lifetimes of its server-side sessions and one-time invitation links.
     backoffice_origin: str = "http://localhost:8100"
@@ -38,6 +41,9 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
     feedback_language: str = "fr-FR"
     application_version: str | None = None
+    # Emergency kill switch: when true the learner application refuses to start new sessions,
+    # practice runs, placement attempts and voice connections; past work stays readable.
+    service_paused: bool = False
 
     openai_api_key: str | None = None
     stt_api_key: str | None = None

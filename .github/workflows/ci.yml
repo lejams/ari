@@ -49,6 +49,12 @@ jobs:
         run: .venv/bin/mypy backend/src
       - name: Import contracts (layers, no vendor SDK in domain/application)
         run: PYTHONPATH=backend/src .venv/bin/lint-imports --config backend/pyproject.toml
+      - name: Shellcheck deploy scripts
+        run: shellcheck deploy/*.sh
+      - name: Compose config is valid (anchors and interpolation)
+        run: docker compose --profile serve config -q
+      - name: Docker image builds
+        run: docker build -t ari:ci .
       - name: JavaScript syntax and PCM resampler
         run: make test-web
       - name: Back-office web client and DOM tests
