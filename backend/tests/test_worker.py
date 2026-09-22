@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from sqlalchemy import text
 
 from ari.content.container import ContentContainer
 from ari.content.domain.documents import Job, JobStatus, JobType
-from ari.worker import retry_delay, run_one
+from ari.worker import retry_delay, run_one, serve
 
 
 def test_failures_back_off_then_die_and_manual_retry_revives(
@@ -72,3 +74,18 @@ def test_stale_running_jobs_are_reclaimed_and_success_clears_the_lock(
     assert finished is not None and finished.status is JobStatus.SUCCEEDED
     assert finished.locked_by is None and finished.finished_at is not None
     assert done == [job.id]
+
+
+def test_serve_touches_the_heartbeat_file_each_iteration(
+    content_container: ContentContainer, tmp_path: Path
+) -> None:
+    heartbeat = tmp_path / "worker-heartbeat"
+    container = replace(
+        content_container,
+        settings=content_container.settings.model_copy(
+            update={"worker_heartbeat_path": heartbeat}
+        ),
+    )
+    assert not heartbeat.exists()
+    asyncio.run(serve(container, "w1", once=True))
+    assert heartbeat.exists()

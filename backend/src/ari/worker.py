@@ -71,8 +71,11 @@ async def serve(container: ContentContainer, worker_id: str, *, once: bool) -> i
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stopping.set)
+    heartbeat = container.settings.worker_heartbeat_path
     processed = 0
     while not stopping.is_set():
+        if heartbeat is not None:
+            heartbeat.touch()
         job = await run_one(container, worker_id)
         if job is not None:
             processed += 1

@@ -20,6 +20,7 @@ from ari.api.dto import (
 )
 from ari.api.lexicon import lexicon_router, public_report
 from ari.api.ownership import PROFILE_COOKIE, OwnershipMiddleware
+from ari.api.pause import ServicePauseMiddleware
 from ari.api.placement import placement_router
 from ari.api.practice import practice_router
 from ari.api.program import program_router
@@ -91,6 +92,10 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         return result
 
     credentials = ProfileCredentials(services.repository.engine)
+    # Starlette runs the last-added middleware outermost. Adding the pause guard before
+    # ownership makes it run innermost: strangers still get a 404 from ownership, only
+    # authenticated learners reach the pause guard and see its message.
+    app.add_middleware(ServicePauseMiddleware, paused=services.settings.service_paused)
     app.add_middleware(
         OwnershipMiddleware,
         credentials=credentials,
