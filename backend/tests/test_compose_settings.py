@@ -44,3 +44,7 @@ def test_learner_app_never_receives_content_credentials() -> None:
     env = app.get("environment", {})
     assert not any(key.startswith("ARI_CONTENT_") for key in env), "app leaked content credentials"
     assert "POSTGRES_PASSWORD" not in env
+
+
+def test_postgres_restarts_after_host_reboot() -> None:
+    assert _services()["postgres"]["restart"] == "unless-stopped"

@@ -8,16 +8,20 @@ allemand dans le back-office, et l'environnement est restaurable depuis une sauv
 ## 1. Cible
 
 - VPS 2 vCPU / 4 Go RAM / 40 Go SSD minimum (8 Go de RAM plus confortables pour le worker PDF).
-- Ubuntu 24.04 LTS.
-- Docker Engine + plugin compose >= 2.20 ; outils `age`, `rclone`, `git`, `curl`.
+- Ubuntu 24.04 LTS, architecture amd64/x86_64 pour rester aligné avec la CI.
+- Docker Engine + plugin compose >= 2.20 ; installer aussi `age`, `rclone`, `git`, `curl`,
+  `openssl`, `ufw` et `unattended-upgrades`.
 
 ## 2. Préparation du serveur (une fois)
 
 Commandes de référence, pas un script :
 
 ```sh
-# Utilisateur applicatif dans le groupe docker.
-adduser ari && usermod -aG docker,sudo ari
+# Compte d'administration et compte de déploiement séparés.
+adduser admin && usermod -aG sudo admin
+adduser ari
+# Après l'installation de Docker, donner à ari l'accès Docker (pas sudo).
+usermod -aG docker ari
 
 # Pare-feu : seuls SSH, HTTP et HTTPS. PostgreSQL n'est jamais exposé.
 ufw default deny incoming && ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
@@ -33,7 +37,10 @@ dpkg-reconfigure -plow unattended-upgrades
 ```
 
 La rotation des logs Docker est gérée dans `docker-compose.yml` (json-file, 20 Mo x 5 par service).
-Redémarrer une fois le serveur pour vérifier que le pare-feu et les mises à jour survivent au reboot.
+Après l'installation et le premier déploiement, redémarrer une fois le serveur pour vérifier que le
+pare-feu et les mises à jour survivent au reboot, puis relancer explicitement
+`docker compose --profile serve up -d --wait` : les conditions `depends_on` ne sont évaluées que
+par `compose up`, pas par un redémarrage automatique du démon Docker.
 
 ## 3. DNS
 
@@ -69,7 +76,12 @@ chmod 600 .env
 deploy/deploy.sh
 ```
 
-Attendu : `migrate` sort en succès, quatre conteneurs `healthy`, deux certificats Let's Encrypt.
+Sur une installation neuve, `deploy.sh` détecte l'absence des deux schémas Alembic et affiche
+qu'il saute la sauvegarde pré-déploiement ; il ne faut pas démarrer PostgreSQL manuellement avant
+ce premier appel. Lors des déploiements suivants, une sauvegarde `predeploy-<sha>` est obligatoire.
+
+Attendu : `migrate` sort en succès, les services applicatifs et PostgreSQL sont `healthy`, deux
+certificats Let's Encrypt sont obtenus.
 Créer le premier compte propriétaire du back-office et l'inviter :
 
 ```sh
@@ -91,7 +103,21 @@ Dans l'ordre :
 
 ## 8. Sauvegardes
 
-- Cron quotidien : `0 3 * * * cd /opt/ari && deploy/backup.sh >> /var/log/ari-backup.log 2>&1`.
+- Configurer `rclone` sous l'utilisateur `ari`, avec le remote `ari-backup`, puis préparer les
+  chemins avec les bonnes permissions :
+
+  ```sh
+  sudo install -d -o ari -g ari -m 700 /var/backups/ari
+  sudo install -o ari -g ari -m 600 /dev/null /var/log/ari-backup.log
+  ```
+
+  Installer ensuite le cron sous `ari` avec un `PATH` explicite :
+
+  ```cron
+  SHELL=/bin/bash
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  0 3 * * * cd /opt/ari && ./deploy/backup.sh >> /var/log/ari-backup.log 2>&1
+  ```
 - Un check healthchecks.io (`BACKUP_HEALTHCHECK_URL`) avec une grâce de 26 h alerte si le job ne
   ping pas. Le script ping aussi `<url>/fail` en cas d'échec.
 - Un jeu contient : dump des deux bases, rôles globaux, archive du volume `content_storage`,
