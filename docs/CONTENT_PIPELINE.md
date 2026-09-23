@@ -22,7 +22,7 @@ base plateforme : l'application apprenant n'en a jamais les identifiants.
    protocole prolongé jusqu'au début du suivant) et marque `too_long` tout segment de plus de
    12 pages, à corriger à la main.
 4. **Extraction** (tâche `extract_protocol`, une par segment). Le texte du seul segment part au
-   modèle (`protocol-extraction-v1`) qui rend un `ExtractionOutput` strict. Le code assigne les
+   modèle (`protocol-extraction-v2`) qui rend un `ExtractionOutput` strict. Le code assigne les
    identifiants (`a01`, `q01`, `t01`, `u01`), applique la déclaration (le Land déclaré prime, la
    ville n'est jamais lue dans le texte), lance le détecteur PII (`pii-detector-v1`) et
    enregistre la version 1 du protocole au statut `extracted`.

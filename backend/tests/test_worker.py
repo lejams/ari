@@ -76,6 +76,31 @@ def test_stale_running_jobs_are_reclaimed_and_success_clears_the_lock(
     assert done == [job.id]
 
 
+def test_claim_prioritises_document_stages_before_protocol_fan_out(
+    content_container: ContentContainer,
+) -> None:
+    """A newly uploaded document must not wait behind a large extraction fan-out."""
+    first_protocol = content_container.queue.enqueue(
+        JobType.EXTRACT_PROTOCOL, {"document_id": "old", "segment_id": "old-0"}
+    )
+    second_protocol = content_container.queue.enqueue(
+        JobType.EXTRACT_PROTOCOL, {"document_id": "old", "segment_id": "old-1"}
+    )
+    text_job = content_container.queue.enqueue(JobType.EXTRACT_TEXT, {"document_id": "new"})
+    segment_job = content_container.queue.enqueue(
+        JobType.SEGMENT_DOCUMENT, {"document_id": "new"}
+    )
+
+    claimed = [content_container.queue.claim("worker") for _ in range(4)]
+
+    assert [job.id for job in claimed if job is not None] == [
+        text_job.id,
+        segment_job.id,
+        first_protocol.id,
+        second_protocol.id,
+    ]
+
+
 def test_serve_touches_the_heartbeat_file_each_iteration(
     content_container: ContentContainer, tmp_path: Path
 ) -> None:

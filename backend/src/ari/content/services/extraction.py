@@ -70,6 +70,16 @@ def _ids(prefix: str, count: int) -> list[str]:
     return [f"{prefix}{index:02d}" for index in range(1, count + 1)]
 
 
+def _anamnesis_value_and_uncertainty(
+    value_de: str | None, polarity: str, uncertainty: str | None
+) -> tuple[str | None, str | None]:
+    """Repair a tolerated model-contract violation before constructing the domain record."""
+    if polarity != "unknown" or value_de is None:
+        return value_de, uncertainty
+    preserved = f"Valeur extraite avec polarité inconnue : {value_de}"
+    return None, f"{uncertainty} — {preserved}" if uncertainty else preserved
+
+
 def draft_record(
     output: ExtractionOutput, *, document: Document, segment: DocumentSegment
 ) -> ProtocolRecord:
@@ -114,14 +124,17 @@ def draft_record(
             id=identifier,
             section=item.section,
             label_de=item.label_de,
-            value_de=item.value_de,
+            value_de=value_de,
             polarity=item.polarity,
             temporality=item.temporality,
             quote_de=item.quote_de,
             source_pages=tuple(page for page in item.source_pages if page >= 1),
-            uncertainty=item.uncertainty,
+            uncertainty=uncertainty,
         )
         for identifier, item in zip(_ids("a", len(output.anamnesis)), output.anamnesis, strict=True)
+        for value_de, uncertainty in [
+            _anamnesis_value_and_uncertainty(item.value_de, item.polarity, item.uncertainty)
+        ]
     )
     questions = tuple(
         ExaminerQuestion(

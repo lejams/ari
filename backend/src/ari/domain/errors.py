@@ -10,6 +10,10 @@ class InvalidStateError(AriError):
     pass
 
 
+class NonRetryableJobError(AriError):
+    """An expected job outcome that should be dead-lettered without automatic retry."""
+
+
 class CaseValidationError(AriError):
     pass
 

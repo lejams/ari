@@ -21,7 +21,7 @@ from ari.content.domain.documents import (
 from ari.content.ports import ContentRepository, JobQueue
 from ari.content.schemas import SegmentationSpan
 from ari.content.services.ai import ContentModel
-from ari.domain.errors import NotFoundError
+from ari.domain.errors import NonRetryableJobError, NotFoundError
 from ari.domain.models import new_id
 
 WINDOW_PAGES = 25
@@ -169,6 +169,11 @@ class Segmentation:
         with self._repository.transaction() as tx:
             for run in runs:
                 tx.add_ai_run(run)
-            tx.add_segments(segments)
-            tx.set_document_status(document.id, DocumentStatus.SEGMENTED)
+            if not segments:
+                tx.set_document_status(document.id, DocumentStatus.FAILED)
+            else:
+                tx.add_segments(segments)
+                tx.set_document_status(document.id, DocumentStatus.SEGMENTED)
+        if not segments:
+            raise NonRetryableJobError("La segmentation n'a produit aucun segment")
         return tuple(replace(segment) for segment in segments)

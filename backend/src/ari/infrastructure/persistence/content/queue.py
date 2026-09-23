@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import Engine, select, update
+from sqlalchemy import Engine, case, select, update
 from sqlalchemy.orm import Session
 
 from ari.content.domain.documents import Job, JobStatus, JobType
@@ -14,6 +14,15 @@ from ari.domain.models import new_id
 from ari.infrastructure.persistence.content.rows import JobRow
 
 RETRYABLE_STATUSES = (JobStatus.QUEUED.value, JobStatus.FAILED.value)
+
+# A document must pass the short, document-level stages before its potentially large fan-out
+# of protocol extraction jobs. Values are explicit; FIFO still applies within each stage.
+JOB_TYPE_PRIORITY = {
+    JobType.EXTRACT_TEXT.value: 0,
+    JobType.SEGMENT_DOCUMENT.value: 1,
+    JobType.EXTRACT_PROTOCOL.value: 2,
+    JobType.GENERATE_BUNDLE_DRAFT.value: 3,
+}
 
 
 def _dt(value: datetime | None) -> datetime | None:
@@ -72,12 +81,16 @@ class PostgresJobQueue:
             return _job(row)
 
     def claim(self, worker_id: str, types: Sequence[JobType] | None = None) -> Job | None:
-        """Take the oldest runnable job; concurrent workers skip each other's rows."""
+        """Take the highest-priority runnable stage, FIFO within that stage."""
         now = datetime.now(UTC)
         candidate = (
             select(JobRow.id)
             .where(JobRow.status.in_(RETRYABLE_STATUSES), JobRow.available_at <= now)
-            .order_by(JobRow.created_at, JobRow.id)
+            .order_by(
+                case(JOB_TYPE_PRIORITY, value=JobRow.type, else_=len(JOB_TYPE_PRIORITY)),
+                JobRow.created_at,
+                JobRow.id,
+            )
             .limit(1)
             .with_for_update(skip_locked=True)
         )
