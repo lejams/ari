@@ -41,7 +41,7 @@
     <div class="pagehead"><p class="eyebrow">Tableau de bord</p><h1>Où en est la banque de cas.</h1></div>
     <div id="dashboard-tiles" class="tiles"></div>
     <div class="grid"><article class="card"><h2>Protocoles par statut</h2><table id="dashboard-protocols" class="table"></table></article><article class="card"><h2>Protocoles gold par Land</h2><table id="dashboard-gold" class="table"></table></article></div>
-    <article class="card"><h2>File de tâches</h2><table id="dashboard-jobs" class="table"></table><p class="help">Le worker traite les tâches en arrière-plan ; une tâche <em>dead</em> a épuisé ses trois tentatives et se relance depuis la page du document.</p></article>
+    <article class="card"><h2>File de tâches</h2><p id="dashboard-worker" class="help" role="status"></p><table id="dashboard-jobs" class="table"></table><p class="help">Le worker traite les tâches en arrière-plan ; une tâche <em>dead</em> a épuisé ses trois tentatives et se relance depuis la page du document.</p></article>
   </section>
 
   <section id="documents" hidden>
@@ -73,7 +73,7 @@
     <article id="document-progress" class="card progress-card"><div class="row between wrap"><div><h2>Progression du traitement</h2><p id="document-progress-label" class="help" role="status" aria-live="polite"></p></div><strong id="document-progress-count"></strong></div><ol id="document-progress-stages" class="progress-stages"></ol><div class="progress-track" aria-hidden="true"><span id="document-progress-bar"></span></div><p id="document-progress-error" class="help" role="status" aria-live="polite"></p></article>
     <div class="grid">
       <article class="card"><h2>Déclaration</h2><dl id="document-declaration" class="dl"></dl><div class="row wrap"><a id="document-original" class="button" download>Télécharger le PDF</a></div></article>
-      <article class="card"><h2>Traitement</h2><table id="document-jobs" class="table"></table><p id="document-error" class="help"></p><div class="row wrap" data-role="owner"><button type="button" id="document-release">Envoyer les protocoles extraits en relecture</button></div></article>
+      <article class="card"><h2>Traitement</h2><table id="document-jobs" class="table"></table><p id="document-error" class="help"></p><div class="row wrap" data-role="owner"><button type="button" id="document-retry-blocked">Relancer les tâches bloquées</button><button type="button" id="document-release">Envoyer les protocoles extraits en relecture</button></div></article>
     </div>
     <article class="card"><div class="row between wrap"><h2>Protocoles trouvés</h2><span id="document-segments-count" class="help"></span></div><table id="document-segments" class="table"></table>
       <details data-role="owner"><summary>Ajouter un protocole manquant (découpage manuel)</summary><form id="segment-form" class="form-grid" novalidate><div><label for="segment-from">Première page</label><input id="segment-from" type="number" min="1" required></div><div><label for="segment-to">Dernière page</label><input id="segment-to" type="number" min="1" required></div><div class="span2"><label for="segment-marker">Premiers mots du protocole, copiés exactement</label><input id="segment-marker" maxlength="200" required></div><div class="form-actions span2"><button class="primary">Créer et extraire</button></div></form></details>

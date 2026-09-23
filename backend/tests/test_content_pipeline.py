@@ -184,6 +184,50 @@ def test_draft_record_normalises_unknown_anamnesis_value() -> None:
     )
 
 
+@pytest.mark.parametrize("polarity", ["present", "absent"])
+def test_draft_record_normalises_polarity_without_value(polarity: str) -> None:
+    output = ExtractionOutput.model_validate(fake_extraction({"text": ""}))
+    output = output.model_copy(
+        update={
+            "anamnesis": [
+                output.anamnesis[0].model_copy(
+                    update={
+                        "value_de": None,
+                        "polarity": polarity,
+                        "uncertainty": "Source ambiguë",
+                    }
+                )
+            ]
+        }
+    )
+    document = Document(
+        id="d" * 64,
+        filename="protocol.pdf",
+        size_bytes=1,
+        storage_key="test.pdf",
+        uploaded_via="cli",
+        declaration=declaration(),
+    )
+    segment = DocumentSegment(
+        id="segment-1",
+        document_id=document.id,
+        index=0,
+        page_from=1,
+        page_to=1,
+        start_marker="Protokoll",
+        confidence=1.0,
+        origin="ai",
+    )
+
+    record = draft_record(output, document=document, segment=segment)
+
+    assert record.anamnesis[0].value_de is None
+    assert record.anamnesis[0].polarity == "unknown"
+    assert record.anamnesis[0].uncertainty == (
+        f"Source ambiguë — Polarité extraite sans valeur : {polarity}"
+    )
+
+
 def test_segmentation_without_spans_fails_the_document(
     content_container: ContentContainer, tmp_path: Path
 ) -> None:

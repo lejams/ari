@@ -108,6 +108,7 @@ services:
       ARI_ENVIRONMENT: production
       ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
       ARI_BACKOFFICE_ORIGIN: https://${ARI_BACKOFFICE_DOMAIN:-localhost}
+      ARI_WORKER_HEARTBEAT_PATH: /data/content/worker-heartbeat
     command: ["python", "-m", "uvicorn", "ari.backoffice:app", "--host", "0.0.0.0", "--port", "8100"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8100/api/health', timeout=3).status == 200 else 1)"]
@@ -129,11 +130,11 @@ services:
       <<: [*provider-env, *content-env]
       ARI_ENVIRONMENT: production
       ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
-      ARI_WORKER_HEARTBEAT_PATH: /tmp/ari-worker-heartbeat
+      ARI_WORKER_HEARTBEAT_PATH: /data/content/worker-heartbeat
     command: ["python", "-m", "ari.worker"]
     healthcheck:
       # A running worker touches the file every poll; 600s tolerates a job up to the content timeout.
-      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time() - os.stat('/tmp/ari-worker-heartbeat').st_mtime < 600 else 1)"]
+      test: ["CMD", "python", "-c", "import os,sys,time; sys.exit(0 if time.time() - os.stat('/data/content/worker-heartbeat').st_mtime < 600 else 1)"]
       interval: 30s
       timeout: 5s
       retries: 3

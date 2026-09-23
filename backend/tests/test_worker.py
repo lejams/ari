@@ -50,6 +50,18 @@ def test_failures_back_off_then_die_and_manual_retry_revives(
     assert (revived.status, revived.attempts) == (JobStatus.QUEUED, 0)
 
 
+def test_retry_failed_is_atomic_and_does_not_requeue_running_work(
+    content_container: ContentContainer,
+) -> None:
+    queued = content_container.queue.enqueue(JobType.EXTRACT_TEXT, {"document_id": "x"})
+    assert content_container.queue.retry_failed(queued.id) is None
+    content_container.queue.fail(queued.id, "boom", retry_in=None)
+
+    revived = content_container.queue.retry_failed(queued.id)
+    assert revived is not None and revived.status is JobStatus.QUEUED
+    assert content_container.queue.retry_failed(queued.id) is None
+
+
 def test_stale_running_jobs_are_reclaimed_and_success_clears_the_lock(
     content_container: ContentContainer,
 ) -> None:

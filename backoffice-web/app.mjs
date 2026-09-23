@@ -82,6 +82,8 @@ async function showDashboard() {
   table($('dashboard-protocols'), ['Statut', 'Nombre'], Object.entries(data.protocols_by_status).map(([status, count]) => [badge(status), String(count)]));
   table($('dashboard-gold'), ['Land', 'Gold'], Object.entries(data.gold_by_land).sort().map(([land, count]) => [land, String(count)]));
   table($('dashboard-jobs'), ['Statut', 'Nombre'], Object.entries(data.jobs_by_status).map(([status, count]) => [badge(status), String(count)]));
+  const worker = data.worker || {status: 'unavailable'};
+  $('dashboard-worker').textContent = ({online: 'Worker opérationnel', offline: 'Worker indisponible', unavailable: 'État du worker non configuré'})[worker.status] || 'État du worker inconnu';
   view('dashboard');
 }
 
@@ -157,6 +159,7 @@ async function showDocument(id) {
     else if (client.has('owner')) {
       if (segment.status !== 'discarded') actions.append(button('Écarter', () => client.setSegmentStatus(segment.id, 'discarded').then(() => showDocument(id)), 'danger'));
       if (segment.status !== 'pending') actions.append(button('Extraire', () => client.setSegmentStatus(segment.id, 'pending').then(() => showDocument(id))));
+      if (['pending', 'failed'].includes(segment.status) && ['failed', 'dead'].includes(segment.extraction_job?.status)) actions.append(button('Réessayer', () => client.retrySegmentExtraction(segment.id).then(() => showDocument(id))));
     }
     return [String(segment.index), `${segment.page_from}–${segment.page_to}`, segment.start_marker.slice(0, 60), `${Math.round(segment.confidence * 100)} % ${segment.origin === 'manual' ? '(manuel)' : ''}`, badge(segment.status), actions, ''];
   }));
@@ -164,6 +167,7 @@ async function showDocument(id) {
   scheduleDocumentPoll(id, data.progress);
 }
 $('document-release').onclick = () => perform(async () => { const result = await client.releaseDocument(current.documentId); notice(`${result.released} protocole(s) envoyé(s) en relecture.`); await showDocument(current.documentId); });
+$('document-retry-blocked').onclick = () => perform(async () => { const result = await client.retryBlockedExtractions(current.documentId); notice(`${result.requeued} tâche(s) relancée(s).`); await showDocument(current.documentId); });
 $('segment-form').onsubmit = event => { event.preventDefault(); perform(async () => {
   await client.addSegment(current.documentId, {page_from: Number($('segment-from').value), page_to: Number($('segment-to').value), start_marker: $('segment-marker').value.trim()});
   $('segment-form').reset(); notice('Segment ajouté ; extraction lancée.'); await showDocument(current.documentId);

@@ -124,6 +124,7 @@ class PostgresJobQueue:
                     finished_at=datetime.now(UTC),
                     locked_by=None,
                     locked_at=None,
+                    last_error=None,
                 )
             )
 
@@ -152,6 +153,28 @@ class PostgresJobQueue:
             row.finished_at = None
             db.flush()
             return _job(row)
+
+    def retry_failed(self, job_id: str) -> Job | None:
+        """Atomically requeue only a job that is waiting for manual recovery."""
+        with Session(self.engine) as db, db.begin():
+            result = db.execute(
+                update(JobRow)
+                .where(
+                    JobRow.id == job_id,
+                    JobRow.status.in_((JobStatus.FAILED.value, JobStatus.DEAD.value)),
+                )
+                .values(
+                    status=JobStatus.QUEUED.value,
+                    attempts=0,
+                    available_at=datetime.now(UTC),
+                    locked_by=None,
+                    locked_at=None,
+                    finished_at=None,
+                )
+            )
+            if getattr(result, "rowcount", 0) != 1:
+                return None
+            return _job(self._row(db, job_id))
 
     def get(self, job_id: str) -> Job:
         with Session(self.engine) as db:

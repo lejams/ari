@@ -99,7 +99,7 @@ const responses = {
   "/api/registry/scenarios?status=draft_unvalidated": {items: [{id: "FSP-BY-P-cccccccc-000-arzt_patient", version: "1", status: "draft_unvalidated", phase: "arzt_patient", case_id: "FSP-BY-P-cccccccc-000", case_version: "1", case_hash: "f".repeat(64), scenario_hash: "1".repeat(64), title: "Fall: Thoraxschmerz", land: "Bayern", language: "de-DE"}], total: 1},
   "/api/registry/scenarios/FSP-BY-P-cccccccc-000-arzt_patient/1": scenarioReport,
   "/api/auth/me": me, "/api/meta/lands": ["Baden-Württemberg", "Bayern"],
-  "/api/dashboard": {jobs_by_status: {succeeded: 3}, documents_by_status: {extracted: 1}, protocols_by_status: {doctor_review: 1}, review_queue: 1, owner_queue: 0, gold_by_land: {}, gold_total: 0, me},
+  "/api/dashboard": {jobs_by_status: {succeeded: 3}, documents_by_status: {extracted: 1}, protocols_by_status: {doctor_review: 1}, review_queue: 1, owner_queue: 0, gold_by_land: {}, gold_total: 0, worker: {status: "online", last_seen_at: "2026-09-23T00:00:00Z"}, me},
   "/api/documents": {items: [document_.document], total: 1}, [`/api/documents/${"c".repeat(64)}`]: document_,
   [`/api/documents/${"c".repeat(64)}/pages/2`]: {page_number: 2, text: "Protokoll 1"},
   "/api/protocols?status=doctor_review": {items: [protocol], total: 1}, "/api/protocols/P-cccccccc-000": protocol,
@@ -131,6 +131,10 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   const {nodes} = await load(hash);
   assert.equal(nodes.get("error").hidden, true, `${hash}: ${nodes.get("error-text").textContent}`);
   assert.equal(nodes.get(section).hidden, false, `${hash} shows ${section}`);
+}
+{
+  const {nodes} = await load("#/");
+  assert.equal(nodes.get("dashboard-worker").textContent, "Worker opérationnel");
 }
 {
   const {nodes} = await load(`#/documents/${"c".repeat(64)}`);

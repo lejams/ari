@@ -335,3 +335,53 @@ def test_document_progress_reports_retryable_failure_without_stopping_polling(
             "percent": None,
             "error": "Clé invalide",
         }
+
+
+def test_segment_and_document_retry_requeue_extraction_once(
+    backoffice: Backoffice, tmp_path: Path
+) -> None:
+    app = create_backoffice_app(backoffice)
+    pdf = synthetic_protocol_pdf(tmp_path / "retry.pdf", count=1)
+    with signed_in(app, backoffice, "o@example.org", "Owner", Role.OWNER) as owner:
+        uploaded = owner.post(
+            "/api/documents",
+            data={"provenance": "Synthetic PDF", "consent_declaration": "No real person involved"},
+            files={"file": ("p.pdf", pdf.read_bytes(), "application/pdf")},
+        )
+        document_id = uploaded.json()["document"]["id"]
+        asyncio.run(run_one(backoffice.content, "test-worker"))
+        asyncio.run(run_one(backoffice.content, "test-worker"))
+        segment = owner.get(f"/api/documents/{document_id}").json()["segments"][0]
+        job_id = segment["extraction_job"]["id"]
+        claimed = backoffice.content.queue.claim("test-worker")
+        assert claimed is not None and claimed.id == job_id
+        backoffice.content.queue.fail(job_id, "Modèle indisponible", retry_in=None)
+
+        retried = owner.post(f"/api/segments/{segment['id']}/retry")
+        assert retried.status_code == 200 and retried.json()["requeued"] is True
+        duplicate = owner.post(f"/api/segments/{segment['id']}/retry")
+        assert duplicate.json()["requeued"] is False
+        jobs = [
+            job
+            for job in backoffice.content.queue.list()
+            if job.type.value == "extract_protocol" and job.document_id == document_id
+        ]
+        assert len(jobs) == 1 and jobs[0].status.value == "queued" and jobs[0].attempts == 0
+
+        backoffice.content.queue.fail(job_id, "Toujours indisponible", retry_in=None)
+        recovered = owner.post(f"/api/documents/{document_id}/retry-blocked")
+        assert recovered.json()["requeued"] == 1
+        assert owner.post(f"/api/documents/{document_id}/retry-blocked").json()["requeued"] == 0
+        document_jobs = [
+            job for job in backoffice.content.queue.list() if job.document_id == document_id
+        ]
+        assert len(document_jobs) == 3
+
+
+def test_dashboard_reports_unconfigured_worker_status(backoffice: Backoffice) -> None:
+    app = create_backoffice_app(backoffice)
+    with signed_in(app, backoffice, "o@example.org", "Owner", Role.OWNER) as owner:
+        assert owner.get("/api/dashboard").json()["worker"] == {
+            "status": "unavailable",
+            "last_seen_at": None,
+        }
