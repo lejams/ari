@@ -8,17 +8,30 @@ from pathlib import Path
 
 import pytest
 from content_fixtures import synthetic_protocol_pdf
+from sqlalchemy import text as sql_text
 
 from ari.content.container import ContentContainer
 from ari.content.domain.documents import Actor, DocumentDeclaration, DocumentStatus, JobStatus
 from ari.content.domain.protocol import ProtocolStatus
+from ari.content.ports import PdfText
 from ari.content.schemas import SegmentationSpan
 from ari.content.services.segmentation import merge_spans, windows
+from ari.content.services.text_extraction import TextExtraction
 from ari.domain.errors import InvalidStateError
 from ari.domain.geography import Land
 from ari.worker import run_one
 
 OPERATOR = Actor(kind="cli", name="operator", account_id="cli-operator")
+
+
+class NulTextExtractor:
+    def extract(self, path: Path) -> PdfText:
+        del path
+        return PdfText(page_count=1, pages=("Vorher\x00Nachher",), extractor="test")
+
+    def render_page(self, path: Path, page_number: int, *, dpi: int = 110) -> bytes:
+        del path, page_number, dpi
+        return b""
 
 
 def declaration(**overrides: object) -> DocumentDeclaration:
@@ -83,6 +96,40 @@ def test_pdf_becomes_traced_protocol_drafts(
     )
     assert again.duplicate is True and again.document.id == result.document.id
     assert len(content_container.queue.list()) == 5  # no new job for the same bytes
+
+
+def test_text_extraction_removes_nul_bytes_before_persistence(
+    content_container: ContentContainer, tmp_path: Path
+) -> None:
+    pdf = synthetic_protocol_pdf(tmp_path / "nul.pdf", count=1)
+    result = content_container.ingestion.ingest(
+        pdf.read_bytes(), pdf.name, declaration(), actor=OPERATOR, via="cli"
+    )
+    job = content_container.queue.list()[0]
+
+    TextExtraction(
+        content_container.repository,
+        content_container.storage,
+        NulTextExtractor(),
+        content_container.queue,
+    ).run(job)
+
+    with content_container.repository.transaction() as tx:
+        pages = tx.pages(result.document.id)
+        assert len(pages) == 1
+        assert pages[0].text == "Vorher\ufffdNachher"
+        assert pages[0].char_count == len("Vorher\ufffdNachher")
+        assert "\x00" not in pages[0].text
+
+    with content_container.repository.engine.connect() as connection:  # type: ignore[attr-defined]
+        row = connection.execute(
+            sql_text(
+                "SELECT text, char_count FROM document_pages WHERE document_id = :document_id"
+            ),
+            {"document_id": result.document.id},
+        ).one()
+        assert row.text == "Vorher\ufffdNachher"
+        assert row.char_count == len("Vorher\ufffdNachher")
 
 
 def test_ingestion_refuses_non_pdf_and_oversize_files(content_container: ContentContainer) -> None:

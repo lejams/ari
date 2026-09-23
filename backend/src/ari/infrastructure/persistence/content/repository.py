@@ -58,6 +58,11 @@ def _record(payload: dict[str, Any]) -> ProtocolRecord:
     return ProtocolRecord.model_validate_json(json.dumps(payload, allow_nan=False))
 
 
+def _normalize_page_text(text: str) -> str:
+    """Keep extracted-text gaps visible while making them valid PostgreSQL text."""
+    return text.replace("\x00", "\ufffd")
+
+
 class SqlContentRepository:
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
@@ -155,12 +160,13 @@ class SqlContentTransaction:
 
     def add_pages(self, pages: Sequence[DocumentPage]) -> None:
         for page in pages:
+            text = _normalize_page_text(page.text)
             self.db.add(
                 DocumentPageRow(
                     document_id=page.document_id,
                     page_number=page.page_number,
-                    text=page.text,
-                    char_count=page.char_count,
+                    text=text,
+                    char_count=len(text),
                     extractor=page.extractor,
                 )
             )
