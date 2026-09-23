@@ -74,6 +74,7 @@ const document_ = {
   document: {id: "c".repeat(64), filename: "p.pdf", page_count: 2, status: "extracted", created_at: "2026-09-18T00:00:00Z", declaration: {land: "Bayern", city: null, exam_body: null, exam_date: null, specialty: null, rights: "compatible", rights_evidence: "ok", provenance: "p", consent_declaration: "c", intended_use: "u"}},
   segments: [{id: "s", index: 0, page_from: 2, page_to: 2, start_marker: "Protokoll 1", confidence: 0.9, origin: "ai", status: "extracted", protocol: {id: "P-cccccccc-000", version: 1, status: "doctor_review"}}],
   jobs: {succeeded: 3}, last_error: null,
+  progress: {stage: "ready", label: "Traitement terminé", completed: 1, total: 1, percent: 100, error: null},
 };
 const gold = {
   protocol_id: "P-cccccccc-000", protocol_version: 2, protocol_hash: "b".repeat(64), location: {land: "Bayern", city: null, exam_body: null, exam_date: "2026-03", specialty: null},
@@ -130,6 +131,13 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   const {nodes} = await load(hash);
   assert.equal(nodes.get("error").hidden, true, `${hash}: ${nodes.get("error-text").textContent}`);
   assert.equal(nodes.get(section).hidden, false, `${hash} shows ${section}`);
+}
+{
+  const {nodes} = await load(`#/documents/${"c".repeat(64)}`);
+  assert.equal(nodes.get("document-progress-label").textContent, "Traitement terminé");
+  assert.equal(nodes.get("document-progress-count").textContent, "1/1");
+  assert.equal(nodes.get("document-progress-bar").style.width, "100%");
+  assert.deepEqual(nodes.get("document-progress-stages").children.map(stage => stage.textContent), ["Déposé", "Texte", "Découpage", "Protocoles", "Terminé"]);
 }
 {
   const {nodes} = await load("#/protocols/P-cccccccc-000");

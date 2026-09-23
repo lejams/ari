@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f5f2"><title>ARI — Back-office</title><link rel="stylesheet" href="/styles.css?v=20260918a"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f5f2"><title>ARI — Back-office</title><link rel="stylesheet" href="/styles.css?v=20260923a"></head>
 <body>
 <a class="skip" href="#main">Aller au contenu</a>
 <aside class="sidebar" id="sidebar" hidden>
@@ -70,6 +70,7 @@
 
   <section id="document" hidden>
     <div class="pagehead"><p class="eyebrow">Document</p><h1 id="document-title"></h1><p id="document-meta" class="help"></p></div>
+    <article id="document-progress" class="card progress-card"><div class="row between wrap"><div><h2>Progression du traitement</h2><p id="document-progress-label" class="help" role="status" aria-live="polite"></p></div><strong id="document-progress-count"></strong></div><ol id="document-progress-stages" class="progress-stages"></ol><div class="progress-track" aria-hidden="true"><span id="document-progress-bar"></span></div><p id="document-progress-error" class="help" role="status" aria-live="polite"></p></article>
     <div class="grid">
       <article class="card"><h2>Déclaration</h2><dl id="document-declaration" class="dl"></dl><div class="row wrap"><a id="document-original" class="button" download>Télécharger le PDF</a></div></article>
       <article class="card"><h2>Traitement</h2><table id="document-jobs" class="table"></table><p id="document-error" class="help"></p><div class="row wrap" data-role="owner"><button type="button" id="document-release">Envoyer les protocoles extraits en relecture</button></div></article>
@@ -180,6 +181,6 @@
     <table id="accounts-table" class="table"></table>
   </section>
 </main>
-<script type="module" src="/app.mjs?v=20260920b"></script>
+<script type="module" src="/app.mjs?v=20260923a"></script>
 </body>
 </html>

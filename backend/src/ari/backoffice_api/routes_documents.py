@@ -16,6 +16,7 @@ from ari.content.domain.documents import (
     DocumentDeclaration,
     DocumentSegment,
     DocumentStatus,
+    Job,
     JobStatus,
     JobType,
     SegmentStatus,
@@ -27,6 +28,153 @@ from ari.domain.models import new_id
 Owner = Annotated[AccountContext, Depends(require_roles(Role.OWNER))]
 Anyone = Annotated[AccountContext, Depends(current_account)]
 PRIVATE = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
+
+
+def _progress(
+    document_status: DocumentStatus, segments: tuple[DocumentSegment, ...], jobs: list[Job]
+) -> dict[str, Any]:
+    """Describe the pipeline from persisted work, never from an estimated duration."""
+    relevant = [
+        job
+        for job in jobs
+        if job.type in {JobType.EXTRACT_TEXT, JobType.SEGMENT_DOCUMENT, JobType.EXTRACT_PROTOCOL}
+    ]
+    segments_by_id = {segment.id: segment for segment in segments}
+
+    def latest(type_: JobType) -> Job | None:
+        return next((item for item in reversed(relevant) if item.type is type_), None)
+
+    text = latest(JobType.EXTRACT_TEXT)
+    segmentation = latest(JobType.SEGMENT_DOCUMENT)
+    required = tuple(
+        segment
+        for segment in segments
+        if segment.status not in {SegmentStatus.TOO_LONG, SegmentStatus.DISCARDED}
+    )
+    unresolved = tuple(
+        segment
+        for segment in required
+        if segment.status is not SegmentStatus.EXTRACTED
+    )
+    current_protocol_jobs = [
+        job
+        for job in relevant
+        if job.type is JobType.EXTRACT_PROTOCOL
+        and segments_by_id.get(str(job.payload.get("segment_id"))) in unresolved
+    ]
+    failed = next(
+        (job for job in reversed(current_protocol_jobs) if job.status is JobStatus.DEAD), None
+    )
+    if failed is None and document_status is DocumentStatus.UPLOADED:
+        failed = text if text is not None and text.status is JobStatus.DEAD else None
+    if failed is None and document_status is DocumentStatus.TEXT_EXTRACTED:
+        failed = (
+            segmentation
+            if segmentation is not None and segmentation.status is JobStatus.DEAD
+            else None
+        )
+    if failed is None and document_status is DocumentStatus.FAILED:
+        failed = next(
+            (
+                job
+                for job in (segmentation, text)
+                if job is not None and job.status is JobStatus.DEAD
+            ),
+            None,
+        )
+    if document_status is DocumentStatus.FAILED or failed is not None:
+        failed_stage = {
+            JobType.EXTRACT_TEXT: "text_extraction",
+            JobType.SEGMENT_DOCUMENT: "segmentation",
+            JobType.EXTRACT_PROTOCOL: "protocol_extraction",
+        }.get(failed.type if failed else JobType.SEGMENT_DOCUMENT, "segmentation")
+        return {
+            "stage": "failed",
+            "failed_stage": failed_stage,
+            "label": "Traitement en échec",
+            "completed": 0,
+            "total": None,
+            "percent": None,
+            "error": failed.last_error if failed else None,
+        }
+
+    if text is None:
+        return {
+            "stage": "uploaded",
+            "label": "Document déposé",
+            "completed": 0,
+            "total": None,
+            "percent": None,
+            "error": None,
+        }
+    if text.status is not JobStatus.SUCCEEDED:
+        return {
+            "stage": "text_extraction",
+            "label": (
+                "Nouvelle tentative d'extraction du texte"
+                if text.status is JobStatus.FAILED
+                else "Extraction du texte"
+            ),
+            "completed": 0,
+            "total": 1,
+            "percent": 0,
+            "error": text.last_error if text.status is JobStatus.FAILED else None,
+        }
+
+    if segmentation is None or segmentation.status is not JobStatus.SUCCEEDED:
+        return {
+            "stage": "segmentation",
+            "label": (
+                "Nouvelle tentative de découpage"
+                if segmentation is not None and segmentation.status is JobStatus.FAILED
+                else "Découpage des protocoles"
+            ),
+            "completed": 0,
+            "total": None,
+            "percent": None,
+            "error": (
+                segmentation.last_error
+                if segmentation is not None and segmentation.status is JobStatus.FAILED
+                else None
+            ),
+        }
+
+    completed = sum(segment.status is SegmentStatus.EXTRACTED for segment in required)
+    total = len(required)
+    if not total:
+        return {
+            "stage": "ready",
+            "label": "Aucun protocole détecté",
+            "completed": 0,
+            "total": 0,
+            "percent": 100,
+            "error": None,
+        }
+    if total and completed == total and document_status is DocumentStatus.EXTRACTED:
+        return {
+            "stage": "ready",
+            "label": "Traitement terminé",
+            "completed": completed,
+            "total": total,
+            "percent": 100,
+            "error": None,
+        }
+    percent = round(completed * 100 / total) if total else None
+    retrying = next(
+        (job for job in reversed(current_protocol_jobs) if job.status is JobStatus.FAILED), None
+    )
+    return {
+        "stage": "protocol_extraction",
+        "label": (
+            "Nouvelle tentative d'extraction des protocoles"
+            if retrying is not None
+            else "Extraction des protocoles"
+        ),
+        "completed": completed,
+        "total": total or None,
+        "percent": percent,
+        "error": retrying.last_error if retrying is not None else None,
+    }
 
 
 def _land(value: str | None) -> Land | None:
@@ -123,6 +271,7 @@ def documents_router(services: Backoffice) -> APIRouter:
             "jobs": {
                 status.value: sum(1 for j in jobs if j.status is status) for status in JobStatus
             },
+            "progress": _progress(document.status, segments, jobs),
             "last_error": next((j.last_error for j in reversed(jobs) if j.last_error), None),
         }
 

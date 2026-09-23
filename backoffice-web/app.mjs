@@ -3,8 +3,9 @@ import {BackofficeApi, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LA
 const client = new BackofficeApi();
 const $ = id => document.getElementById(id);
 const views = ['login', 'invitation', 'dashboard', 'documents', 'document', 'review', 'protocol', 'gold', 'gold-detail', 'registry', 'scenario', 'accounts'];
-let lands = [], busy = false;
+let lands = [], busy = false, queuedRoute = false;
 let current = {protocol: null, record: null, page: 1, textMode: false, documentId: null, goldId: null, scenario: null};
+let documentPollTimer = null, documentRequestVersion = 0;
 
 const node = (tag, text, className) => { const element = document.createElement(tag); if (text !== undefined) element.textContent = text; if (className) element.className = className; return element; };
 const badge = status => node('span', statusLabel(status), `badge ${statusTone(status)}`.trim());
@@ -18,6 +19,10 @@ function table(target, headers, rows) {
 }
 function fillLands(select) { for (const land of lands) { const option = document.createElement('option'); option.value = land; option.textContent = land; select.append(option); } }
 function view(name) {
+  if (name !== 'document') {
+    documentRequestVersion += 1;
+    if (documentPollTimer !== null) { clearTimeout(documentPollTimer); documentPollTimer = null; }
+  }
   for (const id of views) $(id).hidden = id !== name;
   const authenticated = Boolean(client.me);
   $('sidebar').hidden = !authenticated;
@@ -26,15 +31,20 @@ function view(name) {
   for (const element of document.querySelectorAll('.sidebar nav button')) element.setAttribute('aria-current', location.hash.slice(1) === element.dataset.route || (element.dataset.route !== '/' && location.hash.slice(1).startsWith(element.dataset.route)) ? 'page' : 'false');
   window.scrollTo(0, 0);
 }
-async function perform(action) {
+async function perform(action, {background = false} = {}) {
   if (busy) return;
-  busy = true; $('main').setAttribute('aria-busy', 'true'); $('error').hidden = true;
+  if (!background) { busy = true; $('main').setAttribute('aria-busy', 'true'); $('error').hidden = true; }
   try { await action(); }
   catch (error) {
     if (error.status === 401) { client.me = null; location.hash = '#/login'; }
     $('error-text').textContent = error.message; $('error').hidden = false;
   }
-  finally { busy = false; $('main').setAttribute('aria-busy', 'false'); }
+  finally {
+    if (!background) {
+      busy = false; $('main').setAttribute('aria-busy', 'false');
+      if (queuedRoute) { queuedRoute = false; perform(route); }
+    }
+  }
 }
 function notice(text) { $('notice').textContent = text; setTimeout(() => { if ($('notice').textContent === text) $('notice').textContent = ''; }, 6000); }
 
@@ -100,9 +110,37 @@ $('upload-form').onsubmit = event => { event.preventDefault(); perform(async () 
   $('upload-form').reset();
   location.hash = `#/documents/${result.document.id}`; await route();
 }); };
+function renderDocumentProgress(progress) {
+  const stages = [['uploaded', 'Déposé'], ['text_extraction', 'Texte'], ['segmentation', 'Découpage'], ['protocol_extraction', 'Protocoles'], ['ready', 'Terminé']];
+  const active = stages.findIndex(([stage]) => stage === progress.stage);
+  const failed = stages.findIndex(([stage]) => stage === progress.failed_stage);
+  $('document-progress-label').textContent = progress.label;
+  $('document-progress-count').textContent = progress.total === null ? 'En cours…' : `${progress.completed}/${progress.total}`;
+  $('document-progress-stages').replaceChildren(...stages.map(([stage, label], index) => {
+    const state = progress.stage === 'failed' ? (index === Math.max(failed, 0) ? 'failed' : '') : index < active ? 'done' : index === active ? 'current' : '';
+    return node('li', label, state);
+  }));
+  $('document-progress-bar').style.width = progress.percent === null ? '' : `${progress.percent}%`;
+  $('document-progress-bar').parentElement?.classList.toggle('indeterminate', progress.percent === null && progress.stage !== 'failed');
+  $('document-progress-error').textContent = progress.error ? `Erreur : ${progress.error}` : '';
+}
+function scheduleDocumentPoll(id, progress) {
+  if (documentPollTimer !== null) { clearTimeout(documentPollTimer); documentPollTimer = null; }
+  if (progress.stage === 'ready' || progress.stage === 'failed') return;
+  documentPollTimer = setTimeout(() => {
+    documentPollTimer = null;
+    if (current.documentId === id && location.hash === `#/documents/${id}`) {
+      if (busy) { scheduleDocumentPoll(id, progress); return; }
+      perform(() => showDocument(id), {background: true});
+    }
+  }, 2000);
+}
 async function showDocument(id) {
+  if (documentPollTimer !== null) { clearTimeout(documentPollTimer); documentPollTimer = null; }
+  const requestVersion = ++documentRequestVersion;
   current.documentId = id;
   const data = await client.document(id);
+  if (requestVersion !== documentRequestVersion || location.hash !== `#/documents/${id}`) return;
   const document_ = data.document, declaration = document_.declaration;
   $('document-title').textContent = document_.filename;
   $('document-meta').textContent = `${document_.page_count ?? '?'} pages · ${statusLabel(document_.status)} · empreinte ${document_.id.slice(0, 12)}…`;
@@ -111,6 +149,7 @@ async function showDocument(id) {
   $('document-original').href = client.originalUrl(id);
   table($('document-jobs'), ['Statut', 'Tâches'], Object.entries(data.jobs).filter(([, count]) => count).map(([status, count]) => [badge(status), String(count)]));
   $('document-error').textContent = data.last_error ? `Dernière erreur : ${data.last_error}` : '';
+  renderDocumentProgress(data.progress);
   $('document-segments-count').textContent = `${data.segments.length} segment(s)`;
   table($('document-segments'), ['#', 'Pages', 'Début', 'Confiance', 'Statut', 'Protocole', ''], data.segments.map(segment => {
     const actions = node('div', undefined, 'row wrap');
@@ -122,6 +161,7 @@ async function showDocument(id) {
     return [String(segment.index), `${segment.page_from}–${segment.page_to}`, segment.start_marker.slice(0, 60), `${Math.round(segment.confidence * 100)} % ${segment.origin === 'manual' ? '(manuel)' : ''}`, badge(segment.status), actions, ''];
   }));
   view('document');
+  scheduleDocumentPoll(id, data.progress);
 }
 $('document-release').onclick = () => perform(async () => { const result = await client.releaseDocument(current.documentId); notice(`${result.released} protocole(s) envoyé(s) en relecture.`); await showDocument(current.documentId); });
 $('segment-form').onsubmit = event => { event.preventDefault(); perform(async () => {
@@ -464,5 +504,9 @@ async function route() {
   return (routes[path] || showDashboard)();
 }
 for (const element of document.querySelectorAll('[data-route]')) element.onclick = () => { location.hash = `#${element.dataset.route}`; };
-window.addEventListener('hashchange', () => perform(route));
+window.addEventListener('hashchange', () => {
+  documentRequestVersion += 1;
+  if (busy) { queuedRoute = true; return; }
+  perform(route);
+});
 perform(async () => { await client.restore(); if (client.me) { $('me-name').textContent = client.me.display_name; $('me-roles').textContent = client.me.roles.map(role => ROLE_LABELS[role] || role).join(', '); await loadLands(); } await route(); });

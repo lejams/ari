@@ -153,6 +153,15 @@ def test_upload_review_and_gold_through_the_api(backoffice: Backoffice, tmp_path
         )
         assert uploaded.status_code == 201, uploaded.text
         document_id = uploaded.json()["document"]["id"]
+        active = owner.get(f"/api/documents/{document_id}").json()["progress"]
+        assert active == {
+            "stage": "text_extraction",
+            "label": "Extraction du texte",
+            "completed": 0,
+            "total": 1,
+            "percent": 0,
+            "error": None,
+        }
         again = owner.post(
             "/api/documents",
             data=form,
@@ -174,6 +183,14 @@ def test_upload_review_and_gold_through_the_api(backoffice: Backoffice, tmp_path
             and detail["segments"][0]["protocol"]["status"] == "extracted"
         )
         assert detail["jobs"]["succeeded"] == 3
+        assert detail["progress"] == {
+            "stage": "ready",
+            "label": "Traitement terminé",
+            "completed": 1,
+            "total": 1,
+            "percent": 100,
+            "error": None,
+        }
         page = doctor.get(f"/api/documents/{document_id}/pages/2").json()
         assert "Protokoll 1" in page["text"]
         image = doctor.get(f"/api/documents/{document_id}/pages/2/image")
@@ -280,3 +297,41 @@ def test_owner_can_remove_an_unvalidated_protocol_without_erasing_audit(
         detail = owner.get(f"/api/protocols/{protocol_id}").json()
         assert detail["status"] == "rejected"
         assert detail["events"][-1]["event_type"] == "deleted"
+
+
+def test_document_progress_reports_retryable_failure_without_stopping_polling(
+    backoffice: Backoffice, tmp_path: Path
+) -> None:
+    app = create_backoffice_app(backoffice)
+    pdf = synthetic_protocol_pdf(tmp_path / "failed-progress.pdf", count=1)
+    with signed_in(app, backoffice, "o@example.org", "Owner", Role.OWNER) as owner:
+        uploaded = owner.post(
+            "/api/documents",
+            data={"provenance": "Synthetic PDF", "consent_declaration": "No real person involved"},
+            files={"file": ("p.pdf", pdf.read_bytes(), "application/pdf")},
+        )
+        document_id = uploaded.json()["document"]["id"]
+        claimed = backoffice.content.queue.claim("test-worker")
+        assert claimed is not None
+        backoffice.content.queue.fail(
+            claimed.id, "PDF temporairement indisponible", retry_in=timedelta(minutes=1)
+        )
+
+        assert owner.get(f"/api/documents/{document_id}").json()["progress"] == {
+            "stage": "text_extraction",
+            "label": "Nouvelle tentative d'extraction du texte",
+            "completed": 0,
+            "total": 1,
+            "percent": 0,
+            "error": "PDF temporairement indisponible",
+        }
+        backoffice.content.queue.fail(claimed.id, "Clé invalide", retry_in=None)
+        assert owner.get(f"/api/documents/{document_id}").json()["progress"] == {
+            "stage": "failed",
+            "failed_stage": "text_extraction",
+            "label": "Traitement en échec",
+            "completed": 0,
+            "total": None,
+            "percent": None,
+            "error": "Clé invalide",
+        }
