@@ -144,12 +144,12 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   assert.equal(nodes.get("pii-card").hidden, false, "PII findings are shown");
   assert.match(nodes.get("page-image").src, /pages\/2\/image$/);
   const actions = nodes.get("decision-actions").children.map(b => b.textContent);
-  assert.deepEqual(actions, ["Enregistrer une version", "Approuver", "Demander des corrections", "Rejeter"], "a physician sees the doctor decisions");
+  assert.deepEqual(actions, ["Enregistrer une version", "Approuver", "Demander des corrections", "Rejeter", "Supprimer le protocole"], "a physician sees the doctor decisions and owner deletion");
 }
 {
   const {nodes} = await load("#/protocols/P-cccccccc-000", {roles: ["owner"]});
   const actions = nodes.get("decision-actions").children.map(b => b.textContent);
-  assert.deepEqual(actions, ["Enregistrer une version"], "an owner without the physician role cannot approve a protocol in doctor review");
+  assert.deepEqual(actions, ["Enregistrer une version", "Supprimer le protocole"], "an owner without the physician role cannot approve a protocol in doctor review");
   assert.equal(nodes.get("decision-help").textContent, "Statut « À relire ». La décision revient à un compte « Relecteur médecin ». Votre compte : Propriétaire.");
 }
 {

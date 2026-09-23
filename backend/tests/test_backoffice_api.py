@@ -238,8 +238,45 @@ def test_upload_review_and_gold_through_the_api(backoffice: Backoffice, tmp_path
         export = owner.get("/api/gold/export")
         assert export.status_code == 200 and export.text.count("\n") == 1
         assert doctor.get("/api/gold/export").status_code == 403
+        assert owner.delete(f"/api/protocols/{protocol_id}").status_code == 409
         dashboard = owner.get("/api/dashboard").json()
         assert dashboard["gold_by_land"] == {"Bayern": 1} and dashboard["protocols_by_status"] == {
             "gold": 1
         }
         assert owner.get("/api/meta/lands").json()[1] == "Bayern"
+
+
+def test_owner_can_remove_an_unvalidated_protocol_without_erasing_audit(
+    backoffice: Backoffice, tmp_path: Path
+) -> None:
+    app = create_backoffice_app(backoffice)
+    pdf = synthetic_protocol_pdf(tmp_path / "protocole-a-supprimer.pdf", count=1)
+    with (
+        signed_in(app, backoffice, "o@example.org", "Owner", Role.OWNER) as owner,
+        signed_in(app, backoffice, "d@example.org", "Doc", Role.PHYSICIAN_REVIEWER) as doctor,
+    ):
+        uploaded = owner.post(
+            "/api/documents",
+            data={
+                "provenance": "Synthetic PDF from the test suite",
+                "consent_declaration": "No real person involved",
+                "rights": "compatible",
+                "rights_evidence": "Generated fixture",
+                "land": "Bayern",
+            },
+            files={"file": ("p.pdf", pdf.read_bytes(), "application/pdf")},
+        )
+        assert uploaded.status_code == 201, uploaded.text
+        document_id = uploaded.json()["document"]["id"]
+        drain(backoffice)
+        protocol_id = owner.get(f"/api/documents/{document_id}").json()["segments"][0][
+            "protocol"
+        ]["id"]
+
+        assert doctor.delete(f"/api/protocols/{protocol_id}").status_code == 403
+        removed = owner.delete(f"/api/protocols/{protocol_id}")
+        assert removed.status_code == 204
+
+        detail = owner.get(f"/api/protocols/{protocol_id}").json()
+        assert detail["status"] == "rejected"
+        assert detail["events"][-1]["event_type"] == "deleted"

@@ -200,6 +200,10 @@ def protocols_router(services: Backoffice) -> APIRouter:
         with content.repository.transaction() as tx:
             return detail(tx, moved)
 
+    @router.delete("/api/protocols/{protocol_id}", status_code=204)
+    def delete(protocol_id: str, account: Owner) -> None:
+        content.workflow.delete_protocol(protocol_id, actor=actor(account))
+
     @router.get("/api/gold")
     def list_gold(account: Anyone, land: str | None = None) -> dict[str, Any]:
         with content.repository.transaction() as tx:

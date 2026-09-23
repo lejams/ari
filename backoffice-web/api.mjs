@@ -52,6 +52,7 @@ export class BackofficeApi {
   revise(id, baseVersion, baseHash, record) { return this.api(`/api/protocols/${encodeURIComponent(id)}/versions`, {method: "POST", body: JSON.stringify({base_version: baseVersion, base_hash: baseHash, record})}); }
   decide(id, stage, decision) { return this.api(`/api/protocols/${encodeURIComponent(id)}/decisions/${stage}`, {method: "POST", body: JSON.stringify(decision)}); }
   releaseProtocol(id) { return this.api(`/api/protocols/${encodeURIComponent(id)}/release`, {method: "POST"}); }
+  deleteProtocol(id) { return this.api(`/api/protocols/${encodeURIComponent(id)}`, {method: "DELETE"}); }
   gold(land = "") { return this.api(`/api/gold${land ? `?land=${encodeURIComponent(land)}` : ""}`); }
   goldDetail(id) { return this.api(`/api/gold/${encodeURIComponent(id)}`); }
   bundleDrafts(goldId) { return this.api(`/api/gold/${encodeURIComponent(goldId)}/bundle-drafts`); }

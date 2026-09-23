@@ -34,7 +34,9 @@ Désactiver un compte révoque ses sessions.
    toute incertitude non vidée, toute question critique sans réponse, la difficulté non
    renseignée. Le médecin corrige, **enregistre une version** (concurrence optimiste : si une
    version plus récente existe, la page demande de recharger), puis approuve, demande des
-   corrections ou rejette, avec une note obligatoire hors approbation.
+   corrections ou rejette, avec une note obligatoire hors approbation. Le propriétaire peut aussi
+   **supprimer un protocole non validé** depuis sa page : il est retiré du circuit et conservé dans
+   l'historique comme rejeté, tandis qu'un protocole gold ne peut plus être supprimé.
 4. **Validation** (propriétaire). Sur un protocole approuvé : différences avec la version
    précédente, revues, détections PII masquées. Valider exige un Land, aucune détection PII ou
    une note de dérogation, des droits non incompatibles ; le protocole devient **gold**, figé par

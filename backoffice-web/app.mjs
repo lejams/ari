@@ -303,6 +303,17 @@ function renderDecision() {
     const needed = doctorStage ? 'un compte « Relecteur médecin »' : protocol.status === 'doctor_approved' ? 'un compte « Propriétaire »' : protocol.status === 'extracted' ? 'le propriétaire, qui doit d’abord l’envoyer en relecture' : 'personne : le protocole est clos';
     $('decision-help').textContent = `Statut « ${statusLabel(protocol.status)} ». La décision revient à ${needed}. Votre compte : ${mine}.`;
   }
+  if (owner && !['gold', 'rejected', 'superseded'].includes(protocol.status)) {
+    actions.append(button('Supprimer le protocole', deleteCurrentProtocol, 'danger'));
+  }
+}
+async function deleteCurrentProtocol() {
+  const protocol = current.protocol;
+  if (!window.confirm('Supprimer ce protocole ? Il sera retiré du circuit de relecture et conservé dans l’historique.')) return;
+  await client.deleteProtocol(protocol.id);
+  notice('Protocole supprimé du circuit de relecture.');
+  location.hash = `#/documents/${protocol.document_id}`;
+  await route();
 }
 async function saveVersion() {
   const protocol = current.protocol;
