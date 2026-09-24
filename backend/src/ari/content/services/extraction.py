@@ -26,6 +26,7 @@ from ari.content.domain.protocol import (
     Outcome,
     PatientPresentation,
     Pedagogy,
+    Polarity,
     ProtocolLocation,
     ProtocolQuestion,
     ProtocolRecord,
@@ -37,7 +38,7 @@ from ari.content.ports import ContentRepository
 from ari.content.schemas import ExtractionOutput
 from ari.content.services.ai import ContentModel
 from ari.content.services.segmentation import PAGE_MARKER, marker_position
-from ari.domain.errors import NotFoundError
+from ari.domain.errors import NonRetryableJobError, NotFoundError
 from ari.domain.models import new_id
 
 TERMINAL_SEGMENT_STATUSES = frozenset(
@@ -68,6 +69,19 @@ def slice_text(
 
 def _ids(prefix: str, count: int) -> list[str]:
     return [f"{prefix}{index:02d}" for index in range(1, count + 1)]
+
+
+def _anamnesis_value_and_uncertainty(
+    value_de: str | None, polarity: Polarity, uncertainty: str | None
+) -> tuple[Polarity, str | None, str | None]:
+    """Repair a tolerated model-contract violation before constructing the domain record."""
+    if polarity == "unknown" and value_de is not None:
+        preserved = f"Valeur extraite avec polarité inconnue : {value_de}"
+        return "unknown", None, f"{uncertainty} — {preserved}" if uncertainty else preserved
+    if polarity != "unknown" and value_de is None:
+        preserved = f"Polarité extraite sans valeur : {polarity}"
+        return "unknown", None, f"{uncertainty} — {preserved}" if uncertainty else preserved
+    return polarity, value_de, uncertainty
 
 
 def draft_record(
@@ -114,14 +128,17 @@ def draft_record(
             id=identifier,
             section=item.section,
             label_de=item.label_de,
-            value_de=item.value_de,
-            polarity=item.polarity,
+            value_de=value_de,
+            polarity=polarity,
             temporality=item.temporality,
             quote_de=item.quote_de,
             source_pages=tuple(page for page in item.source_pages if page >= 1),
-            uncertainty=item.uncertainty,
+            uncertainty=uncertainty,
         )
         for identifier, item in zip(_ids("a", len(output.anamnesis)), output.anamnesis, strict=True)
+        for polarity, value_de, uncertainty in [
+            _anamnesis_value_and_uncertainty(item.value_de, item.polarity, item.uncertainty)
+        ]
     )
     questions = tuple(
         ExaminerQuestion(
@@ -220,6 +237,8 @@ class ProtocolExtraction:
             segment = tx.get_segment(segment_id)
             if document is None or segment is None:
                 raise NotFoundError("Document ou segment inconnu")
+            if segment.status in {SegmentStatus.DISCARDED, SegmentStatus.TOO_LONG}:
+                raise NonRetryableJobError("Ce segment ne doit pas être extrait")
             if any(
                 head.segment_id == segment_id for head in tx.list_heads(document_id=document_id)
             ):

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter
+from datetime import UTC, datetime, timedelta
+from os import stat
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
@@ -36,6 +38,20 @@ def admin_router(services: Backoffice) -> APIRouter:
 
     def _invitation_url(token: str) -> str:
         return f"{services.settings.backoffice_origin}/#/invitation/{token}"
+
+    def _worker_status() -> dict[str, object]:
+        path = services.settings.worker_heartbeat_path
+        if path is None:
+            return {"status": "unavailable", "last_seen_at": None}
+        try:
+            seen_at = datetime.fromtimestamp(stat(path).st_mtime, tz=UTC)
+        except FileNotFoundError:
+            return {"status": "offline", "last_seen_at": None}
+        freshness_seconds = (
+            services.settings.content_timeout_seconds + services.settings.worker_poll_seconds * 2
+        )
+        fresh = datetime.now(UTC) - seen_at <= timedelta(seconds=freshness_seconds)
+        return {"status": "online" if fresh else "offline", "last_seen_at": seen_at.isoformat()}
 
     @router.post("/api/accounts", status_code=201)
     def create_account(body: CreateAccountRequest, account: Owner) -> dict[str, Any]:
@@ -85,6 +101,7 @@ def admin_router(services: Backoffice) -> APIRouter:
                 Counter(g.location.land.value for g in gold if g.location.land is not None)
             ),
             "gold_total": len(gold),
+            "worker": _worker_status(),
             "me": jsonable_encoder(account),
         }
 

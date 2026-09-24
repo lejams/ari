@@ -74,7 +74,7 @@ def build_content_container(
         ContentPrompts(
             segmentation=load_prompt(prompts_dir / "segmentation_v1.txt", "segmentation-v1"),
             extraction=load_prompt(
-                prompts_dir / "protocol_extraction_v1.txt", "protocol-extraction-v1"
+                prompts_dir / "protocol_extraction_v2.txt", "protocol-extraction-v2"
             ),
             bundle_draft=load_prompt(prompts_dir / "bundle_draft_v1.txt", "bundle-draft-v1"),
         ),

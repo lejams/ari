@@ -26,6 +26,9 @@ assert.deepEqual([...upload.options.body.keys()].sort(), ["consent_declaration",
 await assert.rejects(() => client.revise("P-1", 1, "a".repeat(64), {}), error => error.status === 422 && /anamnesis\.0\.polarity : invalide/.test(error.message));
 await client.protocols({status: "doctor_review", land: "", document: "d"});
 assert.equal(calls.at(-1).path, "/api/protocols?status=doctor_review&document=d");
+await client.deleteProtocol("P-1");
+assert.equal(calls.at(-1).path, "/api/protocols/P-1");
+assert.equal(calls.at(-1).options.method, "DELETE");
 assert.equal(await client.logout(), undefined);
 assert.equal(client.has("owner"), false);
 

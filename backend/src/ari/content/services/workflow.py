@@ -51,6 +51,14 @@ class ProtocolWorkflow:
                 self._move(tx, head, ProtocolStatus.DOCTOR_REVIEW, "released", actor)
             return len(heads)
 
+    def delete_protocol(self, protocol_id: str, *, actor: Actor) -> ProtocolVersion:
+        """Remove an unvalidated protocol from active work while preserving its audit trail."""
+        with self._repository.transaction() as tx:
+            head = self._head(tx, protocol_id)
+            if head.status in CLOSED:
+                raise ConflictError(f"Un protocole {head.status.value} ne peut plus être supprimé")
+            return self._move(tx, head, ProtocolStatus.REJECTED, "deleted", actor)
+
     def revise(
         self,
         protocol_id: str,

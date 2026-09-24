@@ -8,17 +8,39 @@ from pathlib import Path
 
 import pytest
 from content_fixtures import synthetic_protocol_pdf
+from sqlalchemy import text as sql_text
 
 from ari.content.container import ContentContainer
-from ari.content.domain.documents import Actor, DocumentDeclaration, DocumentStatus, JobStatus
+from ari.content.domain.documents import (
+    Actor,
+    Document,
+    DocumentDeclaration,
+    DocumentSegment,
+    DocumentStatus,
+    JobStatus,
+)
 from ari.content.domain.protocol import ProtocolStatus
-from ari.content.schemas import SegmentationSpan
+from ari.content.fake_handlers import extraction as fake_extraction
+from ari.content.ports import PdfText
+from ari.content.schemas import ExtractionOutput, SegmentationSpan
+from ari.content.services.extraction import draft_record
 from ari.content.services.segmentation import merge_spans, windows
+from ari.content.services.text_extraction import TextExtraction
 from ari.domain.errors import InvalidStateError
 from ari.domain.geography import Land
 from ari.worker import run_one
 
 OPERATOR = Actor(kind="cli", name="operator", account_id="cli-operator")
+
+
+class NulTextExtractor:
+    def extract(self, path: Path) -> PdfText:
+        del path
+        return PdfText(page_count=1, pages=("Vorher\x00Nachher",), extractor="test")
+
+    def render_page(self, path: Path, page_number: int, *, dpi: int = 110) -> bytes:
+        del path, page_number, dpi
+        return b""
 
 
 def declaration(**overrides: object) -> DocumentDeclaration:
@@ -74,7 +96,7 @@ def test_pdf_becomes_traced_protocol_drafts(
         runs = tx.ai_runs(document_id=document.id)
         assert {r.operation for r in runs} == {"protocol_segmentation", "protocol_extraction"}
         assert all(r.prompt_hash and r.input_hash and r.status == "succeeded" for r in runs)
-        assert {r.prompt_version for r in runs} == {"segmentation-v1", "protocol-extraction-v1"}
+        assert {r.prompt_version for r in runs} == {"segmentation-v1", "protocol-extraction-v2"}
         assert [e.event_type for e in tx.events(heads[0].id)] == ["extracted"]
     assert all(job.status is JobStatus.SUCCEEDED for job in content_container.queue.list())
 
@@ -83,6 +105,153 @@ def test_pdf_becomes_traced_protocol_drafts(
     )
     assert again.duplicate is True and again.document.id == result.document.id
     assert len(content_container.queue.list()) == 5  # no new job for the same bytes
+
+
+def test_text_extraction_removes_nul_bytes_before_persistence(
+    content_container: ContentContainer, tmp_path: Path
+) -> None:
+    pdf = synthetic_protocol_pdf(tmp_path / "nul.pdf", count=1)
+    result = content_container.ingestion.ingest(
+        pdf.read_bytes(), pdf.name, declaration(), actor=OPERATOR, via="cli"
+    )
+    job = content_container.queue.list()[0]
+
+    TextExtraction(
+        content_container.repository,
+        content_container.storage,
+        NulTextExtractor(),
+        content_container.queue,
+    ).run(job)
+
+    with content_container.repository.transaction() as tx:
+        pages = tx.pages(result.document.id)
+        assert len(pages) == 1
+        assert pages[0].text == "Vorher\ufffdNachher"
+        assert pages[0].char_count == len("Vorher\ufffdNachher")
+        assert "\x00" not in pages[0].text
+
+    with content_container.repository.engine.connect() as connection:  # type: ignore[attr-defined]
+        row = connection.execute(
+            sql_text(
+                "SELECT text, char_count FROM document_pages WHERE document_id = :document_id"
+            ),
+            {"document_id": result.document.id},
+        ).one()
+        assert row.text == "Vorher\ufffdNachher"
+        assert row.char_count == len("Vorher\ufffdNachher")
+
+
+def test_draft_record_normalises_unknown_anamnesis_value() -> None:
+    output = ExtractionOutput.model_validate(fake_extraction({"text": ""}))
+    output = output.model_copy(
+        update={
+            "anamnesis": [
+                output.anamnesis[0].model_copy(
+                    update={
+                        "value_de": "Unklare Angabe",
+                        "polarity": "unknown",
+                        "uncertainty": "Source ambiguë",
+                    }
+                )
+            ]
+        }
+    )
+    document = Document(
+        id="d" * 64,
+        filename="protocol.pdf",
+        size_bytes=1,
+        storage_key="test.pdf",
+        uploaded_via="cli",
+        declaration=declaration(),
+    )
+    segment = DocumentSegment(
+        id="segment-1",
+        document_id=document.id,
+        index=0,
+        page_from=1,
+        page_to=1,
+        start_marker="Protokoll",
+        confidence=1.0,
+        origin="ai",
+    )
+
+    record = draft_record(output, document=document, segment=segment)
+
+    assert record.anamnesis[0].value_de is None
+    assert record.anamnesis[0].polarity == "unknown"
+    assert record.anamnesis[0].uncertainty == (
+        "Source ambiguë — Valeur extraite avec polarité inconnue : Unklare Angabe"
+    )
+
+
+@pytest.mark.parametrize("polarity", ["present", "absent"])
+def test_draft_record_normalises_polarity_without_value(polarity: str) -> None:
+    output = ExtractionOutput.model_validate(fake_extraction({"text": ""}))
+    output = output.model_copy(
+        update={
+            "anamnesis": [
+                output.anamnesis[0].model_copy(
+                    update={
+                        "value_de": None,
+                        "polarity": polarity,
+                        "uncertainty": "Source ambiguë",
+                    }
+                )
+            ]
+        }
+    )
+    document = Document(
+        id="d" * 64,
+        filename="protocol.pdf",
+        size_bytes=1,
+        storage_key="test.pdf",
+        uploaded_via="cli",
+        declaration=declaration(),
+    )
+    segment = DocumentSegment(
+        id="segment-1",
+        document_id=document.id,
+        index=0,
+        page_from=1,
+        page_to=1,
+        start_marker="Protokoll",
+        confidence=1.0,
+        origin="ai",
+    )
+
+    record = draft_record(output, document=document, segment=segment)
+
+    assert record.anamnesis[0].value_de is None
+    assert record.anamnesis[0].polarity == "unknown"
+    assert record.anamnesis[0].uncertainty == (
+        f"Source ambiguë — Polarité extraite sans valeur : {polarity}"
+    )
+
+
+def test_segmentation_without_spans_fails_the_document(
+    content_container: ContentContainer, tmp_path: Path
+) -> None:
+    import pymupdf
+
+    pdf = pymupdf.open()
+    pdf.new_page().insert_text((72, 72), "Document sans protocole FSP")
+    path = tmp_path / "no-protocol.pdf"
+    pdf.save(path)
+    pdf.close()
+    result = content_container.ingestion.ingest(
+        path.read_bytes(), path.name, declaration(), actor=OPERATOR, via="cli"
+    )
+
+    assert asyncio.run(run_one(content_container, "test-worker")) is not None
+    failed = asyncio.run(run_one(content_container, "test-worker"))
+
+    assert failed is not None and failed.status is JobStatus.DEAD
+    assert "La segmentation n'a produit aucun segment" in (failed.last_error or "")
+    with content_container.repository.transaction() as tx:
+        document = tx.get_document(result.document.id)
+        assert document is not None and document.status is DocumentStatus.FAILED
+        assert tx.segments(document.id) == ()
+        assert len(tx.ai_runs(document_id=document.id)) == 1
 
 
 def test_ingestion_refuses_non_pdf_and_oversize_files(content_container: ContentContainer) -> None:

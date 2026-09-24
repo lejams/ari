@@ -43,6 +43,8 @@ export class BackofficeApi {
   addSegment(id, segment) { return this.api(`/api/documents/${encodeURIComponent(id)}/segments`, {method: "POST", body: JSON.stringify(segment)}); }
   setSegmentStatus(id, status) { return this.api(`/api/segments/${encodeURIComponent(id)}`, {method: "PATCH", body: JSON.stringify({status})}); }
   retryJob(id) { return this.api(`/api/jobs/${encodeURIComponent(id)}/retry`, {method: "POST"}); }
+  retrySegmentExtraction(id) { return this.api(`/api/segments/${encodeURIComponent(id)}/retry`, {method: "POST"}); }
+  retryBlockedExtractions(id) { return this.api(`/api/documents/${encodeURIComponent(id)}/retry-blocked`, {method: "POST"}); }
   jobs(status = "") { return this.api(`/api/jobs${status ? `?status=${encodeURIComponent(status)}` : ""}`); }
   protocols(filters = {}) {
     const query = Object.entries(filters).filter(([, value]) => value).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join("&");
@@ -52,6 +54,7 @@ export class BackofficeApi {
   revise(id, baseVersion, baseHash, record) { return this.api(`/api/protocols/${encodeURIComponent(id)}/versions`, {method: "POST", body: JSON.stringify({base_version: baseVersion, base_hash: baseHash, record})}); }
   decide(id, stage, decision) { return this.api(`/api/protocols/${encodeURIComponent(id)}/decisions/${stage}`, {method: "POST", body: JSON.stringify(decision)}); }
   releaseProtocol(id) { return this.api(`/api/protocols/${encodeURIComponent(id)}/release`, {method: "POST"}); }
+  deleteProtocol(id) { return this.api(`/api/protocols/${encodeURIComponent(id)}`, {method: "DELETE"}); }
   gold(land = "") { return this.api(`/api/gold${land ? `?land=${encodeURIComponent(land)}` : ""}`); }
   goldDetail(id) { return this.api(`/api/gold/${encodeURIComponent(id)}`); }
   bundleDrafts(goldId) { return this.api(`/api/gold/${encodeURIComponent(goldId)}/bundle-drafts`); }

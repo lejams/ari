@@ -153,6 +153,15 @@ def test_upload_review_and_gold_through_the_api(backoffice: Backoffice, tmp_path
         )
         assert uploaded.status_code == 201, uploaded.text
         document_id = uploaded.json()["document"]["id"]
+        active = owner.get(f"/api/documents/{document_id}").json()["progress"]
+        assert active == {
+            "stage": "text_extraction",
+            "label": "Extraction du texte",
+            "completed": 0,
+            "total": 1,
+            "percent": 0,
+            "error": None,
+        }
         again = owner.post(
             "/api/documents",
             data=form,
@@ -174,6 +183,14 @@ def test_upload_review_and_gold_through_the_api(backoffice: Backoffice, tmp_path
             and detail["segments"][0]["protocol"]["status"] == "extracted"
         )
         assert detail["jobs"]["succeeded"] == 3
+        assert detail["progress"] == {
+            "stage": "ready",
+            "label": "Traitement terminé",
+            "completed": 1,
+            "total": 1,
+            "percent": 100,
+            "error": None,
+        }
         page = doctor.get(f"/api/documents/{document_id}/pages/2").json()
         assert "Protokoll 1" in page["text"]
         image = doctor.get(f"/api/documents/{document_id}/pages/2/image")
@@ -238,8 +255,133 @@ def test_upload_review_and_gold_through_the_api(backoffice: Backoffice, tmp_path
         export = owner.get("/api/gold/export")
         assert export.status_code == 200 and export.text.count("\n") == 1
         assert doctor.get("/api/gold/export").status_code == 403
+        assert owner.delete(f"/api/protocols/{protocol_id}").status_code == 409
         dashboard = owner.get("/api/dashboard").json()
         assert dashboard["gold_by_land"] == {"Bayern": 1} and dashboard["protocols_by_status"] == {
             "gold": 1
         }
         assert owner.get("/api/meta/lands").json()[1] == "Bayern"
+
+
+def test_owner_can_remove_an_unvalidated_protocol_without_erasing_audit(
+    backoffice: Backoffice, tmp_path: Path
+) -> None:
+    app = create_backoffice_app(backoffice)
+    pdf = synthetic_protocol_pdf(tmp_path / "protocole-a-supprimer.pdf", count=1)
+    with (
+        signed_in(app, backoffice, "o@example.org", "Owner", Role.OWNER) as owner,
+        signed_in(app, backoffice, "d@example.org", "Doc", Role.PHYSICIAN_REVIEWER) as doctor,
+    ):
+        uploaded = owner.post(
+            "/api/documents",
+            data={
+                "provenance": "Synthetic PDF from the test suite",
+                "consent_declaration": "No real person involved",
+                "rights": "compatible",
+                "rights_evidence": "Generated fixture",
+                "land": "Bayern",
+            },
+            files={"file": ("p.pdf", pdf.read_bytes(), "application/pdf")},
+        )
+        assert uploaded.status_code == 201, uploaded.text
+        document_id = uploaded.json()["document"]["id"]
+        drain(backoffice)
+        protocol_id = owner.get(f"/api/documents/{document_id}").json()["segments"][0][
+            "protocol"
+        ]["id"]
+
+        assert doctor.delete(f"/api/protocols/{protocol_id}").status_code == 403
+        removed = owner.delete(f"/api/protocols/{protocol_id}")
+        assert removed.status_code == 204
+
+        detail = owner.get(f"/api/protocols/{protocol_id}").json()
+        assert detail["status"] == "rejected"
+        assert detail["events"][-1]["event_type"] == "deleted"
+
+
+def test_document_progress_reports_retryable_failure_without_stopping_polling(
+    backoffice: Backoffice, tmp_path: Path
+) -> None:
+    app = create_backoffice_app(backoffice)
+    pdf = synthetic_protocol_pdf(tmp_path / "failed-progress.pdf", count=1)
+    with signed_in(app, backoffice, "o@example.org", "Owner", Role.OWNER) as owner:
+        uploaded = owner.post(
+            "/api/documents",
+            data={"provenance": "Synthetic PDF", "consent_declaration": "No real person involved"},
+            files={"file": ("p.pdf", pdf.read_bytes(), "application/pdf")},
+        )
+        document_id = uploaded.json()["document"]["id"]
+        claimed = backoffice.content.queue.claim("test-worker")
+        assert claimed is not None
+        backoffice.content.queue.fail(
+            claimed.id, "PDF temporairement indisponible", retry_in=timedelta(minutes=1)
+        )
+
+        assert owner.get(f"/api/documents/{document_id}").json()["progress"] == {
+            "stage": "text_extraction",
+            "label": "Nouvelle tentative d'extraction du texte",
+            "completed": 0,
+            "total": 1,
+            "percent": 0,
+            "error": "PDF temporairement indisponible",
+        }
+        backoffice.content.queue.fail(claimed.id, "Clé invalide", retry_in=None)
+        assert owner.get(f"/api/documents/{document_id}").json()["progress"] == {
+            "stage": "failed",
+            "failed_stage": "text_extraction",
+            "label": "Traitement en échec",
+            "completed": 0,
+            "total": None,
+            "percent": None,
+            "error": "Clé invalide",
+        }
+
+
+def test_segment_and_document_retry_requeue_extraction_once(
+    backoffice: Backoffice, tmp_path: Path
+) -> None:
+    app = create_backoffice_app(backoffice)
+    pdf = synthetic_protocol_pdf(tmp_path / "retry.pdf", count=1)
+    with signed_in(app, backoffice, "o@example.org", "Owner", Role.OWNER) as owner:
+        uploaded = owner.post(
+            "/api/documents",
+            data={"provenance": "Synthetic PDF", "consent_declaration": "No real person involved"},
+            files={"file": ("p.pdf", pdf.read_bytes(), "application/pdf")},
+        )
+        document_id = uploaded.json()["document"]["id"]
+        asyncio.run(run_one(backoffice.content, "test-worker"))
+        asyncio.run(run_one(backoffice.content, "test-worker"))
+        segment = owner.get(f"/api/documents/{document_id}").json()["segments"][0]
+        job_id = segment["extraction_job"]["id"]
+        claimed = backoffice.content.queue.claim("test-worker")
+        assert claimed is not None and claimed.id == job_id
+        backoffice.content.queue.fail(job_id, "Modèle indisponible", retry_in=None)
+
+        retried = owner.post(f"/api/segments/{segment['id']}/retry")
+        assert retried.status_code == 200 and retried.json()["requeued"] is True
+        duplicate = owner.post(f"/api/segments/{segment['id']}/retry")
+        assert duplicate.json()["requeued"] is False
+        jobs = [
+            job
+            for job in backoffice.content.queue.list()
+            if job.type.value == "extract_protocol" and job.document_id == document_id
+        ]
+        assert len(jobs) == 1 and jobs[0].status.value == "queued" and jobs[0].attempts == 0
+
+        backoffice.content.queue.fail(job_id, "Toujours indisponible", retry_in=None)
+        recovered = owner.post(f"/api/documents/{document_id}/retry-blocked")
+        assert recovered.json()["requeued"] == 1
+        assert owner.post(f"/api/documents/{document_id}/retry-blocked").json()["requeued"] == 0
+        document_jobs = [
+            job for job in backoffice.content.queue.list() if job.document_id == document_id
+        ]
+        assert len(document_jobs) == 3
+
+
+def test_dashboard_reports_unconfigured_worker_status(backoffice: Backoffice) -> None:
+    app = create_backoffice_app(backoffice)
+    with signed_in(app, backoffice, "o@example.org", "Owner", Role.OWNER) as owner:
+        assert owner.get("/api/dashboard").json()["worker"] == {
+            "status": "unavailable",
+            "last_seen_at": None,
+        }

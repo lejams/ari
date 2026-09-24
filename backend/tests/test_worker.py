@@ -50,6 +50,18 @@ def test_failures_back_off_then_die_and_manual_retry_revives(
     assert (revived.status, revived.attempts) == (JobStatus.QUEUED, 0)
 
 
+def test_retry_failed_is_atomic_and_does_not_requeue_running_work(
+    content_container: ContentContainer,
+) -> None:
+    queued = content_container.queue.enqueue(JobType.EXTRACT_TEXT, {"document_id": "x"})
+    assert content_container.queue.retry_failed(queued.id) is None
+    content_container.queue.fail(queued.id, "boom", retry_in=None)
+
+    revived = content_container.queue.retry_failed(queued.id)
+    assert revived is not None and revived.status is JobStatus.QUEUED
+    assert content_container.queue.retry_failed(queued.id) is None
+
+
 def test_stale_running_jobs_are_reclaimed_and_success_clears_the_lock(
     content_container: ContentContainer,
 ) -> None:
@@ -74,6 +86,31 @@ def test_stale_running_jobs_are_reclaimed_and_success_clears_the_lock(
     assert finished is not None and finished.status is JobStatus.SUCCEEDED
     assert finished.locked_by is None and finished.finished_at is not None
     assert done == [job.id]
+
+
+def test_claim_prioritises_document_stages_before_protocol_fan_out(
+    content_container: ContentContainer,
+) -> None:
+    """A newly uploaded document must not wait behind a large extraction fan-out."""
+    first_protocol = content_container.queue.enqueue(
+        JobType.EXTRACT_PROTOCOL, {"document_id": "old", "segment_id": "old-0"}
+    )
+    second_protocol = content_container.queue.enqueue(
+        JobType.EXTRACT_PROTOCOL, {"document_id": "old", "segment_id": "old-1"}
+    )
+    text_job = content_container.queue.enqueue(JobType.EXTRACT_TEXT, {"document_id": "new"})
+    segment_job = content_container.queue.enqueue(
+        JobType.SEGMENT_DOCUMENT, {"document_id": "new"}
+    )
+
+    claimed = [content_container.queue.claim("worker") for _ in range(4)]
+
+    assert [job.id for job in claimed if job is not None] == [
+        text_job.id,
+        segment_job.id,
+        first_protocol.id,
+        second_protocol.id,
+    ]
 
 
 def test_serve_touches_the_heartbeat_file_each_iteration(

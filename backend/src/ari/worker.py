@@ -19,6 +19,7 @@ from ari.config import Settings
 from ari.content.container import ContentContainer, build_content_container
 from ari.content.domain.documents import Job, JobType
 from ari.content.services.ai import ModelCallFailed
+from ari.domain.errors import NonRetryableJobError
 
 log = logging.getLogger("ari.worker")
 STALE_LOCK = timedelta(minutes=30)
@@ -52,7 +53,12 @@ async def run_one(
         _fail(container, job, exc, retryable=exc.run.retryable)
     except Exception as exc:
         log.exception("job %s failed", job.id)
-        _fail(container, job, exc, retryable=not isinstance(exc, NotImplementedError))
+        _fail(
+            container,
+            job,
+            exc,
+            retryable=not isinstance(exc, (NotImplementedError, NonRetryableJobError)),
+        )
     else:
         container.queue.succeed(job.id)
     return container.queue.get(job.id)

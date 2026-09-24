@@ -74,6 +74,7 @@ const document_ = {
   document: {id: "c".repeat(64), filename: "p.pdf", page_count: 2, status: "extracted", created_at: "2026-09-18T00:00:00Z", declaration: {land: "Bayern", city: null, exam_body: null, exam_date: null, specialty: null, rights: "compatible", rights_evidence: "ok", provenance: "p", consent_declaration: "c", intended_use: "u"}},
   segments: [{id: "s", index: 0, page_from: 2, page_to: 2, start_marker: "Protokoll 1", confidence: 0.9, origin: "ai", status: "extracted", protocol: {id: "P-cccccccc-000", version: 1, status: "doctor_review"}}],
   jobs: {succeeded: 3}, last_error: null,
+  progress: {stage: "ready", label: "Traitement terminé", completed: 1, total: 1, percent: 100, error: null},
 };
 const gold = {
   protocol_id: "P-cccccccc-000", protocol_version: 2, protocol_hash: "b".repeat(64), location: {land: "Bayern", city: null, exam_body: null, exam_date: "2026-03", specialty: null},
@@ -98,7 +99,7 @@ const responses = {
   "/api/registry/scenarios?status=draft_unvalidated": {items: [{id: "FSP-BY-P-cccccccc-000-arzt_patient", version: "1", status: "draft_unvalidated", phase: "arzt_patient", case_id: "FSP-BY-P-cccccccc-000", case_version: "1", case_hash: "f".repeat(64), scenario_hash: "1".repeat(64), title: "Fall: Thoraxschmerz", land: "Bayern", language: "de-DE"}], total: 1},
   "/api/registry/scenarios/FSP-BY-P-cccccccc-000-arzt_patient/1": scenarioReport,
   "/api/auth/me": me, "/api/meta/lands": ["Baden-Württemberg", "Bayern"],
-  "/api/dashboard": {jobs_by_status: {succeeded: 3}, documents_by_status: {extracted: 1}, protocols_by_status: {doctor_review: 1}, review_queue: 1, owner_queue: 0, gold_by_land: {}, gold_total: 0, me},
+  "/api/dashboard": {jobs_by_status: {succeeded: 3}, documents_by_status: {extracted: 1}, protocols_by_status: {doctor_review: 1}, review_queue: 1, owner_queue: 0, gold_by_land: {}, gold_total: 0, worker: {status: "online", last_seen_at: "2026-09-23T00:00:00Z"}, me},
   "/api/documents": {items: [document_.document], total: 1}, [`/api/documents/${"c".repeat(64)}`]: document_,
   [`/api/documents/${"c".repeat(64)}/pages/2`]: {page_number: 2, text: "Protokoll 1"},
   "/api/protocols?status=doctor_review": {items: [protocol], total: 1}, "/api/protocols/P-cccccccc-000": protocol,
@@ -132,6 +133,17 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   assert.equal(nodes.get(section).hidden, false, `${hash} shows ${section}`);
 }
 {
+  const {nodes} = await load("#/");
+  assert.equal(nodes.get("dashboard-worker").textContent, "Worker opérationnel");
+}
+{
+  const {nodes} = await load(`#/documents/${"c".repeat(64)}`);
+  assert.equal(nodes.get("document-progress-label").textContent, "Traitement terminé");
+  assert.equal(nodes.get("document-progress-count").textContent, "1/1");
+  assert.equal(nodes.get("document-progress-bar").style.width, "100%");
+  assert.deepEqual(nodes.get("document-progress-stages").children.map(stage => stage.textContent), ["Déposé", "Texte", "Découpage", "Protocoles", "Terminé"]);
+}
+{
   const {nodes} = await load("#/protocols/P-cccccccc-000");
   assert.equal(nodes.get("record-sections").children.length, 12, "every part of the record has an editing section");
   const checklist = nodes.get("checklist").children.map(li => li.textContent);
@@ -144,12 +156,12 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   assert.equal(nodes.get("pii-card").hidden, false, "PII findings are shown");
   assert.match(nodes.get("page-image").src, /pages\/2\/image$/);
   const actions = nodes.get("decision-actions").children.map(b => b.textContent);
-  assert.deepEqual(actions, ["Enregistrer une version", "Approuver", "Demander des corrections", "Rejeter"], "a physician sees the doctor decisions");
+  assert.deepEqual(actions, ["Enregistrer une version", "Approuver", "Demander des corrections", "Rejeter", "Supprimer le protocole"], "a physician sees the doctor decisions and owner deletion");
 }
 {
   const {nodes} = await load("#/protocols/P-cccccccc-000", {roles: ["owner"]});
   const actions = nodes.get("decision-actions").children.map(b => b.textContent);
-  assert.deepEqual(actions, ["Enregistrer une version"], "an owner without the physician role cannot approve a protocol in doctor review");
+  assert.deepEqual(actions, ["Enregistrer une version", "Supprimer le protocole"], "an owner without the physician role cannot approve a protocol in doctor review");
   assert.equal(nodes.get("decision-help").textContent, "Statut « À relire ». La décision revient à un compte « Relecteur médecin ». Votre compte : Propriétaire.");
 }
 {

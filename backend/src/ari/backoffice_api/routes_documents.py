@@ -16,6 +16,7 @@ from ari.content.domain.documents import (
     DocumentDeclaration,
     DocumentSegment,
     DocumentStatus,
+    Job,
     JobStatus,
     JobType,
     SegmentStatus,
@@ -27,6 +28,153 @@ from ari.domain.models import new_id
 Owner = Annotated[AccountContext, Depends(require_roles(Role.OWNER))]
 Anyone = Annotated[AccountContext, Depends(current_account)]
 PRIVATE = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
+
+
+def _progress(
+    document_status: DocumentStatus, segments: tuple[DocumentSegment, ...], jobs: list[Job]
+) -> dict[str, Any]:
+    """Describe the pipeline from persisted work, never from an estimated duration."""
+    relevant = [
+        job
+        for job in jobs
+        if job.type in {JobType.EXTRACT_TEXT, JobType.SEGMENT_DOCUMENT, JobType.EXTRACT_PROTOCOL}
+    ]
+    segments_by_id = {segment.id: segment for segment in segments}
+
+    def latest(type_: JobType) -> Job | None:
+        return next((item for item in reversed(relevant) if item.type is type_), None)
+
+    text = latest(JobType.EXTRACT_TEXT)
+    segmentation = latest(JobType.SEGMENT_DOCUMENT)
+    required = tuple(
+        segment
+        for segment in segments
+        if segment.status not in {SegmentStatus.TOO_LONG, SegmentStatus.DISCARDED}
+    )
+    unresolved = tuple(
+        segment
+        for segment in required
+        if segment.status is not SegmentStatus.EXTRACTED
+    )
+    current_protocol_jobs = [
+        job
+        for job in relevant
+        if job.type is JobType.EXTRACT_PROTOCOL
+        and segments_by_id.get(str(job.payload.get("segment_id"))) in unresolved
+    ]
+    failed = next(
+        (job for job in reversed(current_protocol_jobs) if job.status is JobStatus.DEAD), None
+    )
+    if failed is None and document_status is DocumentStatus.UPLOADED:
+        failed = text if text is not None and text.status is JobStatus.DEAD else None
+    if failed is None and document_status is DocumentStatus.TEXT_EXTRACTED:
+        failed = (
+            segmentation
+            if segmentation is not None and segmentation.status is JobStatus.DEAD
+            else None
+        )
+    if failed is None and document_status is DocumentStatus.FAILED:
+        failed = next(
+            (
+                job
+                for job in (segmentation, text)
+                if job is not None and job.status is JobStatus.DEAD
+            ),
+            None,
+        )
+    if document_status is DocumentStatus.FAILED or failed is not None:
+        failed_stage = {
+            JobType.EXTRACT_TEXT: "text_extraction",
+            JobType.SEGMENT_DOCUMENT: "segmentation",
+            JobType.EXTRACT_PROTOCOL: "protocol_extraction",
+        }.get(failed.type if failed else JobType.SEGMENT_DOCUMENT, "segmentation")
+        return {
+            "stage": "failed",
+            "failed_stage": failed_stage,
+            "label": "Traitement en échec",
+            "completed": 0,
+            "total": None,
+            "percent": None,
+            "error": failed.last_error if failed else None,
+        }
+
+    if text is None:
+        return {
+            "stage": "uploaded",
+            "label": "Document déposé",
+            "completed": 0,
+            "total": None,
+            "percent": None,
+            "error": None,
+        }
+    if text.status is not JobStatus.SUCCEEDED:
+        return {
+            "stage": "text_extraction",
+            "label": (
+                "Nouvelle tentative d'extraction du texte"
+                if text.status is JobStatus.FAILED
+                else "Extraction du texte"
+            ),
+            "completed": 0,
+            "total": 1,
+            "percent": 0,
+            "error": text.last_error if text.status is JobStatus.FAILED else None,
+        }
+
+    if segmentation is None or segmentation.status is not JobStatus.SUCCEEDED:
+        return {
+            "stage": "segmentation",
+            "label": (
+                "Nouvelle tentative de découpage"
+                if segmentation is not None and segmentation.status is JobStatus.FAILED
+                else "Découpage des protocoles"
+            ),
+            "completed": 0,
+            "total": None,
+            "percent": None,
+            "error": (
+                segmentation.last_error
+                if segmentation is not None and segmentation.status is JobStatus.FAILED
+                else None
+            ),
+        }
+
+    completed = sum(segment.status is SegmentStatus.EXTRACTED for segment in required)
+    total = len(required)
+    if not total:
+        return {
+            "stage": "ready",
+            "label": "Aucun protocole détecté",
+            "completed": 0,
+            "total": 0,
+            "percent": 100,
+            "error": None,
+        }
+    if total and completed == total and document_status is DocumentStatus.EXTRACTED:
+        return {
+            "stage": "ready",
+            "label": "Traitement terminé",
+            "completed": completed,
+            "total": total,
+            "percent": 100,
+            "error": None,
+        }
+    percent = round(completed * 100 / total) if total else None
+    retrying = next(
+        (job for job in reversed(current_protocol_jobs) if job.status is JobStatus.FAILED), None
+    )
+    return {
+        "stage": "protocol_extraction",
+        "label": (
+            "Nouvelle tentative d'extraction des protocoles"
+            if retrying is not None
+            else "Extraction des protocoles"
+        ),
+        "completed": completed,
+        "total": total or None,
+        "percent": percent,
+        "error": retrying.last_error if retrying is not None else None,
+    }
 
 
 def _land(value: str | None) -> Land | None:
@@ -41,6 +189,35 @@ def _land(value: str | None) -> Land | None:
 def documents_router(services: Backoffice) -> APIRouter:
     router = APIRouter()
     content = services.content
+
+    def extraction_jobs(document_id: str, segment_id: str | None = None) -> list[Job]:
+        return [
+            job
+            for job in content.queue.list()
+            if job.document_id == document_id
+            and job.type is JobType.EXTRACT_PROTOCOL
+            and (segment_id is None or str(job.payload.get("segment_id")) == segment_id)
+        ]
+
+    def recover_segment(segment: DocumentSegment, *, create_missing: bool = True) -> Job | None:
+        """Make one unresolved segment runnable without parallel extraction work."""
+        jobs = extraction_jobs(segment.document_id, segment.id)
+        latest = jobs[-1] if jobs else None
+        if latest is None:
+            if create_missing:
+                return content.queue.enqueue(
+                    JobType.EXTRACT_PROTOCOL,
+                    {"document_id": segment.document_id, "segment_id": segment.id},
+                    document_id=segment.document_id,
+                )
+            return None
+        if latest.status in {JobStatus.FAILED, JobStatus.DEAD}:
+            retried = content.queue.retry_failed(latest.id)
+            if retried is not None and segment.status is SegmentStatus.FAILED:
+                with content.repository.transaction() as tx:
+                    tx.set_segment_status(segment.id, SegmentStatus.PENDING)
+            return retried
+        return None
 
     @router.post("/api/documents")
     async def upload(
@@ -103,6 +280,15 @@ def documents_router(services: Backoffice) -> APIRouter:
             segments = tx.segments(document_id)
             heads = {h.segment_id: h for h in tx.list_heads(document_id=document_id)}
         jobs = [j for j in content.queue.list() if j.document_id == document_id]
+        jobs_by_segment: dict[str, Job | None] = {}
+        for segment in segments:
+            matching = [
+                job
+                for job in jobs
+                if job.type is JobType.EXTRACT_PROTOCOL
+                and str(job.payload.get("segment_id")) == segment.id
+            ]
+            jobs_by_segment[segment.id] = matching[-1] if matching else None
         return {
             "document": jsonable_encoder(document),
             "segments": [
@@ -117,12 +303,14 @@ def documents_router(services: Backoffice) -> APIRouter:
                         if segment.id in heads
                         else None
                     ),
+                    "extraction_job": jsonable_encoder(jobs_by_segment[segment.id]),
                 }
                 for segment in segments
             ],
             "jobs": {
                 status.value: sum(1 for j in jobs if j.status is status) for status in JobStatus
             },
+            "progress": _progress(document.status, segments, jobs),
             "last_error": next((j.last_error for j in reversed(jobs) if j.last_error), None),
         }
 
@@ -202,6 +390,8 @@ def documents_router(services: Backoffice) -> APIRouter:
             segment = tx.get_segment(segment_id)
             if segment is None:
                 raise NotFoundError("Segment inconnu")
+            if segment.status not in {SegmentStatus.PENDING, SegmentStatus.FAILED}:
+                raise InvalidStateError("Seuls les segments en attente peuvent être réessayés")
             if any(
                 h.segment_id == segment_id for h in tx.list_heads(document_id=segment.document_id)
             ):
@@ -209,12 +399,52 @@ def documents_router(services: Backoffice) -> APIRouter:
             tx.set_segment_status(segment_id, SegmentStatus(body.status))
             updated = tx.get_segment(segment_id)
         if body.status == "pending":
-            content.queue.enqueue(
-                JobType.EXTRACT_PROTOCOL,
-                {"document_id": segment.document_id, "segment_id": segment_id},
-                document_id=segment.document_id,
-            )
+            assert updated is not None
+            recover_segment(updated)
         return jsonable_encoder(updated)  # type: ignore[no-any-return]
+
+    @router.post("/api/segments/{segment_id}/retry")
+    def retry_segment_extraction(segment_id: str, account: Owner) -> dict[str, Any]:
+        with content.repository.transaction() as tx:
+            segment = tx.get_segment(segment_id)
+            if segment is None:
+                raise NotFoundError("Segment inconnu")
+            if any(
+                h.segment_id == segment_id
+                for h in tx.list_heads(document_id=segment.document_id)
+            ):
+                raise InvalidStateError("Un protocole existe déjà pour ce segment")
+        job = recover_segment(segment)
+        return {"job": jsonable_encoder(job), "requeued": job is not None}
+
+    @router.post("/api/documents/{document_id}/retry-blocked")
+    def retry_blocked_extractions(document_id: str, account: Owner) -> dict[str, Any]:
+        with content.repository.transaction() as tx:
+            document = tx.get_document(document_id)
+            if document is None:
+                raise NotFoundError("Document inconnu")
+            heads = {head.segment_id for head in tx.list_heads(document_id=document_id)}
+            segments = tx.segments(document_id)
+        jobs = [job for job in content.queue.list() if job.document_id == document_id]
+        recovered = []
+        for type_ in (JobType.EXTRACT_TEXT, JobType.SEGMENT_DOCUMENT):
+            latest = next((job for job in reversed(jobs) if job.type is type_), None)
+            if latest is not None and latest.status in {JobStatus.FAILED, JobStatus.DEAD}:
+                retried = content.queue.retry_failed(latest.id)
+                if retried is not None:
+                    recovered.append(retried)
+        for segment in segments:
+            if segment.id in heads or segment.status not in {
+                SegmentStatus.PENDING,
+                SegmentStatus.FAILED,
+            }:
+                continue
+            job = recover_segment(
+                segment, create_missing=segment.status is SegmentStatus.PENDING
+            )
+            if job is not None:
+                recovered.append(job)
+        return {"requeued": len(recovered), "jobs": jsonable_encoder(recovered)}
 
     @router.get("/api/jobs")
     def list_jobs(account: Owner, status: str | None = None) -> dict[str, Any]:
