@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from ari.api.dto import (
@@ -40,6 +40,19 @@ from ari.domain.models import (
     SessionStatus,
 )
 from ari.infrastructure.persistence.platform.identity import ProfileCredentials
+
+
+# Pages and modules change under the same URL with each deploy (the app itself moved from "/"
+# to "/app"). Without it browsers guess a freshness from Last-Modified and keep showing an old
+# page for hours; with it they revalidate every time, a cheap 304 when nothing changed.
+REVALIDATE = {"Cache-Control": "no-cache"}
+
+
+class RevalidatedStaticFiles(StaticFiles):
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers.update(REVALIDATE)
+        return response
 
 
 def _payload(value: object) -> Any:
@@ -282,5 +295,15 @@ def create_app(container: Container | None = None, settings: Settings | None = N
 
     web_dir = Path(__file__).resolve().parents[4] / "web"
     if web_dir.exists():
-        app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
+        # The public landing owns "/"; the learner app lives at "/app". Both are declared
+        # before the static mount, which would otherwise answer "/" with index.html.
+        @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+        async def landing_page() -> FileResponse:
+            return FileResponse(web_dir / "landing.html", headers=REVALIDATE)
+
+        @app.api_route("/app", methods=["GET", "HEAD"], include_in_schema=False)
+        async def learner_app() -> FileResponse:
+            return FileResponse(web_dir / "index.html", headers=REVALIDATE)
+
+        app.mount("/", RevalidatedStaticFiles(directory=web_dir, html=True), name="web")
     return app

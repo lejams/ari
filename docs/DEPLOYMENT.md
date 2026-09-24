@@ -96,8 +96,10 @@ Ouvrir le lien d'invitation imprimé (`https://<domaine back-office>/#/invitatio
 Dans l'ordre :
 
 1. `curl -u ari:<mdp> https://<domaine apprenant>/api/health` et `curl https://<domaine back-office>/api/health`.
+   La landing est publique, le reste du domaine apprenant non : `curl -o /dev/null -w '%{http_code}'`
+   doit renvoyer `200` sur `https://<domaine apprenant>/` et `401` sur `/app` et `/api/health` sans `-u`.
 2. Connexion back-office, upload d'un PDF, suivi des jobs (`docker compose logs -f worker`), publication d'un cas.
-3. Depuis l'app apprenant (derrière basic auth), lancer une session et un appel vocal complet.
+3. Depuis l'app apprenant (`/app`, derrière basic auth), lancer une session et un appel vocal complet.
 4. Interrupteur : `ARI_SERVICE_PAUSED=true` dans `.env`, `docker compose --profile serve up -d app`,
    vérifier le message de pause sur une nouvelle session et que l'historique reste consultable, puis remettre à `false`.
 

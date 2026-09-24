@@ -22,21 +22,21 @@ async function onboard(page, official = false) {
   // A new profile without an estimate lands on the placement test; the learner may skip it.
   await page.locator("#placement:not([hidden])").waitFor();
   assert.match(await page.locator("#placement-status").innerText(), /Niveau de départ/);
-  await page.goto(base + "/#home");
+  await page.goto(base + "/app#home");
   await page.locator("#home:not([hidden])").waitFor();
 }
 try {
   const context = await browser.newContext();
   const page = await context.newPage();
   page.on("pageerror", error => errors.push(error.message));
-  await page.goto(base);
+  await page.goto(base + "/app");
   await onboard(page);
   assert.match(await page.locator("#profile-goal").innerText(), /niveau non mesuré/);
   // The weekly programme is computed from the profile: a declared B2 without estimate is "anamnese".
   assert.match(await page.locator("#week-phase").innerText(), /Anamnèse · niveau B2/);
   assert.equal(await page.locator("#week-days .week-pill").count(), 7, "the week strip has seven days");
   assert.match(await page.locator("#recommendation h1").innerText(), /./, "the hero names the next step");
-  await page.goto(base + "/#cases");
+  await page.goto(base + "/app#cases");
   // The catalogue opens on the learner's Land (Bayern, from onboarding) and counts its cases.
   await page.getByText(/Bayern : 1 cas publié/).waitFor();
   assert.equal(await page.locator("#case-land").inputValue(), "Bayern");
@@ -106,7 +106,7 @@ try {
   await other.getByText("Pas encore de session enregistrée.", {exact: false}).waitFor();
   // Mobile layout has no page-level horizontal overflow.
   await page.setViewportSize({width: 390, height: 844});
-  await page.goto(base + "/#cases");
+  await page.goto(base + "/app#cases");
   await page.locator("#cases:not([hidden])").waitFor();
   assert.equal(await page.locator("#voice-cases article").count(), 1);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

@@ -767,7 +767,7 @@ function resetForNewSession(mode, selectedCase) {
 }
 
 function newSession() {
-  if (!state.cases.length) { location.href = "/"; return; }
+  if (!state.cases.length) { location.href = "/app"; return; }
   resetForNewSession("training", state.cases[0]);
 }
 

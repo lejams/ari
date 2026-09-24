@@ -109,7 +109,8 @@ make dev
 ```
 
 `make dev` serves <http://localhost:8000> against the compose platform database (override
-with `ARI_DATABASE_URL`). The root is the learner home; `/voice.html` is the voice page.
+with `ARI_DATABASE_URL`). The root is the public landing page (`web/landing.html`); `/app` is
+the learner home and `/voice.html` is the voice page.
 The catalogue stays empty until you publish content with the registry CLI (below).
 
 For live providers set, in `.env` or the environment:

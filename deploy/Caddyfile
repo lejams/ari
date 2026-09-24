@@ -1,10 +1,12 @@
 # Two hostnames, two applications. Caddy obtains and renews the certificates itself.
 # The learner domain is behind HTTP basic auth for the private alpha (the back-office has its
-# own account system). Generate the hash with:
+# own account system), except the public landing page at exactly "/", which is self-contained.
+# Generate the hash with:
 #   docker run --rm caddy:2.10-alpine caddy hash-password --plaintext '<password>'
 {$ARI_DOMAIN} {
 	encode zstd gzip
-	basic_auth {
+	@private not path /
+	basic_auth @private {
 		{$ARI_APP_BASIC_AUTH_USER} {$ARI_APP_BASIC_AUTH_HASH}
 	}
 	reverse_proxy app:8000
