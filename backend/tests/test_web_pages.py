@@ -1,10 +1,11 @@
-"""Web pages: the public landing owns "/", the learner app lives at "/app"."""
+"""Web pages: the public landing owns "/", sign-in "/connexion", the learner app "/app"."""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
+from accounts_fixtures import sign_in
 from fastapi.testclient import TestClient
 
 from ari.api.app import create_app
@@ -20,17 +21,20 @@ def test_root_serves_the_landing_and_app_serves_the_learner_home(container: Cont
         assert landing.headers["content-type"].startswith("text/html")
         assert "<title>ARI Allemand médical</title>" in landing.text
         assert client.head("/").status_code == 200
+        assert "<title>Connexion · ARI</title>" in client.get("/connexion").text
 
+        sign_in(client)
         learner = client.get("/app")
         assert learner.status_code == 200
         assert 'id="onboarding"' in learner.text
 
         # The app's assets keep their absolute paths under the static mount.
         assert client.get("/practice-ui.mjs").status_code == 200
-        assert client.get("/voice.html").status_code == 200
+        client.post("/api/learners", json={})
+        assert "Consultation vocale" in client.get("/voice.html").text
 
         # Every page and module is revalidated, so a deploy is never hidden by a stale copy.
-        for path in ("/", "/app", "/voice.html", "/practice-ui.mjs", "/app.js"):
+        for path in ("/", "/connexion", "/app", "/voice.html", "/practice-ui.mjs", "/app.js"):
             assert client.get(path).headers["cache-control"] == "no-cache", path
 
 

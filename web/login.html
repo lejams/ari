@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Connexion · ARI</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700;800&display=swap">
+<style>
+  :root{
+    --btn-bg:#525bd4; --btn-bg-hover:#4049bd; --btn-ink:#fff; --violet:#525bd4;
+    --paper:#f5f5f2; --surface:#fff; --lav:#eeeffb; --lav-2:#e9eafd;
+    --ink:#172b45; --muted:#4d5b6b; --line:#d9dde5; --line-2:#cfd5e2;
+    --good:#16634f; --good-bg:#e9f5ef; --bad:#8f3131; --bad-bg:#fff0f0;
+    --shadow:0 22px 48px rgb(23 43 69 / .13);
+    --sans:"Atkinson Hyperlegible Next","Atkinson Hyperlegible",ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  }
+  /* Same choice as the landing page: light by default, dark when the visitor picked it. */
+  body.ari-dark{
+    color-scheme:dark;
+    --btn-bg:#8f97f5; --btn-bg-hover:#aab0f8; --btn-ink:#101a2c; --violet:#a7adf9;
+    --paper:#172538; --surface:#1e2f47; --lav:#26365a; --lav-2:#1f2e4c;
+    --ink:#eef0f6; --muted:#b4bdcd; --line:#304462; --line-2:#3f5577;
+    --good:#7fd8b8; --good-bg:#153329; --bad:#f4aeae; --bad-bg:#3a2128;
+    --shadow:0 22px 48px rgb(4 10 20 / .45);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100dvh;display:flex;flex-direction:column;background:linear-gradient(160deg,var(--paper) 58%,var(--lav-2) 58%);color:var(--ink);font:17px/1.6 var(--sans)}
+  button,a,input{font:inherit;color:inherit}
+  a{color:var(--violet);font-weight:700;text-underline-offset:3px}
+  h1,p{margin:0}
+  h1{font-size:30px;line-height:1.15;letter-spacing:-.02em;text-wrap:balance}
+  p{color:var(--muted)}
+  :focus-visible{outline:3px solid var(--violet);outline-offset:3px;border-radius:6px}
+  header{padding:22px 24px}
+  .logo{display:inline-flex;align-items:center;gap:10px;font-weight:800;font-size:25px;letter-spacing:-.05em;line-height:.9;color:var(--ink);text-decoration:none}
+  .mark{width:30px;height:30px;background:var(--btn-bg);color:var(--btn-ink);border-radius:8px;display:grid;place-items:center;transform:rotate(-8deg);font-size:19px}
+  .logo small{display:block;font-size:9px;letter-spacing:.1em;color:var(--muted);font-weight:700;margin-top:4px}
+  main{flex:1;display:grid;place-items:start center;padding:12px 16px 48px}
+  .card{width:min(440px,100%);background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:30px}
+  .tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:24px;padding:4px;background:var(--lav);border-radius:12px}
+  .tabs button{min-height:44px;border:0;border-radius:9px;background:transparent;font-weight:700;font-size:15px;color:var(--muted);cursor:pointer}
+  .tabs button[aria-selected="true"]{background:var(--surface);color:var(--violet);box-shadow:0 1px 3px rgb(0 0 0 / .08)}
+  form{display:grid;gap:16px;margin-top:20px}
+  label{display:grid;gap:6px;font-weight:700;font-size:15px}
+  input{width:100%;min-height:48px;border:1px solid var(--line-2);border-radius:10px;padding:10px 13px;background:var(--surface);color:var(--ink);font-weight:400}
+  .hint{font-size:13px;font-weight:400;color:var(--muted)}
+  .primary{min-height:48px;border:0;border-radius:12px;background:var(--btn-bg);color:var(--btn-ink);font-weight:700;font-size:15px;cursor:pointer}
+  .primary:hover{background:var(--btn-bg-hover)}
+  .primary:disabled{opacity:.6;cursor:progress}
+  .links{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px;font-size:14px}
+  .linkish{border:0;background:none;padding:0;color:var(--violet);font-weight:700;font-size:14px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+  .status{margin-top:18px;padding:12px 14px;border-radius:10px;font-size:15px;color:var(--ink)}
+  .status.good{background:var(--good-bg)}
+  .status.bad{background:var(--bad-bg)}
+  .status:empty{display:none}
+  .who{margin-top:8px;font-size:15px}
+  .who strong{color:var(--ink)}
+  @media (max-width:480px){.card{padding:22px}h1{font-size:26px}}
+</style>
+</head>
+<body>
+<header><a class="logo" href="/" aria-label="ARI, retour à l’accueil"><span class="mark" aria-hidden="true">A</span><span>ARI<small>ALLEMAND MÉDICAL</small></span></a></header>
+<main>
+  <div class="card">
+    <div class="tabs" role="tablist" aria-label="Accès à votre compte" id="tabs">
+      <button type="button" role="tab" id="tab-login" aria-selected="true" aria-controls="view-login">Se connecter</button>
+      <button type="button" role="tab" id="tab-signup" aria-selected="false" aria-controls="view-signup" tabindex="-1">Créer un compte</button>
+    </div>
+
+    <section id="view-login" role="tabpanel" aria-labelledby="tab-login">
+      <h1>Bon retour sur ARI</h1>
+      <form id="login-form">
+        <label>Adresse e-mail<input type="email" name="email" autocomplete="email" required></label>
+        <label>Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Se connecter</button>
+      </form>
+      <div class="links"><button class="linkish" type="button" data-show="forgot">Mot de passe oublié ?</button><button class="linkish" type="button" data-show="forgot">Lien d’activation non reçu ?</button></div>
+    </section>
+
+    <section id="view-signup" role="tabpanel" aria-labelledby="tab-signup" hidden>
+      <h1>Créez votre compte</h1>
+      <p class="who">Indiquez votre adresse : vous y recevrez un lien pour choisir votre mot de passe.</p>
+      <form id="signup-form">
+        <label>Adresse e-mail<input type="email" name="email" autocomplete="email" required></label>
+        <button class="primary" type="submit">Recevoir mon lien</button>
+      </form>
+    </section>
+
+    <section id="view-forgot" hidden>
+      <h1>Recevoir un nouveau lien</h1>
+      <p class="who">Un lien pour choisir un mot de passe vous sera envoyé, que ce soit pour activer votre compte ou le réinitialiser.</p>
+      <form id="forgot-form">
+        <label>Adresse e-mail<input type="email" name="email" autocomplete="email" required></label>
+        <button class="primary" type="submit">Recevoir un lien</button>
+      </form>
+      <div class="links"><button class="linkish" type="button" data-show="login">Retour à la connexion</button></div>
+    </section>
+
+    <section id="view-password" hidden>
+      <h1 id="password-title">Choisissez votre mot de passe</h1>
+      <p class="who">Compte : <strong id="password-email"></strong></p>
+      <form id="password-form">
+        <label>Mot de passe<input type="password" name="password" autocomplete="new-password" minlength="12" maxlength="256" required aria-describedby="password-hint"><span class="hint" id="password-hint">Au moins 12 caractères. Une phrase facile à retenir fait très bien l’affaire.</span></label>
+        <label>Confirmation<input type="password" name="confirm" autocomplete="new-password" minlength="12" maxlength="256" required></label>
+        <button class="primary" type="submit">Enregistrer et continuer</button>
+      </form>
+    </section>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </div>
+</main>
+<script>
+'use strict';
+const byId = id => document.getElementById(id);
+try { if (localStorage.getItem('ari-theme') === 'dark') document.body.classList.add('ari-dark'); } catch (e) {}
+
+const views = ['login', 'signup', 'forgot', 'password'];
+function show(name){
+  views.forEach(v => { byId(`view-${v}`).hidden = v !== name; });
+  byId('tabs').hidden = name === 'password' || name === 'forgot';
+  ['login', 'signup'].forEach(v => {
+    const tab = byId(`tab-${v}`), on = v === name;
+    tab.setAttribute('aria-selected', String(on));
+    tab.tabIndex = on ? 0 : -1;
+  });
+  say('');
+  const field = byId(`view-${name}`).querySelector('input');
+  if (field) field.focus();
+}
+function say(text, kind){
+  const el = byId('status');
+  el.className = `status ${kind || ''}`;
+  el.textContent = text;
+}
+async function call(path, body){
+  const response = await fetch(path, {method: 'POST', credentials: 'same-origin', cache: 'no-store',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof payload.detail === 'string' ? payload.detail : 'Requête refusée, vérifiez les champs.';
+    throw new Error(detail);
+  }
+  return payload;
+}
+function submitting(form, run){
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try { await run(new FormData(form)); }
+    catch (error) { say(error.message, 'bad'); }
+    finally { button.disabled = false; }
+  });
+}
+const sent = 'Si cette adresse peut recevoir un lien, il vient de partir. Pensez à vérifier vos courriers indésirables.';
+
+document.querySelectorAll('[data-show]').forEach(b => b.addEventListener('click', () => show(b.dataset.show)));
+['login', 'signup'].forEach(v => byId(`tab-${v}`).addEventListener('click', () => show(v)));
+byId('tabs').addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    const next = byId('tab-login').getAttribute('aria-selected') === 'true' ? 'signup' : 'login';
+    show(next);
+    byId(`tab-${next}`).focus();
+  }
+});
+
+submitting(byId('login-form'), async data => {
+  await call('/api/auth/login', {email: data.get('email'), password: data.get('password')});
+  location.replace('/app');
+});
+submitting(byId('signup-form'), async data => {
+  await call('/api/auth/signup', {email: data.get('email')});
+  say(sent, 'good');
+});
+submitting(byId('forgot-form'), async data => {
+  await call('/api/auth/password/forgot', {email: data.get('email')});
+  say(sent, 'good');
+});
+
+let token = null;
+submitting(byId('password-form'), async data => {
+  if (data.get('password') !== data.get('confirm')) throw new Error('Les deux mots de passe ne correspondent pas.');
+  await call('/api/auth/password', {token, password: data.get('password')});
+  location.replace('/app');
+});
+
+async function start(){
+  // A link from an e-mail carries its token in the fragment; drop it from the address bar.
+  const match = location.hash.match(/^#jeton=([A-Za-z0-9_-]{1,128})$/);
+  if (match) {
+    token = match[1];
+    history.replaceState(null, '', '/connexion');
+    try {
+      const link = await call('/api/auth/links', {token});
+      byId('password-title').textContent = link.activation ? 'Choisissez votre mot de passe' : 'Choisissez un nouveau mot de passe';
+      byId('password-email').textContent = link.email;
+      show('password');
+    } catch (error) {
+      show('forgot');
+      say(`${error.message}. Demandez un nouveau lien ci-dessous.`, 'bad');
+    }
+    return;
+  }
+  const me = await fetch('/api/auth/me', {credentials: 'same-origin', cache: 'no-store'}).catch(() => null);
+  if (me && me.ok) { location.replace('/app'); return; }
+  if (location.hash === '#inscription') show('signup');
+}
+start();
+</script>
+</body>
+</html>

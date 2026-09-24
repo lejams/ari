@@ -4,6 +4,7 @@ from dataclasses import replace
 from typing import Any
 
 import pytest
+from accounts_fixtures import sign_in
 from fastapi.testclient import TestClient
 
 from ari.api.app import create_app
@@ -38,6 +39,7 @@ def assert_public(value: Any) -> None:
 
 def new_session(client: TestClient) -> dict[str, Any]:
     case = client.get("/api/cases").json()[0]
+    sign_in(client)
     learner = client.post("/api/learners", json={"target_cefr": "C1"}).json()
     response = client.post(
         "/api/sessions",

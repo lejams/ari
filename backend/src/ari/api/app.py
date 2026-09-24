@@ -9,9 +9,10 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from ari.api.auth import auth_router
 from ari.api.dto import (
     CreateLearnerRequest,
     CreateSessionRequest,
@@ -19,7 +20,7 @@ from ari.api.dto import (
     UpdateProfileRequest,
 )
 from ari.api.lexicon import lexicon_router, public_report
-from ari.api.ownership import PROFILE_COOKIE, OwnershipMiddleware
+from ari.api.ownership import OwnershipMiddleware
 from ari.api.pause import ServicePauseMiddleware
 from ari.api.placement import placement_router
 from ari.api.practice import practice_router
@@ -30,7 +31,13 @@ from ari.api.voice_socket import VoiceLifecycles, VoiceSocket
 from ari.application.services.catalog import land_summary
 from ari.config import Settings, get_settings
 from ari.container import Container, build_container
-from ari.domain.errors import AriError, InvalidStateError, NotFoundError, ProviderError
+from ari.domain.errors import (
+    AriError,
+    EmailDeliveryError,
+    InvalidStateError,
+    NotFoundError,
+    ProviderError,
+)
 from ari.domain.geography import Land
 from ari.domain.models import (
     CEFRLevel,
@@ -40,7 +47,6 @@ from ari.domain.models import (
     SessionStatus,
 )
 from ari.infrastructure.persistence.platform.identity import ProfileCredentials
-
 
 # Pages and modules change under the same URL with each deploy (the app itself moved from "/"
 # to "/app"). Without it browsers guess a freshness from Last-Modified and keep showing an old
@@ -105,13 +111,15 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         return result
 
     credentials = ProfileCredentials(services.repository.engine)
+    app.include_router(auth_router(services, credentials))
     # Starlette runs the last-added middleware outermost. Adding the pause guard before
     # ownership makes it run innermost: strangers still get a 404 from ownership, only
     # authenticated learners reach the pause guard and see its message.
     app.add_middleware(ServicePauseMiddleware, paused=services.settings.service_paused)
     app.add_middleware(
         OwnershipMiddleware,
-        credentials=credentials,
+        auth=services.auth,
+        engine=services.repository.engine,
         origin=services.settings.frontend_origin,
     )
     app.add_middleware(
@@ -124,7 +132,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
 
     @app.exception_handler(AriError)
     async def ari_error(_: Request, exc: AriError) -> JSONResponse:
-        if isinstance(exc, ProviderError):
+        if isinstance(exc, ProviderError | EmailDeliveryError):
             status = 502
         elif isinstance(exc, NotFoundError):
             status = 404
@@ -160,43 +168,28 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         return land_summary(services.cases.list(), worked, learner.details.land)
 
     @app.post("/api/learners", status_code=201)
-    async def create_learner(
-        body: CreateLearnerRequest,
-        request: Request,
-        response: Response,
-    ) -> Any:
+    async def create_learner(body: CreateLearnerRequest, request: Request) -> Any:
+        """The onboarding: the signed-in account gets its one learner."""
+        account = request.state.account
+        if account is None:
+            raise HTTPException(status_code=401, detail="Connexion requise")
         if request.state.learner_id:
             return _payload(services.repository.get_learner(request.state.learner_id))
         learner = services.orchestrator.create_learner(
             body.target_cefr,
             details=body.details.apply(LearnerDetails()) if body.details else None,
         )
-        token = credentials.issue(learner.id)
-        response.set_cookie(
-            PROFILE_COOKIE,
-            token,
-            httponly=True,
-            samesite="strict",
-            max_age=365 * 24 * 3600,
-            secure=services.settings.environment == "production",
-        )
+        if not services.auth.link_learner(account.id, learner.id):
+            # A concurrent onboarding linked its learner first: that one is the learner.
+            linked = services.auth.account(account.id)
+            if linked is None or linked.learner_id is None:
+                raise InvalidStateError("Profil indisponible ; réessayez")
+            return _payload(services.repository.get_learner(linked.learner_id))
         return _payload(learner)
 
     @app.get("/api/profile")
     async def current_profile(request: Request) -> Any:
         return _payload(services.repository.get_learner(request.state.learner_id))
-
-    @app.delete("/api/profile", status_code=204)
-    async def disconnect_profile(request: Request) -> Response:
-        credentials.revoke(request.cookies[PROFILE_COOKIE])
-        response = Response(status_code=204)
-        response.delete_cookie(
-            PROFILE_COOKIE,
-            httponly=True,
-            samesite="strict",
-            secure=services.settings.environment == "production",
-        )
-        return response
 
     @app.get("/api/learners/{learner_id}/goal")
     async def get_goal(learner_id: str) -> Any:
@@ -295,15 +288,36 @@ def create_app(container: Container | None = None, settings: Settings | None = N
 
     web_dir = Path(__file__).resolve().parents[4] / "web"
     if web_dir.exists():
-        # The public landing owns "/"; the learner app lives at "/app". Both are declared
-        # before the static mount, which would otherwise answer "/" with index.html.
+        # The public landing owns "/", sign-in lives at "/connexion", the learner app at "/app".
+        # All are declared before the static mount, which would otherwise answer "/" with
+        # index.html. The app pages send visitors without an account session to sign in.
+        def _page(name: str) -> FileResponse:
+            return FileResponse(web_dir / name, headers=REVALIDATE)
+
+        def _signed_in_page(request: Request, name: str, *, needs_learner: bool) -> Response:
+            account = request.state.account
+            if account is None:
+                return RedirectResponse("/connexion", status_code=303, headers=REVALIDATE)
+            if needs_learner and account.learner_id is None:
+                # The onboarding comes first.
+                return RedirectResponse("/app", status_code=303, headers=REVALIDATE)
+            return _page(name)
+
         @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
         async def landing_page() -> FileResponse:
-            return FileResponse(web_dir / "landing.html", headers=REVALIDATE)
+            return _page("landing.html")
+
+        @app.api_route("/connexion", methods=["GET", "HEAD"], include_in_schema=False)
+        async def sign_in_page() -> FileResponse:
+            return _page("login.html")
 
         @app.api_route("/app", methods=["GET", "HEAD"], include_in_schema=False)
-        async def learner_app() -> FileResponse:
-            return FileResponse(web_dir / "index.html", headers=REVALIDATE)
+        async def learner_app(request: Request) -> Response:
+            return _signed_in_page(request, "index.html", needs_learner=False)
+
+        @app.api_route("/voice.html", methods=["GET", "HEAD"], include_in_schema=False)
+        async def voice_page(request: Request) -> Response:
+            return _signed_in_page(request, "voice.html", needs_learner=True)
 
         app.mount("/", RevalidatedStaticFiles(directory=web_dir, html=True), name="web")
     return app

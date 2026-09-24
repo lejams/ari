@@ -72,6 +72,7 @@ async function api(path, options = {}) {
     ...options,
   });
   if (!response.ok) {
+    if (response.status === 401) location.assign("/connexion"); // The account session is over.
     // A paused service (503) or a proxy error page (401/502) may not be JSON; fall back to
     // the status code rather than surfacing a JSON parse error to the learner.
     const body = await response.json().catch(() => ({}));

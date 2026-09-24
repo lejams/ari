@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from accounts_fixtures import sign_in
 from fastapi.testclient import TestClient
 
 from ari.api.app import create_app
@@ -119,6 +120,7 @@ def test_progression_endpoint_carries_axes_and_the_fake_categorises_errors(
 ) -> None:
     app = create_app(published_container)
     with TestClient(app) as client:
+        sign_in(client)
         client.post("/api/learners", json={"target_cefr": "C1"})
         empty = client.get("/api/progression").json()
         assert empty["axes"]["sessions_completed"] == 0

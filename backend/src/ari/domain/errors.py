@@ -18,6 +18,10 @@ class CaseValidationError(AriError):
     pass
 
 
+class EmailDeliveryError(AriError):
+    """The e-mail provider refused or could not be reached; nothing was sent."""
+
+
 class ProviderError(AriError):
     def __init__(self, message: str, *, execution: object, retryable: bool = False) -> None:
         super().__init__(message)

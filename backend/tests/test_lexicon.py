@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from accounts_fixtures import sign_in
 from fastapi.testclient import TestClient
 
 from ari.api.app import create_app
@@ -172,7 +173,9 @@ def test_reviews_are_idempotent_per_event_and_identified_words_become_reviewed(
 def test_lexicon_api_is_owned_by_the_profile(container: Container) -> None:
     app = create_app(container)
     with TestClient(app) as alice, TestClient(app) as bob:
+        sign_in(alice)
         alice.post("/api/learners", json={"target_cefr": "C1"})
+        sign_in(bob)
         bob.post("/api/learners", json={"target_cefr": "B2"})
         empty = alice.get("/api/lexicon").json()
         assert empty["due_count"] == 0 and empty["entries"] == []
@@ -228,6 +231,7 @@ def test_completed_session_view_carries_the_lexicon_report(container: Container)
     app = create_app(container)
     with TestClient(app) as client:
         case = client.get("/api/cases").json()[0]
+        sign_in(client)
         learner = client.post("/api/learners", json={"target_cefr": "C1"}).json()
         session = client.post(
             "/api/sessions",

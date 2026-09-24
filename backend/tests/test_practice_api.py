@@ -4,6 +4,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+from accounts_fixtures import sign_in
 from clinical_fixtures import simulated_review, synthetic_bundle
 from fastapi.testclient import TestClient
 from practice_fixtures import synthetic_practice
@@ -28,7 +29,9 @@ def test_onboard_answer_resume_feedback_history_progression(
     mode: str,
 ) -> None:
     with TestClient(create_app(practice_container)) as client:
-        assert client.get("/api/profile").status_code == 404
+        assert client.get("/api/profile").status_code == 401
+        sign_in(client)
+        assert client.get("/api/profile").status_code == 404  # Signed in, not onboarded yet.
         learner = client.post("/api/learners", json={"target_cefr": "B2"}).json()
         assert learner["goal"]["target_cefr"] == "B2"
         assert client.get("/api/progression").json()["state"] == "no_data"
@@ -108,7 +111,9 @@ def test_onboard_answer_resume_feedback_history_progression(
 def test_owner_isolation_including_every_mutation(practice_container: Container) -> None:
     app = create_app(practice_container)
     with TestClient(app) as alice, TestClient(app) as bob, TestClient(app) as anon:
+        sign_in(alice)
         alice.post("/api/learners", json={})
+        sign_in(bob)
         bob.post("/api/learners", json={})
         run = alice.post(
             "/api/practice/runs",
@@ -120,10 +125,10 @@ def test_owner_isolation_including_every_mutation(practice_container: Container)
             },
         ).json()
         path = f"/api/practice/runs/{run['id']}"
-        for stranger in (bob, anon):
-            assert stranger.get(path).status_code == 404
+        for stranger, refused in ((bob, 404), (anon, 401)):
+            assert stranger.get(path).status_code == refused
             for action in ("pause", "resume", "finish"):
-                assert stranger.post(path + "/" + action).status_code == 404
+                assert stranger.post(path + "/" + action).status_code == refused
             assert (
                 stranger.post(
                     path + "/answers",
@@ -133,17 +138,18 @@ def test_owner_isolation_including_every_mutation(practice_container: Container)
                         "text": "hijack",
                     },
                 ).status_code
-                == 404
+                == refused
             )
         assert bob.get("/api/history").json()["items"] == []
         assert bob.get("/api/progression").json()["groups"] == []
-        assert anon.get("/api/history").status_code == 404
-        assert anon.get("/api/progression").status_code == 404
+        assert anon.get("/api/history").status_code == 401
+        assert anon.get("/api/progression").status_code == 401
 
 
 def test_empty_catalog_refuses_unknown_exercises(container: Container) -> None:
     with TestClient(create_app(container)) as client:
         assert client.get("/api/exercises").json()["items"] == []
+        sign_in(client)
         client.post("/api/learners", json={})
         assert (
             client.post(
@@ -161,6 +167,7 @@ def test_empty_catalog_refuses_unknown_exercises(container: Container) -> None:
 
 def test_partial_and_empty_feedback_are_not_full_results(practice_container: Container) -> None:
     with TestClient(create_app(practice_container)) as client:
+        sign_in(client)
         client.post("/api/learners", json={})
         for answered in (False, True):
             run = client.post(

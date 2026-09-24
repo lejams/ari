@@ -76,3 +76,23 @@ class EndSessionResponse(ApiModel):
 
 class ErrorResponse(ApiModel):
     detail: str = Field(min_length=1)
+
+
+class AccountEmailRequest(ApiModel):
+    email: Annotated[str, Field(min_length=3, max_length=254)]
+
+
+class AccountLoginRequest(ApiModel):
+    email: Annotated[str, Field(min_length=3, max_length=254)]
+    password: Annotated[str, Field(min_length=1, max_length=1000)]
+
+
+class AccountPasswordRequest(ApiModel):
+    """Sets the password from a link sent by e-mail: activation or reset alike."""
+
+    token: Annotated[str, Field(min_length=1, max_length=128)]
+    password: Annotated[str, Field(min_length=1, max_length=1000)]
+
+
+class AccountLinkRequest(ApiModel):
+    token: Annotated[str, Field(min_length=1, max_length=128)]

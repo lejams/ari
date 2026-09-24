@@ -47,6 +47,14 @@ par `compose up`, pas par un redémarrage automatique du démon Docker.
 Deux enregistrements A (et AAAA en IPv6) vers l'IP du VPS : le domaine apprenant et le domaine
 back-office. Attendre la propagation avant le premier `up` (Let's Encrypt limite les tentatives).
 
+E-mails des comptes apprenants (activation, mot de passe oublié) : déclarer le domaine de
+l'adresse d'expédition (par exemple `no-reply@<domaine>`) chez le fournisseur SMTP, puis ajouter
+les enregistrements qu'il fournit. Sans eux, les liens finissent en spam ou sont refusés :
+
+- **SPF** (TXT) : autorise le fournisseur à envoyer pour le domaine ;
+- **DKIM** (TXT ou CNAME) : signe les messages ;
+- **DMARC** (TXT sur `_dmarc`) : commencer par `v=DMARC1; p=none`, durcir une fois les envois stables.
+
 ## 4. Bucket de sauvegarde
 
 - Créer un bucket S3-compatible (Cloudflare R2 ou Backblaze B2) et une clé restreinte en lecture
@@ -64,6 +72,23 @@ back-office. Attendre la propagation avant le premier `up` (Let's Encrypt limite
   Le coller entre quotes simples dans `.env` (le hash contient des `$`).
 - Clé du projet OpenAI, avec un **plafond de dépense mensuel dur** défini dans le tableau de bord
   OpenAI. C'est la limite de coût de l'alpha (B01) ; il n'y a pas encore de quota par utilisateur.
+- Relais SMTP transactionnel pour les e-mails des comptes (Brevo, Scaleway Transactional Email,
+  Postmark, Amazon SES...). Accepter le contrat de sous-traitance (DPA) du fournisseur : il traite
+  les adresses des apprenants. Dans `.env` :
+
+  ```sh
+  ARI_EMAIL_MODE=smtp
+  ARI_EMAIL_FROM='ARI <no-reply@<domaine>>'   # une adresse du domaine déclaré au §3
+  ARI_SMTP_HOST=<hôte fourni>
+  ARI_SMTP_PORT=587                           # 587 + starttls ; le 25 et souvent le 465 sont bloqués
+  ARI_SMTP_USERNAME=<identifiant fourni>
+  ARI_SMTP_PASSWORD='<clé SMTP>'              # quotes simples : une clé peut contenir des `$`
+  ARI_SMTP_SECURITY=starttls
+  ```
+
+  `ARI_PUBLIC_URL` (l'adresse des liens envoyés) est dérivée de `ARI_DOMAIN` par le compose. Tant
+  que `ARI_EMAIL_MODE=log`, les liens ne partent pas : ils sont écrits dans les logs de `app`, et
+  un avertissement le signale au démarrage.
 
 ## 6. Premier déploiement
 
@@ -99,8 +124,12 @@ Dans l'ordre :
    La landing est publique, le reste du domaine apprenant non : `curl -o /dev/null -w '%{http_code}'`
    doit renvoyer `200` sur `https://<domaine apprenant>/` et `401` sur `/app` et `/api/health` sans `-u`.
 2. Connexion back-office, upload d'un PDF, suivi des jobs (`docker compose logs -f worker`), publication d'un cas.
-3. Depuis l'app apprenant (`/app`, derrière basic auth), lancer une session et un appel vocal complet.
-4. Interrupteur : `ARI_SERVICE_PAUSED=true` dans `.env`, `docker compose --profile serve up -d app`,
+3. Comptes apprenants : sur `https://<domaine apprenant>/connexion`, créer un compte avec une
+   adresse à vous. Le lien d'activation doit arriver en boîte de réception (pas en spam) ; sinon
+   `docker compose logs app | grep "not delivered"`. Un envoi vers mail-tester.com doit obtenir 9/10
+   ou plus (SPF, DKIM et DMARC valides). Tester aussi « Mot de passe oublié ».
+4. Depuis l'app apprenant (`/app`, derrière basic auth), lancer une session et un appel vocal complet.
+5. Interrupteur : `ARI_SERVICE_PAUSED=true` dans `.env`, `docker compose --profile serve up -d app`,
    vérifier le message de pause sur une nouvelle session et que l'historique reste consultable, puis remettre à `false`.
 
 ## 8. Sauvegardes

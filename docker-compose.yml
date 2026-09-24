@@ -89,6 +89,15 @@ services:
       ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
       ARI_FRONTEND_ORIGIN: https://${ARI_DOMAIN:-localhost}
       ARI_SERVICE_PAUSED: "${ARI_SERVICE_PAUSED:-false}"
+      # Learner accounts: e-mailed links point at the public domain, sent through SMTP.
+      ARI_PUBLIC_URL: https://${ARI_DOMAIN:-localhost}
+      ARI_EMAIL_MODE: "${ARI_EMAIL_MODE:-log}"
+      ARI_EMAIL_FROM: "${ARI_EMAIL_FROM:-ARI <no-reply@localhost>}"
+      ARI_SMTP_HOST: "${ARI_SMTP_HOST:-}"
+      ARI_SMTP_PORT: "${ARI_SMTP_PORT:-587}"
+      ARI_SMTP_USERNAME: "${ARI_SMTP_USERNAME:-}"
+      ARI_SMTP_PASSWORD: "${ARI_SMTP_PASSWORD:-}"
+      ARI_SMTP_SECURITY: "${ARI_SMTP_SECURITY:-starttls}"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status == 200 else 1)"]
       interval: 10s
