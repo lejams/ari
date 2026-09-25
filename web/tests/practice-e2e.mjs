@@ -2,12 +2,46 @@
 // Requires Playwright and Chromium; never uses a provider or private case database.
 import assert from "node:assert/strict";
 import {createRequire} from "node:module";
+import {readFile} from "node:fs/promises";
 const {chromium} = createRequire(import.meta.url)("playwright");
 const base = process.env.ARI_E2E_URL || "http://127.0.0.1:8010";
 if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(base)) throw new Error("Local disposable demo only");
 const browser = await chromium.launch({headless: true,
   ...(process.env.ARI_E2E_CHROME ? {executablePath: process.env.ARI_E2E_CHROME} : {})});
 const errors = [];
+const password = "correct horse battery";
+
+async function activationToken(page, email) {
+  const logPath = process.env.ARI_E2E_EMAIL_LOG;
+  assert.ok(logPath, "ARI_E2E_EMAIL_LOG must point at the demo email log");
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    const log = await readFile(logPath, "utf8").catch(() => "");
+    const start = log.lastIndexOf(`à ${email} :`);
+    if (start !== -1) {
+      const match = log.slice(start).match(/#jeton=([A-Za-z0-9_-]{1,128})/);
+      if (match) return match[1];
+    }
+    await page.waitForTimeout(100);
+  }
+  throw new Error(`No activation link found in ${logPath} for ${email}`);
+}
+
+async function createAccount(page) {
+  const email = `e2e-${crypto.randomUUID()}@example.test`;
+  await page.goto(base + "/connexion#inscription");
+  await page.locator("#signup-form").getByLabel("Adresse e-mail", {exact:true}).fill(email);
+  await page.getByRole("button", {name:"Recevoir mon lien", exact:true}).click();
+  await page.getByText(/Si cette adresse peut recevoir un lien/).waitFor();
+  const token = await activationToken(page, email);
+  await page.goto(`${base}/connexion#jeton=${token}`);
+  await page.locator("#password-form").waitFor();
+  await page.locator("#password-form input[name=password]").fill(password);
+  await page.locator("#password-form input[name=confirm]").fill(password);
+  await page.getByRole("button", {name:"Enregistrer et continuer", exact:true}).click();
+  await page.locator("#onboarding:not([hidden])").waitFor();
+}
+
 async function onboard(page, official = false) {
   await page.locator("#profile-form").getByLabel("Land", {exact:true}).selectOption("Bayern");
   await page.getByRole("button", {name:"Continuer →", exact:true}).click();
@@ -30,6 +64,7 @@ try {
   const page = await context.newPage();
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(base + "/app");
+  await createAccount(page);
   await onboard(page);
   assert.match(await page.locator("#profile-goal").innerText(), /niveau non mesuré/);
   // The weekly programme is computed from the profile: a declared B2 without estimate is "anamnese".
@@ -99,9 +134,11 @@ try {
   const privateRunUrl = page.url();
   const stranger = await browser.newContext();
   const other = await stranger.newPage();
-  await other.goto(privateRunUrl);
+  await createAccount(other);
   await other.getByRole("heading", {name:"Quel est votre objectif ?",exact:true}).waitFor();
   await onboard(other, true);
+  await other.goto(privateRunUrl);
+  await other.locator("#error:visible").waitFor();
   await other.getByRole("button", {name: "Historique", exact: true}).click();
   await other.getByText("Pas encore de session enregistrée.", {exact: false}).waitFor();
   // Mobile layout has no page-level horizontal overflow.
