@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from accounts_fixtures import sign_in
 from conftest import build_test_container
 from content_fixtures import synthetic_protocol_pdf
 from fastapi.testclient import TestClient
@@ -137,6 +138,7 @@ def test_gold_protocol_becomes_a_published_case_learners_can_see(
         with TestClient(create_app(learner)) as client:
             cases = client.get("/api/cases").json()
             assert len(cases) == 1 and cases[0]["land"] == "Bayern"
+            sign_in(client)
             client.post("/api/learners", json={"target_cefr": "C1"})
             summary = client.get("/api/cases/summary").json()
             assert summary["laender"] == [

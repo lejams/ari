@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from accounts_fixtures import sign_in
 from fastapi.testclient import TestClient
 
 from ari.api.app import create_app
@@ -26,6 +27,7 @@ def test_catalogue_exposes_the_land_and_the_profile_rejects_an_unknown_one(
     with TestClient(create_app(published_container)) as client:
         case = client.get("/api/cases").json()[0]
         assert (case["land"], case["city"]) == ("Bayern", "Teststadt")
+        sign_in(client)
         me = client.post("/api/learners", json={"target_cefr": "C1"}).json()
         refused = client.patch(f"/api/learners/{me['id']}/profile", json={"land": "Atlantis"})
         assert refused.status_code == 422

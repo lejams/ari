@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from types import MappingProxyType
 
+from ari.application.ports.email import EmailSender
 from ari.application.ports.llm import LLMProvider
 from ari.application.ports.realtime import RealtimeVoiceEngine
 from ari.application.ports.stt import UtteranceTranscriber
 from ari.application.ports.tts import StreamingTTSProvider
 from ari.application.prompting import VersionedPrompt, load_prompt
+from ari.application.services.accounts import LearnerAuth
 from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
 from ari.application.services.lexicon import LexiconService
@@ -23,16 +26,20 @@ from ari.infrastructure.cases.clinical_catalog import ClinicalCatalog
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.placement_store import PlacementStore
 from ari.infrastructure.cases.practice_catalog import PublishedPracticeCatalog
+from ari.infrastructure.persistence.platform.accounts import SqlLearnerAccountStore
 from ari.infrastructure.persistence.platform.lexicon import SqlLexiconRepository
 from ari.infrastructure.persistence.platform.placement import SqlPlacementRepository
 from ari.infrastructure.persistence.platform.practice import SqlPracticeRepository
 from ari.infrastructure.persistence.platform.repository import SqlSessionRepository
+from ari.infrastructure.providers.email import LogEmailSender, SmtpEmailSender
 from ari.infrastructure.providers.fake import (
     FakeLLMProvider,
     FakeRealtimeEngine,
     FakeTranscriber,
     FakeTTSProvider,
 )
+
+logger = logging.getLogger(__name__)
 
 PIPELINE_STACK_ID = "pipeline_economy"
 REALTIME_STACK_ID = "realtime_exam"
@@ -54,6 +61,8 @@ class Container:
     attributor: FactAttributor
     lexicon: LexiconService
     placement: PlacementService
+    email: EmailSender
+    auth: LearnerAuth
 
     def resolve_voice_stack(self, session: ConversationSession) -> VoiceStack:
         """The exact stack a session was created with, or an error: never a silent swap."""
@@ -107,8 +116,36 @@ def _realtime_stack(settings: Settings) -> VoiceStack:
     )
 
 
+def _email_sender(settings: Settings) -> EmailSender:
+    if settings.email_mode == "log":
+        if settings.environment == "production":
+            logger.warning("ARI_EMAIL_MODE=log in production: account links only reach the log")
+        return LogEmailSender()
+    if not settings.smtp_host:
+        raise RuntimeError("ARI_SMTP_HOST required in .env when ARI_EMAIL_MODE=smtp.")
+    return SmtpEmailSender(
+        host=settings.smtp_host,
+        port=settings.smtp_port,
+        sender=settings.email_from,
+        username=settings.smtp_username,
+        password=settings.smtp_password,
+        security=settings.smtp_security,
+        timeout_seconds=settings.smtp_timeout_seconds,
+    )
+
+
 def build_container(settings: Settings) -> Container:
     repository = SqlSessionRepository(settings.database_url)
+    if settings.environment == "production" and "localhost" in settings.public_url:
+        logger.warning("ARI_PUBLIC_URL points at localhost: e-mailed links will not work")
+    email = _email_sender(settings)
+    auth = LearnerAuth(
+        SqlLearnerAccountStore(repository.engine),
+        public_url=settings.public_url,
+        session_days=settings.learner_session_days,
+        activation_hours=settings.learner_activation_hours,
+        reset_minutes=settings.learner_reset_minutes,
+    )
     cases = ClinicalCatalog(ClinicalStore(repository.engine))
     patient_prompt = load_prompt(settings.prompt_directory / "patient_v3.txt", "patient-v3")
     evaluation_prompt = load_prompt(
@@ -227,4 +264,6 @@ def build_container(settings: Settings) -> Container:
         attributor=FactAttributor(llm, attribution_prompt),
         lexicon=lexicon,
         placement=placement,
+        email=email,
+        auth=auth,
     )

@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 
 import pytest
+from accounts_fixtures import sign_in
 from clinical_fixtures import synthetic_bundle
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -31,6 +32,7 @@ def test_published_voice_mode_history_hints_and_immutability(
     store.import_bundle(bundle)
     approve(store, bundle)
     with TestClient(create_app(practice_container)) as client:
+        sign_in(client)
         learner = client.post("/api/learners", json={}).json()
         cases = client.get("/api/cases?approved_only=true").json()
         assert len(cases) == 1
@@ -133,6 +135,7 @@ def test_concurrent_voice_start_retries_do_not_duplicate_or_change_mode(
     approve(practice_container.cases.store, bundle)
     app = create_app(practice_container)
     with TestClient(app) as client:
+        sign_in(client)
         learner = client.post("/api/learners", json={}).json()
         body = {
             "learner_id": learner["id"],
@@ -141,11 +144,11 @@ def test_concurrent_voice_start_retries_do_not_duplicate_or_change_mode(
             "learning_mode": "exam",
             "request_id": "identical-request",
         }
-        cookie = client.cookies.get("ari_profile")
+        cookie = client.cookies.get("ari_session")
 
         def start(_: int) -> str:
             with TestClient(app) as retry:
-                retry.cookies.set("ari_profile", cookie)
+                retry.cookies.set("ari_session", cookie)
                 response = retry.post("/api/sessions", json=body)
                 assert response.status_code == 201
                 return response.json()["id"]

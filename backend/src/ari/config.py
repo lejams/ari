@@ -45,6 +45,22 @@ class Settings(BaseSettings):
     # practice runs, placement attempts and voice connections; past work stays readable.
     service_paused: bool = False
 
+    # Learner accounts. `public_url` is the learner domain as visitors type it: links sent by
+    # e-mail point there, never at whatever Host header a request carried.
+    public_url: str = "http://localhost:8000"
+    learner_session_days: int = 30
+    learner_activation_hours: int = 48
+    learner_reset_minutes: int = 60
+    # "log" writes e-mails to the application log instead of sending them (development).
+    email_mode: Literal["log", "smtp"] = "log"
+    email_from: str = "ARI <no-reply@localhost>"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+    smtp_timeout_seconds: float = 10.0
+
     openai_api_key: str | None = None
     stt_api_key: str | None = None
     stt_base_url: str = "https://api.groq.com/openai/v1"

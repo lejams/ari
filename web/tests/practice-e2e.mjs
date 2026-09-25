@@ -2,12 +2,25 @@
 // Requires Playwright and Chromium; never uses a provider or private case database.
 import assert from "node:assert/strict";
 import {createRequire} from "node:module";
+import {readFile} from "node:fs/promises";
 const {chromium} = createRequire(import.meta.url)("playwright");
 const base = process.env.ARI_E2E_URL || "http://127.0.0.1:8010";
 if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(base)) throw new Error("Local disposable demo only");
 const browser = await chromium.launch({headless: true,
   ...(process.env.ARI_E2E_CHROME ? {executablePath: process.env.ARI_E2E_CHROME} : {})});
 const errors = [];
+const accountFile = process.env.ARI_E2E_ACCOUNT_FILE;
+assert.ok(accountFile, "ARI_E2E_ACCOUNT_FILE must point at the seeded account file");
+const accounts = JSON.parse(await readFile(accountFile, "utf8"));
+
+async function signIn(page, account) {
+  await page.goto(base + "/connexion");
+  await page.locator("#login-form").getByLabel("Adresse e-mail", {exact:true}).fill(account.email);
+  await page.locator("#login-form input[name=password]").fill(account.password);
+  await page.getByRole("button", {name:"Se connecter", exact:true}).click();
+  await page.locator("#onboarding:not([hidden])").waitFor();
+}
+
 async function onboard(page, official = false) {
   await page.locator("#profile-form").getByLabel("Land", {exact:true}).selectOption("Bayern");
   await page.getByRole("button", {name:"Continuer →", exact:true}).click();
@@ -22,21 +35,22 @@ async function onboard(page, official = false) {
   // A new profile without an estimate lands on the placement test; the learner may skip it.
   await page.locator("#placement:not([hidden])").waitFor();
   assert.match(await page.locator("#placement-status").innerText(), /Niveau de départ/);
-  await page.goto(base + "/#home");
+  await page.goto(base + "/app#home");
   await page.locator("#home:not([hidden])").waitFor();
 }
 try {
   const context = await browser.newContext();
   const page = await context.newPage();
   page.on("pageerror", error => errors.push(error.message));
-  await page.goto(base);
+  await page.goto(base + "/app");
+  await signIn(page, accounts[0]);
   await onboard(page);
   assert.match(await page.locator("#profile-goal").innerText(), /niveau non mesuré/);
   // The weekly programme is computed from the profile: a declared B2 without estimate is "anamnese".
   assert.match(await page.locator("#week-phase").innerText(), /Anamnèse · niveau B2/);
   assert.equal(await page.locator("#week-days .week-pill").count(), 7, "the week strip has seven days");
   assert.match(await page.locator("#recommendation h1").innerText(), /./, "the hero names the next step");
-  await page.goto(base + "/#cases");
+  await page.goto(base + "/app#cases");
   // The catalogue opens on the learner's Land (Bayern, from onboarding) and counts its cases.
   await page.getByText(/Bayern : 1 cas publié/).waitFor();
   assert.equal(await page.locator("#case-land").inputValue(), "Bayern");
@@ -99,14 +113,16 @@ try {
   const privateRunUrl = page.url();
   const stranger = await browser.newContext();
   const other = await stranger.newPage();
-  await other.goto(privateRunUrl);
+  await signIn(other, accounts[1]);
   await other.getByRole("heading", {name:"Quel est votre objectif ?",exact:true}).waitFor();
   await onboard(other, true);
+  await other.goto(privateRunUrl);
+  await other.locator("#error:visible").waitFor();
   await other.getByRole("button", {name: "Historique", exact: true}).click();
   await other.getByText("Pas encore de session enregistrée.", {exact: false}).waitFor();
   // Mobile layout has no page-level horizontal overflow.
   await page.setViewportSize({width: 390, height: 844});
-  await page.goto(base + "/#cases");
+  await page.goto(base + "/app#cases");
   await page.locator("#cases:not([hidden])").waitFor();
   assert.equal(await page.locator("#voice-cases article").count(), 1);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

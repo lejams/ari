@@ -1,6 +1,7 @@
 from dataclasses import replace
 
 import pytest
+from accounts_fixtures import sign_in
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
@@ -24,6 +25,7 @@ def _paused(container: Container) -> Container:
 def test_pause_refuses_new_work_but_keeps_reading_and_closing(container: Container) -> None:
     # Set up a learner and a session on the live app, then reuse the cookie on the paused one.
     with TestClient(create_app(container)) as live:
+        sign_in(live)
         profile = live.post("/api/learners", json={"target_cefr": "B2"}).json()
         case = live.get("/api/cases").json()[0]
         body = {
@@ -32,10 +34,10 @@ def test_pause_refuses_new_work_but_keeps_reading_and_closing(container: Contain
             "case_version": case["version"],
         }
         session_id = live.post("/api/sessions", json=body).json()["id"]
-        cookie = live.cookies.get("ari_profile")
+        cookie = live.cookies.get("ari_session")
 
     with TestClient(create_app(_paused(container))) as client:
-        client.cookies.set("ari_profile", cookie)
+        client.cookies.set("ari_session", cookie)
 
         # Read-only stays available.
         assert client.get("/api/profile").status_code == 200
@@ -63,5 +65,5 @@ def test_pause_refuses_new_work_but_keeps_reading_and_closing(container: Contain
 
 def test_pause_does_not_bypass_ownership_for_anonymous_callers(container: Container) -> None:
     with TestClient(create_app(_paused(container))) as anonymous:
-        # Ownership runs before the pause guard, so a stranger still gets 404, not 503.
-        assert anonymous.post("/api/sessions", json={}).status_code == 404
+        # Ownership runs before the pause guard, so a stranger is asked to sign in, not 503.
+        assert anonymous.post("/api/sessions", json={}).status_code == 401

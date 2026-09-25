@@ -9,6 +9,7 @@ export class PracticeClient {
       signal: AbortSignal.timeout(20000), ...options,
       headers: {"Content-Type": "application/json", ...options.headers}});
     if (!response.ok) {
+      if (response.status === 401) globalThis.location?.assign?.("/connexion"); // Session over.
       const payload = await response.json().catch(() => ({}));
       const error = new Error(typeof payload.detail === "string" ? payload.detail : `Requête refusée (${response.status}).`);
       error.status = response.status;

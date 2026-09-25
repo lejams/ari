@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
+from accounts_fixtures import sign_in
 from clinical_fixtures import synthetic_bundle
 from conftest import build_test_container, publish_with_simulated_reviews
 from fastapi.testclient import TestClient
@@ -183,6 +184,7 @@ def test_program_api_reflects_profile_lexicon_and_activity(database_url: str) ->
     publish_with_simulated_reviews(container.cases.store, synthetic_practice("fachbegriffe").bundle)
     app = create_app(container)
     with TestClient(app) as client:
+        sign_in(client)
         client.post("/api/learners", json={"target_cefr": "C1"})
         first = client.get("/api/program").json()
         assert first["week"]["phase"] == "positionnement"

@@ -7,6 +7,7 @@ import wave
 from io import BytesIO
 
 import pytest
+from accounts_fixtures import sign_in
 from conftest import DatabaseFactory
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -138,6 +139,7 @@ def test_full_placement_flow_updates_the_profile(placement_container: Container)
     bundle = demo_placement()
     app = create_app(placement_container)
     with TestClient(app) as client:
+        sign_in(client)
         profile = client.post(
             "/api/learners",
             json={"target_cefr": "B2", "details": {"declared_level": "A2", "minutes_per_day": 20}},
@@ -219,6 +221,7 @@ def test_wrong_answers_descend_and_early_finish_ignores_missing_phases(
     bundle = demo_placement()
     app = create_app(placement_container)
     with TestClient(app) as client:
+        sign_in(client)
         client.post(
             "/api/learners", json={"target_cefr": "C1", "details": {"declared_level": "B1"}}
         )
@@ -246,7 +249,9 @@ def test_placement_is_owned_and_unavailable_without_published_set(
 ) -> None:
     app = create_app(placement_container)
     with TestClient(app) as alice, TestClient(app) as bob:
+        sign_in(alice)
         alice.post("/api/learners", json={})
+        sign_in(bob)
         bob.post("/api/learners", json={})
         attempt = alice.post("/api/placement/attempts", json={"request_id": "req-3"}).json()
         assert bob.get(f"/api/placement/attempts/{attempt['id']}").status_code == 404
@@ -289,11 +294,13 @@ def test_placement_is_owned_and_unavailable_without_published_set(
         )
         # The working goal inside ARI stays B2 or C1: C2 is refused, even for a fresh profile.
         with TestClient(app) as fresh:
+            sign_in(fresh)
             assert fresh.post("/api/learners", json={"target_cefr": "C2"}).status_code == 422
     from conftest import build_test_container
 
     empty = build_test_container(new_database_url())
     with TestClient(create_app(empty)) as client:
+        sign_in(client)
         client.post("/api/learners", json={})
         assert client.get("/api/placement").json()["available"] is False
         assert client.post("/api/placement/attempts", json={"request_id": "r"}).status_code == 400

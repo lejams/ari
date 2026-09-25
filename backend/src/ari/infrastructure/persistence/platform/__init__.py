@@ -4,6 +4,7 @@ Importing this package registers every row module on ``Base.metadata`` so Alembi
 schema helpers see the complete platform schema.
 """
 
+from ari.infrastructure.persistence.platform import account_rows as account_rows
 from ari.infrastructure.persistence.platform.base import Base
 from ari.infrastructure.persistence.platform.engine import create_platform_engine
 from ari.infrastructure.persistence.platform.repository import SqlSessionRepository

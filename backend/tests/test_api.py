@@ -5,6 +5,7 @@ from dataclasses import replace
 from typing import TypeVar
 
 import pytest
+from accounts_fixtures import sign_in
 from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
@@ -98,6 +99,7 @@ class FailingTTSProvider:
 
 def create_session(client: TestClient) -> dict[str, object]:
     case = client.get("/api/cases").json()[0]
+    sign_in(client)
     learner = client.post("/api/learners", json={"target_cefr": "C1"}).json()
     return client.post(
         "/api/sessions",
@@ -119,10 +121,11 @@ def test_starlette_disconnect_runtime_is_recognized() -> None:
 def test_http_and_websocket_vertical_slice(container: Container) -> None:
     app = create_app(container)
     with TestClient(app) as client:
-        assert client.get("/api/learners/missing/goal").status_code == 404
+        assert client.get("/api/learners/missing/goal").status_code == 401
         assert client.get("/api/health").json()["status"] == "ok"
         assert len(client.get("/api/cases").json()) == 1
         case = client.get("/api/cases").json()[0]
+        sign_in(client)
         learner = client.post("/api/learners", json={"target_cefr": "C1"}).json()
         session = client.post(
             "/api/sessions",
@@ -189,6 +192,7 @@ def test_second_voice_connection_is_rejected(container: Container) -> None:
     app = create_app(container)
     with TestClient(app) as client:
         case = client.get("/api/cases").json()[0]
+        sign_in(client)
         learner = client.post("/api/learners", json={"target_cefr": "C1"}).json()
         session = client.post(
             "/api/sessions",

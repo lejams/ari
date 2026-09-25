@@ -4,6 +4,7 @@ from dataclasses import replace
 from typing import Any, ClassVar, cast
 
 import pytest
+from accounts_fixtures import sign_in
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
@@ -95,6 +96,7 @@ def test_api_persists_the_voice_stack_and_rejects_stack_selection(container: Con
     app = create_app(container)
     with TestClient(app) as client:
         case = client.get("/api/cases").json()[0]
+        sign_in(client)
         learner = client.post("/api/learners", json={}).json()
         body = {"learner_id": learner["id"], "case_id": case["id"], "case_version": case["version"]}
         session = client.post("/api/sessions", json=body).json()
@@ -111,6 +113,7 @@ def test_voice_socket_rejects_stale_persisted_stack_cleanly(container: Container
     app = create_app(container)
     with TestClient(app) as client:
         case = client.get("/api/cases").json()[0]
+        sign_in(client)
         learner = client.post("/api/learners", json={}).json()
         session = client.post(
             "/api/sessions",

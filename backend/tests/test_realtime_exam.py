@@ -7,6 +7,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
+from accounts_fixtures import sign_in
 from fastapi.testclient import TestClient
 
 from ari.api.app import create_app
@@ -29,6 +30,7 @@ def container(published_container: Container) -> Container:
 
 def create_session(client: TestClient, mode: str) -> dict[str, object]:
     case = client.get("/api/cases").json()[0]
+    sign_in(client)
     learner = client.post("/api/learners", json={}).json()
     return client.post(
         "/api/sessions",
