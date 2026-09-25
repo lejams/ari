@@ -9,36 +9,15 @@ if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(base)) throw new Error("Loca
 const browser = await chromium.launch({headless: true,
   ...(process.env.ARI_E2E_CHROME ? {executablePath: process.env.ARI_E2E_CHROME} : {})});
 const errors = [];
-const password = "correct horse battery";
+const accountFile = process.env.ARI_E2E_ACCOUNT_FILE;
+assert.ok(accountFile, "ARI_E2E_ACCOUNT_FILE must point at the seeded account file");
+const accounts = JSON.parse(await readFile(accountFile, "utf8"));
 
-async function activationToken(page, email) {
-  const logPath = process.env.ARI_E2E_EMAIL_LOG;
-  assert.ok(logPath, "ARI_E2E_EMAIL_LOG must point at the demo email log");
-  const deadline = Date.now() + 10000;
-  while (Date.now() < deadline) {
-    const log = await readFile(logPath, "utf8").catch(() => "");
-    const start = log.lastIndexOf(`à ${email} :`);
-    if (start !== -1) {
-      const match = log.slice(start).match(/#jeton=([A-Za-z0-9_-]{1,128})/);
-      if (match) return match[1];
-    }
-    await page.waitForTimeout(100);
-  }
-  throw new Error(`No activation link found in ${logPath} for ${email}`);
-}
-
-async function createAccount(page) {
-  const email = `e2e-${crypto.randomUUID()}@example.test`;
-  await page.goto(base + "/connexion#inscription");
-  await page.locator("#signup-form").getByLabel("Adresse e-mail", {exact:true}).fill(email);
-  await page.getByRole("button", {name:"Recevoir mon lien", exact:true}).click();
-  await page.getByText(/Si cette adresse peut recevoir un lien/).waitFor();
-  const token = await activationToken(page, email);
-  await page.goto(`${base}/connexion#jeton=${token}`);
-  await page.locator("#password-form").waitFor();
-  await page.locator("#password-form input[name=password]").fill(password);
-  await page.locator("#password-form input[name=confirm]").fill(password);
-  await page.getByRole("button", {name:"Enregistrer et continuer", exact:true}).click();
+async function signIn(page, account) {
+  await page.goto(base + "/connexion");
+  await page.locator("#login-form").getByLabel("Adresse e-mail", {exact:true}).fill(account.email);
+  await page.locator("#login-form input[name=password]").fill(account.password);
+  await page.getByRole("button", {name:"Se connecter", exact:true}).click();
   await page.locator("#onboarding:not([hidden])").waitFor();
 }
 
@@ -64,7 +43,7 @@ try {
   const page = await context.newPage();
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(base + "/app");
-  await createAccount(page);
+  await signIn(page, accounts[0]);
   await onboard(page);
   assert.match(await page.locator("#profile-goal").innerText(), /niveau non mesuré/);
   // The weekly programme is computed from the profile: a declared B2 without estimate is "anamnese".
@@ -134,7 +113,7 @@ try {
   const privateRunUrl = page.url();
   const stranger = await browser.newContext();
   const other = await stranger.newPage();
-  await createAccount(other);
+  await signIn(other, accounts[1]);
   await other.getByRole("heading", {name:"Quel est votre objectif ?",exact:true}).waitFor();
   await onboard(other, true);
   await other.goto(privateRunUrl);

@@ -74,8 +74,8 @@ jobs:
         run: pnpm --dir web exec playwright install --with-deps chromium
       - name: Synthetic onboarding to progression in a browser
         run: |
-          export ARI_E2E_EMAIL_LOG="${RUNNER_TEMP}/ari-demo.log"
-          PYTHONPATH=backend/src .venv/bin/python -m ari.demo --port 8010 >"${ARI_E2E_EMAIL_LOG}" 2>&1 &
+          export ARI_E2E_ACCOUNT_FILE="${RUNNER_TEMP}/ari-e2e-accounts.json"
+          PYTHONPATH=backend/src .venv/bin/python -m ari.demo --port 8010 >"${RUNNER_TEMP}/ari-demo.log" 2>&1 &
           demo_pid=$!
           trap 'kill -INT "$demo_pid"; wait "$demo_pid" || true' EXIT
           for attempt in $(seq 1 30); do
@@ -83,4 +83,5 @@ jobs:
             if curl --fail --silent http://127.0.0.1:8010/api/health; then break; fi
             sleep 1
           done
+          PYTHONPATH=backend/src .venv/bin/python web/tests/seed-e2e-accounts.py "${ARI_E2E_ACCOUNT_FILE}"
           pnpm --dir web test:e2e
