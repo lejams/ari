@@ -1,9 +1,11 @@
 name: CI
-
 on:
   push:
   pull_request:
-
+  workflow_dispatch:
+    inputs:
+      stage_release: {description: "Build and stage this selected ref", required: true, default: true, type: boolean}
+permissions: {contents: read}
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -53,6 +55,8 @@ jobs:
         run: shellcheck deploy/*.sh
       - name: Compose config is valid (anchors and interpolation)
         run: docker compose --profile serve config -q
+      - name: Staging Compose config is valid
+        run: docker compose -p ari-staging -f docker-compose.yml -f deploy/staging.compose.yml --profile serve config -q
       - name: Docker image builds
         run: docker build -t ari:ci .
       - name: JavaScript syntax and PCM resampler
@@ -85,3 +89,62 @@ jobs:
           done
           PYTHONPATH=backend/src .venv/bin/python web/tests/seed-e2e-accounts.py "${ARI_E2E_ACCOUNT_FILE}"
           pnpm --dir web test:e2e
+  image:
+    name: Build immutable release image
+    needs: quality
+    if: >-
+      vars.STAGING_ENABLED == 'true' && github.event_name != 'pull_request' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.stage_release == true))
+    runs-on: ubuntu-latest
+    permissions: {contents: read, packages: write}
+    outputs: {digest: "${{ steps.build.outputs.digest }}"}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with: {registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}"}
+      - id: build
+        uses: docker/build-push-action@v6
+        with: {context: ., push: true, tags: "ghcr.io/lejams/ari:${{ github.sha }}"}
+  bundle:
+    name: Assemble immutable release bundle
+    needs: image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create deployable source bundle
+        env: {RELEASE_SHA: "${{ github.sha }}", RELEASE_DIGEST: "${{ needs.image.outputs.digest }}"}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/lejams/ari@${RELEASE_DIGEST}"
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ && "$RELEASE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "invalid release metadata" >&2; exit 1; }
+          mkdir -p release-bundle/deploy/postgres
+          cp docker-compose.yml release-bundle/
+          cp deploy/Caddyfile deploy/backup.sh deploy/lock.sh deploy/release.sh deploy/staging.compose.yml release-bundle/deploy/
+          cp -R deploy/postgres/init release-bundle/deploy/postgres/
+          printf '{"sha":"%s","image":"%s"}\n' "$RELEASE_SHA" "$image" > release-bundle/release.json
+      - uses: actions/upload-artifact@v4
+        with: {name: release-bundle, path: release-bundle, if-no-files-found: error}
+  staging:
+    name: Stage staging release
+    needs: [image, bundle]
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency: {group: deploy-staging, cancel-in-progress: false}
+    permissions: {contents: read}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: release-bundle, path: release-bundle}
+      - name: Transfer and activate the immutable staging release
+        env:
+          DEPLOY_HOST: "${{ vars.DEPLOY_HOST }}"
+          DEPLOY_USER: "${{ vars.DEPLOY_USER }}"
+          DEPLOY_PORT: "${{ vars.DEPLOY_PORT || '22' }}"
+          DEPLOY_PATH: "${{ vars.DEPLOY_PATH }}"
+          SSH_KNOWN_HOSTS: "${{ secrets.SSH_KNOWN_HOSTS }}"
+          SSH_PRIVATE_KEY: "${{ secrets.SSH_PRIVATE_KEY }}"
+        run: deploy/transfer-release.sh staging release-bundle "ghcr.io/lejams/ari@${{ needs.image.outputs.digest }}" "${{ github.sha }}"
+      - uses: actions/upload-artifact@v4
+        with: {name: staged-release, path: release-bundle, if-no-files-found: error, retention-days: 30, include-hidden-files: true}

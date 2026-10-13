@@ -8,6 +8,9 @@
 # Rollback (data, if a migration ran): restore the predeploy-<sha> backup set (see restore.sh).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck disable=SC1091
+. "$PWD/deploy/lock.sh"
+acquire_deploy_lock "$PWD/.deploy.lock" || exit 1
 
 compose() { docker compose --profile serve "$@"; }
 

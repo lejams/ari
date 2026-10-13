@@ -169,12 +169,68 @@ Supprimer la clé privée après l'exercice. Documenter le temps réel nécessai
 
 ## 10. Mise à jour et retour arrière
 
-- Mise à jour : `deploy/deploy.sh` est le seul chemin (arbre propre, branche `main`). Il prend une
+- Mise à jour manuelle historique : `deploy/deploy.sh` exige un arbre propre sur `main`. Il prend une
   sauvegarde `predeploy-<sha>` avant toute migration.
 - Retour arrière du code : `ARI_IMAGE_TAG=<sha précédent> docker compose --profile serve up -d --no-build`.
 - Retour arrière des données (si une migration a tourné) : restaurer le jeu `predeploy-<sha>`.
   Ne jamais faire `alembic downgrade` en production.
 - Ne jamais lancer `docker compose down -v` sur le projet live : cela détruit les volumes.
+
+## 10bis. Promotion CI par image immuable
+
+Le chemin de livraison CI extrait un bundle contenant `docker-compose.yml`, `deploy/` et
+`deploy/release.sh`. Il ne clone pas Git et ne construit aucune image sur le serveur. La CI publie
+une image GHCR, puis transmet sa référence complète, par exemple
+`ghcr.io/lejams/ari@sha256:<64-hex>`, avec le SHA Git complet.
+
+Chaque environnement possède un répertoire d'état hors du bundle, par exemple
+`/opt/ari` pour la production existante et `/opt/ari-staging` pour la préproduction. Ce répertoire contient son `.env`, qui n'est jamais
+écrasé par le bundle, et les marqueurs `.release.json` / `.staging-success.json`. Les permissions
+doivent être limitées au compte de déploiement (`chmod 700` pour le répertoire et `chmod 600` pour
+`.env`). La CI doit déjà avoir accès au registre GHCR sur l'hôte (par exemple une connexion Docker
+avec un jeton de lecture de paquet); le script ne configure ni compte ni accès réseau.
+Chaque déploiement garde un verrou `flock` pendant toute son exécution : production utilise
+`/opt/ari/.deploy.lock` et staging `/opt/ari-staging/.deploy.lock`. Un second déploiement ou une
+restauration live concurrente échoue immédiatement.
+
+Staging utilise son propre projet et ses propres volumes, sans Caddy :
+
+```sh
+cp deploy/staging.env.example /opt/ari-staging/.env
+chmod 600 /opt/ari-staging/.env
+deploy/release.sh staging /opt/ari-staging \
+  ghcr.io/lejams/ari@sha256:<digest> <sha-complet>
+```
+
+Il écoute seulement sur `127.0.0.1:18000` (app), `127.0.0.1:18100` (back-office) et
+`127.0.0.1:15432` (Postgres). Un relecteur y accède par tunnel SSH, par exemple
+`ssh -L 18000:127.0.0.1:18000 -L 18100:127.0.0.1:18100 ari@serveur`. Staging force les providers
+fake, les clés provider vides et l'e-mail en log; ses secrets PostgreSQL restent distincts de la
+production. Docker Compose >= 2.24.4 est requis pour l'override de ports `!override`.
+Après le premier staging réussi, depuis le bundle qui a démarré staging, lire l'image du marqueur
+et exécuter dans le conteneur déjà actif : `ARI_IMAGE_REF="$(python3 -c 'import json; print(json.load(open("/opt/ari-staging/.release.json"))["image"])')" docker compose -p ari-staging --env-file /opt/ari-staging/.env -f docker-compose.yml -f deploy/staging.compose.yml exec backoffice python -m ari.backoffice_api.cli create-owner --email vous@exemple.org --name "Votre nom"`. Ne jamais
+copier comptes, mots de passe ou volumes de production vers staging.
+
+La promotion de production doit fournir dans la racine du bundle un fichier
+`staging-success.json` exact (`{"sha":"<sha>","image":"<image@digest>"}`) produit par le
+workflow après son étape staging. Le workflow doit aussi vérifier le succès GitHub correspondant;
+le script ne peut pas attester ce fait. Puis il appelle :
+
+```sh
+deploy/release.sh production /opt/ari \
+  ghcr.io/lejams/ari@sha256:<digest> <sha-complet>
+```
+
+Avant toute mutation, production exige les volumes `ari_postgres_data` et
+`ari_content_storage`, un Postgres existant et en marche, puis affiche un inventaire lecture seule
+des documents, versions de protocoles et fichiers de stockage. Il vérifie aussi que chaque PDF
+référencé par la base est présent. Après le pull, une sauvegarde
+complète est obligatoire avant l'arrêt de `app`, `backoffice` et `worker`, puis les migrations.
+L'échec ne met pas à jour
+`.release.json`. Le script ne lance jamais `build`, `down`, reset, réimport ou restauration.
+Après succès, il affiche l'image/SHA précédents. Une bascule exige de relancer explicitement la
+commande avec l'ancien digest et SHA après avoir évalué la compatibilité des migrations; les données
+ne reviennent jamais automatiquement en arrière.
 
 ## 11. Fenêtre de déploiement
 

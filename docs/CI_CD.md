@@ -1,0 +1,13 @@
+# CI and release promotion
+
+Every pull request and push runs the full `CI` quality job, including PostgreSQL-backed tests. CI builds and stages only when `STAGING_ENABLED=true`, after quality succeeds: automatically for a push to `main`, or from a manually selected ref with `stage_release` enabled.
+
+The image is built once and pushed to `ghcr.io/lejams/ari` with its full commit SHA. Deployment uses the returned immutable `ghcr.io/lejams/ari@sha256:...` reference, never `latest` or a rebuilt image. CI packages the checked-out Compose and deployment files with `release.json`; it excludes `.env`, volumes, patient data, and secrets.
+
+Staging is private. Its applications listen on loopback ports 18000 and 18100; access them through an SSH tunnel, for example `ssh -L 18000:127.0.0.1:18000 -L 18100:127.0.0.1:18100 user@host`. Configure each environment's `DEPLOY_PATH` as its own environment directory (for example `/opt/ari-staging` and `/opt/ari`). Staging uses its own `.env` and Compose project. Production is the `ari` project with its existing persisted data. Releases preserve those files and volumes and never reset data.
+
+Production is manual: run **Promote staged release** from `main` and provide the successful CI `staging_run_id`. The workflow verifies the run belongs to this repository's `ci.yml`, succeeded, staged successfully, has a valid immutable digest, and its commit is an ancestor of `main`. It downloads only the `staged-release` artifact made by that trusted CI job and checks the staging proof matches the same commit and digest. It does not rebuild, retag, or accept `workflow_run` artifacts.
+
+Register GitHub environments `staging` and `production`. Configure production required reviewers, including the deployment owner, so the manual dispatch also requires approval. Add environment variables `DEPLOY_HOST`, `DEPLOY_USER`, optional `DEPLOY_PORT` (defaults to 22), and `DEPLOY_PATH`; add environment secrets `SSH_PRIVATE_KEY` and `SSH_KNOWN_HOSTS`. Paths must differ: `/opt/ari-staging` and the existing `/opt/ari`. `SSH_KNOWN_HOSTS` must contain the server's verified host key. Set repository variable `STAGING_ENABLED=true` last, after staging is ready.
+
+For a private GHCR package, log the server into `ghcr.io` through a secure terminal with a read-only package credential. Keep that credential in the server environment, never in workflow output or source control. Create separate staging and production `.env` files before the first release.

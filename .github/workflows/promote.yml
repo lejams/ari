@@ -1,0 +1,52 @@
+name: Promote staged release
+on:
+  workflow_dispatch:
+    inputs:
+      staging_run_id: {description: "Successful CI run ID that produced staged-release", required: true, type: string}
+permissions: {contents: read, actions: read}
+jobs:
+  production:
+    name: Promote staged release to production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: {group: deploy-production, cancel-in-progress: false}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - name: Validate the successful trusted staging run
+        id: candidate
+        env: {GH_TOKEN: "${{ github.token }}", RUN_ID: "${{ inputs.staging_run_id }}"}
+        run: |
+          set -euo pipefail
+          case "$RUN_ID" in *[!0-9]*|'') echo "staging_run_id must be numeric" >&2; exit 1;; esac
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
+          workflow_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml" --jq .id)"
+          test "$(jq -r .repository.full_name <<<"$run_json")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r .workflow_id <<<"$run_json")" = "$workflow_id"
+          test "$(jq -r .conclusion <<<"$run_json")" = success
+          case "$(jq -r .event <<<"$run_json")" in push|workflow_dispatch) ;; *) echo "untrusted CI event" >&2; exit 1;; esac
+          sha="$(jq -r .head_sha <<<"$run_json")"; [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$sha" origin/main
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" --jq '.jobs | any(.[]; .name == "Stage staging release" and .conclusion == "success")' | grep -qx true
+          gh run download "$RUN_ID" -R "$GITHUB_REPOSITORY" -n staged-release -D staged-release
+          test -f staged-release/release.json; test -f staged-release/staging-success.json
+          image="$(python3 -c 'import json; print(json.load(open("staged-release/release.json"))["image"])')"
+          release_sha="$(python3 -c 'import json; print(json.load(open("staged-release/release.json"))["sha"])')"
+          marker_sha="$(python3 -c 'import json; print(json.load(open("staged-release/staging-success.json"))["sha"])')"
+          marker_image="$(python3 -c 'import json; print(json.load(open("staged-release/staging-success.json"))["image"])')"
+          [[ "$image" =~ ^ghcr\.io/lejams/ari@sha256:[0-9a-f]{64}$ ]]
+          test "$sha" = "$release_sha"; test "$sha" = "$marker_sha"; test "$image" = "$marker_image"
+          printf 'sha=%s\nimage=%s\n' "$sha" "$image" >> "$GITHUB_OUTPUT"
+      - name: Transfer the staged artifact to production
+        env:
+          DEPLOY_HOST: "${{ vars.DEPLOY_HOST }}"
+          DEPLOY_USER: "${{ vars.DEPLOY_USER }}"
+          DEPLOY_PORT: "${{ vars.DEPLOY_PORT || '22' }}"
+          DEPLOY_PATH: "${{ vars.DEPLOY_PATH }}"
+          SSH_KNOWN_HOSTS: "${{ secrets.SSH_KNOWN_HOSTS }}"
+          SSH_PRIVATE_KEY: "${{ secrets.SSH_PRIVATE_KEY }}"
+        run: deploy/transfer-release.sh production staged-release "${{ steps.candidate.outputs.image }}" "${{ steps.candidate.outputs.sha }}"
+      - name: Publish deployed release metadata
+        run: |
+          { echo '### Production release'; echo; echo "- Commit: \`${{ steps.candidate.outputs.sha }}\`"; echo "- Image: \`${{ steps.candidate.outputs.image }}\`"; } >> "$GITHUB_STEP_SUMMARY"
