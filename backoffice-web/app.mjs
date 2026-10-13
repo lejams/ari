@@ -1,5 +1,5 @@
-import {ProtocolReview} from './protocol-review.mjs';
-import {BackofficeApi, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LABELS, statusLabel, statusTone} from './api.mjs';
+import {ProtocolReview} from './protocol-review.mjs?v=20261014-modules';
+import {BackofficeApi, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LABELS, statusLabel, statusTone} from './api.mjs?v=20261014-modules';
 
 const client = new BackofficeApi();
 const $ = id => document.getElementById(id);
