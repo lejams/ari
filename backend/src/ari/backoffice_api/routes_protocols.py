@@ -12,12 +12,13 @@ from pydantic import ValidationError
 
 from ari.backoffice_api.container import Backoffice
 from ari.backoffice_api.deps import actor, current_account, require_roles
-from ari.backoffice_api.dto import DecisionRequest, ReviseRequest
+from ari.backoffice_api.dto import DecisionRequest, ReviewSeenRequest, ReviseRequest
 from ari.content.domain.accounts import AccountContext, Role
-from ari.content.domain.documents import ProtocolVersion
+from ari.content.domain.documents import DocumentSegment, ProtocolVersion
 from ari.content.domain.protocol import ProtocolRecord, ProtocolStatus
 from ari.content.ports import ContentTransaction
 from ari.content.services.diff import field_diff
+from ari.content.services.segmentation import marker_position
 from ari.domain.errors import NotFoundError
 from ari.domain.geography import Land
 
@@ -36,7 +37,7 @@ def _land(value: str | None) -> Land | None:
         raise HTTPException(status_code=422, detail="Land inconnu") from exc
 
 
-def summary(head: ProtocolVersion) -> dict[str, Any]:
+def summary(head: ProtocolVersion, *, source_text_length: int | None = None) -> dict[str, Any]:
     record = head.record
     return {
         "id": head.id,
@@ -57,7 +58,57 @@ def summary(head: ProtocolVersion) -> dict[str, Any]:
         "difficulty": record.pedagogy.difficulty,
         "created_via": head.created_via,
         "created_at": head.created_at.isoformat(),
+        "source_text_length": source_text_length,
     }
+
+
+def _source_parts(
+    tx: ContentTransaction,
+    head: ProtocolVersion,
+    *,
+    segments: tuple[DocumentSegment, ...] | None = None,
+    page_texts: dict[int, str] | None = None,
+) -> tuple[dict[int, str], list[dict[str, int | str]]]:
+    """Full pages plus exact offsets for the protocol segment, using segmentation's markers."""
+    segments = segments if segments is not None else tx.segments(head.document_id)
+    segments = tuple(sorted(segments, key=lambda segment: segment.index))
+    position = next(
+        (index for index, item in enumerate(segments) if item.id == head.segment_id), None
+    )
+    if position is None:
+        raise NotFoundError("Segment inconnu")
+    segment = segments[position]
+    following = segments[position + 1] if position + 1 < len(segments) else None
+    pages = (
+        page_texts
+        if page_texts is not None
+        else {page.page_number: page.text for page in tx.pages(head.document_id)}
+    )
+    result: list[dict[str, int | str]] = []
+    for number in range(segment.page_from, segment.page_to + 1):
+        text = pages.get(number, "")
+        start = marker_position(text, segment.start_marker) if number == segment.page_from else 0
+        start = start if start < len(text) else 0
+        end = len(text)
+        if following is not None and number == segment.page_to == following.page_from:
+            candidate = start + marker_position(text[start:], following.start_marker)
+            if candidate < len(text):
+                end = candidate
+        result.append({"page_number": number, "text": text, "start": start, "end": end})
+    return pages, result
+
+
+def _source_length(parts: list[dict[str, int | str]]) -> int:
+    return sum(int(part["end"]) - int(part["start"]) for part in parts) + max(len(parts) - 1, 0)
+
+
+def _valid_passage(passage_id: str, pages: list[dict[str, int | str]]) -> bool:
+    try:
+        page_number, start, end = (int(value) for value in passage_id.split(":"))
+    except ValueError:
+        return False
+    page = next((item for item in pages if item["page_number"] == page_number), None)
+    return page is not None and int(page["start"]) <= start < end <= int(page["end"])
 
 
 def detail(tx: ContentTransaction, head: ProtocolVersion) -> dict[str, Any]:
@@ -85,6 +136,9 @@ def detail(tx: ContentTransaction, head: ProtocolVersion) -> dict[str, Any]:
             if first and first.version != head.version
             else ()
         ),
+        "first_record": first.record.model_dump(mode="json")
+        if first
+        else head.record.model_dump(mode="json"),
         "versions": [
             {
                 "version": v.version,
@@ -125,7 +179,22 @@ def protocols_router(services: Backoffice) -> APIRouter:
                 document_id=document,
                 land=_land(land),
             )
-        return {"items": [summary(h) for h in heads], "total": len(heads)}
+            document_data: dict[str, tuple[tuple[DocumentSegment, ...], dict[int, str]]] = {}
+            lengths = {}
+            for head in heads:
+                data = document_data.get(head.document_id)
+                if data is None:
+                    segments = tx.segments(head.document_id)
+                    pages = {page.page_number: page.text for page in tx.pages(head.document_id)}
+                    data = (segments, pages)
+                    document_data[head.document_id] = data
+                lengths[head.id] = _source_length(
+                    _source_parts(tx, head, segments=data[0], page_texts=data[1])[1]
+                )
+        return {
+            "items": [summary(head, source_text_length=lengths[head.id]) for head in heads],
+            "total": len(heads),
+        }
 
     @router.get("/api/protocols/{protocol_id}")
     def protocol_detail(protocol_id: str, account: Anyone) -> dict[str, Any]:
@@ -139,6 +208,52 @@ def protocols_router(services: Backoffice) -> APIRouter:
             if found is None:
                 raise NotFoundError("Version inconnue")
             return {**summary(found), "record": found.record.model_dump(mode="json")}
+
+    @router.get("/api/protocols/{protocol_id}/source")
+    def protocol_source(protocol_id: str, account: Anyone) -> dict[str, Any]:
+        """Exact extraction segment, with page boundaries preserved for review rendering."""
+        with content.repository.transaction() as tx:
+            head = _head(tx, protocol_id)
+            segment = next(
+                (item for item in tx.segments(head.document_id) if item.id == head.segment_id), None
+            )
+            if segment is None:
+                raise NotFoundError("Segment inconnu")
+            _, pages = _source_parts(tx, head)
+            text = "\n".join(
+                str(page["text"])[int(page["start"]) : int(page["end"])] for page in pages
+            )
+            seen_passages = [
+                str(event.payload["passage_id"])
+                for event in tx.events(head.id)
+                if event.event_type == "review_seen"
+                and "passage_id" in event.payload
+                and _valid_passage(str(event.payload["passage_id"]), pages)
+            ]
+            return {
+                "page_from": head.page_from,
+                "page_to": head.page_to,
+                "text": text,
+                "text_length": _source_length(pages),
+                "start_marker": segment.start_marker,
+                "pages": pages,
+                "seen_passages": sorted(set(seen_passages)),
+            }
+
+    @router.post("/api/protocols/{protocol_id}/review-seen", status_code=204)
+    def review_seen(protocol_id: str, body: ReviewSeenRequest, account: Reviser) -> None:
+        with content.repository.transaction() as tx:
+            head = _head(tx, protocol_id)
+            _, pages = _source_parts(tx, head)
+            if not _valid_passage(body.passage_id, pages):
+                raise HTTPException(status_code=422, detail="Passage hors des limites du segment")
+        content.workflow.mark_review_seen(
+            protocol_id,
+            version=body.version,
+            protocol_hash=body.protocol_hash,
+            passage_id=body.passage_id,
+            actor=actor(account),
+        )
 
     @router.post("/api/protocols/{protocol_id}/versions", status_code=201)
     def revise(protocol_id: str, body: ReviseRequest, account: Reviser) -> dict[str, Any]:

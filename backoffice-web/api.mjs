@@ -51,6 +51,8 @@ export class BackofficeApi {
     return this.api(`/api/protocols${query ? `?${query}` : ""}`);
   }
   protocol(id) { return this.api(`/api/protocols/${encodeURIComponent(id)}`); }
+  protocolSource(id) { return this.api(`/api/protocols/${encodeURIComponent(id)}/source`); }
+  markReviewSeen(id, version, protocolHash, passageId) { return this.api(`/api/protocols/${encodeURIComponent(id)}/review-seen`, {method: 'POST', body: JSON.stringify({version, protocol_hash: protocolHash, passage_id: passageId})}); }
   revise(id, baseVersion, baseHash, record) { return this.api(`/api/protocols/${encodeURIComponent(id)}/versions`, {method: "POST", body: JSON.stringify({base_version: baseVersion, base_hash: baseHash, record})}); }
   decide(id, stage, decision) { return this.api(`/api/protocols/${encodeURIComponent(id)}/decisions/${stage}`, {method: "POST", body: JSON.stringify(decision)}); }
   releaseProtocol(id) { return this.api(`/api/protocols/${encodeURIComponent(id)}/release`, {method: "POST"}); }

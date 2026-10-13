@@ -201,3 +201,56 @@ def test_owner_sends_back_and_rejects(
     assert rejected.status is ProtocolStatus.REJECTED
     with content_container.repository.transaction() as tx:
         assert tx.get_gold(extracted.id) is None
+
+
+def test_review_seen_is_an_audit_marker_and_closed_protocols_reject_it(
+    content_container: ContentContainer, extracted: ProtocolVersion
+) -> None:
+    workflow = content_container.workflow
+    workflow.release(extracted.id, actor=OPERATOR)
+    with content_container.repository.transaction() as tx:
+        page = next(
+            page
+            for page in tx.pages(extracted.document_id)
+            if page.page_number == extracted.page_from
+        )
+        passage_id = f"{page.page_number}:0:12"
+
+    workflow.mark_review_seen(
+        extracted.id,
+        version=extracted.version,
+        protocol_hash=extracted.content_hash,
+        passage_id=passage_id,
+        actor=DOCTOR,
+    )
+    revised = workflow.revise(
+        extracted.id,
+        base_version=1,
+        base_hash=extracted.content_hash,
+        record=settle(extracted.record),
+        actor=DOCTOR,
+        via="doctor",
+    )
+    with content_container.repository.transaction() as tx:
+        seen = [event for event in tx.events(extracted.id) if event.event_type == "review_seen"]
+        assert len(seen) == 1
+        assert seen[0].protocol_version == 1
+        assert seen[0].payload == {"passage_id": passage_id}
+        assert "text" not in seen[0].payload and "source" not in seen[0].payload
+
+    workflow.doctor_decide(
+        extracted.id,
+        version=revised.version,
+        protocol_hash=revised.content_hash,
+        decision="reject",
+        notes="Duplicate",
+        actor=DOCTOR,
+    )
+    with pytest.raises(ConflictError, match="ne se relit plus"):
+        workflow.mark_review_seen(
+            extracted.id,
+            version=revised.version,
+            protocol_hash=revised.content_hash,
+            passage_id=passage_id,
+            actor=DOCTOR,
+        )

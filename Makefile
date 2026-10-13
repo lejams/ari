@@ -61,7 +61,10 @@ test: test-backend test-web test-backoffice-web
 test-backoffice-web:
 	$(NODE) --check backoffice-web/api.mjs
 	$(NODE) --check backoffice-web/app.mjs
+	$(NODE) --check backoffice-web/protocol-review.mjs
+	$(NODE) --check backoffice-web/review.mjs
 	$(NODE) backoffice-web/tests/api.test.mjs
+	$(NODE) backoffice-web/tests/review.test.mjs
 	$(NODE) backoffice-web/tests/backoffice-dom.test.mjs
 
 test-backend:
