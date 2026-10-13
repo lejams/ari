@@ -5,8 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.types import Scope
 
 from ari.backoffice_api.container import Backoffice, build_backoffice
 from ari.backoffice_api.middleware import BackofficeAuthMiddleware
@@ -18,6 +19,15 @@ from ari.backoffice_api.routes_protocols import protocols_router
 from ari.config import Settings, get_settings
 from ari.content.domain.errors import ConflictError
 from ari.domain.errors import AriError, NotFoundError, ProviderError
+
+
+class BackofficeStaticFiles(StaticFiles):
+    """Revalidate the UI and its module graph together after a deployment."""
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 def create_backoffice_app(
@@ -53,5 +63,5 @@ def create_backoffice_app(
 
     web_dir = Path(__file__).resolve().parents[4] / "backoffice-web"
     if web_dir.exists():
-        app.mount("/", StaticFiles(directory=web_dir, html=True), name="backoffice-web")
+        app.mount("/", BackofficeStaticFiles(directory=web_dir, html=True), name="backoffice-web")
     return app

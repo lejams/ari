@@ -1,10 +1,24 @@
 // Loads app.mjs against a minimal DOM for every route, signed out and signed in, and fails when
 // the page's own error handler caught anything.
 import assert from "node:assert/strict";
-import {readFileSync} from "node:fs";
+import {mkdtempSync, readFileSync, rmSync, writeFileSync} from "node:fs";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 
-const moduleUrl = pathToFileURL(new URL("../app.mjs", import.meta.url).pathname).href;
+// Simulate an already cached API from before guided review, then install the new release.
+// Node caches ES modules by URL just as the browser's module map does.
+const releaseDir = mkdtempSync(join(tmpdir(), "ari-backoffice-upgrade-"));
+process.on("exit", () => rmSync(releaseDir, {recursive: true, force: true}));
+const apiSource = readFileSync(new URL("../api.mjs", import.meta.url), "utf8");
+const apiFile = join(releaseDir, "api.mjs");
+writeFileSync(apiFile, apiSource.replace(/^.*protocolSource\(id\).*\n/m, ""));
+const cachedApi = await import(pathToFileURL(apiFile).href);
+assert.equal(cachedApi.BackofficeApi.prototype.protocolSource, undefined);
+for (const filename of ["api.mjs", "app.mjs", "protocol-review.mjs", "review.mjs"]) {
+  writeFileSync(join(releaseDir, filename), readFileSync(new URL(`../${filename}`, import.meta.url)));
+}
+const moduleUrl = pathToFileURL(join(releaseDir, "app.mjs")).href;
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 
@@ -191,4 +205,4 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   assert.deepEqual(nodes.get("review-type").children.map(o => o.value), ["linguistic"]);
   assert.equal(nodes.get("scenario-actions").children.length, 0, "no publication for a reviewer");
 }
-console.log("Back-office DOM: login gate, every route renders, review screen, gold drafts and registry publication guard");
+console.log("Back-office DOM: cached API upgrade, login gate, every route renders, review screen, gold drafts and registry publication guard");
