@@ -12,7 +12,9 @@ DEPLOY_HOST="${DEPLOY_HOST:-}"; DEPLOY_USER="${DEPLOY_USER:-}"; DEPLOY_PORT="${D
 SSH_KNOWN_HOSTS="${SSH_KNOWN_HOSTS:-}"; SSH_PRIVATE_KEY="${SSH_PRIVATE_KEY:-}"
 [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || fail "invalid DEPLOY_HOST"
 [[ "$DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || fail "invalid DEPLOY_USER"
-[[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] && (( DEPLOY_PORT > 0 && DEPLOY_PORT < 65536 )) || fail "invalid DEPLOY_PORT"
+if ! [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] || (( DEPLOY_PORT <= 0 || DEPLOY_PORT >= 65536 )); then
+  fail "invalid DEPLOY_PORT"
+fi
 [[ "$DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ && "$DEPLOY_PATH" != *..* ]] || fail "invalid DEPLOY_PATH"
 [[ -n "$SSH_KNOWN_HOSTS" && -n "$SSH_PRIVATE_KEY" ]] || fail "SSH_KNOWN_HOSTS and SSH_PRIVATE_KEY are required"
 python3 - "$bundle_dir/release.json" "$commit_sha" "$image_ref" <<'PY'
@@ -35,9 +37,15 @@ chmod 600 "$key_file" "$known_hosts_file"
 ssh_options=(-i "$key_file" -p "$DEPLOY_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$known_hosts_file")
 scp_options=(-i "$key_file" -P "$DEPLOY_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$known_hosts_file")
 target="$DEPLOY_USER@$DEPLOY_HOST"; release_dir="$DEPLOY_PATH/releases/$commit_sha"; environment_dir="$DEPLOY_PATH"
+# release_dir is validated and intentionally expanded locally.
+# shellcheck disable=SC2029
 ssh "${ssh_options[@]}" "$target" "mkdir -p '$release_dir'"
 scp "${scp_options[@]}" -r "$bundle_dir/." "$target:$release_dir/"
+# release_dir is validated and intentionally expanded locally.
+# shellcheck disable=SC2029
 ssh "${ssh_options[@]}" "$target" "chmod +x '$release_dir'/deploy/*.sh"
+# release_dir is validated and intentionally expanded locally.
+# shellcheck disable=SC2029
 ssh "${ssh_options[@]}" "$target" "$release_dir/deploy/release.sh" "$environment" "$environment_dir" "$image_ref" "$commit_sha"
 if [ "$environment" = staging ]; then
   scp "${scp_options[@]}" "$target:$environment_dir/.staging-success.json" "$bundle_dir/staging-success.json"

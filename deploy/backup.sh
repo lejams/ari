@@ -25,7 +25,8 @@ backup_keep_override="${BACKUP_KEEP_LOCAL:-}"
 backup_health_override="${BACKUP_HEALTHCHECK_URL:-}"
 
 set -a
-# shellcheck disable=SC1091
+# shellcheck source=/dev/null
+# The environment file is selected by the caller and validated above.
 . "$compose_env_file"
 set +a
 

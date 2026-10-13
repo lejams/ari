@@ -10,7 +10,10 @@ usage() { echo "usage: $0 <staging|production> <environment-dir> <image-ref> <co
 target="$1" env_dir="$2" image_ref="$3" commit_sha="$4"
 case "$target" in staging|production) ;; *) usage ;; esac
 case "$env_dir" in /*) ;; *) echo "environment directory must be absolute" >&2; exit 2 ;; esac
-[ -d "$env_dir" ] && [ -f "$env_dir/.env" ] || { echo "environment directory must contain .env" >&2; exit 2; }
+if [ ! -d "$env_dir" ] || [ ! -f "$env_dir/.env" ]; then
+  echo "environment directory must contain .env" >&2
+  exit 2
+fi
 [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "commit SHA must be 40 lowercase hex characters" >&2; exit 2; }
 [[ "$image_ref" =~ ^ghcr\.io/[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$ ]] || { echo "image must be a lowercase ghcr.io repository pinned by sha256 digest" >&2; exit 2; }
 
