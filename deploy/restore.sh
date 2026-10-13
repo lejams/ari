@@ -27,6 +27,9 @@ if [ "$project" = "ari" ] && [ "$live" != "--live" ]; then
 fi
 
 if [ "$project" = "ari" ]; then
+	# shellcheck disable=SC1091
+	. "$PWD/deploy/lock.sh"
+	acquire_deploy_lock "$PWD/.deploy.lock" || exit 1
 	running="$(docker compose -p ari ps --services --status running)"
 	if echo "$running" | grep -qE '^(app|backoffice|worker)$'; then
 		echo "Stop app, backoffice and worker before a live restore:" >&2

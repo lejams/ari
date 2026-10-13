@@ -1,0 +1,37 @@
+# Staging is intentionally a separate Compose project (ari-staging).  Compose >= 2.24.4 is
+# required for !override, which replaces (rather than appends to) the production port lists.
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:15432:5432"
+
+  app:
+    environment:
+      ARI_ENVIRONMENT: development
+      ARI_FRONTEND_ORIGIN: "http://127.0.0.1:18000"
+      ARI_PUBLIC_URL: "http://127.0.0.1:18000"
+      ARI_EMAIL_MODE: log
+      ARI_PROVIDER_MODE: fake
+      ARI_OPENAI_API_KEY: ""
+      ARI_STT_API_KEY: ""
+    ports: !override
+      - "127.0.0.1:18000:8000"
+
+  backoffice:
+    environment:
+      ARI_ENVIRONMENT: development
+      ARI_BACKOFFICE_ORIGIN: "http://127.0.0.1:18100"
+      ARI_EMAIL_MODE: log
+      ARI_PROVIDER_MODE: fake
+      ARI_OPENAI_API_KEY: ""
+      ARI_STT_API_KEY: ""
+    ports:
+      - "127.0.0.1:18100:8100"
+
+  worker:
+    environment:
+      ARI_ENVIRONMENT: development
+      ARI_EMAIL_MODE: log
+      ARI_PROVIDER_MODE: fake
+      ARI_OPENAI_API_KEY: ""
+      ARI_STT_API_KEY: ""

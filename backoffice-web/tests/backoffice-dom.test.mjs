@@ -30,6 +30,7 @@ function installDom(hash) {
   nodes.get("review-status").value = "doctor_review"; // A real <select> starts on its `selected` option.
   nodes.get("registry-status").value = "draft_unvalidated";
   globalThis.document = {
+    body: new Element("body"),
     getElementById: id => nodes.get(id) ?? null,
     querySelector: () => null,
     querySelectorAll: () => [],
@@ -102,6 +103,8 @@ const responses = {
   "/api/dashboard": {jobs_by_status: {succeeded: 3}, documents_by_status: {extracted: 1}, protocols_by_status: {doctor_review: 1}, review_queue: 1, owner_queue: 0, gold_by_land: {}, gold_total: 0, worker: {status: "online", last_seen_at: "2026-09-23T00:00:00Z"}, me},
   "/api/documents": {items: [document_.document], total: 1}, [`/api/documents/${"c".repeat(64)}`]: document_,
   [`/api/documents/${"c".repeat(64)}/pages/2`]: {page_number: 2, text: "Protokoll 1"},
+  "/api/protocols?status=changes_requested": {items: [], total: 0},
+  "/api/protocols/P-cccccccc-000/source": {text:"Protokoll 1",text_length:11,pages:[{page_number:2,text:"Protokoll 1",start:0,end:11}],seen_passages:[]},
   "/api/protocols?status=doctor_review": {items: [protocol], total: 1}, "/api/protocols/P-cccccccc-000": protocol,
   "/api/gold": {items: [], total: 0}, "/api/accounts": {items: [{id: "owner-1", email: "o@example.org", display_name: "Owner", roles: ["owner"], active: true, has_password: true, created_at: "2026-09-18T00:00:00Z"}], total: 1},
 };
@@ -146,23 +149,19 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
 {
   const {nodes} = await load("#/protocols/P-cccccccc-000");
   assert.equal(nodes.get("record-sections").children.length, 12, "every part of the record has an editing section");
-  const checklist = nodes.get("checklist").children.map(li => li.textContent);
-  assert.deepEqual(checklist, [
-    "Incertitude ouverte: anamnesis.a02: Nicht erwähnt",
-    "Incertitude ouverte: outcome.result: Non indiqué",
-    "Question critique sans réponse: u01",
-    "Difficulté non renseignée",
-  ]);
+  assert.match(nodes.get("checklist").innerHTML, /Allergien/);
+  assert.match(nodes.get("checklist").innerHTML, /Question du médecin/);
+  assert.equal(nodes.get("review-meter").textContent, "0 / 4 résolus");
   assert.equal(nodes.get("pii-card").hidden, false, "PII findings are shown");
-  assert.match(nodes.get("page-image").src, /pages\/2\/image$/);
+  assert.match(nodes.get("page-text").innerHTML, /Protokoll 1/);
   const actions = nodes.get("decision-actions").children.map(b => b.textContent);
-  assert.deepEqual(actions, ["Enregistrer une version", "Approuver", "Demander des corrections", "Rejeter", "Supprimer le protocole"], "a physician sees the doctor decisions and owner deletion");
+  assert.deepEqual(actions, ["Rejeter", "Demander des corrections", "Approuver et passer au suivant", "Enregistrer une version"], "a physician sees the doctor decisions and owner deletion");
 }
 {
   const {nodes} = await load("#/protocols/P-cccccccc-000", {roles: ["owner"]});
   const actions = nodes.get("decision-actions").children.map(b => b.textContent);
-  assert.deepEqual(actions, ["Enregistrer une version", "Supprimer le protocole"], "an owner without the physician role cannot approve a protocol in doctor review");
-  assert.equal(nodes.get("decision-help").textContent, "Statut « À relire ». La décision revient à un compte « Relecteur médecin ». Votre compte : Propriétaire.");
+  assert.deepEqual(actions, ["Enregistrer une version"], "an owner without the physician role cannot approve a protocol in doctor review");
+  assert.match(nodes.get("decision-state").textContent, /Relecture médecin.*Propriétaire/);
 }
 {
   const {nodes} = await load("#/review");

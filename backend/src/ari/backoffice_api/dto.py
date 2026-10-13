@@ -43,6 +43,12 @@ class DecisionRequest(ApiModel):
     pii_override_note: Annotated[str, Field(min_length=1, max_length=2000)] | None = None
 
 
+class ReviewSeenRequest(ApiModel):
+    version: Annotated[int, Field(ge=1)]
+    protocol_hash: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
+    passage_id: Annotated[str, Field(pattern=r"^\d+:[0-9]+:[0-9]+$")]
+
+
 class SegmentRequest(ApiModel):
     page_from: Annotated[int, Field(ge=1)]
     page_to: Annotated[int, Field(ge=1)]

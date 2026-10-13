@@ -1,17 +1,17 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f5f2"><title>ARI — Back-office</title><link rel="stylesheet" href="/styles.css?v=20260923a"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0d1220"><title>ARI — Back-office</title><link rel="stylesheet" href="/styles.css?v=20261013-shared-theme"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Schibsted+Grotesk:wght@500;600;700&display=swap"></head>
 <body>
 <a class="skip" href="#main">Aller au contenu</a>
 <aside class="sidebar" id="sidebar" hidden>
-  <a class="brand" href="#/"><span class="brandmark" aria-hidden="true">A</span><span>ARI<small>BACK-OFFICE</small></span></a>
+  <a class="brand" href="#/" aria-label="ARI — Tableau de bord"><span class="brandmark" aria-hidden="true">A</span><span>ARI<small>BACK-OFFICE</small></span></a>
   <nav aria-label="Navigation principale">
-    <button data-route="/"><span aria-hidden="true">⌂</span>Tableau de bord</button>
-    <button data-route="/documents"><span aria-hidden="true">▤</span>Documents</button>
-    <button data-route="/review"><span aria-hidden="true">✎</span>Relecture</button>
-    <button data-route="/gold"><span aria-hidden="true">★</span>Gold</button>
-    <button data-route="/registry"><span aria-hidden="true">▣</span>Registre</button>
-    <button data-route="/accounts" data-role="owner"><span aria-hidden="true">☺</span>Comptes</button>
+    <button data-route="/"><span aria-hidden="true">⌂</span><span class="nav-label">Tableau de bord</span></button>
+    <button data-route="/documents"><span aria-hidden="true">▤</span><span class="nav-label">Documents</span></button>
+    <button data-route="/review"><span aria-hidden="true">✎</span><span class="nav-label">Relecture</span></button>
+    <button data-route="/gold"><span aria-hidden="true">★</span><span class="nav-label">Gold</span></button>
+    <button data-route="/registry"><span aria-hidden="true">▣</span><span class="nav-label">Registre</span></button>
+    <button data-route="/accounts" data-role="owner"><span aria-hidden="true">☺</span><span class="nav-label">Comptes</span></button>
   </nav>
   <p class="sidefoot"><span id="me-name"></span><br><span id="me-roles" class="muted"></span><br><button type="button" id="logout" class="link">Se déconnecter</button></p>
 </aside>
@@ -87,34 +87,42 @@
     <p id="review-empty" class="availability" hidden>Aucun protocole dans cet état.</p>
   </section>
 
-  <section id="protocol" hidden>
-    <div class="pagehead"><p class="eyebrow" id="protocol-eyebrow"></p><h1 id="protocol-title"></h1><p id="protocol-meta" class="help"></p></div>
+  <section id="protocol" class="protocol-workspace" hidden>
+    <header class="topbar">
+      <nav id="protocol-crumbs" class="crumbs" aria-label="Fil d’Ariane"></nav>
+      <div class="queue" role="group" aria-label="File de relecture">
+        <button id="queue-prev" type="button" title="Protocole précédent (K)" aria-label="Protocole précédent">← <kbd>K</kbd></button>
+        <span id="queue-position" class="pos"></span>
+        <button id="queue-next" type="button" title="Protocole suivant (J)" aria-label="Protocole suivant"><kbd>J</kbd> →</button>
+      </div>
+      <span id="review-saved" class="saved" role="status"><i></i><span id="review-dirty"></span></span>
+      <span class="seg role-label" id="review-stage"></span>
+      <button id="review-help-toggle" class="iconbtn" type="button" title="Raccourcis (?)" aria-label="Raccourcis clavier">?</button>
+    </header>
+    <section class="protohead"><div><h1 id="protocol-title"></h1><p id="protocol-meta" class="sub"></p></div><div class="chips" id="protocol-chips"></div></section>
     <div class="split">
-      <aside class="card source">
-        <div class="row between wrap"><h2>Source</h2><div class="row"><button type="button" id="page-prev">◂</button><span id="page-label"></span><button type="button" id="page-next">▸</button><button type="button" id="page-toggle">Texte</button></div></div>
-        <img id="page-image" alt="Page du protocole" hidden>
-        <pre id="page-text" hidden></pre>
+      <aside class="panel source" aria-label="Source PDF">
+        <div class="source-head"><div id="source-pages" class="pages" role="group" aria-label="Pages du protocole"></div><div class="seg" role="group" aria-label="Affichage"><button id="mode-text" type="button" aria-pressed="true">Texte</button><button id="mode-image" type="button" aria-pressed="false">Image</button></div></div>
+        <div id="page-text" class="paper" tabindex="0"></div><div class="image-paper"><img id="page-image" alt="Page source du protocole" hidden></div>
+        <div class="source-foot"><span class="lg"><i></i>relié à un champ</span><span class="lg"><i class="free"></i>sans correspondance</span><span><kbd>[</kbd> <kbd>]</kbd> page</span></div>
       </aside>
-      <div class="editor">
-        <article class="card" id="checklist-card"><h2>Points à résoudre</h2><ul id="checklist" class="checklist"></ul><p id="checklist-ok" class="ok" hidden>Aucun point ouvert : le protocole peut être approuvé.</p></article>
-        <article class="card" id="pii-card" hidden><h2>Détections PII</h2><table id="pii-table" class="table"></table><p class="help">Extraits masqués. Le propriétaire ne peut valider qu'après correction ou avec une note de dérogation.</p></article>
-        <form id="record-form" novalidate><div id="record-sections"></div></form>
-        <article class="card" id="decision-card">
-          <h2>Décision</h2>
-          <p id="decision-help" class="help"></p>
-          <label for="decision-notes">Notes (obligatoires pour une demande de corrections ou un rejet)</label><textarea id="decision-notes" rows="2" maxlength="4000"></textarea>
-          <div id="pii-override-block" hidden><label for="pii-override">Note de dérogation PII (propriétaire)</label><input id="pii-override" maxlength="2000"></div>
-          <div class="form-actions wrap" id="decision-actions"></div>
-        </article>
-        <details class="card"><summary>Historique et versions</summary><table id="protocol-history" class="table"></table><h3>Différences avec la version précédente</h3><table id="protocol-diff" class="table"></table></details>
+      <div class="work">
+        <section class="panel resolve" aria-labelledby="resolve-title"><div class="resolve-head"><h2 id="resolve-title">À résoudre</h2><div class="meter"><span id="review-meter"></span><span class="bar"><span id="review-meter-bar"></span></span></div></div><ul id="checklist" class="pointlist"></ul><div id="active-point"></div><p id="checklist-ok" class="sr-only" hidden>Aucun point ouvert</p></section>
+        <section class="panel rest" aria-labelledby="rest-title"><div class="rest-head"><h2 id="rest-title">Le reste du protocole</h2><span class="help">Cliquer une valeur pour la corriger.</span></div><div id="record-sections"></div></section>
+        <section class="panel cover" aria-labelledby="cover-title"><div class="cover-head"><h2 id="cover-title">Passages du PDF sans champ</h2><span class="help">Correspondances textuelles automatiques, à vérifier.</span></div><div id="coverage-items"></div></section>
+        <details class="panel diff"><summary>Vos changements depuis le brouillon IA <span class="chip num" id="diff-count">0</span></summary><div id="protocol-diff"></div></details>
+        <details class="panel diff" id="pii-card" hidden><summary>Détections PII</summary><div id="pii-table"></div></details>
+        <details class="panel diff"><summary>Historique et versions</summary><div id="protocol-history"></div><button id="delete-protocol" type="button" class="btn small danger" hidden>Supprimer le protocole</button></details>
       </div>
     </div>
+    <footer class="decision" aria-label="Décision"><div class="decision-inner"><span id="decision-state" class="state-txt"></span><div id="decision-actions" class="pactions"></div><div id="decision-note-row" class="note-row" hidden><label for="decision-notes" class="sr-only">Note de décision obligatoire</label><input id="decision-notes" class="fin" maxlength="4000" placeholder="Note obligatoire : ce qui doit être corrigé ou pourquoi rejeter"><button id="send-decision" class="btn primary" type="button">Envoyer</button><button id="cancel-decision" class="btn ghost" type="button">Annuler</button></div><div id="pii-override-block" class="note-row" hidden><label for="pii-override">Note de dérogation PII (propriétaire)</label><input id="pii-override" class="fin" maxlength="2000"></div></div></footer>
+    <div id="review-shortcuts" class="overlay" hidden><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="keys-title"><h2 id="keys-title">Raccourcis clavier</h2><dl><dt><kbd>Entrée</kbd></dt><dd>Valider le point en cours</dd><dt><kbd>N</kbd> / <kbd>Maj</kbd>+<kbd>N</kbd></dt><dd>Point suivant / précédent</dd><dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>Page précédente / suivante</dd><dt><kbd>J</kbd> / <kbd>K</kbd></dt><dd>Protocole suivant / précédent</dd><dt><kbd>Ctrl</kbd>+<kbd>S</kbd></dt><dd>Enregistrer une version sans décider</dd><dt><kbd>A</kbd></dt><dd>Approuver et passer au suivant</dd><dt><kbd>?</kbd></dt><dd>Afficher cette aide</dd></dl><button id="close-review-help" class="btn close" type="button">Fermer</button></div></div>
   </section>
 
   <section id="gold" hidden>
     <div class="pagehead"><p class="eyebrow">Gold</p><h1>La vérité terrain.</h1><p>Protocoles validés par le propriétaire, figés par hash. Les cas d'entraînement en dérivent.</p></div>
     <div class="row wrap"><label for="gold-land" class="sr-only">Land</label><select id="gold-land"><option value="">Tous les Länder</option></select><a class="button" id="gold-export" href="/api/gold/export" data-role="owner" download>Exporter (JSONL)</a></div>
-    <table id="gold-table" class="table"></table>
+    <div class="tablewrap"><table id="gold-table" class="table"></table></div>
     <p id="gold-empty" class="availability" hidden>Aucun protocole gold pour le moment.</p>
   </section>
 
@@ -146,7 +154,7 @@
   <section id="registry" hidden>
     <div class="pagehead"><p class="eyebrow">Registre</p><h1>Les cas d’entraînement.</h1><p>Chaque scénario importé attend une revue clinique et une revue linguistique sur son contenu exact, par deux comptes distincts, avant que le propriétaire le publie aux apprenants.</p></div>
     <div class="row wrap"><label for="registry-status" class="sr-only">Statut</label><select id="registry-status"><option value="">Tous les statuts</option><option value="draft_unvalidated" selected>À relire</option><option value="published">Publiés</option><option value="withdrawn">Retirés</option></select></div>
-    <table id="registry-table" class="table"></table>
+    <div class="tablewrap"><table id="registry-table" class="table"></table></div>
     <p id="registry-empty" class="availability" hidden>Aucun scénario dans cet état.</p>
   </section>
 
@@ -178,9 +186,9 @@
       <div class="form-actions span2"><button class="primary">Créer le compte et obtenir le lien</button></div>
     </form>
     <p id="invitation-link" class="card" hidden></p>
-    <table id="accounts-table" class="table"></table>
+    <div class="tablewrap"><table id="accounts-table" class="table"></table></div>
   </section>
 </main>
-<script type="module" src="/app.mjs?v=20260923a"></script>
+<script type="module" src="/app.mjs?v=20261010-review"></script>
 </body>
 </html>

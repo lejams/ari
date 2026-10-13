@@ -31,3 +31,9 @@ ARI_Freiburg_cases_draft.xlsx
 
 # Local project guide, not versioned
 docs/GUIDE_DU_PROJET.md
+
+# Deployment state and immutable bundles kept beside the server's existing .env.
+/.deploy.lock
+/.release*.json
+/.staging-success.json
+/releases/

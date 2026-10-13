@@ -59,6 +59,25 @@ class ProtocolWorkflow:
                 raise ConflictError(f"Un protocole {head.status.value} ne peut plus être supprimé")
             return self._move(tx, head, ProtocolStatus.REJECTED, "deleted", actor)
 
+    def mark_review_seen(
+        self, protocol_id: str, *, version: int, protocol_hash: str, passage_id: str, actor: Actor
+    ) -> None:
+        """Append a non-clinical review acknowledgement for this exact immutable version."""
+        with self._repository.transaction() as tx:
+            head = self._exact(tx, protocol_id, version, protocol_hash)
+            if head.status in CLOSED:
+                raise ConflictError(f"Un protocole {head.status.value} ne se relit plus")
+            tx.add_event(
+                ProtocolEvent(
+                    id=new_id(),
+                    protocol_id=head.id,
+                    protocol_version=head.version,
+                    event_type="review_seen",
+                    actor=actor,
+                    payload={"passage_id": passage_id},
+                )
+            )
+
     def revise(
         self,
         protocol_id: str,

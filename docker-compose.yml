@@ -15,7 +15,9 @@ x-logging: &logging
 # The single application image, tagged so a deploy can pin and roll back by git SHA. All four
 # application services build the same context, so compose builds the image once and reuses it.
 x-ari-image: &ari-image
-  image: "ari:${ARI_IMAGE_TAG:-local}"
+  # Release deployments set ARI_IMAGE_REF to the immutable GHCR digest.  The tag fallback keeps
+  # the existing local/deploy.sh workflow working unchanged.
+  image: "${ARI_IMAGE_REF:-ari:${ARI_IMAGE_TAG:-local}}"
   build: .
   logging: *logging
 

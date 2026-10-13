@@ -1,10 +1,11 @@
-import {BackofficeApi, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LABELS, SECTION_LABELS, UNCERTAINTY_PATHS, blockers, statusLabel, statusTone} from './api.mjs';
+import {ProtocolReview} from './protocol-review.mjs';
+import {BackofficeApi, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LABELS, statusLabel, statusTone} from './api.mjs';
 
 const client = new BackofficeApi();
 const $ = id => document.getElementById(id);
 const views = ['login', 'invitation', 'dashboard', 'documents', 'document', 'review', 'protocol', 'gold', 'gold-detail', 'registry', 'scenario', 'accounts'];
 let lands = [], busy = false, queuedRoute = false;
-let current = {protocol: null, record: null, page: 1, textMode: false, documentId: null, goldId: null, scenario: null};
+let current = {documentId: null, goldId: null, scenario: null};
 let documentPollTimer = null, documentRequestVersion = 0;
 
 const node = (tag, text, className) => { const element = document.createElement(tag); if (text !== undefined) element.textContent = text; if (className) element.className = className; return element; };
@@ -19,16 +20,18 @@ function table(target, headers, rows) {
 }
 function fillLands(select) { for (const land of lands) { const option = document.createElement('option'); option.value = land; option.textContent = land; select.append(option); } }
 function view(name) {
+  if (name !== 'protocol' && protocolReview.active) protocolReview.deactivate();
   if (name !== 'document') {
     documentRequestVersion += 1;
     if (documentPollTimer !== null) { clearTimeout(documentPollTimer); documentPollTimer = null; }
   }
   for (const id of views) $(id).hidden = id !== name;
+  document.body.classList.toggle('review-mode', name === 'protocol');
   const authenticated = Boolean(client.me);
   $('sidebar').hidden = !authenticated;
   $('main').classList.toggle('public', !authenticated);
   for (const element of document.querySelectorAll('[data-role]')) element.hidden = !client.has(element.dataset.role);
-  for (const element of document.querySelectorAll('.sidebar nav button')) element.setAttribute('aria-current', location.hash.slice(1) === element.dataset.route || (element.dataset.route !== '/' && location.hash.slice(1).startsWith(element.dataset.route)) ? 'page' : 'false');
+  for (const element of document.querySelectorAll('.sidebar nav button')) element.setAttribute('aria-current', (name === 'protocol' && element.dataset.route === '/review') || location.hash.slice(1) === element.dataset.route || (element.dataset.route !== '/' && location.hash.slice(1).startsWith(element.dataset.route)) ? 'page' : 'false');
   window.scrollTo(0, 0);
 }
 async function perform(action, {background = false} = {}) {
@@ -66,7 +69,7 @@ $('invitation-form').onsubmit = event => { event.preventDefault(); perform(async
   await afterLogin();
 }); };
 async function afterLogin() { $('me-name').textContent = client.me.display_name; $('me-roles').textContent = client.me.roles.map(role => ROLE_LABELS[role] || role).join(', '); await loadLands(); location.hash = '#/'; await route(); }
-$('logout').onclick = () => perform(async () => { await client.logout(); location.hash = '#/login'; await route(); });
+$('logout').onclick = () => perform(async () => { if (protocolReview.active && !protocolReview.confirmLeave()) return; protocolReview.deactivate(); await client.logout(); location.hash = '#/login'; await route(); });
 $('error-close').onclick = () => { $('error').hidden = true; };
 async function loadLands() {
   if (lands.length) return;
@@ -155,7 +158,7 @@ async function showDocument(id) {
   $('document-segments-count').textContent = `${data.segments.length} segment(s)`;
   table($('document-segments'), ['#', 'Pages', 'Début', 'Confiance', 'Statut', 'Protocole', ''], data.segments.map(segment => {
     const actions = node('div', undefined, 'row wrap');
-    if (segment.protocol) actions.append(link(`${segment.protocol.id} · ${statusLabel(segment.protocol.status)}`, `/protocols/${segment.protocol.id}`));
+    if (segment.protocol) actions.append(button(['doctor_review', 'changes_requested', 'doctor_approved'].includes(segment.protocol.status) ? 'Commencer / reprendre la relecture' : `Ouvrir ${segment.protocol.id}`, () => { location.hash = `#/protocols/${segment.protocol.id}`; return route(); }, 'primary'));
     else if (client.has('owner')) {
       if (segment.status !== 'discarded') actions.append(button('Écarter', () => client.setSegmentStatus(segment.id, 'discarded').then(() => showDocument(id)), 'danger'));
       if (segment.status !== 'pending') actions.append(button('Extraire', () => client.setSegmentStatus(segment.id, 'pending').then(() => showDocument(id))));
@@ -190,204 +193,9 @@ async function showReview() {
 }
 $('review-status').onchange = () => perform(showReview); $('review-land').onchange = () => perform(showReview);
 
-// ----- protocol: source pane -----------------------------------------------------------------------
-async function showPage(number) {
-  const protocol = current.protocol;
-  current.page = Math.min(Math.max(number, protocol.page_from), protocol.page_to);
-  $('page-label').textContent = `Page ${current.page} / ${protocol.page_from}–${protocol.page_to}`;
-  $('page-prev').disabled = current.page <= protocol.page_from; $('page-next').disabled = current.page >= protocol.page_to;
-  $('page-image').hidden = current.textMode; $('page-text').hidden = !current.textMode;
-  if (current.textMode) $('page-text').textContent = (await client.pageText(protocol.document_id, current.page)).text;
-  else $('page-image').src = client.pageImageUrl(protocol.document_id, current.page);
-}
-$('page-prev').onclick = () => perform(() => showPage(current.page - 1));
-$('page-next').onclick = () => perform(() => showPage(current.page + 1));
-$('page-toggle').onclick = () => perform(async () => { current.textMode = !current.textMode; $('page-toggle').textContent = current.textMode ? 'Image' : 'Texte'; await showPage(current.page); });
-
-// ----- protocol: structured editor -----------------------------------------------------------------
-// Every control writes straight into `current.record`; the checklist re-renders on each change.
-function field(label, get, set, options = {}) {
-  const wrapper = node('div'); if (options.flag) wrapper.className = 'field-flag';
-  const id = `f-${Math.random().toString(36).slice(2, 9)}`;
-  const labelNode = node('label', label); labelNode.htmlFor = id; wrapper.append(labelNode);
-  let input;
-  if (options.choices) {
-    input = document.createElement('select');
-    const choices = options.nullable ? [['', '—'], ...options.choices] : options.choices;
-    for (const [value, text] of choices) { const option = document.createElement('option'); option.value = value; option.textContent = text; input.append(option); }
-    input.value = get() ?? '';
-  } else if (options.kind === 'checkbox') { input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(get()); }
-  else if (options.kind === 'lines' || options.kind === 'textarea') { input = document.createElement('textarea'); input.rows = options.rows || 2; input.value = options.kind === 'lines' ? (get() || []).join('\n') : (get() ?? ''); }
-  else { input = document.createElement('input'); input.type = options.kind || 'text'; input.value = get() ?? ''; }
-  input.id = id;
-  input.addEventListener('input', () => {
-    let value;
-    if (options.kind === 'checkbox') value = input.checked;
-    else if (options.kind === 'lines') value = input.value.split('\n').map(line => line.trim()).filter(Boolean);
-    else if (options.kind === 'number') value = input.value === '' ? null : Number(input.value);
-    else value = input.value === '' ? null : input.value;
-    set(value); renderChecklist();
-  });
-  wrapper.append(input); return wrapper;
-}
-function section(title, ...children) { const card = node('article', undefined, 'card'); card.append(node('h2', title), ...children); return card; }
-function grid(...children) { const element = node('div', undefined, 'form-grid'); element.append(...children); return element; }
-function itemList(items, title, render, blank) {
-  const box = node('div', undefined, 'items');
-  const draw = () => {
-    box.replaceChildren(...items.map((item, index) => {
-      const card = node('div', undefined, 'item');
-      const head = node('div', undefined, 'item-head'); head.append(node('strong', `${title} ${item.id || index + 1}`), button('Retirer', () => { items.splice(index, 1); draw(); renderChecklist(); }, 'danger'));
-      card.append(head, render(item)); return card;
-    }), button(`Ajouter ${title.toLowerCase()}`, () => { items.push(blank(items)); draw(); renderChecklist(); }));
-  };
-  draw(); return box;
-}
-const nextId = (items, prefix) => { let n = items.length + 1; while (items.some(item => item.id === `${prefix}${String(n).padStart(2, '0')}`)) n += 1; return `${prefix}${String(n).padStart(2, '0')}`; };
-const POLARITIES = [['present', 'présent'], ['absent', 'absent'], ['unknown', 'inconnu']];
-const PARTS = [['arzt_patient', 'Arzt–Patient'], ['arzt_arzt', 'Arzt–Arzt'], ['fachbegriffe', 'Fachbegriffe'], ['arztbrief', 'Arztbrief'], ['general', 'Général']];
-function renderEditor() {
-  const record = current.record, readOnly = !canRevise();
-  const sections = $('record-sections'); sections.replaceChildren();
-  sections.append(
-    section('Localisation', grid(
-      field('Land', () => record.location.land, v => { record.location.land = v; }, {choices: lands.map(l => [l, l]), nullable: true, flag: !record.location.land}),
-      field('Ville', () => record.location.city, v => { record.location.city = v; }),
-      field('Ärztekammer', () => record.location.exam_body, v => { record.location.exam_body = v; }),
-      field('Mois (AAAA-MM)', () => record.location.exam_date, v => { record.location.exam_date = v; }),
-      field('Spécialité', () => record.location.specialty, v => { record.location.specialty = v; }),
-    )),
-    section('Patient', grid(
-      field('Âge (ans)', () => record.patient.age_years, v => { record.patient.age_years = v; }, {kind: 'number'}),
-      field('Sexe', () => record.patient.sex, v => { record.patient.sex = v || 'unknown'; }, {choices: [['female', 'femme'], ['male', 'homme'], ['other', 'autre'], ['unknown', 'inconnu']]}),
-      field('Profession (DE)', () => record.patient.occupation_de, v => { record.patient.occupation_de = v; }),
-      field('Motif de consultation (DE)', () => record.patient.presenting_complaint_de, v => { record.patient.presenting_complaint_de = v; }),
-    ), field('Résumé (DE)', () => record.patient.summary_de, v => { record.patient.summary_de = v; }, {kind: 'textarea', rows: 3}),
-      field('Incertitude (vide = levée)', () => record.patient.uncertainty, v => { record.patient.uncertainty = v; }, {flag: Boolean(record.patient.uncertainty)})),
-    section('Anamnèse', itemList(record.anamnesis, 'Élément', item => grid(
-      field('Section', () => item.section, v => { item.section = v; }, {choices: Object.entries(SECTION_LABELS)}),
-      field('Libellé (DE)', () => item.label_de, v => { item.label_de = v; }),
-      field('Valeur (DE)', () => item.value_de, v => { item.value_de = v; }),
-      field('Polarité', () => item.polarity, v => { item.polarity = v; if (v === 'unknown') item.value_de = null; }, {choices: POLARITIES}),
-      field('Temporalité', () => item.temporality, v => { item.temporality = v; }),
-      field('Citation (DE, pseudonymisée)', () => item.quote_de, v => { item.quote_de = v; }),
-      field('Incertitude (vide = levée)', () => item.uncertainty, v => { item.uncertainty = v; }, {flag: Boolean(item.uncertainty)}),
-    ), items => ({id: nextId(items, 'a'), section: 'sonstiges', label_de: '', value_de: null, polarity: 'unknown', temporality: null, quote_de: null, source_pages: [], uncertainty: null}))),
-    section('Diagnostic', field('Diagnostic suspecté (DE)', () => record.diagnosis.suspected_de, v => { record.diagnosis.suspected_de = v; }),
-      field('Diagnostics différentiels (un par ligne)', () => record.diagnosis.differentials_de, v => { record.diagnosis.differentials_de = v; }, {kind: 'lines'}),
-      field('Incertitude (vide = levée)', () => record.diagnosis.uncertainty, v => { record.diagnosis.uncertainty = v; }, {flag: Boolean(record.diagnosis.uncertainty)})),
-    section('Questions des examinateurs', itemList(record.examiner_questions, 'Question', item => grid(
-      field('Partie', () => item.part, v => { item.part = v; }, {choices: PARTS}),
-      field('Question (DE)', () => item.question_de, v => { item.question_de = v; }),
-      field('Réponse attendue (DE)', () => item.expected_answer_de, v => { item.expected_answer_de = v; }),
-      field('Réponse du candidat (DE)', () => item.candidate_answer_de, v => { item.candidate_answer_de = v; }),
-      field('Incertitude (vide = levée)', () => item.uncertainty, v => { item.uncertainty = v; }, {flag: Boolean(item.uncertainty)}),
-    ), items => ({id: nextId(items, 'q'), part: 'general', question_de: '', expected_answer_de: null, candidate_answer_de: null, source_pages: [], uncertainty: null}))),
-    section('Arzt–Arzt', field('Présentation (DE)', () => record.arzt_arzt.presentation_summary_de, v => { record.arzt_arzt.presentation_summary_de = v; }, {kind: 'textarea', rows: 3}),
-      field('Points discutés (un par ligne)', () => record.arzt_arzt.discussion_points_de, v => { record.arzt_arzt.discussion_points_de = v; }, {kind: 'lines'}),
-      field('Incertitude (vide = levée)', () => record.arzt_arzt.uncertainty, v => { record.arzt_arzt.uncertainty = v; }, {flag: Boolean(record.arzt_arzt.uncertainty)})),
-    section('Fachbegriffe', itemList(record.fachbegriffe, 'Terme', item => grid(
-      field('Terme (DE)', () => item.german, v => { item.german = v; }),
-      field('Explication courante (DE)', () => item.lay_german, v => { item.lay_german = v; }),
-      field('Français', () => item.french, v => { item.french = v; }),
-      field('Demandé par les examinateurs', () => item.asked, v => { item.asked = v; }, {kind: 'checkbox'}),
-    ), items => ({id: nextId(items, 't'), german: '', lay_german: null, french: null, asked: true}))),
-    section('Issue de l’examen', grid(field('Résultat', () => record.outcome.result, v => { record.outcome.result = v || 'unknown'; }, {choices: [['passed', 'réussi'], ['failed', 'échoué'], ['unknown', 'inconnu']]})),
-      field('Retour des examinateurs (un par ligne)', () => record.outcome.examiner_feedback_de, v => { record.outcome.examiner_feedback_de = v; }, {kind: 'lines'}),
-      field('Conseils du candidat (un par ligne)', () => record.outcome.candidate_tips_de, v => { record.outcome.candidate_tips_de = v; }, {kind: 'lines'}),
-      field('Incertitude (vide = levée)', () => record.outcome.uncertainty, v => { record.outcome.uncertainty = v; }, {flag: Boolean(record.outcome.uncertainty)}),
-      field('Notes Arztbrief (DE)', () => record.arztbrief_notes_de, v => { record.arztbrief_notes_de = v; }, {kind: 'textarea'})),
-    section('Questions de l’IA au médecin', itemList(record.unresolved_questions, 'Question', item => grid(
-      field('Question (FR)', () => item.text_fr, v => { item.text_fr = v; }),
-      field('Réponse', () => item.answer, v => { item.answer = v; }, {flag: item.critical && !item.answer}),
-      field('Critique', () => item.critical, v => { item.critical = v; }, {kind: 'checkbox'}),
-    ), items => ({id: nextId(items, 'u'), text_fr: '', critical: true, answer: null}))),
-    section('Incertitudes de champ', itemList(record.field_uncertainties, 'Incertitude', item => grid(
-      field('Champ', () => item.path, v => { item.path = v; }, {choices: UNCERTAINTY_PATHS.map(p => [p, p])}),
-      field('Raison (FR)', () => item.reason_fr, v => { item.reason_fr = v; }),
-      field('Résolution (vide = ouverte)', () => item.resolution, v => { item.resolution = v; }, {flag: !item.resolution}),
-    ), () => ({path: 'arzt_arzt', reason_fr: '', resolution: null}))),
-    section('Pédagogie (médecin)', grid(field('Difficulté', () => record.pedagogy.difficulty, v => { record.pedagogy.difficulty = v; }, {choices: [['leicht', 'leicht'], ['mittel', 'mittel'], ['schwer', 'schwer']], nullable: true, flag: !record.pedagogy.difficulty})),
-      field('Notes (FR)', () => record.pedagogy.notes_fr, v => { record.pedagogy.notes_fr = v; }, {kind: 'textarea'}),
-      node('h3', 'Erreurs graves à ne pas commettre'), itemList(record.pedagogy.critical_pitfalls, 'Piège grave', item => grid(
-        field('Texte (FR)', () => item.text_fr, v => { item.text_fr = v; }),
-        field('Éléments liés (ids séparés par des virgules)', () => item.related_item_ids.join(', '), v => { item.related_item_ids = (v || '').split(',').map(s => s.trim()).filter(Boolean); }),
-      ), () => ({text_fr: '', related_item_ids: []})),
-      node('h3', 'Autres pièges'), itemList(record.pedagogy.pitfalls, 'Piège', item => grid(
-        field('Texte (FR)', () => item.text_fr, v => { item.text_fr = v; }),
-        field('Éléments liés (ids séparés par des virgules)', () => item.related_item_ids.join(', '), v => { item.related_item_ids = (v || '').split(',').map(s => s.trim()).filter(Boolean); }),
-      ), () => ({text_fr: '', related_item_ids: []}))),
-    section('Pseudonymisation (IA)', node('p', `Retiré : ${record.pseudonymisation.removed_kinds.join(', ') || 'rien'}${record.pseudonymisation.notes.length ? ' · ' + record.pseudonymisation.notes.join(' · ') : ''}`, 'help')),
-  );
-  for (const control of sections.querySelectorAll('input,select,textarea,button')) control.disabled = readOnly;
-  renderChecklist();
-}
-function renderChecklist() {
-  const stage = current.protocol.status === 'doctor_approved' ? 'owner' : 'doctor';
-  const open = blockers(current.record, stage);
-  $('checklist').replaceChildren(...open.map(text => node('li', text)));
-  $('checklist-ok').hidden = open.length > 0;
-}
-function canRevise() { const status = current.protocol.status; return !['gold', 'rejected', 'superseded'].includes(status) && (client.has('physician_reviewer') || client.has('owner')); }
-function renderDecision() {
-  const protocol = current.protocol, actions = $('decision-actions'); actions.replaceChildren();
-  const physician = client.has('physician_reviewer'), owner = client.has('owner');
-  const doctorStage = ['doctor_review', 'changes_requested'].includes(protocol.status);
-  $('pii-override-block').hidden = !(owner && protocol.status === 'doctor_approved' && protocol.pii.length);
-  if (canRevise()) actions.append(button('Enregistrer une version', saveVersion, 'primary'));
-  if (protocol.status === 'extracted' && owner) { $('decision-help').textContent = 'Ce protocole n’est pas encore en relecture.'; actions.append(button('Envoyer en relecture', () => client.releaseProtocol(protocol.id).then(() => showProtocol(protocol.id)))); }
-  else if (doctorStage && physician) {
-    $('decision-help').textContent = 'Enregistrez d’abord vos corrections, puis décidez. L’approbation exige une checklist vide.';
-    actions.append(button('Approuver', () => decide('doctor', 'approve')), button('Demander des corrections', () => decide('doctor', 'request_changes')), button('Rejeter', () => decide('doctor', 'reject'), 'danger'));
-  } else if (protocol.status === 'doctor_approved' && owner) {
-    $('decision-help').textContent = 'Approuvé par le médecin. Valider gèle le protocole comme gold, vérité terrain des futurs cas.';
-    actions.append(button('Valider en gold', () => decide('owner', 'approve'), 'primary'), button('Renvoyer au médecin', () => decide('owner', 'request_changes')), button('Rejeter', () => decide('owner', 'reject'), 'danger'));
-  } else {
-    const mine = client.me.roles.map(role => ROLE_LABELS[role] || role).join(', ');
-    const needed = doctorStage ? 'un compte « Relecteur médecin »' : protocol.status === 'doctor_approved' ? 'un compte « Propriétaire »' : protocol.status === 'extracted' ? 'le propriétaire, qui doit d’abord l’envoyer en relecture' : 'personne : le protocole est clos';
-    $('decision-help').textContent = `Statut « ${statusLabel(protocol.status)} ». La décision revient à ${needed}. Votre compte : ${mine}.`;
-  }
-  if (owner && !['gold', 'rejected', 'superseded'].includes(protocol.status)) {
-    actions.append(button('Supprimer le protocole', deleteCurrentProtocol, 'danger'));
-  }
-}
-async function deleteCurrentProtocol() {
-  const protocol = current.protocol;
-  if (!window.confirm('Supprimer ce protocole ? Il sera retiré du circuit de relecture et conservé dans l’historique.')) return;
-  await client.deleteProtocol(protocol.id);
-  notice('Protocole supprimé du circuit de relecture.');
-  location.hash = `#/documents/${protocol.document_id}`;
-  await route();
-}
-async function saveVersion() {
-  const protocol = current.protocol;
-  const revised = await client.revise(protocol.id, protocol.version, protocol.content_hash, current.record);
-  notice(`Version ${revised.version} enregistrée.`); await showProtocol(protocol.id, revised);
-}
-async function decide(stage, decision) {
-  const protocol = current.protocol, notes = $('decision-notes').value.trim();
-  if (decision !== 'approve' && !notes) throw new Error('Expliquez la décision dans les notes.');
-  if (JSON.stringify(current.record) !== JSON.stringify(protocol.record)) throw new Error('Des modifications ne sont pas enregistrées : cliquez d’abord sur « Enregistrer une version ».');
-  const body = {version: protocol.version, protocol_hash: protocol.content_hash, decision, notes};
-  if (stage === 'owner' && $('pii-override').value.trim()) body.pii_override_note = $('pii-override').value.trim();
-  const moved = await client.decide(protocol.id, stage, body);
-  $('decision-notes').value = ''; notice(`Décision enregistrée : ${statusLabel(moved.status)}.`);
-  await showProtocol(protocol.id, moved);
-}
-async function showProtocol(id, preloaded = null) {
-  const protocol = preloaded || await client.protocol(id);
-  current.protocol = protocol; current.record = JSON.parse(JSON.stringify(protocol.record));
-  $('protocol-eyebrow').textContent = `Protocole · version ${protocol.version}`;
-  $('protocol-title').textContent = `${protocol.id}`;
-  $('protocol-meta').textContent = [statusLabel(protocol.status), protocol.land || 'Land ?', protocol.specialty, `pages ${protocol.page_from}–${protocol.page_to}`, protocol.document?.filename].filter(Boolean).join(' · ');
-  $('pii-card').hidden = protocol.pii.length === 0;
-  table($('pii-table'), ['Type', 'Champ', 'Extrait masqué'], protocol.pii.map(f => [f.kind, f.path, f.excerpt]));
-  table($('protocol-history'), ['Quand', 'Événement', 'Par', 'Détail'], protocol.events.map(e => [formatDate(e.created_at), e.event_type, e.actor.name, Object.entries(e.payload).filter(([k]) => k !== 'actor_name').map(([k, v]) => `${k}=${v}`).join(' ')]).concat(protocol.reviews.map(r => [formatDate(r.reviewed_at), `revue ${r.stage} · ${r.decision}`, r.reviewer_name, r.notes])));
-  table($('protocol-diff'), ['Champ', 'Avant', 'Après'], protocol.diff_to_previous.map(c => [c.path, JSON.stringify(c.before), JSON.stringify(c.after)]));
-  renderEditor(); renderDecision();
-  view('protocol');
-  current.page = protocol.page_from; await showPage(protocol.page_from);
-}
+// A single workspace owns protocol draft state and review interactions.
+const protocolReview = new ProtocolReview({client, lands: () => lands, perform, notice, view});
+async function showProtocol(id) { return protocolReview.show(id); }
 
 // ----- gold and accounts -----------------------------------------------------------------------------
 async function showGold() {
@@ -492,6 +300,10 @@ $('account-form').onsubmit = event => { event.preventDefault(); perform(async ()
 
 // ----- routing -----------------------------------------------------------------------------------------
 async function route() {
+  if (protocolReview.active && location.hash !== protocolReview.hash) {
+    if (!protocolReview.confirmLeave()) { history.replaceState(null, '', protocolReview.hash); return; }
+    protocolReview.deactivate();
+  } else if (protocolReview.active && location.hash === protocolReview.hash) return;
   const path = location.hash.slice(1) || '/';
   const invitation = path.match(/^\/invitation\/([A-Za-z0-9_-]+)$/);
   if (invitation) return showInvitation(invitation[1]);

@@ -9,10 +9,32 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# release.sh supplies these to back up a production release bundle without copying secrets into
+# that bundle.  Existing manual calls still use the project root .env and project name.
+compose_project="${ARI_COMPOSE_PROJECT:-ari}"
+compose_file="${ARI_COMPOSE_FILE:-$PWD/docker-compose.yml}"
+compose_env_file="${ARI_COMPOSE_ENV_FILE:-$PWD/.env}"
+[ -f "$compose_env_file" ] || { echo "missing compose environment file: $compose_env_file" >&2; exit 1; }
+
+# Explicit process settings are useful for a one-off protected backup.  Keep them above values
+# in .env, while preserving the ordinary .env-only behaviour for unattended backups.
+backup_age_override="${BACKUP_AGE_RECIPIENT:-}"
+backup_remote_override="${BACKUP_RCLONE_REMOTE:-}"
+backup_local_override="${BACKUP_LOCAL_DIR:-}"
+backup_keep_override="${BACKUP_KEEP_LOCAL:-}"
+backup_health_override="${BACKUP_HEALTHCHECK_URL:-}"
+
 set -a
-# shellcheck disable=SC1091
-. ./.env
+# shellcheck source=/dev/null
+# The environment file is selected by the caller and validated above.
+. "$compose_env_file"
 set +a
+
+[ -z "$backup_age_override" ] || BACKUP_AGE_RECIPIENT="$backup_age_override"
+[ -z "$backup_remote_override" ] || BACKUP_RCLONE_REMOTE="$backup_remote_override"
+[ -z "$backup_local_override" ] || BACKUP_LOCAL_DIR="$backup_local_override"
+[ -z "$backup_keep_override" ] || BACKUP_KEEP_LOCAL="$backup_keep_override"
+[ -z "$backup_health_override" ] || BACKUP_HEALTHCHECK_URL="$backup_health_override"
 
 label="${1:-}"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -30,13 +52,15 @@ mkdir -p "$work"
 chmod 700 "$work"
 
 # pg_dump over the container's local socket; the postgres superuser needs no password there.
-docker compose exec -T postgres pg_dump -Fc -U postgres ari_platform >"$work/platform.dump"
-docker compose exec -T postgres pg_dump -Fc -U postgres ari_content >"$work/content.dump"
-docker compose exec -T postgres pg_dumpall --globals-only -U postgres >"$work/globals.sql"
+compose() { docker compose -p "$compose_project" --env-file "$compose_env_file" -f "$compose_file" "$@"; }
+
+compose exec -T postgres pg_dump -Fc -U postgres ari_platform >"$work/platform.dump"
+compose exec -T postgres pg_dump -Fc -U postgres ari_content >"$work/content.dump"
+compose exec -T postgres pg_dumpall --globals-only -U postgres >"$work/globals.sql"
 
 # Uploaded PDFs and rendered pages are SHA-addressed and immutable, so a tar taken after the
 # dumps is always a superset of what the dumps reference.
-docker run --rm -v ari_content_storage:/data:ro -v "$work":/backup alpine \
+docker run --rm -v "${compose_project}_content_storage":/data:ro -v "$work":/backup alpine \
 	tar czf /backup/content.tar.gz -C /data .
 
 # One encrypted archive per set. The age private key is never on the server.

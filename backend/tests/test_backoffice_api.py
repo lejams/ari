@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -385,3 +386,147 @@ def test_dashboard_reports_unconfigured_worker_status(backoffice: Backoffice) ->
             "status": "unavailable",
             "last_seen_at": None,
         }
+
+
+def test_protocol_source_review_seen_and_revision_boundaries(
+    backoffice: Backoffice, tmp_path: Path
+) -> None:
+    app = create_backoffice_app(backoffice)
+    pdf = synthetic_protocol_pdf(tmp_path / "source-review.pdf", count=3)
+    with (
+        signed_in(app, backoffice, "o@example.org", "Owner", Role.OWNER) as owner,
+        signed_in(app, backoffice, "d@example.org", "Doc", Role.PHYSICIAN_REVIEWER) as doctor,
+        signed_in(app, backoffice, "l@example.org", "Ling", Role.LINGUISTIC_REVIEWER) as ling,
+    ):
+        uploaded = owner.post(
+            "/api/documents",
+            data={
+                "provenance": "Synthetic PDF from the test suite",
+                "consent_declaration": "No real person involved",
+                "rights": "compatible",
+                "rights_evidence": "Generated fixture",
+                "land": "Bayern",
+            },
+            files={"file": ("source-review.pdf", pdf.read_bytes(), "application/pdf")},
+        )
+        assert uploaded.status_code == 201, uploaded.text
+        document_id = uploaded.json()["document"]["id"]
+        drain(backoffice)
+        assert owner.post(f"/api/documents/{document_id}/release").json() == {"released": 3}
+
+        queue = doctor.get("/api/protocols", params={"status": "doctor_review"}).json()
+        assert queue["total"] == 3
+        protocol_id = queue["items"][1]["id"]
+        listed = next(item for item in queue["items"] if item["id"] == protocol_id)
+        source = doctor.get(f"/api/protocols/{protocol_id}/source")
+        assert source.status_code == 200, source.text
+        source_body = source.json()
+        assert source_body["page_from"] == source_body["page_to"] == 3
+        page = source_body["pages"][0]
+        assert page["page_number"] == 3 and page["start"] == 0
+        assert page["end"] == len(page["text"])
+        assert source_body["text"] == page["text"]
+        assert source_body["text_length"] == len(source_body["text"])
+        assert listed["source_text_length"] == len(source_body["text"])
+        assert "Protokoll 2" in source_body["text"]
+        assert "Protokoll 1" not in source_body["text"]
+        assert "Protokoll 3" not in source_body["text"]
+
+        detail = doctor.get(f"/api/protocols/{protocol_id}").json()
+        assert detail["first_record"] == detail["record"]
+        passage_id = f"{page['page_number']}:{page['start']}:{page['start'] + 12}"
+        seen = doctor.post(
+            f"/api/protocols/{protocol_id}/review-seen",
+            json={
+                "version": detail["version"],
+                "protocol_hash": detail["content_hash"],
+                "passage_id": passage_id,
+            },
+        )
+        assert seen.status_code == 204, seen.text
+        assert passage_id in doctor.get(f"/api/protocols/{protocol_id}/source").json()[
+            "seen_passages"
+        ]
+        owner_seen = owner.post(
+            f"/api/protocols/{protocol_id}/review-seen",
+            json={
+                "version": detail["version"],
+                "protocol_hash": detail["content_hash"],
+                "passage_id": passage_id,
+            },
+        )
+        assert owner_seen.status_code == 204, owner_seen.text
+        assert (
+            ling.post(
+                f"/api/protocols/{protocol_id}/review-seen",
+                json={
+                    "version": detail["version"],
+                    "protocol_hash": detail["content_hash"],
+                    "passage_id": passage_id,
+                },
+            ).status_code
+            == 403
+        )
+        assert (
+            doctor.post(
+                f"/api/protocols/{protocol_id}/review-seen",
+                json={
+                    "version": detail["version"],
+                    "protocol_hash": "0" * 64,
+                    "passage_id": passage_id,
+                },
+            ).status_code
+            == 409
+        )
+        assert (
+            doctor.post(
+                f"/api/protocols/{protocol_id}/review-seen",
+                json={
+                    "version": detail["version"],
+                    "protocol_hash": detail["content_hash"],
+                    "passage_id": f"{page['page_number']}:{page['start']}:{page['end'] + 1}",
+                },
+            ).status_code
+            == 422
+        )
+
+        revised = doctor.post(
+            f"/api/protocols/{protocol_id}/versions",
+            json={
+                "base_version": detail["version"],
+                "base_hash": detail["content_hash"],
+                "record": settle(
+                    ProtocolRecord.model_validate_json(json.dumps(detail["record"]))
+                ).model_dump(mode="json"),
+            },
+        )
+        assert revised.status_code == 201, revised.text
+        revised_detail = revised.json()
+        assert revised_detail["first_record"] == detail["record"]
+        assert passage_id in doctor.get(f"/api/protocols/{protocol_id}/source").json()[
+            "seen_passages"
+        ]
+
+        closed_id = queue["items"][0]["id"]
+        closed = doctor.get(f"/api/protocols/{closed_id}").json()
+        rejected = doctor.post(
+            f"/api/protocols/{closed_id}/decisions/doctor",
+            json={
+                "version": closed["version"],
+                "protocol_hash": closed["content_hash"],
+                "decision": "reject",
+                "notes": "Duplicate",
+            },
+        )
+        assert rejected.status_code == 200 and rejected.json()["status"] == "rejected"
+        assert (
+            doctor.post(
+                f"/api/protocols/{closed_id}/review-seen",
+                json={
+                    "version": closed["version"],
+                    "protocol_hash": closed["content_hash"],
+                    "passage_id": "2:0:12",
+                },
+            ).status_code
+            == 409
+        )
