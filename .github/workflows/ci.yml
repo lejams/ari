@@ -132,7 +132,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     concurrency: {group: deploy-staging, cancel-in-progress: false}
-    permissions: {contents: read}
+    permissions: {contents: read, packages: read}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -145,6 +145,8 @@ jobs:
           DEPLOY_PATH: "${{ vars.DEPLOY_PATH }}"
           SSH_KNOWN_HOSTS: "${{ secrets.SSH_KNOWN_HOSTS }}"
           SSH_PRIVATE_KEY: "${{ secrets.SSH_PRIVATE_KEY }}"
+          GHCR_USERNAME: "${{ github.actor }}"
+          GHCR_TOKEN: "${{ github.token }}"
         run: deploy/transfer-release.sh staging release-bundle "ghcr.io/lejams/ari@${{ needs.image.outputs.digest }}" "${{ github.sha }}"
       - uses: actions/upload-artifact@v4
         with: {name: staged-release, path: release-bundle, if-no-files-found: error, retention-days: 30, include-hidden-files: true}

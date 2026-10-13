@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     concurrency: {group: deploy-production, cancel-in-progress: false}
+    permissions: {contents: read, actions: read, packages: read}
     steps:
       - uses: actions/checkout@v4
         with: {ref: main, fetch-depth: 0}
@@ -46,6 +47,8 @@ jobs:
           DEPLOY_PATH: "${{ vars.DEPLOY_PATH }}"
           SSH_KNOWN_HOSTS: "${{ secrets.SSH_KNOWN_HOSTS }}"
           SSH_PRIVATE_KEY: "${{ secrets.SSH_PRIVATE_KEY }}"
+          GHCR_USERNAME: "${{ github.actor }}"
+          GHCR_TOKEN: "${{ github.token }}"
         run: deploy/transfer-release.sh production staged-release "${{ steps.candidate.outputs.image }}" "${{ steps.candidate.outputs.sha }}"
       - name: Publish deployed release metadata
         run: |

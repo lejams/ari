@@ -187,11 +187,18 @@ Chaque environnement possède un répertoire d'état hors du bundle, par exemple
 `/opt/ari` pour la production existante et `/opt/ari-staging` pour la préproduction. Ce répertoire contient son `.env`, qui n'est jamais
 écrasé par le bundle, et les marqueurs `.release.json` / `.staging-success.json`. Les permissions
 doivent être limitées au compte de déploiement (`chmod 700` pour le répertoire et `chmod 600` pour
-`.env`). La CI doit déjà avoir accès au registre GHCR sur l'hôte (par exemple une connexion Docker
-avec un jeton de lecture de paquet); le script ne configure ni compte ni accès réseau.
+`.env`). Pour les workflows GitHub Actions, le jeton éphémère du job (`packages: read`) est transmis
+sur l'entrée standard SSH; le helper crée une configuration Docker temporaire en mode 700, se connecte
+à GHCR pour ce seul déploiement, puis la supprime. Ce parcours GitHub Actions ne nécessite aucun PAT
+permanent sur le VPS. Lors d'une exécution manuelle sans `GHCR_USERNAME` ni `GHCR_TOKEN`, une connexion
+Docker existante sur le serveur reste utilisable; l'opérateur gère la conservation et la suppression
+de cet identifiant manuel.
 Chaque déploiement garde un verrou `flock` pendant toute son exécution : production utilise
 `/opt/ari/.deploy.lock` et staging `/opt/ari-staging/.deploy.lock`. Un second déploiement ou une
-restauration live concurrente échoue immédiatement.
+restauration live concurrente échoue immédiatement. Avant la première promotion sur un VPS existant,
+après fusion de la PR, mettre à jour le checkout `/opt/ari` avec `git pull --ff-only` pour que les
+scripts manuels `deploy.sh`, `restore.sh` et `lock.sh` utilisent eux aussi ce verrou. Cette mise à
+jour des fichiers ne redémarre pas les conteneurs; la promotion reste une étape distincte.
 
 Staging utilise son propre projet et ses propres volumes, sans Caddy :
 
