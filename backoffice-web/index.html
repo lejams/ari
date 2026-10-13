@@ -122,7 +122,7 @@
   <section id="gold" hidden>
     <div class="pagehead"><p class="eyebrow">Gold</p><h1>La vérité terrain.</h1><p>Protocoles validés par le propriétaire, figés par hash. Les cas d'entraînement en dérivent.</p></div>
     <div class="row wrap"><label for="gold-land" class="sr-only">Land</label><select id="gold-land"><option value="">Tous les Länder</option></select><a class="button" id="gold-export" href="/api/gold/export" data-role="owner" download>Exporter (JSONL)</a></div>
-    <table id="gold-table" class="table"></table>
+    <div class="tablewrap"><table id="gold-table" class="table"></table></div>
     <p id="gold-empty" class="availability" hidden>Aucun protocole gold pour le moment.</p>
   </section>
 
@@ -154,7 +154,7 @@
   <section id="registry" hidden>
     <div class="pagehead"><p class="eyebrow">Registre</p><h1>Les cas d’entraînement.</h1><p>Chaque scénario importé attend une revue clinique et une revue linguistique sur son contenu exact, par deux comptes distincts, avant que le propriétaire le publie aux apprenants.</p></div>
     <div class="row wrap"><label for="registry-status" class="sr-only">Statut</label><select id="registry-status"><option value="">Tous les statuts</option><option value="draft_unvalidated" selected>À relire</option><option value="published">Publiés</option><option value="withdrawn">Retirés</option></select></div>
-    <table id="registry-table" class="table"></table>
+    <div class="tablewrap"><table id="registry-table" class="table"></table></div>
     <p id="registry-empty" class="availability" hidden>Aucun scénario dans cet état.</p>
   </section>
 
@@ -186,7 +186,7 @@
       <div class="form-actions span2"><button class="primary">Créer le compte et obtenir le lien</button></div>
     </form>
     <p id="invitation-link" class="card" hidden></p>
-    <table id="accounts-table" class="table"></table>
+    <div class="tablewrap"><table id="accounts-table" class="table"></table></div>
   </section>
 </main>
 <script type="module" src="/app.mjs?v=20261010-review"></script>

@@ -178,7 +178,7 @@ main{margin-left:72px;padding:24px 20px 60px;min-width:0}main.public{margin-left
 .protocol-workspace .rows tr.flag td{background:var(--amber-soft)}
 .protocol-workspace .rows tr.hl td{background:var(--accent-soft)}
 .protocol-workspace .pg{border:0;background:none;font:500 11.5px var(--f-mono);color:var(--accent);padding:2px 4px;white-space:nowrap}
-.protocol-workspace .tablewrap{overflow-x:auto}
+.tablewrap{overflow-x:auto}
 .protocol-workspace .cover{padding:14px 16px;display:grid;gap:10px}
 .protocol-workspace .cover-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
 .protocol-workspace .cover-head h2{font-size:15px}
