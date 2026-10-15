@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     DateTime,
     ForeignKey,
     Integer,
@@ -18,6 +19,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
+from ari.application.services.costing import PricingTable, cost_of
 from ari.domain.errors import InvalidStateError, NotFoundError
 from ari.domain.geography import Land
 from ari.domain.models import (
@@ -150,7 +152,13 @@ class VocabularyRow(Base):
 class ExecutionRow(Base):
     __tablename__ = "executions"
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), index=True)
+    session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("sessions.id"), nullable=True, index=True
+    )
+    learner_id: Mapped[str | None] = mapped_column(
+        ForeignKey("learners.id"), nullable=True, index=True
+    )
+    attempt_ref: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     operation: Mapped[str] = mapped_column(String)
     provider: Mapped[str] = mapped_column(String)
     model: Mapped[str] = mapped_column(String)
@@ -167,6 +175,11 @@ class ExecutionRow(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     retryable: Mapped[bool]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Computed once, at insert, from `usage` and the price list of `pricing_version`. NULL cost
+    # means unknown; `cost_unknown` names what was missing (a price, a usage figure).
+    cost_micro_eur: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    pricing_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    cost_unknown: Mapped[list[str]] = mapped_column(JSONB)
 
 
 def _goal(value: dict[str, Any]) -> LearningGoal:
@@ -228,8 +241,9 @@ def _jsonable(value: Any) -> Any:
 class SqlSessionRepository:
     """Synchronous repository over the PostgreSQL platform database; API calls are short."""
 
-    def __init__(self, database_url: str) -> None:
+    def __init__(self, database_url: str, *, pricing: PricingTable | None = None) -> None:
         self.engine = create_platform_engine(database_url)
+        self.pricing = pricing
 
     def create_learner(self, learner: LearnerProfile) -> LearnerProfile:
         with Session(self.engine) as db:
@@ -824,6 +838,17 @@ class SqlSessionRepository:
                 return
             values = asdict(execution)
             values["status"] = execution.status.value
+            if execution.session_id is not None:
+                if values["learner_id"] is None:
+                    values["learner_id"] = db.scalar(
+                        select(SessionRow.learner_id).where(SessionRow.id == execution.session_id)
+                    )
+                if values["attempt_ref"] is None:
+                    values["attempt_ref"] = f"session:{execution.session_id}"
+            cost = cost_of(execution, self.pricing)
+            values["cost_micro_eur"] = cost.cost_micro_eur
+            values["pricing_version"] = cost.pricing_version
+            values["cost_unknown"] = list(cost.unknown_components)
             db.add(ExecutionRow(**values))
             db.commit()
 

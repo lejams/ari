@@ -31,6 +31,7 @@ from ari.infrastructure.persistence.platform.lexicon import SqlLexiconRepository
 from ari.infrastructure.persistence.platform.placement import SqlPlacementRepository
 from ari.infrastructure.persistence.platform.practice import SqlPracticeRepository
 from ari.infrastructure.persistence.platform.repository import SqlSessionRepository
+from ari.infrastructure.pricing import load_pricing
 from ari.infrastructure.providers.email import LogEmailSender, SmtpEmailSender
 from ari.infrastructure.providers.fake import (
     FakeLLMProvider,
@@ -135,7 +136,9 @@ def _email_sender(settings: Settings) -> EmailSender:
 
 
 def build_container(settings: Settings) -> Container:
-    repository = SqlSessionRepository(settings.database_url)
+    repository = SqlSessionRepository(
+        settings.database_url, pricing=load_pricing(settings.pricing_path)
+    )
     if settings.environment == "production" and "localhost" in settings.public_url:
         logger.warning("ARI_PUBLIC_URL points at localhost: e-mailed links will not work")
     email = _email_sender(settings)

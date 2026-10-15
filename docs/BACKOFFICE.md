@@ -60,6 +60,17 @@ remplacé, valider sans Land, importer un brouillon invalide ou dont le cas ne t
 le protocole gold figé, publier avec un blocage, donner les deux approbations depuis un même
 compte.
 
+## Coûts
+
+La page **Coûts** (propriétaire) additionne le coût de chaque appel IA sur 7, 30 ou 90 jours, par
+apprenant, opération, session, jour, et pour le pipeline de contenu. Le coût est calculé une fois,
+à l'enregistrement de l'appel, à partir de la grille versionnée `backend/src/ari/pricing/` et de
+l'usage rapporté par le fournisseur (`executions` et `ai_runs`, colonnes `cost_micro_eur`,
+`pricing_version`). Un appel sans prix ou sans usage n'est jamais compté à zéro : il apparaît
+comme « inconnu », avec sa raison. Les appels antérieurs à la grille sont marqués
+`not_computed`. Changer un prix crée une nouvelle version de la grille ; les coûts déjà
+enregistrés gardent la leur.
+
 ## Sécurité
 
 PDF et images de pages servis uniquement à un compte connecté, en `Content-Disposition:

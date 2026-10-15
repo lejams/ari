@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -277,6 +278,11 @@ class AiRunRow(ContentBase):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     retryable: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Computed at insert from `usage` and the price list; NULL cost means unknown and
+    # `cost_unknown` names what was missing.
+    cost_micro_eur: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    pricing_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    cost_unknown: Mapped[list[str]] = mapped_column(CONTENT_JSON)
 
 
 BUNDLE_DRAFT_STATUSES = ("draft", "invalid", "imported")
@@ -299,9 +305,7 @@ class BundleDraftRow(ContentBase):
     gold_hash: Mapped[str] = mapped_column(String(64))
     request: Mapped[dict[str, Any]] = mapped_column(CONTENT_JSON)
     status: Mapped[str] = mapped_column(String)
-    bundle: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB(none_as_null=True), nullable=True
-    )
+    bundle: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     bundle_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     case_id: Mapped[str | None] = mapped_column(String, nullable=True)
     case_version: Mapped[str | None] = mapped_column(String, nullable=True)

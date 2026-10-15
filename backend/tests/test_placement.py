@@ -11,6 +11,8 @@ from accounts_fixtures import sign_in
 from conftest import DatabaseFactory
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from ari.api.app import create_app
 from ari.container import Container
@@ -27,6 +29,7 @@ from ari.domain.placement import (
 )
 from ari.infrastructure.cases.placement_store import PlacementStore
 from ari.infrastructure.cases.yaml_io import parse_placement_bundle
+from ari.infrastructure.persistence.platform.repository import ExecutionRow
 
 DEMO_PLACEMENT = DEMO_BUNDLES / "ari_placement_demo.v1.yaml"
 
@@ -213,6 +216,16 @@ def test_full_placement_flow_updates_the_profile(placement_container: Container)
         assert profile["details"]["placement_attempt_id"] == attempt["id"]
         overview = client.get("/api/placement").json()
         assert overview["latest"]["status"] == "completed" and overview["estimated_level"] == "B2"
+
+    # Placement calls are costed like session calls, attached to the learner and the attempt.
+    with Session(placement_container.repository.engine) as db:
+        executions = db.scalars(
+            select(ExecutionRow).where(ExecutionRow.attempt_ref == f"placement:{attempt['id']}")
+        ).all()
+    # The TTS adapters label their own operation; the attempt reference tells placement apart.
+    assert {e.operation for e in executions} == {"text_to_speech", "placement_speaking"}
+    assert all(e.session_id is None and e.learner_id == profile["id"] for e in executions)
+    assert all(e.cost_micro_eur == 0 and e.pricing_version == "pricing-v1" for e in executions)
 
 
 def test_wrong_answers_descend_and_early_finish_ignores_missing_phases(

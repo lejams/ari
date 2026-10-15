@@ -30,8 +30,8 @@ x-provider-env: &provider-env
   ARI_STT_API_KEY: "${ARI_STT_API_KEY:-}"
   ARI_STT_BASE_URL: "${ARI_STT_BASE_URL:-https://api.groq.com/openai/v1}"
   ARI_STT_MODEL: "${ARI_STT_MODEL:-whisper-large-v3}"
-  ARI_PATIENT_MODEL: "${ARI_PATIENT_MODEL:-gpt-5.6-luna}"
-  ARI_EVALUATION_MODEL: "${ARI_EVALUATION_MODEL:-gpt-5.6-terra}"
+  ARI_PATIENT_MODEL: "${ARI_PATIENT_MODEL:-gpt-6-luna}"
+  ARI_EVALUATION_MODEL: "${ARI_EVALUATION_MODEL:-gpt-6-luna}"
   ARI_TTS_MODEL: "${ARI_TTS_MODEL:-gpt-4o-mini-tts}"
   ARI_TTS_VOICE: "${ARI_TTS_VOICE:-alloy}"
   ARI_REALTIME_MODEL: "${ARI_REALTIME_MODEL:-gpt-realtime-mini}"
@@ -44,7 +44,7 @@ x-provider-env: &provider-env
 x-content-env: &content-env
   ARI_CONTENT_DATABASE_URL: "postgresql+psycopg://ari_content:${ARI_CONTENT_DB_PASSWORD:-ari_content}@postgres:5432/ari_content"
   ARI_CONTENT_STORAGE_DIR: /data/content
-  ARI_CONTENT_MODEL: "${ARI_CONTENT_MODEL:-gpt-5.6-terra}"
+  ARI_CONTENT_MODEL: "${ARI_CONTENT_MODEL:-gpt-6-luna}"
 
 services:
   postgres:

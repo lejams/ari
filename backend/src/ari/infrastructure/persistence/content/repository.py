@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy import Engine, func, select, update
 from sqlalchemy.orm import Session
 
+from ari.application.services.costing import PricingTable, cost_of_usage
 from ari.content.domain.bundles import (
     BundleDraft,
     BundleDraftStatus,
@@ -64,18 +65,20 @@ def _normalize_page_text(text: str) -> str:
 
 
 class SqlContentRepository:
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self, engine: Engine, *, pricing: PricingTable | None = None) -> None:
         self.engine = engine
+        self.pricing = pricing
 
     @contextmanager
     def transaction(self) -> Iterator[SqlContentTransaction]:
         with Session(self.engine) as db, db.begin():
-            yield SqlContentTransaction(db)
+            yield SqlContentTransaction(db, self.pricing)
 
 
 class SqlContentTransaction:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, pricing: PricingTable | None = None) -> None:
         self.db = db
+        self.pricing = pricing
 
     # ----- documents -----------------------------------------------------------------
 
@@ -529,6 +532,7 @@ class SqlContentTransaction:
         )
 
     def add_ai_run(self, run: AiRun) -> None:
+        cost = cost_of_usage(run.provider, run.model, run.usage, self.pricing)
         self.db.add(
             AiRunRow(
                 id=run.id,
@@ -551,6 +555,9 @@ class SqlContentTransaction:
                 error_message=run.error_message,
                 retryable=run.retryable,
                 created_at=run.created_at,
+                cost_micro_eur=cost.cost_micro_eur,
+                pricing_version=cost.pricing_version,
+                cost_unknown=list(cost.unknown_components),
             )
         )
         self.db.flush()

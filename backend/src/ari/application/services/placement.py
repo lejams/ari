@@ -23,7 +23,7 @@ from ari.application.ports.stt import UtteranceTranscriber
 from ari.application.ports.tts import StreamingTTSProvider
 from ari.application.prompting import VersionedPrompt
 from ari.application.schemas import SpeakingRatingSchema
-from ari.domain.errors import InvalidStateError, NotFoundError
+from ari.domain.errors import InvalidStateError, NotFoundError, ProviderError
 from ari.domain.models import CEFRLevel, ExecutionRecord, new_id, utc_now
 from ari.domain.placement import (
     LEVELS,
@@ -362,23 +362,33 @@ class PlacementService:
         if text is None:
             if not pcm16 or len(pcm16) < self._sample_rate * 2:  # under one second of audio
                 raise InvalidStateError("Enregistrement trop court")
-            transcription = await self._transcriber.transcribe(
-                pcm16,
-                sample_rate=self._sample_rate,
-                context=replace(context, operation="placement_stt"),
-                config=TranscriptionConfig(
-                    expected_locales=(placement_set.language,),
-                    context_prompt=item.prompt_target,
-                    prompt_version=f"placement-stt:{placement_set.id}@{placement_set.version}",
-                    prompt_hash=sha256(item.prompt_target.encode()).hexdigest(),
-                ),
-            )
+            try:
+                transcription = await self._transcriber.transcribe(
+                    pcm16,
+                    sample_rate=self._sample_rate,
+                    context=replace(context, operation="placement_stt"),
+                    config=TranscriptionConfig(
+                        expected_locales=(placement_set.language,),
+                        context_prompt=item.prompt_target,
+                        prompt_version=f"placement-stt:{placement_set.id}@{placement_set.version}",
+                        prompt_hash=sha256(item.prompt_target.encode()).hexdigest(),
+                    ),
+                )
+            except ProviderError as exc:
+                self._record_failure(exc, learner_id, attempt.id)
+                raise
+            self._record_execution(transcription.execution, learner_id, attempt.id)
             executions.append(_execution_summary(transcription.execution))
             text = transcription.text
         transcript = text.strip()
         if not transcript:
             raise InvalidStateError("Aucune parole reconnue")
-        rating = await self._rate(placement_set, item, transcript, context)
+        try:
+            rating = await self._rate(placement_set, item, transcript, context)
+        except ProviderError as exc:
+            self._record_failure(exc, learner_id, attempt.id)
+            raise
+        self._record_execution(rating["execution"], learner_id, attempt.id)
         executions.append(_execution_summary(rating["execution"]))
         state = json.loads(json.dumps(attempt.state))
         state["presented"].append(item.id)
@@ -467,9 +477,15 @@ class PlacementService:
             learner_id=learner_id,
         )
         chunks: list[bytes] = []
-        async for event in self._tts.stream(item.script, context):
-            if event.type == "chunk" and event.data:
-                chunks.append(event.data)
+        try:
+            async for event in self._tts.stream(item.script, context):
+                if event.type == "chunk" and event.data:
+                    chunks.append(event.data)
+                elif event.type == "completed" and event.execution is not None:
+                    self._record_execution(event.execution, learner_id, attempt.id)
+        except ProviderError as exc:
+            self._record_failure(exc, learner_id, attempt.id)
+            raise
         audio = b"".join(chunks)
         self._audio_cache[key] = audio
         return audio
@@ -477,6 +493,25 @@ class PlacementService:
     @property
     def sample_rate(self) -> int:
         return self._sample_rate
+
+    # ----- cost traceability ---------------------------------------------------------
+
+    def _record_execution(
+        self, execution: ExecutionRecord, learner_id: str, attempt_id: str
+    ) -> None:
+        """Placement calls are costed like session calls, attached to the learner and attempt."""
+        self._learners.record_execution(
+            replace(
+                execution,
+                session_id=None,
+                learner_id=learner_id,
+                attempt_ref=f"placement:{attempt_id}",
+            )
+        )
+
+    def _record_failure(self, error: ProviderError, learner_id: str, attempt_id: str) -> None:
+        if isinstance(error.execution, ExecutionRecord):
+            self._record_execution(error.execution, learner_id, attempt_id)
 
     # ----- finish --------------------------------------------------------------------
 

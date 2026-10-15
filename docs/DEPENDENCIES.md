@@ -17,8 +17,8 @@ propriétaire, car les fichiers `.env` ne sont pas lisibles par les outils.
 | Patient temps réel du mode examen (`realtime_exam`) | `ARI_REALTIME_MODEL` | `gpt-realtime-mini` | **Retrait le 20 janvier 2027**, remplacement `gpt-realtime-2.1-mini`. Les pages modèles indiquent déjà « Deprecated » | Page des dépréciations OpenAI, entrée du 20 juillet 2026 | Chaîne STT → LLM → ElevenLabs (action 3). OpenAI Realtime reste un repli derrière le port |
 | Transcription du mode examen | `ARI_REALTIME_TRANSCRIPTION_MODEL` | `gpt-4o-mini-transcribe` | **Retrait le 26 février 2027** (le snapshot `gpt-4o-mini-transcribe-2025-03-20` figurerait au 20 janvier 2027). Remplacements : `gpt-live-transcribe` ou `gpt-transcribe` | Page des dépréciations OpenAI | Disparaît avec la chaîne de l'action 3 (STT de la chaîne) |
 | STT du mode entraînement et du test de niveau | `ARI_STT_BASE_URL`, `ARI_STT_MODEL` | Groq, `whisper-large-v3` | Aucun retrait connu chez Groq. Si la production utilise OpenAI `whisper-1`, son retrait est annoncé au **26 février 2027** par des sources secondaires, non confirmé sur la page officielle | [kingy.ai](https://kingy.ai/ai-launch-tracker/openai-transcription-models-api-shutdown-february-26-2027/), [layer3labs](https://www.layer3labs.io/guides/openai-deprecated-models) | Rester sur Groq ou passer à `gpt-transcribe`. Comparaison avec ElevenLabs Scribe au spike 3a |
-| LLM patient, audit, oral du test de niveau | `ARI_PATIENT_MODEL` | `gpt-5.6-luna` | Aucun retrait connu | n/a | **Décision du propriétaire du 15 octobre 2026 : aligner tous les modèles texte sur `gpt-6-luna`** |
-| LLM évaluation et pipeline de contenu | `ARI_EVALUATION_MODEL`, `ARI_CONTENT_MODEL` | `gpt-5.6-terra` | Aucun retrait connu | n/a | Idem, `gpt-6-luna`. Périmètre et validation par `ari.evals` à confirmer (voir conséquence 4) |
+| LLM patient, audit, oral du test de niveau | `ARI_PATIENT_MODEL` | `gpt-6-luna` (avant : `gpt-5.6-luna`) | Aucun retrait connu | n/a | Décision du propriétaire du 15 octobre 2026 : tous les modèles texte sur `gpt-6-luna` |
+| LLM évaluation et pipeline de contenu | `ARI_EVALUATION_MODEL`, `ARI_CONTENT_MODEL` | `gpt-6-luna` (avant : `gpt-5.6-terra`) | Aucun retrait connu | n/a | Idem, sans mesure préalable par `ari.evals` (voir conséquence 4) |
 
 ## Conséquences sur le plan
 
@@ -38,6 +38,9 @@ propriétaire, car les fichiers `.env` ne sont pas lisibles par les outils.
    (voir tarifs). Le plan exige un rapport `ari.evals` sans nouvelle erreur critique avant tout changement
    de modèle en production (invariant 5). Or ce cadre n'existe pas encore (action 8). L'évaluation de
    session et l'extraction de protocoles sont les usages les plus sensibles à la qualité du modèle.
+   Le propriétaire a choisi de tout basculer sans mesure préalable : le rapport `ari.evals` de
+   l'action 8 servira de contrôle a posteriori, avec retour sur `gpt-5.6-terra` par simple
+   variable d'environnement si une régression apparaît.
 
 ## Tarifs publics relevés (P0.2)
 

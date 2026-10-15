@@ -11,6 +11,7 @@ from ari.content.container import ContentContainer, build_content_container
 from ari.content.registry_bridge import RegistryBridge
 from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.persistence.content.accounts import SqlAccountStore
+from ari.infrastructure.persistence.costs import CostReport
 from ari.infrastructure.persistence.platform.engine import create_platform_engine
 
 
@@ -21,6 +22,7 @@ class Backoffice:
     auth: BackofficeAuth
     accounts: SqlAccountStore
     registry: RegistryBridge  # The platform registry, reached with the platform credentials.
+    costs: CostReport  # Recorded call costs of both databases, for the owner.
 
 
 def build_backoffice(settings: Settings, *, llm: LLMProvider | None = None) -> Backoffice:
@@ -31,9 +33,14 @@ def build_backoffice(settings: Settings, *, llm: LLMProvider | None = None) -> B
         session_days=settings.backoffice_session_days,
         invitation_hours=settings.backoffice_invitation_hours,
     )
-    registry = RegistryBridge(
-        ClinicalStore(create_platform_engine(settings.database_url)), content.repository
-    )
+    platform_engine = create_platform_engine(settings.database_url)
+    registry = RegistryBridge(ClinicalStore(platform_engine), content.repository)
+    costs = CostReport(platform_engine, content.repository.engine)  # type: ignore[attr-defined]
     return Backoffice(
-        settings=settings, content=content, auth=auth, accounts=accounts, registry=registry
+        settings=settings,
+        content=content,
+        auth=auth,
+        accounts=accounts,
+        registry=registry,
+        costs=costs,
     )

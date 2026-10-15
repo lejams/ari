@@ -366,7 +366,8 @@ class LexiconReview:
 @dataclass(frozen=True, slots=True)
 class ExecutionRecord:
     id: str
-    session_id: str
+    # None for a call outside a voice session (placement test); `attempt_ref` then says which.
+    session_id: str | None
     operation: str
     provider: str
     model: str
@@ -383,6 +384,10 @@ class ExecutionRecord:
     error_message: str | None = None
     retryable: bool = False
     created_at: datetime = field(default_factory=utc_now)
+    # Who and what the call was for: "session:<id>", "placement:<attempt id>". When missing,
+    # the repository derives both from the session.
+    learner_id: str | None = None
+    attempt_ref: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

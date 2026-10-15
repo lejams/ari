@@ -1,4 +1,4 @@
-"""Owner administration: accounts and invitations; the dashboard everyone sees."""
+"""Owner administration: accounts, invitations and model costs; the dashboard everyone sees."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from os import stat
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.encoders import jsonable_encoder
 
 from ari.backoffice_api.container import Backoffice
@@ -81,6 +81,10 @@ def admin_router(services: Backoffice) -> APIRouter:
             "invitation_url": _invitation_url(invitation.token),
             "expires_at": invitation.expires_at.isoformat(),
         }
+
+    @router.get("/api/costs")
+    def costs(account: Owner, days: Annotated[int, Query(ge=1, le=366)] = 30) -> dict[str, Any]:
+        return services.costs.summary(datetime.now(UTC) - timedelta(days=days))
 
     @router.get("/api/dashboard")
     def dashboard(account: Anyone) -> dict[str, Any]:

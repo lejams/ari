@@ -43,6 +43,7 @@ function installDom(hash) {
   const nodes = new Map(ids.map(id => [id, new Element(id, id.includes("status") || id.endsWith("-land") ? "SELECT" : "DIV")]));
   nodes.get("review-status").value = "doctor_review"; // A real <select> starts on its `selected` option.
   nodes.get("registry-status").value = "draft_unvalidated";
+  nodes.get("costs-period").value = "30";
   globalThis.document = {
     body: new Element("body"),
     getElementById: id => nodes.get(id) ?? null,
@@ -120,6 +121,15 @@ const responses = {
   "/api/protocols?status=changes_requested": {items: [], total: 0},
   "/api/protocols/P-cccccccc-000/source": {text:"Protokoll 1",text_length:11,pages:[{page_number:2,text:"Protokoll 1",start:0,end:11}],seen_passages:[]},
   "/api/protocols?status=doctor_review": {items: [protocol], total: 1}, "/api/protocols/P-cccccccc-000": protocol,
+  "/api/costs?days=30": {since: "2026-09-15T00:00:00Z", learners: {
+    total: {calls: 3, known_micro_eur: 528000, unknown_calls: 1},
+    by_day: [{day: "2026-10-15", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
+    by_operation: [{operation: "session_evaluation", model: "gpt-6-luna", calls: 2, known_micro_eur: 528000, unknown_calls: 0}, {operation: "text_to_speech", model: "gpt-4o-mini-tts", calls: 1, known_micro_eur: 0, unknown_calls: 1}],
+    unknown_reasons: {"usage.audio_seconds": 1},
+    by_learner: [{learner_id: "learner-1", email: "l@example.org", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
+    by_kind: [{kind: "session", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
+    recent_sessions: [{session_id: "session-1-abcdef", learner_id: "learner-1", case_id: "FSP-BY-P-cccccccc-000", learning_mode: "exam", last_call_at: "2026-10-15T10:00:00Z", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
+  }, content: {total: {calls: 0, known_micro_eur: 0, unknown_calls: 0}, by_day: [], by_operation: [], unknown_reasons: {}}},
   "/api/gold": {items: [], total: 0}, "/api/accounts": {items: [{id: "owner-1", email: "o@example.org", display_name: "Owner", roles: ["owner"], active: true, has_password: true, created_at: "2026-09-18T00:00:00Z"}], total: 1},
 };
 
@@ -144,7 +154,7 @@ async function load(hash, {signedIn = true, roles = me.roles} = {}) {
   assert.equal(nodes.get("login").hidden, false, "signed out visitors land on the login page");
   assert.equal(nodes.get("sidebar").hidden, true);
 }
-for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"], [`#/documents/${"c".repeat(64)}`, "document"], ["#/review", "review"], ["#/protocols/P-cccccccc-000", "protocol"], ["#/gold", "gold"], ["#/gold/P-cccccccc-000", "gold-detail"], ["#/registry", "registry"], ["#/registry/FSP-BY-P-cccccccc-000-arzt_patient/1", "scenario"], ["#/accounts", "accounts"]]) {
+for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"], [`#/documents/${"c".repeat(64)}`, "document"], ["#/review", "review"], ["#/protocols/P-cccccccc-000", "protocol"], ["#/gold", "gold"], ["#/gold/P-cccccccc-000", "gold-detail"], ["#/registry", "registry"], ["#/registry/FSP-BY-P-cccccccc-000-arzt_patient/1", "scenario"], ["#/costs", "costs"], ["#/accounts", "accounts"]]) {
   const {nodes} = await load(hash);
   assert.equal(nodes.get("error").hidden, true, `${hash}: ${nodes.get("error-text").textContent}`);
   assert.equal(nodes.get(section).hidden, false, `${hash} shows ${section}`);
@@ -152,6 +162,12 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
 {
   const {nodes} = await load("#/");
   assert.equal(nodes.get("dashboard-worker").textContent, "Worker opérationnel");
+}
+{
+  const {nodes, calls} = await load("#/costs");
+  assert.ok(calls.includes("/api/costs?days=30"), "the costs page asks for the selected period");
+  assert.equal(nodes.get("costs-unknown").hidden, false, "unknown costs are announced, not hidden");
+  assert.match(nodes.get("costs-unknown").textContent, /durée audio non rapportée \(1\)/);
 }
 {
   const {nodes} = await load(`#/documents/${"c".repeat(64)}`);

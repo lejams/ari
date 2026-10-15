@@ -68,6 +68,7 @@ export class BackofficeApi {
   registryReview(id, version, review) { return this.api(`/api/registry/scenarios/${encodeURIComponent(id)}/${encodeURIComponent(version)}/reviews`, {method: "POST", body: JSON.stringify(review)}); }
   registryPublish(id, version) { return this.api(`/api/registry/scenarios/${encodeURIComponent(id)}/${encodeURIComponent(version)}/publish`, {method: "POST"}); }
   registryWithdraw(id, version) { return this.api(`/api/registry/scenarios/${encodeURIComponent(id)}/${encodeURIComponent(version)}/withdraw`, {method: "POST"}); }
+  costs(days) { return this.api(`/api/costs?days=${encodeURIComponent(days)}`); }
   accounts() { return this.api("/api/accounts"); }
   createAccount(account) { return this.api("/api/accounts", {method: "POST", body: JSON.stringify(account)}); }
   deactivate(id) { return this.api(`/api/accounts/${encodeURIComponent(id)}/deactivate`, {method: "POST"}); }
