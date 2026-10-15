@@ -58,4 +58,4 @@ d'incertitude (plan, actions 6 à 9).
 | `make lint` (ruff, mypy strict sur 152 fichiers, import-linter) | Vert, 4 contrats respectés |
 | `make test-web` | Vert |
 | `make test-backoffice-web` | Vert |
-| `make test-backend` | **Non exécuté** : PostgreSQL indisponible sur le poste (Docker non accessible depuis WSL). À relancer après `make db-up` |
+| `make test-backend` | Vert, 237 tests (PostgreSQL 16 local) |
