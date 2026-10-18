@@ -13,9 +13,11 @@ La phase `arzt_patient` est exécutable en voix ; `arzt_arzt` et
 `fachbegriffe` le sont en texte uniquement avec une spécification `practice` valide
 incluse dans le hash revu. Sans cette spécification, leur publication reste refusée.
 `arztbrief` reste réservé et non exécutable. Les scénarios
-peuvent évoluer indépendamment du cas. Un seul scénario est publié par version de
-cas et phase ; publier son successeur retire automatiquement le précédent, avec
-audit dans la même transaction. L'API peut préciser `scenario_id` et `scenario_version`.
+peuvent évoluer indépendamment du cas. Un seul scénario est publié par cas et phase,
+quelle que soit sa version de cas : publier une nouvelle révision retire automatiquement
+les précédentes (événement `superseded` indiquant la révision qui les remplace), avec audit
+dans la même transaction. Les variantes d'un même protocole (persona, niveau) ne coexistent
+donc pas : une nouvelle variante remplace la précédente. L'API peut préciser `scenario_id` et `scenario_version`.
 Les reprises utilisent toujours le pin initial, jamais le nouveau scénario par défaut.
 
 ## Schéma YAML

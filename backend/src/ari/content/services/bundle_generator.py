@@ -16,6 +16,7 @@ from pydantic import ValidationError
 
 from ari.content.domain.bundles import PHASES, BundleVariantRequest, Phase
 from ari.content.domain.documents import Document
+from ari.content.domain.pii import scan as scan_pii
 from ari.content.domain.protocol import AnamnesisItem, GoldProtocol
 from ari.content.schemas import BundleDraftOutput
 from ari.content.services.rubrics import (
@@ -230,7 +231,7 @@ def assemble(
     output: BundleDraftOutput,
 ) -> ClinicalBundle:
     """Merge the model's text into the skeleton and validate the whole bundle, or refuse."""
-    errors = _check_ids(skeleton, output)
+    errors = _check_ids(skeleton, output) + _pii_errors(output)
     if errors:
         raise BundleDraftInvalid(errors)
     fact_text = {fact.fact_id: fact for fact in output.facts}
@@ -290,6 +291,30 @@ def assemble(
             ]
         ) from exc
     return bundle
+
+
+# A patient greets the doctor with a title, which is not a name: "Guten Tag, Herr Doktor."
+GENERIC_ADDRESS_TITLES = frozenset(
+    {"doktor", "doktorin", "professor", "professorin", "arzt", "ärztin", "kollege", "kollegin"}
+)
+
+
+def _pii_errors(output: BundleDraftOutput) -> list[str]:
+    """Re-identifying details the model wrote itself.
+
+    Only the model's text is scanned: what comes from the gold protocol was already validated
+    (and, if needed, overridden with a note) by the owner. A hit refuses the draft; a false
+    positive is cured by regenerating, since drafts are never edited. Excerpts stay masked.
+    Contact details are left to the bundle's own validation, which already refuses them.
+    """
+    return [
+        f"Détail identifiant dans le texte généré ({finding.kind}) : {finding.path} "
+        f"« {finding.excerpt} »"
+        for finding in scan_pii(
+            output.model_dump(mode="json"), generic_titles=GENERIC_ADDRESS_TITLES
+        )
+        if finding.kind != "contact"
+    ]
 
 
 def _check_ids(skeleton: BundleSkeleton, output: BundleDraftOutput) -> list[str]:
