@@ -22,6 +22,7 @@ from ari.infrastructure.pdf.pymupdf_extractor import PyMuPdfExtractor
 from ari.infrastructure.persistence.content.engine import create_content_engine
 from ari.infrastructure.persistence.content.queue import PostgresJobQueue
 from ari.infrastructure.persistence.content.repository import SqlContentRepository
+from ari.infrastructure.pricing import load_pricing
 from ari.infrastructure.providers.fake import FakeLLMProvider
 from ari.infrastructure.storage.filesystem import FilesystemDocumentStorage
 
@@ -64,7 +65,7 @@ def build_content_container(
     settings: Settings, *, llm: LLMProvider | None = None
 ) -> ContentContainer:
     engine = create_content_engine(settings.content_database_url)
-    repository = SqlContentRepository(engine)
+    repository = SqlContentRepository(engine, pricing=load_pricing(settings.pricing_path))
     queue = PostgresJobQueue(engine)
     storage = FilesystemDocumentStorage(settings.content_storage_dir)
     extractor = PyMuPdfExtractor()

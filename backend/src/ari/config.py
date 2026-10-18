@@ -24,7 +24,7 @@ class Settings(BaseSettings):
         "postgresql+psycopg://ari_content:ari_content@localhost:5432/ari_content"
     )
     content_storage_dir: Path = PROJECT_ROOT / "var" / "content"
-    content_model: str = "gpt-5.6-terra"
+    content_model: str = "gpt-6-luna"
     content_timeout_seconds: float = 300.0
     content_upload_max_bytes: int = 50 * 1024 * 1024
     worker_poll_seconds: float = 2.0
@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     backoffice_session_days: int = 7
     backoffice_invitation_hours: int = 48
     prompt_directory: Path = PROJECT_ROOT / "backend" / "src" / "ari" / "prompts"
+    # Versioned price list: every model call is costed against it when it is recorded.
+    pricing_path: Path = PROJECT_ROOT / "backend" / "src" / "ari" / "pricing" / "pricing-v1.yaml"
     frontend_origin: str = "http://localhost:5173"
     feedback_language: str = "fr-FR"
     application_version: str | None = None
@@ -66,8 +68,8 @@ class Settings(BaseSettings):
     stt_base_url: str = "https://api.groq.com/openai/v1"
     stt_model: str = "whisper-large-v3"
     stt_timeout_seconds: float = 30.0
-    patient_model: str = "gpt-5.6-luna"
-    evaluation_model: str = "gpt-5.6-terra"
+    patient_model: str = "gpt-6-luna"
+    evaluation_model: str = "gpt-6-luna"
     tts_model: str = "gpt-4o-mini-tts"
     tts_voice: str = "alloy"
     patient_timeout_seconds: float = 30.0

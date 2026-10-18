@@ -1,5 +1,5 @@
-import {blockers, ROLE_LABELS, SECTION_LABELS, statusLabel} from './api.mjs?v=20261014-modules';
-import {clone, getPath, setPath, stageFor, pointsFor, resolvePoint, validateDraft, markedRanges, uncoveredPassages, codePoints, compareFirst, sortedQueue, fieldLabel} from './review.mjs?v=20261014-modules';
+import {blockers, ROLE_LABELS, SECTION_LABELS, statusLabel} from './api.mjs?v=20261015-costs';
+import {clone, getPath, setPath, stageFor, pointsFor, resolvePoint, validateDraft, markedRanges, uncoveredPassages, codePoints, compareFirst, sortedQueue, fieldLabel} from './review.mjs?v=20261015-costs';
 
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));

@@ -11,6 +11,7 @@
     <button data-route="/review"><span aria-hidden="true">✎</span><span class="nav-label">Relecture</span></button>
     <button data-route="/gold"><span aria-hidden="true">★</span><span class="nav-label">Gold</span></button>
     <button data-route="/registry"><span aria-hidden="true">▣</span><span class="nav-label">Registre</span></button>
+    <button data-route="/costs" data-role="owner"><span aria-hidden="true">€</span><span class="nav-label">Coûts</span></button>
     <button data-route="/accounts" data-role="owner"><span aria-hidden="true">☺</span><span class="nav-label">Comptes</span></button>
   </nav>
   <p class="sidefoot"><span id="me-name"></span><br><span id="me-roles" class="muted"></span><br><button type="button" id="logout" class="link">Se déconnecter</button></p>
@@ -177,6 +178,16 @@
     <details class="card"><summary>Contenu complet du bundle (DE / FR)</summary><div class="source"><pre id="scenario-bundle"></pre></div></details>
   </section>
 
+  <section id="costs" hidden>
+    <div class="pagehead"><p class="eyebrow">Coûts</p><h1>Ce que coûtent les modèles.</h1><p>Chaque appel IA est chiffré à son enregistrement, à partir de la grille tarifaire versionnée. Un appel dont le prix ou l’usage manque est compté à part, jamais à zéro.</p></div>
+    <div class="row wrap"><label for="costs-period" class="sr-only">Période</label><select id="costs-period"><option value="7">7 derniers jours</option><option value="30" selected>30 derniers jours</option><option value="90">90 derniers jours</option></select></div>
+    <div id="costs-tiles" class="tiles"></div>
+    <p id="costs-unknown" class="help" hidden></p>
+    <div class="grid"><article class="card"><h2>Par apprenant</h2><div class="tablewrap"><table id="costs-learners" class="table"></table></div></article><article class="card"><h2>Par opération</h2><div class="tablewrap"><table id="costs-operations" class="table"></table></div></article></div>
+    <article class="card"><h2>Sessions récentes</h2><div class="tablewrap"><table id="costs-sessions" class="table"></table></div></article>
+    <div class="grid"><article class="card"><h2>Par jour</h2><div class="tablewrap"><table id="costs-by-day" class="table"></table></div></article><article class="card"><h2>Pipeline de contenu</h2><div class="tablewrap"><table id="costs-content" class="table"></table></div></article></div>
+  </section>
+
   <section id="accounts" hidden>
     <div class="pagehead"><p class="eyebrow">Comptes</p><h1>Qui relit, qui valide.</h1><p>Un compte reçoit un lien d'invitation à usage unique pour choisir son mot de passe. Un nouveau lien sert aussi de réinitialisation.</p></div>
     <form id="account-form" class="card form-grid" novalidate>
@@ -189,6 +200,6 @@
     <div class="tablewrap"><table id="accounts-table" class="table"></table></div>
   </section>
 </main>
-<script type="module" src="/app.mjs?v=20261014-modules"></script>
+<script type="module" src="/app.mjs?v=20261015-costs"></script>
 </body>
 </html>

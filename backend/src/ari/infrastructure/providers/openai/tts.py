@@ -10,6 +10,10 @@ from ari.application.contracts import AudioStreamEvent, ExecutionContext
 from ari.domain.errors import ProviderError
 from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
 
+# The endpoint streams raw PCM16 mono at 24 kHz: two bytes per sample.
+PCM_RATE = 24_000
+PCM_BYTES_PER_SECOND = PCM_RATE * 2
+
 
 class OpenAIStreamingTTSProvider:
     def __init__(
@@ -23,6 +27,7 @@ class OpenAIStreamingTTSProvider:
     async def stream(self, text: str, context: ExecutionContext) -> AsyncIterator[AudioStreamEvent]:
         started = time.perf_counter()
         first_audio_ms: int | None = None
+        audio_bytes = 0
         try:
             async with asyncio.timeout(self._timeout_seconds):
                 async with self._client.audio.speech.with_streaming_response.create(
@@ -34,6 +39,7 @@ class OpenAIStreamingTTSProvider:
                     async for chunk in response.iter_bytes(chunk_size=4 * 1024):
                         if first_audio_ms is None:
                             first_audio_ms = int((time.perf_counter() - started) * 1000)
+                        audio_bytes += len(chunk)
                         yield AudioStreamEvent(
                             "chunk", data=chunk, mime_type="audio/pcm;rate=24000"
                         )
@@ -43,6 +49,7 @@ class OpenAIStreamingTTSProvider:
                 ExecutionStatus.SUCCEEDED,
                 len(text),
                 first_audio_ms=first_audio_ms,
+                audio_seconds=round(audio_bytes / PCM_BYTES_PER_SECOND, 3),
             )
             yield AudioStreamEvent(
                 "completed", mime_type="audio/pcm;rate=24000", execution=execution
@@ -59,11 +66,14 @@ class OpenAIStreamingTTSProvider:
         characters: int,
         error: Exception | None = None,
         first_audio_ms: int | None = None,
+        audio_seconds: float | None = None,
     ) -> ExecutionRecord:
         usage: dict[str, object] = {
             "characters": characters,
             "first_audio_ms": first_audio_ms,
         }
+        if audio_seconds is not None:
+            usage["audio_seconds"] = audio_seconds
         return ExecutionRecord(
             id=new_id(),
             session_id=context.session_id,

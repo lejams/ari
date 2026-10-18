@@ -1,9 +1,9 @@
-import {ProtocolReview} from './protocol-review.mjs?v=20261014-modules';
-import {BackofficeApi, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LABELS, statusLabel, statusTone} from './api.mjs?v=20261014-modules';
+import {ProtocolReview} from './protocol-review.mjs?v=20261015-costs';
+import {BackofficeApi, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LABELS, statusLabel, statusTone} from './api.mjs?v=20261015-costs';
 
 const client = new BackofficeApi();
 const $ = id => document.getElementById(id);
-const views = ['login', 'invitation', 'dashboard', 'documents', 'document', 'review', 'protocol', 'gold', 'gold-detail', 'registry', 'scenario', 'accounts'];
+const views = ['login', 'invitation', 'dashboard', 'documents', 'document', 'review', 'protocol', 'gold', 'gold-detail', 'registry', 'scenario', 'costs', 'accounts'];
 let lands = [], busy = false, queuedRoute = false;
 let current = {documentId: null, goldId: null, scenario: null};
 let documentPollTimer = null, documentRequestVersion = 0;
@@ -281,6 +281,26 @@ $('review-form').onsubmit = event => { event.preventDefault(); perform(async () 
   $('review-notes').value = ''; notice('Revue enregistrée.');
   await showScenario(id, version);
 }); };
+// ----- costs ---------------------------------------------------------------------------------------
+const euros = micro => (micro / 1_000_000).toLocaleString('fr-FR', {style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4});
+const UNKNOWN_LABELS = {not_computed: 'appels antérieurs à la grille', pricing: 'grille tarifaire absente', 'usage.tokens': 'jetons non rapportés', 'usage.audio_seconds': 'durée audio non rapportée', 'usage.characters': 'caractères non rapportés'};
+const unknownLabel = reason => UNKNOWN_LABELS[reason] || (reason.startsWith('price:') ? `prix manquant pour ${reason.slice(6)}` : `prix manquant (${reason})`);
+const costCell = group => group.unknown_calls ? `${euros(group.known_micro_eur)} + ${group.unknown_calls} inconnu(s)` : euros(group.known_micro_eur);
+async function showCosts() {
+  const data = await client.costs($('costs-period').value), learners = data.learners, content = data.content;
+  const tiles = [['Coût apprenants', euros(learners.total.known_micro_eur)], ['Appels apprenants', learners.total.calls], ['Coût pipeline de contenu', euros(content.total.known_micro_eur)], ['Appels au coût inconnu', learners.total.unknown_calls + content.total.unknown_calls]];
+  $('costs-tiles').replaceChildren(...tiles.map(([label, value]) => { const tile = node('div', undefined, 'tile'); tile.append(node('strong', String(value)), node('span', label)); return tile; }));
+  const reasons = Object.entries(learners.unknown_reasons).concat(Object.entries(content.unknown_reasons));
+  $('costs-unknown').textContent = reasons.length ? `Coûts inconnus : ${reasons.map(([reason, count]) => `${unknownLabel(reason)} (${count})`).join(' · ')}.` : '';
+  $('costs-unknown').hidden = !reasons.length;
+  table($('costs-learners'), ['Apprenant', 'Appels', 'Coût'], learners.by_learner.map(g => [g.email || g.learner_id || 'non attribué', String(g.calls), costCell(g)]));
+  table($('costs-operations'), ['Opération', 'Modèle', 'Appels', 'Coût'], learners.by_operation.map(g => [g.operation, g.model, String(g.calls), costCell(g)]));
+  table($('costs-sessions'), ['Dernier appel', 'Session', 'Cas', 'Mode', 'Appels', 'Coût'], learners.recent_sessions.map(g => [formatDate(g.last_call_at), g.session_id.slice(0, 8), g.case_id, ({training: 'Entraînement', exam: 'Examen'})[g.learning_mode] || '—', String(g.calls), costCell(g)]));
+  table($('costs-by-day'), ['Jour', 'Appels', 'Coût'], learners.by_day.map(g => [new Date(g.day).toLocaleDateString('fr-FR'), String(g.calls), costCell(g)]));
+  table($('costs-content'), ['Opération', 'Modèle', 'Appels', 'Coût'], content.by_operation.map(g => [g.operation, g.model, String(g.calls), costCell(g)]));
+  view('costs');
+}
+$('costs-period').onchange = () => perform(showCosts);
 async function showAccounts() {
   const data = await client.accounts();
   table($('accounts-table'), ['Nom', 'E-mail', 'Rôles', 'État', ''], data.items.map(account => {
@@ -316,7 +336,7 @@ async function route() {
   if (document_) return showDocument(document_[1]);
   if (gold) return showGoldDetail(gold[1]);
   if (scenario) return showScenario(scenario[1], scenario[2]);
-  const routes = {'/': showDashboard, '/documents': showDocuments, '/review': showReview, '/gold': showGold, '/registry': showRegistry, '/accounts': showAccounts, '/login': showDashboard};
+  const routes = {'/': showDashboard, '/documents': showDocuments, '/review': showReview, '/gold': showGold, '/registry': showRegistry, '/costs': showCosts, '/accounts': showAccounts, '/login': showDashboard};
   return (routes[path] || showDashboard)();
 }
 for (const element of document.querySelectorAll('[data-route]')) element.onclick = () => { location.hash = `#${element.dataset.route}`; };
