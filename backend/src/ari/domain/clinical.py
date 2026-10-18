@@ -72,8 +72,6 @@ class RawCaseSource(ClinicalModel):
     def validate_source(self) -> Self:
         if self.imported_at.tzinfo is None:
             raise ValueError("La date d'import doit avoir un fuseau horaire")
-        if self.rights == "compatible" and not self.rights_evidence:
-            raise ValueError("Les droits compatibles exigent une justification explicite")
         if self.source_type == "work_export" and self.original_verified:
             raise ValueError("Un export Work ne prouve pas la vérification du PDF")
         if self.source_type == "synthetic" and not self.synthetic:

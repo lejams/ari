@@ -57,7 +57,7 @@
           <div><label for="upload-specialty">Spécialité</label><input id="upload-specialty" maxlength="200"></div>
           <div><label for="upload-rights">Droits d'usage</label><select id="upload-rights"><option value="unknown">Inconnus (bloque la publication)</option><option value="compatible">Compatibles avec l'usage prévu</option><option value="incompatible">Incompatibles</option></select></div>
         </div>
-        <label for="upload-rights-evidence">Preuve des droits (accord écrit, licence…)</label><input id="upload-rights-evidence" maxlength="2000">
+        <label for="upload-rights-evidence">Preuve des droits (facultatif)</label><input id="upload-rights-evidence" maxlength="2000" aria-describedby="upload-rights-evidence-help"><p id="upload-rights-evidence-help" class="help">Vous pouvez indiquer un accord écrit, une licence ou une autre justification de l’usage prévu.</p>
         <label for="upload-provenance">Provenance : qui a fourni le fichier, quand, dans quel cadre</label><textarea id="upload-provenance" rows="2" maxlength="2000" required></textarea>
         <label for="upload-consent">Consentement : ce que la personne a accepté</label><textarea id="upload-consent" rows="2" maxlength="2000" required></textarea>
         <div class="form-actions"><button class="primary">Déposer et lancer l'extraction</button></div>

@@ -244,7 +244,7 @@ def documents_router(services: Backoffice) -> APIRouter:
             intended_use=intended_use,
             consent_declaration=consent_declaration,
             rights=rights,  # type: ignore[arg-type]
-            rights_evidence=rights_evidence or None,
+            rights_evidence=(rights_evidence or "").strip() or None,
             land=_land(land),
             city=(city or "").strip() or None,
             exam_body=(exam_body or "").strip() or None,

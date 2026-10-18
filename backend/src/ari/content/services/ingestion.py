@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from hashlib import sha256
 from pathlib import PurePath
 
@@ -46,6 +46,8 @@ class DocumentIngestion:
         actor: Actor,
         via: UploadedVia,
     ) -> IngestResult:
+        evidence = declaration.rights_evidence.strip() if declaration.rights_evidence else None
+        declaration = replace(declaration, rights_evidence=evidence or None)
         if not data.startswith(b"%PDF"):
             raise InvalidStateError("Le fichier n'est pas un PDF")
         if len(data) > self._max_bytes:
