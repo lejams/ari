@@ -55,6 +55,32 @@ def declaration(**overrides: object) -> DocumentDeclaration:
     return replace(base, **overrides)  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("evidence", [None, "", " \t\n "])
+def test_compatible_rights_allow_optional_evidence_at_ingestion(
+    content_container: ContentContainer, evidence: str | None
+) -> None:
+    result = content_container.ingestion.ingest(
+        b"%PDF-1.4" + str(evidence).encode(),
+        "protocol.pdf",
+        declaration(rights_evidence=evidence),
+        actor=OPERATOR,
+        via="cli",
+    )
+    assert result.document.declaration.rights_evidence is None
+    assert len(content_container.queue.list()) == 1
+
+
+def test_ingestion_trims_optional_rights_evidence(content_container: ContentContainer) -> None:
+    result = content_container.ingestion.ingest(
+        b"%PDF-1.4",
+        "protocol.pdf",
+        declaration(rights_evidence="  Document authored by the uploader  "),
+        actor=OPERATOR,
+        via="cli",
+    )
+    assert result.document.declaration.rights_evidence == "Document authored by the uploader"
+
+
 def drain(container: ContentContainer) -> int:
     async def loop() -> int:
         processed = 0
