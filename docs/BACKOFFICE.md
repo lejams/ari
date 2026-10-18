@@ -22,10 +22,11 @@ Désactiver un compte révoque ses sessions.
 ## Parcours
 
 1. **Documents** (propriétaire). Déposer le PDF avec sa déclaration : Land, ville, Ärztekammer,
-   mois, spécialité si connus ; droits (`compatible` avec preuve, sinon la publication restera
-   bloquée) ; provenance et consentement en clair. Le traitement démarre en arrière-plan ; la
-   page du document montre les tâches, les segments trouvés et leur protocole. Un protocole
-   manqué se déclare à la main (première et dernière pages, premiers mots copiés exactement).
+   mois, spécialité si connus ; droits (`compatible` pour autoriser la publication), justification
+   facultative ; provenance et consentement en clair. La génération depuis un protocole gold ne
+   requiert pas de preuve des droits. Le traitement démarre en arrière-plan ; la page du document
+   montre les tâches, les segments trouvés et leur protocole. Un protocole manqué se déclare à la
+   main (première et dernière pages, premiers mots copiés exactement).
 2. **Envoyer en relecture** (propriétaire), par document ou par protocole.
 3. **Relecture** (médecin). La page d'un protocole met la page source à gauche (image, ou texte)
    et l'enregistrement structuré à droite : localisation, patient, anamnèse par section FSP,
