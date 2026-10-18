@@ -71,7 +71,7 @@ les enregistrements qu'il fournit. Sans eux, les liens finissent en spam ou sont
 - Hash basic auth apprenant : `docker run --rm caddy:2.10-alpine caddy hash-password --plaintext '<mot de passe>'`.
   Le coller entre quotes simples dans `.env` (le hash contient des `$`).
 - Clé du projet OpenAI, avec un **plafond de dépense mensuel dur** défini dans le tableau de bord
-  OpenAI. C'est la limite de coût de l'alpha (B01) ; il n'y a pas encore de quota par utilisateur.
+  OpenAI. C'est la limite de coût globale (B01). Par apprenant, ARI applique des limites structurelles (voir « Limites d'usage » ci-dessous) et aucun plafond en euros fixé à l'avance.
 - Relais SMTP transactionnel pour les e-mails des comptes (Brevo, Scaleway Transactional Email,
   Postmark, Amazon SES...). Accepter le contrat de sous-traitance (DPA) du fournisseur : il traite
   les adresses des apprenants. Dans `.env` :
@@ -238,6 +238,21 @@ L'échec ne met pas à jour
 Après succès, il affiche l'image/SHA précédents. Une bascule exige de relancer explicitement la
 commande avec l'ancien digest et SHA après avoir évalué la compatibilité des migrations; les données
 ne reviennent jamais automatiquement en arrière.
+
+## Limites d'usage
+
+Réglées dans `.env` (valeurs par défaut entre parenthèses). Aucune ne rationne un apprenant par le
+coût ; la baisse du coût passe par le routage de modèles, le cache et la pré-génération.
+
+| Variable | Effet |
+|---|---|
+| `ARI_EXAM_SESSIONS_PER_MONTH` (2) | Sessions d'examen incluses par mois civil (UTC). Seul le début de l'appel compte. Refus 402 avec la date de renouvellement ; l'entraînement n'est jamais limité par ce quota |
+| `ARI_SESSION_GRACE_MINUTES` (5) | Un examen se termine à la durée du scénario plus cette marge, comme l'épreuve réelle. L'entraînement n'a pas de durée maximale. Le navigateur demande alors l'analyse comme si l'apprenant terminait |
+| `ARI_VOICE_IDLE_TIMEOUT_SECONDS` (300) | Une connexion vocale sans aucune activité est fermée : un micro ouvert est facturé en continu et un onglet oublié bloquerait la session suivante |
+| `ARI_LEARNER_COST_CEILING_EUR` (vide, désactivé) | Coupe-circuit d'abus optionnel : refus 429 de toute nouvelle activité (session, test de niveau) quand le coût enregistré du mois atteint ce montant. Les appels au coût inconnu ne comptent pas. À ne définir qu'après avoir observé la page Coûts du back-office |
+
+Un apprenant n'a qu'une connexion vocale à la fois (409). La page Coûts du back-office affiche l'écart
+de chaque apprenant à la médiane des apprenants actifs, sans seuil.
 
 ## 11. Fenêtre de déploiement
 

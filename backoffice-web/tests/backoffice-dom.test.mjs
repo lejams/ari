@@ -126,7 +126,7 @@ const responses = {
     by_day: [{day: "2026-10-15", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
     by_operation: [{operation: "session_evaluation", model: "gpt-6-luna", calls: 2, known_micro_eur: 528000, unknown_calls: 0}, {operation: "text_to_speech", model: "gpt-4o-mini-tts", calls: 1, known_micro_eur: 0, unknown_calls: 1}],
     unknown_reasons: {"usage.audio_seconds": 1},
-    by_learner: [{learner_id: "learner-1", email: "l@example.org", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
+    by_learner: [{learner_id: "learner-1", email: "l@example.org", calls: 3, known_micro_eur: 528000, unknown_calls: 1, ratio_to_median: 1.0}], median_learner_micro_eur: 528000,
     by_kind: [{kind: "session", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
     recent_sessions: [{session_id: "session-1-abcdef", learner_id: "learner-1", case_id: "FSP-BY-P-cccccccc-000", learning_mode: "exam", last_call_at: "2026-10-15T10:00:00Z", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
   }, content: {total: {calls: 0, known_micro_eur: 0, unknown_calls: 0}, by_day: [], by_operation: [], unknown_reasons: {}}},
