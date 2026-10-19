@@ -52,23 +52,42 @@ def _mask(match: str) -> str:
     return match[:2] + "…" * min(3, max(1, len(match) - 2))
 
 
-def scan(value: Any, path: str = "") -> tuple[PiiFinding, ...]:
+_FOLLOWED_BY_NAME = re.compile(r"\s+[A-ZÄÖÜ]")
+
+
+def _is_generic_address(text: str, hit: re.Match[str], generic: frozenset[str]) -> bool:
+    """A form of address such as "Herr Doktor": a title, not a name, unless a name follows."""
+    last_word = hit.group(0).split()[-1].lower()
+    return last_word in generic and _FOLLOWED_BY_NAME.match(text, hit.end()) is None
+
+
+def scan(
+    value: Any, path: str = "", *, generic_titles: frozenset[str] = frozenset()
+) -> tuple[PiiFinding, ...]:
+    """Findings in a nested value.
+
+    `generic_titles` (lower case) lists words that make a "person" hit a plain form of address
+    when no name follows ("Herr Doktor"); by default nothing is excused, as for protocols.
+    """
     if isinstance(value, str):
         return tuple(
             PiiFinding(kind=kind, path=path or "$", excerpt=_mask(hit.group(0)))
             for kind, pattern in PATTERNS
             for hit in pattern.finditer(value)
+            if not (kind == "person" and _is_generic_address(value, hit, generic_titles))
         )
     if isinstance(value, dict):
         return tuple(
             finding
             for key, item in value.items()
-            for finding in scan(item, f"{path}.{key}" if path else str(key))
+            for finding in scan(
+                item, f"{path}.{key}" if path else str(key), generic_titles=generic_titles
+            )
         )
     if isinstance(value, list | tuple):
         return tuple(
             finding
             for index, item in enumerate(value)
-            for finding in scan(item, f"{path}[{index}]")
+            for finding in scan(item, f"{path}[{index}]", generic_titles=generic_titles)
         )
     return ()

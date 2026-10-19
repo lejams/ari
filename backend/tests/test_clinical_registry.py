@@ -158,8 +158,8 @@ def test_publication_concurrency_and_historical_session(container: Container) ->
     next_bundle = synthetic_bundle("2")
     store.import_bundle(next_bundle)
     assert len(store.inspect("synthetic-scenario", "2")["blockers"]) == 2
+    # Publishing revision 2 replaces revision 1: no manual withdrawal is needed.
     approve(store, next_bundle)
-    store.withdraw("synthetic-scenario", "1", actor="TEST")
     with pytest.raises(InvalidStateError, match="withdrawn"):
         container.orchestrator.create_session(learner.id, "SYNTHETIC-TEST", "1")
     restored = container.orchestrator.activate(session.id)
@@ -170,6 +170,38 @@ def test_publication_concurrency_and_historical_session(container: Container) ->
     )
     with Session(store.engine) as db:
         assert len(db.scalars(select(PublicationEventRow)).all()) == 3
+
+
+def test_a_new_revision_replaces_the_published_ones_of_its_lineage(container: Container) -> None:
+    """The generator bumps the case version on every revision: matching on it left both live."""
+    store = container.cases.store
+    first, second, third = synthetic_bundle("1"), synthetic_bundle("2"), synthetic_bundle("3")
+    for bundle in (first, second, third):
+        store.import_bundle(bundle)
+    approve(store, first)
+
+    def published() -> list[str]:
+        return [c.version for c in container.cases.list() if c.id == "SYNTHETIC-TEST"]
+
+    assert published() == ["1"]
+    approve(store, second)
+    assert published() == ["2"]
+    # A session started on revision 1 before it was replaced still reads it, pinned.
+    assert container.cases.get("SYNTHETIC-TEST", "1").available_for_new_sessions is False
+    # An unreviewed draft never replaces anything: it is not published.
+    assert published() == ["2"]
+    approve(store, third)
+    assert published() == ["3"]
+
+    with Session(store.engine) as db:
+        events = db.scalars(
+            select(PublicationEventRow).order_by(PublicationEventRow.payload["at"].astext)
+        ).all()
+    superseded = [e for e in events if e.payload["action"] == "superseded"]
+    assert [(e.scenario_version, e.payload["superseded_by"]["version"]) for e in superseded] == [
+        ("1", "2"),
+        ("2", "3"),
+    ]
 
 
 def test_weighted_delivery_and_behavior_evidence(container: Container) -> None:
