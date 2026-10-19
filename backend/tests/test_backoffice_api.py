@@ -175,6 +175,13 @@ def test_upload_review_and_gold_through_the_api(backoffice: Backoffice, tmp_path
             ).status_code
             == 400
         )
+        optional_evidence = owner.post(
+            "/api/documents",
+            data={**form, "rights_evidence": " \t "},
+            files={"file": ("optional-evidence.pdf", pdf.read_bytes(), "application/pdf")},
+        )
+        assert optional_evidence.status_code == 200
+        assert optional_evidence.json()["duplicate"] is True
 
         drain(backoffice)
         detail = owner.get(f"/api/documents/{document_id}").json()
