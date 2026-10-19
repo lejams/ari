@@ -100,7 +100,7 @@ Hypothèses :
 
 | Dépendance | Rôle | Remarque |
 |---|---|---|
-| OpenAI | LLM, TTS, temps réel | Plafond mensuel fixé dans le tableau de bord. Pas de quota par utilisateur dans ARI (action 2) |
+| OpenAI | LLM, TTS, temps réel | Plafond mensuel fixé dans le tableau de bord. Par apprenant : limites structurelles seulement, pas de plafond en euros (action 2) |
 | Groq | STT | Point de terminaison compatible OpenAI |
 | ElevenLabs | TTS cible (action 3) | Pas encore intégré. Modèles retenus : `eleven_v4_turbo` (streaming examen) et `eleven_v4` (pré-génération) |
 | Serveur SMTP | E-mails de compte | `ARI_EMAIL_MODE=log` en développement |

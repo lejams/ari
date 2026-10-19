@@ -288,11 +288,14 @@ class ClinicalStore:
             blockers = self._blockers(db, row, bundle)
             if blockers:
                 raise InvalidStateError("Publication refusée: " + "; ".join(blockers))
+            # A new revision replaces the published ones of the same lineage, whatever their
+            # case version: the generator bumps it on every revision, so matching on it would
+            # leave the old revision published next to the new one. Sessions already started on
+            # a withdrawn scenario keep working, they are pinned to its exact version.
             previous = db.scalars(
                 select(ScenarioRow)
                 .where(
                     ScenarioRow.case_id == row.case_id,
-                    ScenarioRow.case_version == row.case_version,
                     ScenarioRow.phase == row.phase,
                     ScenarioRow.status == "published",
                 )
@@ -300,7 +303,13 @@ class ClinicalStore:
             ).all()
             for prior in previous:
                 prior.status = "withdrawn"
-                self._audit(db, prior, "superseded", actor)
+                self._audit(
+                    db,
+                    prior,
+                    "superseded",
+                    actor,
+                    superseded_by={"id": row.id, "version": row.version},
+                )
             db.flush()
             row.status = "published"
             self._audit(db, row, "publish", actor)
@@ -316,7 +325,7 @@ class ClinicalStore:
             self._audit(db, row, "withdraw", actor)
 
     @staticmethod
-    def _audit(db: Session, row: ScenarioRow, action: str, actor: str) -> None:
+    def _audit(db: Session, row: ScenarioRow, action: str, actor: str, **details: object) -> None:
         db.add(
             PublicationEventRow(
                 id=new_id(),
@@ -328,6 +337,7 @@ class ClinicalStore:
                     "at": utc_now().isoformat(),
                     "case_hash": row.case_hash,
                     "scenario_hash": row.content_hash,
+                    **details,
                 },
             )
         )

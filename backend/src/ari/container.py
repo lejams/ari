@@ -18,6 +18,7 @@ from ari.application.services.patient import PatientSimulator
 from ari.application.services.placement import PlacementService
 from ari.application.services.practice import PracticeService
 from ari.application.services.realtime_patient import FactAttributor
+from ari.application.services.usage_guard import UsageGuard
 from ari.application.voice_stacks import VoiceStack
 from ari.config import Settings
 from ari.domain.errors import InvalidStateError
@@ -31,6 +32,7 @@ from ari.infrastructure.persistence.platform.lexicon import SqlLexiconRepository
 from ari.infrastructure.persistence.platform.placement import SqlPlacementRepository
 from ari.infrastructure.persistence.platform.practice import SqlPracticeRepository
 from ari.infrastructure.persistence.platform.repository import SqlSessionRepository
+from ari.infrastructure.persistence.platform.usage import SqlUsageLedger
 from ari.infrastructure.pricing import load_pricing
 from ari.infrastructure.providers.email import LogEmailSender, SmtpEmailSender
 from ari.infrastructure.providers.fake import (
@@ -64,6 +66,7 @@ class Container:
     placement: PlacementService
     email: EmailSender
     auth: LearnerAuth
+    usage_guard: UsageGuard
 
     def resolve_voice_stack(self, session: ConversationSession) -> VoiceStack:
         """The exact stack a session was created with, or an error: never a silent swap."""
@@ -269,4 +272,9 @@ def build_container(settings: Settings) -> Container:
         placement=placement,
         email=email,
         auth=auth,
+        usage_guard=UsageGuard(
+            SqlUsageLedger(repository.engine),
+            exam_sessions_per_month=settings.exam_sessions_per_month,
+            cost_ceiling_eur=settings.learner_cost_ceiling_eur,
+        ),
     )

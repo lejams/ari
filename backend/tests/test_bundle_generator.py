@@ -147,6 +147,58 @@ def test_assembly_refuses_unknown_missing_or_personal_content() -> None:
     assert any("Coordonnées personnelles" in error for error in personal.value.errors)
 
 
+def test_assembly_refuses_identifying_details_the_model_wrote() -> None:
+    gold = synthetic_gold()
+    skeleton = build_skeleton(gold, ALL_PHASES)
+    clean = fake_output(gold, ALL_PHASES)
+    assemble(skeleton, gold, document(), ALL_PHASES, clean)  # the deterministic fake is clean
+    cases = {
+        "person": "Mein Hausarzt Dr. med. Weber hat mir das verschrieben.",
+        "exact_date": "Es begann am 14.03.2026 abends.",
+        "address": "Ich wohne in der Lindenstraße 12.",
+        "postcode_city": "Ich komme aus 80331 München.",
+        "institution": "Ich war im Klinikum Großhadern.",
+    }
+    for kind, sentence in cases.items():
+        dirty = clean.model_dump()
+        dirty["facts"][0]["patient_phrases_de"] = [sentence]
+        with pytest.raises(BundleDraftInvalid) as refused:
+            assemble(
+                skeleton, gold, document(), ALL_PHASES, BundleDraftOutput.model_validate(dirty)
+            )
+        [error] = [e for e in refused.value.errors if "Détail identifiant" in e]
+        assert f"({kind})" in error and "facts[0].patient_phrases_de[0]" in error
+        # The excerpt is masked: the finding never carries what it found.
+        assert sentence not in error and "Weber" not in error
+    # A form of address is a title, not a name; a name after the title is one.
+    for sentence, flagged in (
+        ("Guten Tag, Herr Doktor. Ich habe Schmerzen.", False),
+        ("Danke, Frau Doktor, das hilft mir.", False),
+        ("Guten Tag, Herr Doktor Weber.", True),
+        ("Mein Nachbar Herr Schmidt hat mich gebracht.", True),
+    ):
+        greeting = clean.model_dump()
+        greeting["opening_de"] = sentence
+        if flagged:
+            with pytest.raises(BundleDraftInvalid):
+                assemble(
+                    skeleton,
+                    gold,
+                    document(),
+                    ALL_PHASES,
+                    BundleDraftOutput.model_validate(greeting),
+                )
+        else:
+            assemble(
+                skeleton, gold, document(), ALL_PHASES, BundleDraftOutput.model_validate(greeting)
+            )
+    title = clean.model_dump()
+    title["title_de"] = "Fall von Herr Becker"
+    with pytest.raises(BundleDraftInvalid) as in_title:
+        assemble(skeleton, gold, document(), ALL_PHASES, BundleDraftOutput.model_validate(title))
+    assert any("title_de" in error for error in in_title.value.errors)
+
+
 def test_worker_stores_drafts_and_invalid_outputs_with_their_reasons(
     content_container: ContentContainer, tmp_path: Path
 ) -> None:
@@ -227,4 +279,31 @@ def test_worker_stores_drafts_and_invalid_outputs_with_their_reasons(
     assert newest.status is BundleDraftStatus.INVALID and newest.bundle is None
     assert newest.validation_errors and all(
         "fait sans phrases patient" in error for error in newest.validation_errors
+    )
+
+    # A model that writes a real-looking name also yields an invalid draft: it never reaches
+    # the registry, and its reason names the field without echoing the name.
+    leaky = build_content_container(
+        content_container.settings,
+        llm=FakeLLMProvider(
+            handlers={
+                **FAKE_CONTENT_HANDLERS,
+                BundleDraftOutput: lambda payload: {
+                    **bundle_draft(payload),
+                    "persona_de": "Patient Herr Weber, 54 Jahre",
+                },
+            }
+        ),
+    )
+    leaky_job = leaky.drafting.request(
+        head.id, request.model_copy(update={"revision": 3}), actor=owner
+    )
+    assert drain(leaky) == 1
+    assert leaky.queue.get(leaky_job.id).status is JobStatus.SUCCEEDED
+    with leaky.repository.transaction() as tx:
+        newest = tx.list_bundle_drafts(gold_protocol_id=head.id)[0]
+    leaky.repository.engine.dispose()  # type: ignore[attr-defined]
+    assert newest.status is BundleDraftStatus.INVALID and newest.bundle is None
+    assert newest.validation_errors == (
+        "Détail identifiant dans le texte généré (person) : persona_de « He……… »",
     )

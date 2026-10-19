@@ -47,6 +47,11 @@ Désactiver un compte révoque ses sessions.
    Arzt-Arzt, Fachbegriffe, selon ce que le protocole permet), tempérament du patient simulé,
    niveau de langue, numéro de révision. Le worker produit un brouillon de bundle ; la page
    liste les générations en cours et les brouillons (valides ou invalides avec leurs raisons).
+   Un brouillon dont le texte écrit par le modèle contient un détail identifiant (nom précédé de
+   Herr, Frau ou Dr., date exacte, adresse, code postal et ville, établissement) est refusé comme
+   invalide, avec le champ concerné et un extrait masqué ; une simple formule d'adresse comme
+   « Guten Tag, Herr Doktor » ne compte pas. Les brouillons ne se modifient pas : en cas de faux
+   positif, on régénère avec une nouvelle révision.
    **Importer dans le registre** copie un brouillon valide dans le registre plateforme.
 6. **Registre** : les scénarios importés, par statut. La page d'un scénario montre les blocages
    de publication, les revues, le bundle complet DE/FR, un formulaire de revue (clinique pour

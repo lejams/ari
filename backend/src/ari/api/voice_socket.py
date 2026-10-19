@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import time
 from collections.abc import Coroutine
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
@@ -19,21 +20,53 @@ from ari.api.voice_session_dto import public_turn
 from ari.application.contracts import ExecutionContext, TranscriptionConfig
 from ari.application.schemas import ClientControlMessage
 from ari.container import Container
-from ari.domain.errors import AriError, ProviderError
+from ari.domain.errors import (
+    AriError,
+    ConflictError,
+    ProviderError,
+    QuotaExceededError,
+    UsageCeilingError,
+)
 from ari.domain.models import (
     ConversationSession,
     ConversationTurn,
     ExecutionRecord,
     ExecutionStatus,
+    LearningMode,
     MedicalCase,
     SessionStatus,
     TurnResponseState,
     new_id,
+    utc_now,
 )
 
 PCM_MIME_TYPE = "audio/pcm;rate=24000"
 MAX_TURN_SECONDS = 300
 MIN_TURN_SECONDS = 0.25
+
+# Events that say nothing about the learner being there; every other event resets the idle clock.
+PASSIVE_EVENTS = frozenset({"call.started", "call.ended", "session.time_limit", "voice.error"})
+# WebSocket close codes of the limits, mirroring the HTTP statuses (409, 402, 429).
+CLOSE_CONFLICT, CLOSE_QUOTA, CLOSE_CEILING = 4409, 4402, 4429
+TIME_LIMIT_MESSAGES = {
+    "duration": (
+        "Le temps de l'épreuve est écoulé : la session se termine et son analyse démarre."
+    ),
+    "idle": (
+        "Session fermée après une période sans activité. Votre échange est sauvegardé ; "
+        "vous pouvez reprendre depuis l'historique."
+    ),
+}
+
+
+def close_code_for(exc: Exception) -> int:
+    if isinstance(exc, ConflictError):
+        return CLOSE_CONFLICT
+    if isinstance(exc, QuotaExceededError):
+        return CLOSE_QUOTA
+    if isinstance(exc, UsageCeilingError):
+        return CLOSE_CEILING
+    return 1011
 
 
 def is_websocket_disconnect_runtime(exc: RuntimeError) -> bool:
@@ -52,19 +85,36 @@ class VoiceLifecycles:
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
         self._active: dict[str, VoiceLifecycle] = {}
+        self._by_learner: dict[str, str] = {}
 
-    async def claim(self, session_id: str) -> VoiceLifecycle | None:
+    async def claim(self, session_id: str, learner_id: str) -> VoiceLifecycle | None:
+        """The connection of a session, or None if it already has one.
+
+        A learner has one live voice connection at a time: a second session raises
+        `ConflictError`. "Live" is the in-memory registry, not the session status, because a
+        session stays `active` in the database after its browser tab is gone.
+        """
         async with self._lock:
             if session_id in self._active:
                 return None
+            other = self._by_learner.get(learner_id)
+            if other is not None and other != session_id:
+                raise ConflictError(
+                    "Une autre session vocale est déjà ouverte sur votre compte. "
+                    "Terminez-la ou fermez son onglet avant d'en ouvrir une nouvelle."
+                )
             lifecycle = VoiceLifecycle()
             self._active[session_id] = lifecycle
+            self._by_learner[learner_id] = session_id
             return lifecycle
 
     async def release(self, session_id: str, lifecycle: VoiceLifecycle) -> None:
         async with self._lock:
             if self._active.get(session_id) is lifecycle:
                 self._active.pop(session_id, None)
+                for learner, held in list(self._by_learner.items()):
+                    if held == session_id:
+                        del self._by_learner[learner]
 
     async def request_end(self, session_id: str) -> VoiceLifecycle | None:
         async with self._lock:
@@ -96,6 +146,7 @@ class VoiceSocket:
         self.finalized = asyncio.Event()
         self.audio_buffer = bytearray()
         self.sample_rate = services.settings.audio_sample_rate
+        self.last_activity = time.monotonic()
         # Set in run() once the session and its pinned case are resolved.
         self.lifecycle: VoiceLifecycle
         self.session: ConversationSession
@@ -106,24 +157,34 @@ class VoiceSocket:
         websocket, services, session_id = self.websocket, self.services, self.session_id
         await websocket.accept()
         try:
-            stack = services.resolve_voice_stack(services.repository.get_session(session_id))
+            opened = services.repository.get_session(session_id)
+            stack = services.resolve_voice_stack(opened)
         except AriError as exc:
             await self._refuse("The persisted voice stack is unavailable", str(exc), code=4403)
             return
-        lifecycle = await self.lifecycles.claim(session_id)
+        try:
+            lifecycle = await self.lifecycles.claim(session_id, opened.learner_id)
+        except ConflictError as exc:
+            await self._refuse(str(exc), code=close_code_for(exc))
+            return
         if lifecycle is None:
-            await self._refuse("A voice connection is already active for this session", code=4409)
+            await self._refuse(
+                "A voice connection is already active for this session", code=CLOSE_CONFLICT
+            )
             return
         self.lifecycle = lifecycle
         try:
-            if services.repository.get_session(session_id).status is SessionStatus.CREATED:
+            if opened.status is SessionStatus.CREATED:
+                # The quota counts calls that began: check again here, a learner may have
+                # created several sessions before opening any.
+                services.usage_guard.check_session_start(opened.learner_id, opened.learning_mode)
                 services.orchestrator.activate(session_id)
             self.session = services.repository.get_session(session_id)
             self.case = services.orchestrator._case_for_session(self.session)
             self.transcription_config = TranscriptionConfig.for_case(self.case)
         except Exception as exc:
             with suppress(Exception):
-                await self._refuse(str(exc), code=1011)
+                await self._refuse(str(exc), code=close_code_for(exc))
             lifecycle.drained.set()
             await self.lifecycles.release(session_id, lifecycle)
             return
@@ -137,6 +198,7 @@ class VoiceSocket:
             interaction=self.interaction,
         )
         end_watcher = asyncio.create_task(self._end_on_http_request())
+        limits_watcher = asyncio.create_task(self._enforce_limits())
         try:
             await self._receive_loop()
         except WebSocketDisconnect:
@@ -145,9 +207,10 @@ class VoiceSocket:
             if not self.voice_failed.is_set() and not is_websocket_disconnect_runtime(exc):
                 raise
         finally:
-            end_watcher.cancel()
-            with suppress(asyncio.CancelledError):
-                await end_watcher
+            for watcher in (limits_watcher, end_watcher):
+                watcher.cancel()
+                with suppress(asyncio.CancelledError):
+                    await watcher
             await self._drain()
             await self.lifecycles.release(session_id, lifecycle)
 
@@ -159,6 +222,8 @@ class VoiceSocket:
         await self.websocket.close(code=code)
 
     async def send(self, event_type: str, **data: object) -> bool:
+        if event_type not in PASSIVE_EVENTS:
+            self.last_activity = time.monotonic()
         try:
             async with self.send_lock:
                 await self.websocket.send_json({"type": event_type, "data": data})
@@ -171,6 +236,8 @@ class VoiceSocket:
         while True:
             message = await self.websocket.receive()
             if message.get("bytes") is not None:
+                # Push-to-talk frames only flow while the learner holds the button.
+                self.last_activity = time.monotonic()
                 if not self.audio_buffer:
                     await self.send("user.speech_started")
                 if len(self.audio_buffer) + len(message["bytes"]) <= max_buffer:
@@ -418,6 +485,31 @@ class VoiceSocket:
         finally:
             self.services.repository.mark_session_delivery_unconfirmed(self.session_id)
             self.lifecycle.drained.set()
+
+    def _time_limit_reason(self) -> str | None:
+        """Why the connection must end now, if it must.
+
+        An exam ends at the scenario's duration plus a technical margin, like the real exam;
+        training has no cap. Both modes end after a period without any activity.
+        """
+        settings = self.services.settings
+        if self.session.learning_mode is LearningMode.EXAM and self.session.call_started_at:
+            allowed = (
+                self.case.educational_target.duration_minutes + settings.session_grace_minutes
+            ) * 60
+            if (utc_now() - self.session.call_started_at).total_seconds() >= allowed:
+                return "duration"
+        if time.monotonic() - self.last_activity >= settings.voice_idle_timeout_seconds:
+            return "idle"
+        return None
+
+    async def _enforce_limits(self) -> None:
+        while (reason := self._time_limit_reason()) is None:
+            await asyncio.sleep(1.0)
+        await self.send("session.time_limit", reason=reason, message=TIME_LIMIT_MESSAGES[reason])
+        # The same path as an end requested over HTTP: drain, call.ended, close. The browser
+        # then asks for the analysis exactly as it does when the learner ends the call.
+        self.lifecycle.end_requested.set()
 
     async def _end_on_http_request(self) -> None:
         await self.lifecycle.end_requested.wait()

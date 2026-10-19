@@ -33,10 +33,13 @@ from ari.config import Settings, get_settings
 from ari.container import Container, build_container
 from ari.domain.errors import (
     AriError,
+    ConflictError,
     EmailDeliveryError,
     InvalidStateError,
     NotFoundError,
     ProviderError,
+    QuotaExceededError,
+    UsageCeilingError,
 )
 from ari.domain.geography import Land
 from ari.domain.models import (
@@ -136,6 +139,12 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             status = 502
         elif isinstance(exc, NotFoundError):
             status = 404
+        elif isinstance(exc, ConflictError):
+            status = 409
+        elif isinstance(exc, QuotaExceededError):
+            status = 402
+        elif isinstance(exc, UsageCeilingError):
+            status = 429
         else:
             status = 400
         return JSONResponse(status_code=status, content={"detail": str(exc)})
@@ -228,6 +237,8 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         )
         if selected.validation_status != "published":
             raise InvalidStateError("Aucun scénario vocal approuvé disponible pour ce choix")
+        # After the replay above, so an idempotent retry of an accepted start never fails.
+        services.usage_guard.check_session_start(body.learner_id, body.learning_mode)
         session = services.orchestrator.create_session(
             body.learner_id,
             body.case_id,

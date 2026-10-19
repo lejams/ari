@@ -205,6 +205,9 @@ def test_owner_sees_costs_with_unknown_costs_counted_apart(
     assert learners["total"] == {"calls": 2, "known_micro_eur": luna, "unknown_calls": 1}
     assert learners["unknown_reasons"] == {"price:openai/unpriced-model": 1}
     assert learners["by_learner"][0]["learner_id"] == learner.id
+    # One active learner: they are their own median. A ratio informs, nothing is cut on it.
+    assert learners["by_learner"][0]["ratio_to_median"] == 1.0
+    assert learners["median_learner_micro_eur"] == luna
     assert learners["recent_sessions"][0]["session_id"] == session.id
     assert {row["kind"] for row in learners["by_kind"]} == {"session"}
     assert report["content"]["total"] == {"calls": 1, "known_micro_eur": luna, "unknown_calls": 0}
