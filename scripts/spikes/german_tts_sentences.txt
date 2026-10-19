@@ -1,0 +1,32 @@
+# Phrases de test pour le spike TTS : allemand parlé par un patient simulé (FSP).
+# Une phrase par ligne. Le préfixe "[catégorie]" sert au rapport, il n'est pas prononcé.
+# Contenu entièrement inventé : aucune donnée de patient réel.
+[accueil] Guten Tag, Herr Doktor.
+[accueil] Guten Tag. Ja, ich bin Frau Becker, ich habe einen Termin.
+[court] Ja.
+[court] Nein, das nicht.
+[court] Hm, das weiß ich nicht genau.
+[symptome] Ich habe seit gestern Abend starke Schmerzen in der Brust.
+[symptome] Der Schmerz strahlt in den linken Arm aus, und mir ist dabei schwindelig.
+[symptome] Manchmal bekomme ich schlecht Luft, vor allem wenn ich Treppen steige.
+[symptome] Mir ist seit drei Tagen übel, und ich habe zweimal erbrochen.
+[question] Wie lange dauert die Untersuchung denn?
+[question] Ist das gefährlich, Herr Doktor?
+[question] Kann ich nach der Behandlung sofort wieder arbeiten gehen?
+[chiffres] Gestern hatte ich 38,5 Grad Fieber, heute Morgen noch 37,9.
+[chiffres] Mein Blutdruck war neulich 150 zu 95, und der Puls lag bei 102.
+[chiffres] Ich bin 54 Jahre alt, wiege 82 Kilo und bin 1,76 Meter groß.
+[chiffres] Das hat am 14. März angefangen, also vor ungefähr zwei Wochen.
+[medicaments] Ich nehme jeden Morgen Metoprolol 50 Milligramm und abends Ramipril 5 Milligramm.
+[medicaments] Gegen die Schmerzen nehme ich manchmal Ibuprofen 400, aber das hilft nicht richtig.
+[medicaments] Ich bin allergisch gegen Penicillin, davon bekomme ich einen Ausschlag.
+[fachbegriffe] Mein Hausarzt hat gesagt, ich hätte eine Hypertonie und vielleicht eine Herzinsuffizienz.
+[fachbegriffe] Vor zwei Jahren hatte ich eine Appendektomie, also eine Blinddarmoperation.
+[fachbegriffe] Im Krankenhaus haben sie ein EKG gemacht und mir Blut abgenommen.
+[fachbegriffe] Meine Mutter hatte einen Myokardinfarkt, und mein Vater hat Diabetes mellitus.
+[emotion] Ich habe wirklich große Angst, dass es etwas Ernstes ist.
+[emotion] Entschuldigung, ich bin etwas nervös. Mein Vater ist letztes Jahr plötzlich gestorben.
+[long] Also, es fing eigentlich ganz harmlos an, ein leichtes Ziehen in der Brust beim Spazierengehen, aber in der letzten Nacht wurde es so stark, dass ich nicht mehr schlafen konnte, und deshalb bin ich heute hier.
+[long] Ich rauche seit ungefähr zwanzig Jahren, etwa eine Schachtel am Tag, und Alkohol trinke ich eigentlich nur am Wochenende, ein oder zwei Bier.
+[hors_sujet] Entschuldigung, darüber möchte ich jetzt nicht sprechen.
+[hors_sujet] Das habe ich leider nicht verstanden. Können Sie das bitte anders sagen?
