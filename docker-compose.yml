@@ -91,6 +91,11 @@ services:
       ARI_DATABASE_URL: postgresql+psycopg://ari_platform:${ARI_PLATFORM_DB_PASSWORD:-ari_platform}@postgres:5432/ari_platform
       ARI_FRONTEND_ORIGIN: https://${ARI_DOMAIN:-localhost}
       ARI_SERVICE_PAUSED: "${ARI_SERVICE_PAUSED:-false}"
+      # Structural usage limits. The cost breaker stays off while the variable is empty.
+      ARI_EXAM_SESSIONS_PER_MONTH: "${ARI_EXAM_SESSIONS_PER_MONTH:-2}"
+      ARI_LEARNER_COST_CEILING_EUR: "${ARI_LEARNER_COST_CEILING_EUR:-}"
+      ARI_SESSION_GRACE_MINUTES: "${ARI_SESSION_GRACE_MINUTES:-5}"
+      ARI_VOICE_IDLE_TIMEOUT_SECONDS: "${ARI_VOICE_IDLE_TIMEOUT_SECONDS:-300}"
       # Learner accounts: e-mailed links point at the public domain, sent through SMTP.
       ARI_PUBLIC_URL: https://${ARI_DOMAIN:-localhost}
       ARI_EMAIL_MODE: "${ARI_EMAIL_MODE:-log}"

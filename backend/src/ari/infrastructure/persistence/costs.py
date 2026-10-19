@@ -65,6 +65,15 @@ def _common(db: Session, table: Any, since: datetime) -> dict[str, Any]:
     }
 
 
+def _median(sorted_values: list[int]) -> int:
+    if not sorted_values:
+        return 0
+    middle = len(sorted_values) // 2
+    if len(sorted_values) % 2:
+        return sorted_values[middle]
+    return (sorted_values[middle - 1] + sorted_values[middle]) // 2
+
+
 class CostReport:
     def __init__(self, platform_engine: Engine, content_engine: Engine) -> None:
         self.platform_engine = platform_engine
@@ -113,7 +122,19 @@ class CostReport:
                 .order_by(last_call.desc())
                 .limit(RECENT_SESSIONS)
             ).all()
-        result["by_learner"] = [_group(row, ("learner_id", "email")) for row in by_learner]
+        learners = [_group(row, ("learner_id", "email")) for row in by_learner]
+        # Each learner against the median of the active learners (those with a call in the
+        # window). A ratio, not a threshold: the owner reads it, nothing is cut on it.
+        known = sorted(g["known_micro_eur"] for g in learners if g["learner_id"] is not None)
+        median = _median(known)
+        for group in learners:
+            group["ratio_to_median"] = (
+                round(group["known_micro_eur"] / median, 2)
+                if median and group["learner_id"] is not None
+                else None
+            )
+        result["median_learner_micro_eur"] = median
+        result["by_learner"] = learners
         result["by_kind"] = [_group(row, ("kind",)) for row in by_kind]
         result["recent_sessions"] = [
             {

@@ -2,6 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -46,6 +47,26 @@ class Settings(BaseSettings):
     # Emergency kill switch: when true the learner application refuses to start new sessions,
     # practice runs, placement attempts and voice connections; past work stays readable.
     service_paused: bool = False
+
+    # Usage limits are structural: they never ration a normal learner and no euro budget is
+    # fixed in advance. Cost goes down through model routing, caching and pre-generation,
+    # validated by the evaluation framework, not by cutting sessions.
+    # Exam sessions included in the offer per calendar month (UTC).
+    exam_sessions_per_month: int = Field(default=2, ge=0)
+    # Optional abuse breaker, unset by default: refuses new paid activity once a learner's
+    # recorded cost this month reaches it. Calls with an unknown cost are not counted.
+    learner_cost_ceiling_eur: float | None = Field(default=None, gt=0)
+    # An exam ends at the scenario's duration plus this technical margin; training has no cap.
+    session_grace_minutes: int = Field(default=5, ge=0)
+    # A voice connection with no activity is closed: an open microphone is billed continuously
+    # and a forgotten tab would block the learner's next session.
+    voice_idle_timeout_seconds: int = Field(default=300, ge=10)
+
+    @field_validator("learner_cost_ceiling_eur", mode="before")
+    @classmethod
+    def empty_ceiling_means_off(cls, value: object) -> object:
+        """Compose passes an unset variable as an empty string."""
+        return None if isinstance(value, str) and not value.strip() else value
 
     # Learner accounts. `public_url` is the learner domain as visitors type it: links sent by
     # e-mail point there, never at whatever Host header a request carried.

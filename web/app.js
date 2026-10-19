@@ -555,6 +555,12 @@ function handleEvent(event) {
     state.failedTtsTurnId = null;
     $("retry-audio").classList.add("hidden");
   }
+  if (event.type === "session.time_limit") {
+    // The server ended the connection (exam time over, or no activity). Finish as if the
+    // learner had pressed "end": the same call asks for the analysis.
+    setStatus(data.message || "Session terminée", true);
+    endCall();
+  }
   if (event.type === "call.ended" && state.ending) setStatus("Analyse en cours…", true);
   if (event.type === "voice.error") {
     console.error(data);

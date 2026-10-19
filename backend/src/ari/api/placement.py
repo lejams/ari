@@ -48,6 +48,7 @@ def placement_router(services: Container) -> APIRouter:
 
     @router.post("/api/placement/attempts", status_code=201)
     def start(body: StartPlacement, request: Request) -> dict[str, Any]:
+        services.usage_guard.check_new_activity(request.state.learner_id)
         return placement.start(request.state.learner_id, body.request_id)
 
     @router.get("/api/placement/attempts/{attempt_id}")
