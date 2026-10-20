@@ -31,8 +31,6 @@ ARI_Freiburg_cases_draft.xlsx
 
 # Local project guide, not versioned
 docs/GUIDE_DU_PROJET.md
-/CLAUDE.md
-/ARI_plan_claude_code.md
 
 # Deployment state and immutable bundles kept beside the server's existing .env.
 /.deploy.lock
