@@ -103,3 +103,34 @@ forbidden_modules = [
   "uvicorn",
   "yaml",
 ]
+
+[[tool.importlinter.contracts]]
+name = "The learning core imports nothing from ARI and no third-party library"
+type = "forbidden"
+source_modules = ["ari.learning"]
+forbidden_modules = [
+  "ari.api",
+  "ari.application",
+  "ari.backoffice",
+  "ari.backoffice_api",
+  "ari.config",
+  "ari.container",
+  "ari.content",
+  "ari.demo",
+  "ari.domain",
+  "ari.infrastructure",
+  "ari.main",
+  "ari.worker",
+  "alembic",
+  "fastapi",
+  "httpx",
+  "openai",
+  "psycopg",
+  "pydantic",
+  "pydantic_settings",
+  "sqlalchemy",
+  "starlette",
+  "uvicorn",
+  "websockets",
+  "yaml",
+]
