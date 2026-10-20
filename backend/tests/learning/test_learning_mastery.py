@@ -96,6 +96,22 @@ def test_a_recent_failure_on_a_critical_skill_blocks_mastery_for_fourteen_days()
     assert estimate(EXAM_RULES, history, days=15.5, params=loose).status == "mastered"
 
 
+def test_a_critical_failure_blocks_mastery_even_past_the_attempt_cap() -> None:
+    history = successes(9, skill="exam_rules")
+    capped = [
+        *[obs("exam_rules", item=f"c{n}", attempt="full", days=9.0) for n in range(3)],
+        obs("exam_rules", kind="failure", item="slip", attempt="full", days=9.5),
+    ]
+    assert estimate(EXAM_RULES, history, days=10.0).status == "mastered"
+    assert estimate(EXAM_RULES, [*history, *capped], days=10.0).status not in {
+        "mastered",
+        "recheck",
+    }
+    # Evidence of reliability 0 is no evidence: it neither counts nor blocks.
+    worthless = obs("exam_rules", kind="failure", item="z", attempt="z", days=9.5, reliability=0.0)
+    assert estimate(EXAM_RULES, [*history, worthless], days=10.0).status == "mastered"
+
+
 def test_required_omissions_count_as_failures_on_a_critical_skill() -> None:
     loose = MasteryParams(attempt_weight_cap=30.0)
     history = [
@@ -120,12 +136,66 @@ def test_evidence_loses_half_its_weight_every_half_life() -> None:
     assert later.last_observed_at == at_last.last_observed_at
 
 
-def test_a_mastered_skill_is_due_for_a_recheck_after_one_half_life_without_evidence() -> None:
+def test_a_mastered_skill_fades_into_a_recheck_never_into_developing() -> None:
     history = successes(9)
-    assert estimate(FRACTIONS, history, days=44.0).status == "mastered"
+    assert estimate(FRACTIONS, history).status == "mastered"
+    for days in (1.0, 5.0, 20.0, 44.0, 46.0, 200.0):
+        later = estimate(FRACTIONS, history, days=days)
+        assert later.status in {"mastered", "recheck"}
+        # The status never contradicts the numbers next to it.
+        assert later.status != "mastered" or later.lower >= 0.75
     stale = estimate(FRACTIONS, history, days=46.0)
-    # The numbers have faded honestly; the status says what to do about it.
     assert stale.status == "recheck" and stale.lower < 0.75
+
+
+def test_after_one_half_life_without_evidence_even_strong_mastery_is_due_for_a_recheck() -> None:
+    loose = MasteryParams(attempt_weight_cap=30.0)
+    history = successes(60, attempts=20)
+    assert estimate(FRACTIONS, history, days=44.0, params=loose).status == "mastered"
+    stale = estimate(FRACTIONS, history, days=46.0, params=loose)
+    assert stale.lower >= 0.75 and stale.status == "recheck"
+
+
+def test_a_new_complete_success_never_takes_mastery_away() -> None:
+    history = successes(8)
+    for days in (5.0, 10.0, 20.0, 31.0, 45.0):
+        before = estimate(FRACTIONS, history, days=days)
+        fresh = obs("fractions", item="fresh", attempt="fresh", days=days, id="zzz")
+        after = estimate(FRACTIONS, [*history, fresh], days=days)
+        assert before.status in {"mastered", "recheck"}
+        assert after.status == "mastered" or (before.status, after.status) == ("recheck", "recheck")
+
+
+def test_a_partial_success_can_turn_mastery_into_a_recheck_but_no_lower() -> None:
+    # A success scored 0.6 is not proof of mastery at 0.75: the status may fall to a recheck,
+    # never further, since the skill has lost nothing but certainty.
+    history = successes(8)
+    assert estimate(FRACTIONS, history, days=2.0).status == "mastered"
+    for outcome, expected in ((1.0, "mastered"), (0.6, "recheck")):
+        partial = obs("fractions", outcome=outcome, item="p", attempt="p", days=2.0)
+        assert estimate(FRACTIONS, [*history, partial], days=2.0).status == expected
+
+
+@pytest.mark.parametrize("kind", ["assisted", "stt_suspect"])
+def test_a_miss_of_any_kind_after_mastery_is_not_a_recheck(kind: str) -> None:
+    # Missing even with help, or a miss that may be mistranscribed, is still a loss, not time.
+    misses = [
+        obs("fractions", kind=kind, outcome=0.0, item=f"m{n}", attempt=f"m{n}", days=10.0)  # type: ignore[arg-type]
+        for n in range(20)
+    ]
+    result = estimate(FRACTIONS, [*successes(8), *misses], days=11.0)
+    assert result.mean < 0.5 and result.status not in {"mastered", "recheck"}
+
+
+def test_a_failure_after_mastery_is_not_a_recheck_it_is_read_on_the_numbers() -> None:
+    history = [
+        *successes(8),
+        *[
+            obs("fractions", kind="failure", item=f"f{n}", attempt=f"f{n}", days=1.0)
+            for n in range(6)
+        ],
+    ]
+    assert estimate(FRACTIONS, history, days=2.0).status not in {"mastered", "recheck"}
 
 
 def test_a_skill_that_was_never_mastered_does_not_become_a_recheck() -> None:
@@ -169,6 +239,27 @@ def test_seeing_the_same_item_again_counts_half_and_is_one_item() -> None:
     assert twice.effective_n == pytest.approx(1.5) and twice.distinct_items == 1
 
 
+def test_the_repeat_damping_fades_as_the_earlier_sighting_is_forgotten() -> None:
+    # The next day, a repeated item still counts about half.
+    next_day = estimate(
+        FRACTIONS,
+        [
+            obs("fractions", item="x", attempt="a1"),
+            obs("fractions", item="x", attempt="a2", days=1.0),
+        ],
+        days=1.0,
+    )
+    remembered = 0.5 ** (1 / 45)
+    assert next_day.effective_n == pytest.approx(remembered + 1 - 0.5 * remembered)
+    # Months later it is a genuine review: having done the items before never counts against.
+    recent = [obs("fractions", item=f"i{n}", attempt=f"r{n}", days=100.0) for n in range(9)]
+    early = [obs("fractions", item=f"i{n}", attempt=f"e{n}") for n in range(9)]
+    alone = estimate(FRACTIONS, recent, days=100.0)
+    reviewed = estimate(FRACTIONS, [*early, *recent], days=100.0)
+    assert alone.status == reviewed.status == "mastered"
+    assert reviewed.mean >= alone.mean and reviewed.effective_n >= alone.effective_n
+
+
 def test_one_attempt_cannot_add_more_than_the_cap_to_a_skill() -> None:
     one_long_session = estimate(FRACTIONS, successes(10, attempts=1))
     assert one_long_session.effective_n == pytest.approx(3.0)
@@ -201,21 +292,91 @@ def test_a_reassessment_replaces_the_earlier_assessment_it_does_not_add_to_it() 
         ),
     ]
     assert estimate(FRACTIONS, keyed).effective_n == pytest.approx(2.0)
-    # Another producer assessing the same performance is other evidence, but of the same item
-    # in the same attempt: the second is damped like a repeat, it is not full independent proof.
+    # Another producer assessing the same performance is other evidence; the per-attempt cap
+    # bounds it. Whether a new model version should replace instead is the adapter's call.
     other = [first, obs("fractions", kind="success", attempt="a1", item="i1", producer="other-v1")]
-    assert estimate(FRACTIONS, other).effective_n == pytest.approx(1.5)
+    assert estimate(FRACTIONS, other).effective_n == pytest.approx(2.0)
     # Several items inside one attempt are all evidence: nothing collapses by itself.
     exam = [obs("fractions", attempt="exam", item=f"q{n}") for n in range(3)]
     assert estimate(FRACTIONS, exam).effective_n == pytest.approx(3.0)
 
 
-def test_a_silent_reassessment_removes_the_assessment_it_replaces() -> None:
-    first = obs("fractions", kind="failure", attempt="a1", producer="eval-v6", id="a")
-    unreadable = obs(
-        "fractions", kind="uninterpretable", attempt="a1", producer="eval-v6", days=1, id="b"
+@pytest.mark.parametrize("kind", ["uninterpretable", "interrupted"])
+def test_a_technical_error_on_reassessment_keeps_the_assessment(kind: str) -> None:
+    # A reassessment that fails technically must not change what is known about the learner.
+    first = [
+        obs("fractions", kind="failure", attempt=f"a{n}", item=f"i{n}", producer="eval-v6")
+        for n in range(5)
+    ]
+    unreadable = [
+        obs("fractions", kind=kind, attempt=f"a{n}", item=f"i{n}", producer="eval-v6",  # type: ignore[arg-type]
+            days=1.0)
+        for n in range(5)
+    ]  # fmt: skip
+    assert estimate(FRACTIONS, [*first, *unreadable], days=1.0) == estimate(
+        FRACTIONS, first, days=1.0
     )
-    assert estimate(FRACTIONS, [first, unreadable], days=1.0).status == "unknown"
+
+
+def test_a_not_elicited_reassessment_withdraws_a_wrongly_attributed_result() -> None:
+    loose = MasteryParams(attempt_weight_cap=30.0)
+    history = successes(20, skill="exam_rules")
+    wrong = obs("exam_rules", kind="failure", item="slip", attempt="a-slip", producer="eval-v6",
+                days=9.0)  # fmt: skip
+    withdrawn = replace(
+        obs("exam_rules", kind="not_elicited", item="slip", attempt="a-slip", producer="eval-v6",
+            days=9.0),
+        assessed_at=T0 + timedelta(days=9.5),
+    )  # fmt: skip
+    clean = estimate(EXAM_RULES, history, days=10.0, params=loose)
+    assert clean.status == "mastered"
+    # The wrong failure blocks the critical skill until it is withdrawn, then leaves no trace.
+    assert estimate(EXAM_RULES, [*history, wrong], days=10.0, params=loose).status != "mastered"
+    assert estimate(EXAM_RULES, [*history, wrong, withdrawn], days=10.0, params=loose) == clean
+    # Before the withdrawal was made, a replay still sees the failure.
+    before = estimate(EXAM_RULES, [*history, wrong, withdrawn], days=9.2, params=loose)
+    assert before.status != "mastered"
+
+
+def test_the_reassessment_assessed_last_wins_whatever_the_ids() -> None:
+    def pair(old_id: str, new_id: str) -> list[Observation]:
+        original = obs("fractions", kind="failure", attempt="a1", producer="eval-v6", id=old_id)
+        redone = replace(
+            obs("fractions", kind="success", attempt="a1", producer="eval-v6", id=new_id),
+            assessed_at=T0 + timedelta(days=1),
+        )
+        return [original, redone]
+
+    for ids in (("a", "b"), ("b", "a"), ("9f", "1a")):
+        result = estimate(FRACTIONS, pair(*ids), days=2.0)
+        assert result.mean > 0.5 and result.effective_n == pytest.approx(1.0 * 0.5 ** (2 / 45))
+    # The evidence keeps the instant of the attempt; before the reassessment, the original holds.
+    assert estimate(FRACTIONS, pair("a", "b"), days=0.5).mean < 0.5
+    assert estimate(FRACTIONS, pair("a", "b"), days=2.0).last_observed_at == T0
+
+
+def test_several_rubric_items_of_one_attempt_count_alike_whatever_the_ids() -> None:
+    def rubric(ok_id: str, ko_id: str) -> list[Observation]:
+        return [
+            obs("fractions", item="case-1", attempt="att",
+                evidence={"evidence_key": "r3"}, id=ok_id),
+            obs("fractions", kind="failure", item="case-1", attempt="att",
+                evidence={"evidence_key": "r7"}, id=ko_id),
+        ]  # fmt: skip
+
+    forward, backward = estimate(FRACTIONS, rubric("a", "b")), estimate(FRACTIONS, rubric("b", "a"))
+    assert forward == backward and forward.mean == pytest.approx(0.5)
+    assert forward.effective_n == pytest.approx(2.0)
+
+
+def test_the_cap_scales_a_whole_attempt_evenly() -> None:
+    session = [
+        *[obs("fractions", item=f"ok{n}", attempt="long") for n in range(4)],
+        *[obs("fractions", kind="failure", item=f"ko{n}", attempt="long") for n in range(2)],
+    ]
+    result = estimate(FRACTIONS, session)
+    assert result.effective_n == pytest.approx(3.0)
+    assert result.mean == pytest.approx((1 + 2.0) / (2 + 3.0))  # 4/6 of 3 is 2 successes
 
 
 def test_the_future_is_not_visible_and_replays_are_as_of_now() -> None:
@@ -265,6 +426,48 @@ def test_observations_and_parameters_refuse_nonsense() -> None:
         MasteryParams(repeat_item_factor=2.0)
     with pytest.raises(ValueError, match="timezone"):
         MODEL.estimate(FRACTIONS, [], T0.replace(tzinfo=None))
+    with pytest.raises(ValueError, match="reliability"):
+        obs("fractions", reliability=True)
+    with pytest.raises(ValueError, match="assessed_at"):
+        replace(obs("fractions", days=1.0), assessed_at=T0)
+    with pytest.raises(ValueError, match="assessed_at"):
+        replace(obs("fractions"), assessed_at=T0.replace(tzinfo=None))
+
+
+@pytest.mark.parametrize(
+    ("kind", "outcome"), [("failure", 1.0), ("required_omission", 0.8), ("success", 0.0)]
+)
+def test_the_kind_and_the_outcome_must_agree(kind: str, outcome: float) -> None:
+    with pytest.raises(ValueError, match="outcome"):
+        obs("fractions", kind=kind, outcome=outcome)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"mastered_lower": float("nan")},
+        {"prior_alpha": float("nan")},
+        {"attempt_weight_cap": float("inf")},
+        {"weak_min_n": -1.0},
+        {"min_attempts_for_mastery": 0},
+        {"uncertain_width": 1.5},
+    ],
+)
+def test_parameters_must_be_finite_and_in_range(bad: dict[str, float]) -> None:
+    with pytest.raises(ValueError):
+        MasteryParams(**bad)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("half_life", [float("nan"), float("inf"), 0.0])
+def test_a_half_life_must_be_finite_and_positive(half_life: float) -> None:
+    with pytest.raises(ValueError, match="half_life_days"):
+        Skill("s", "S", "f", half_life_days=half_life)
+
+
+@pytest.mark.parametrize("prior", [(0.0, 1.0), (float("nan"), 1.0), (1.0, float("inf"))])
+def test_a_prior_must_be_finite_and_positive(prior: tuple[float, float]) -> None:
+    with pytest.raises(ValueError, match="prior"):
+        estimate(FRACTIONS, [], prior=prior)
 
 
 # ----- properties over random histories ---------------------------------------------------
@@ -277,8 +480,14 @@ def random_history(rng: random.Random) -> list[Observation]:
     history = []
     for n in range(rng.randint(0, 40)):
         kind = rng.choice(KINDS)
-        silent = kind in {"not_elicited", "uninterpretable", "interrupted"}
-        outcome = None if silent else rng.choice([0.0, 1.0, rng.random()])
+        if kind in {"not_elicited", "uninterpretable", "interrupted"}:
+            outcome = None
+        elif kind in {"failure", "required_omission"}:
+            outcome = rng.choice([0.0, rng.uniform(0.0, 0.5)])
+        elif kind == "success":
+            outcome = rng.choice([1.0, rng.uniform(0.5, 1.0)])
+        else:
+            outcome = rng.choice([0.0, 1.0, rng.random()])
         history.append(
             obs(
                 "fractions",
@@ -315,6 +524,7 @@ def test_every_estimate_is_coherent_whatever_the_history() -> None:
             "uncertain",
         }
         assert (result.status == "unknown") == (result.last_observed_at is None)
+        assert result.status != "mastered" or result.lower >= 0.75
 
 
 def test_replaying_gives_the_same_answer_every_time() -> None:
@@ -346,6 +556,11 @@ def test_a_new_success_never_lowers_the_mean_and_a_new_failure_never_raises_it()
         assert better.mean >= before.mean - 1e-12
         assert worse.mean <= before.mean + 1e-12
         assert better.effective_n > before.effective_n - 1e-12
+        # Nor does a new complete success take mastery away, or turn a recheck into less.
+        if before.status == "mastered":
+            assert better.status == "mastered"
+        if before.status == "recheck":
+            assert better.status in {"recheck", "mastered"}
 
 
 def test_evidence_only_fades_as_time_passes_without_new_observations() -> None:

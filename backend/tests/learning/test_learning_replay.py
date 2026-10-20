@@ -147,3 +147,5 @@ def test_priors_from_a_placement_test_start_the_skills_somewhere_else() -> None:
     assert profile["fractions"].mean == pytest.approx(0.8)
     assert profile["arithmetic"].mean == pytest.approx(0.5)
     assert all(e.status == "unknown" for e in profile.values())
+    with pytest.raises(ValueError, match="does not know"):
+        replay([], framework, MODEL_VERSION, PARAMS, T0, priors={"ghost": (2.0, 2.0)})

@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
+from math import isfinite
 from typing import Any, Literal
 
 ObservationKind = Literal[
@@ -30,6 +31,10 @@ EdgeKind = Literal["prerequisite", "part_of"]
 # Kinds that leave no trace in the estimate. A technical failure must never become a negative
 # observation about the learner.
 SILENT_KINDS: frozenset[str] = frozenset({"not_elicited", "uninterpretable", "interrupted"})
+# Silent kinds that come from a technical error: they cannot replace an assessment either.
+# `not_elicited` is a judgement ("this exercise did not test the skill"), so a reassessment of
+# that kind withdraws the evidence it replaces: it is how a wrongly attributed result is retracted.
+TECHNICAL_KINDS: frozenset[str] = frozenset({"uninterpretable", "interrupted"})
 # Kinds that count against the learner on a critical skill.
 FAILING_KINDS: frozenset[str] = frozenset({"failure", "required_omission"})
 
@@ -38,8 +43,14 @@ FAILING_KINDS: frozenset[str] = frozenset({"failure", "required_omission"})
 class Observation:
     """One piece of evidence about one skill. Append-only: a correction is a new observation.
 
-    Two observations that share (attempt_ref, producer, skill_id, item_ref, evidence_key) are
-    the same evidence assessed twice: the later one replaces the earlier, it does not add to it.
+    `observed_at` is when the learner produced the evidence (it drives forgetting);
+    `assessed_at`, when a scorer judged it (it defaults to `observed_at`). Two observations
+    that share (attempt_ref, producer, skill_id, item_ref, evidence_key) are the same evidence
+    assessed twice: the one assessed last replaces the other, it does not add to it. A
+    reassessment keeps the `observed_at` of the attempt and sets its own `assessed_at`; only
+    two assessments made at the same instant are told apart by their id. A technical error
+    (`uninterpretable`, `interrupted`) never replaces an assessment; a `not_elicited`
+    reassessment withdraws the one it replaces and counts for nothing itself.
     `evidence["evidence_key"]` tells apart several observations of the same skill on the same
     item within one attempt and one producer (for example the rubric item behind each); an
     adapter that emits several such observations must give each its own key.
@@ -59,16 +70,33 @@ class Observation:
     producer: str  # the exact scorer or prompt version that produced it
     evidence: Mapping[str, Any]
     observed_at: datetime
+    assessed_at: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.observed_at.tzinfo is None:
             raise ValueError("observed_at needs a timezone")
-        if not 0.0 <= self.reliability <= 1.0:
+        if self.assessed_at is not None:
+            if self.assessed_at.tzinfo is None:
+                raise ValueError("assessed_at needs a timezone")
+            if self.assessed_at < self.observed_at:
+                raise ValueError("assessed_at cannot precede observed_at")
+        if isinstance(self.reliability, bool) or not 0.0 <= self.reliability <= 1.0:
             raise ValueError("reliability lies in [0, 1]")
-        if self.outcome is not None and not 0.0 <= self.outcome <= 1.0:
+        if self.outcome is not None and (
+            isinstance(self.outcome, bool) or not 0.0 <= self.outcome <= 1.0
+        ):
             raise ValueError("outcome lies in [0, 1]")
         if self.outcome is None and self.kind not in SILENT_KINDS:
             raise ValueError(f"a '{self.kind}' observation needs an outcome")
+        if self.outcome is not None:
+            if self.kind in FAILING_KINDS and self.outcome > 0.5:
+                raise ValueError(f"a '{self.kind}' observation has an outcome of at most 0.5")
+            if self.kind == "success" and self.outcome < 0.5:
+                raise ValueError("a 'success' observation has an outcome of at least 0.5")
+
+    @property
+    def assessed(self) -> datetime:
+        return self.assessed_at or self.observed_at
 
     @property
     def evidence_key(self) -> str:
@@ -111,8 +139,12 @@ class Skill:
     def __post_init__(self) -> None:
         if not self.id:
             raise ValueError("a skill needs an id")
-        if self.half_life_days <= 0:
-            raise ValueError(f"{self.id}: half_life_days must be positive")
+        if (
+            isinstance(self.half_life_days, bool)
+            or not isfinite(self.half_life_days)
+            or self.half_life_days <= 0
+        ):
+            raise ValueError(f"{self.id}: half_life_days must be a finite positive number")
 
 
 @dataclass(frozen=True, slots=True)

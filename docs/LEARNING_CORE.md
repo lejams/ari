@@ -21,9 +21,11 @@ Version du modèle : `mastery-beta-v1`. Code : `backend/src/ari/learning/`. Test
 `ari.learning` n'importe **que la bibliothèque standard**. Deux garde-fous :
 - un contrat import-linter (`backend/pyproject.toml`) interdit tout autre module d'ARI et les
   bibliothèques tierces connues ;
-- `backend/tests/learning/test_learning_purity.py` lit le code source : seuls la bibliothèque
-  standard et le paquet lui-même sont importables, et ni le disque, ni le réseau, ni l'horloge, ni un
-  générateur aléatoire global ne sont utilisés. L'heure (`now`) est toujours un argument.
+- `backend/tests/learning/test_learning_purity.py` lit le code source de **tous** les modules du
+  paquet, sous-paquets compris, et tient une **liste blanche** : seuls quelques modules de calcul de la bibliothèque standard (`math`, `datetime`,
+  `dataclasses`, `collections`, `itertools`, `typing`, `hashlib`, `json`) et le paquet lui-même sont
+  importables, sans import dynamique (`importlib`, `__import__`), et aucun attribut `now`, `today` ou
+  `utcnow` n'apparaît, quel que soit l'alias. L'heure (`now`) est toujours un argument.
 
 ## Les données
 
@@ -36,16 +38,29 @@ Version du modèle : `mastery-beta-v1`. Code : `backend/src/ari/learning/`. Test
 | `outcome` | 0 à 1 ; absent seulement pour les types muets |
 | `reliability` | 0 à 1 : la confiance dans la source (déterministe, LLM, auto-déclaration, test de niveau) |
 | `producer` | version exacte du scoreur ou du prompt, pour la traçabilité |
-| `evidence`, `observed_at` | preuve libre (tours cités, extrait) et instant de l'observation |
+| `evidence`, `observed_at` | preuve libre (tours cités, extrait) et instant où l'apprenant a produit la preuve (il règle l'oubli) |
+| `assessed_at` | facultatif : instant où un correcteur a jugé la preuve (par défaut `observed_at`) ; il ordonne les réévaluations |
 
 Les types muets **ne laissent aucune trace** : une erreur technique n'est jamais une observation
-négative sur l'apprenant (invariant 4 du plan).
+négative sur l'apprenant (invariant 4 du plan). Une réévaluation qui échoue techniquement
+(`uninterpretable`, `interrupted`) ne remplace pas l'évaluation précédente. En revanche, une
+réévaluation `not_elicited` (« cet exercice ne testait pas cette compétence ») la **retire** et ne
+compte pas elle-même : c'est ainsi qu'un adaptateur corrige un résultat attribué à tort, y compris un
+échec qui bloquait une compétence critique.
+
+**Cohérence du type et du résultat.** Un `failure` ou un `required_omission` a un résultat d'au plus
+0,5, un `success` d'au moins 0,5 ; le reste est refusé à la construction.
 
 **Clé de remplacement.** Deux observations qui partagent
 (`attempt_ref`, `producer`, `skill_id`, `item_ref`, `evidence["evidence_key"]`) sont la **même
-preuve évaluée deux fois** : la plus récente remplace l'autre, elle ne s'y ajoute pas. Un
-adaptateur qui émet plusieurs observations de la même compétence sur le même item dans un même
-essai doit donner à chacune sa propre `evidence_key` (par exemple l'item de rubrique).
+preuve évaluée deux fois** : celle dont `assessed_at` est le plus tardif remplace l'autre, elle ne
+s'y ajoute pas. Une réévaluation garde l'`observed_at` de l'essai et pose son propre
+`assessed_at` ; seules deux évaluations faites au même instant sont départagées par leur `id`. Un
+rejeu daté avant la réévaluation voit l'évaluation d'origine. Un adaptateur qui émet plusieurs
+observations de la même compétence sur le même item dans un même essai doit donner à chacune sa
+propre `evidence_key` (par exemple l'item de rubrique). Un autre `producer` (par exemple un autre
+modèle) est une autre preuve, bornée par le plafond de l'essai : à l'adaptateur de l'action 7 de
+décider si un changement de modèle doit plutôt remplacer.
 
 **Contexte.** `evidence["context"]` nomme la circonstance (un cas, une modalité). Sans lui, c'est
 l'`item_ref`. Il sert à exiger que la maîtrise soit montrée dans au moins deux contextes.
@@ -60,9 +75,17 @@ récursion). Le `content_hash` ne dépend pas de l'ordre des compétences.
 Par compétence, une loi Beta(α, β), a priori uniforme (1, 1) ou fourni (par exemple par le test de
 niveau). Une observation de résultat `o` et de poids `w` ajoute `w·o` à α et `w·(1−o)` à β.
 
-**Poids** `w` = fiabilité, multipliée par 0,5 si l'item a déjà été observé, par 0,5 si
-`stt_suspect`, et **plafonné à 3 par essai et par compétence** : une longue session ne règle pas à
-elle seule une compétence.
+**Poids** `w` = fiabilité, réduite si un **essai antérieur** a déjà montré l'item (les items de
+rubrique d'une même passation ne s'affaiblissent pas entre eux) : multipliée par 0,5 juste après, et
+de moins en moins à mesure que cette observation est oubliée, au rythme de la demi-vie
+(`1 − 0,5 × 2^(−Δt/H)`, où Δt sépare l'observation de la dernière vue de l'item). Refaire un item le
+lendemain compte à moitié ; le refaire des mois plus tard est une vraie révision et compte presque
+entièrement : avoir déjà fait un item ne joue jamais contre l'apprenant. Le poids est encore
+multiplié par 0,5 si `stt_suspect`.
+Les observations d'un même essai sont ensuite **réduites ensemble, proportionnellement**, pour que
+l'essai n'apporte pas plus de 3 à une compétence : une longue session ne règle pas à elle seule une
+compétence, et le résultat ne dépend pas de l'ordre d'arrivée. Une observation de fiabilité
+0 n'est pas une preuve : elle ne compte pas et ne bloque rien.
 
 **Oubli.** Ce qui dépasse l'a priori perd la moitié de son poids tous les `half_life_days` de la
 compétence. La moyenne revient vers l'a priori et l'intervalle s'élargit.
@@ -75,15 +98,23 @@ contextes distincts, `autonomous_n` (part montrée sans aide), date de la derni�
 | Statut | Condition |
 |---|---|
 | `unknown` | aucune observation retenue |
-| `mastered` | borne basse ≥ 0,75 **et** ≥ 2 contextes **et** ≥ 3 essais distincts **et** poids autonome ≥ 1 **et** pas d'échec récent (14 jours) sur une compétence critique |
-| `recheck` | était `mastered`, mais plus d'une demi-vie sans nouvelle preuve |
+| `mastered` | sur les valeurs **oubliées à l'instant présent** : borne basse ≥ 0,75 **et** ≥ 2 contextes **et** ≥ 3 essais distincts **et** poids autonome ≥ 1 **et** pas d'échec récent (14 jours) sur une compétence critique, **et** moins d'une demi-vie depuis la dernière preuve |
+| `recheck` | a été `mastered` à une observation, n'a rien perdu depuis que du temps (aucun résultat inférieur à 0,5 ensuite, quel que soit le type : échec, omission, raté avec aide, raté douteux), et ne l'est plus |
 | `uncertain` | intervalle plus large que 0,35 |
 | `weak` | moyenne < 0,5 avec au moins 2 de poids |
 | `developing` | le reste |
 
-La maîtrise est jugée **sur la preuve telle qu'elle était à la dernière observation** : le temps la
-rend seulement périmée. Jugée sur les valeurs déjà oubliées, une compétence maîtrisée retomberait en
-silence à `developing` et aucune revérification ne serait jamais demandée.
+Conséquences voulues :
+- un statut `mastered` n'est jamais affiché à côté d'une borne basse sous le seuil ;
+- une nouvelle réussite **complète** (résultat 1) ne retire jamais `mastered` et ne fait jamais
+  descendre un `recheck` sous `recheck` (testé sur des historiques aléatoires) ; une réussite
+  **partielle** (par exemple 0,6) n'est pas une preuve de maîtrise à 0,75 et peut faire passer de
+  `mastered` à `recheck`, jamais plus bas ;
+- une compétence maîtrisée de justesse passe vite en `recheck` (8 réussites : environ 6 jours avec
+  une demi-vie de 30 jours, 9 avec 45 jours) ; plus la preuve est abondante, plus `mastered` dure,
+  jusqu'à une demi-vie au plus ;
+- tout résultat inférieur à 0,5 après la maîtrise (échec, omission, raté avec aide ou douteux) ramène
+  au statut lu sur les chiffres (`uncertain`, `weak` ou `developing`), pas à `recheck`.
 
 ## Rejouer
 
@@ -122,7 +153,8 @@ dans sa configuration.
 - Pour être « maîtrisée », une compétence demande **au moins 8 réussites de fiabilité 1** (7 donnent
   une borne basse de 0,7499, juste sous le seuil), réparties sur 3 essais au moins. Une compétence
   réussie 11 fois sur 12 n'est pas encore « maîtrisée » : sa borne basse est de 0,73. Avec des
-  observations de fiabilité 0,5, il en faut environ 16.
+  observations de fiabilité 0,5, il en faut 15. Ces chiffres supposent des items et des essais
+  distincts ; avec des items repris d'un essai à l'autre, il en faut davantage.
 - Les quantiles de la loi Beta sont calculés en Python pur (fraction continue de Lentz et
   dichotomie), vérifiés contre les formules exactes de Beta(1, b), Beta(a, 1) et Beta(a, a).
 

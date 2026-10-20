@@ -39,7 +39,8 @@ def replay(
     """One learner's estimate for every skill of the framework, as of `now`.
 
     Observations of a skill the framework does not know (a taxonomy that evolved) are ignored:
-    they stay stored and count again if the skill comes back. Mixing learners is an error.
+    they stay stored and count again if the skill comes back. Mixing learners, or a prior for
+    a skill the framework does not know, is an error.
     """
     model = mastery_model(model_version, params)
     by_skill: dict[str, list[Observation]] = defaultdict(list)
@@ -52,6 +53,9 @@ def replay(
     if len(learners) > 1:
         raise ValueError(f"replay takes one learner's observations, got {sorted(learners)}")
     given = priors or {}
+    unknown = sorted(set(given) - known)
+    if unknown:
+        raise ValueError(f"priors for skills the framework does not know: {unknown}")
     return {
         skill.id: model.estimate(skill, by_skill.get(skill.id, ()), now, prior=given.get(skill.id))
         for skill in framework.skills

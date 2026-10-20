@@ -118,13 +118,18 @@ class SkillFramework:
                     "id": s.id,
                     "label": s.label,
                     "family": s.family,
-                    "half_life_days": s.half_life_days,
+                    "half_life_days": float(s.half_life_days),
                     "critical": s.critical,
                 }
                 for s in sorted(self.skills, key=lambda s: s.id)
             ],
             "edges": [
-                {"from": e.from_skill, "to": e.to_skill, "kind": e.kind, "threshold": e.threshold}
+                {
+                    "from": e.from_skill,
+                    "to": e.to_skill,
+                    "kind": e.kind,
+                    "threshold": float(e.threshold),
+                }
                 for e in sorted(self.edges, key=lambda e: (e.kind, e.from_skill, e.to_skill))
             ],
         }
@@ -137,7 +142,9 @@ class SkillFramework:
         _no_extra(data, _FRAMEWORK_KEYS, "framework")
         skills = tuple(_skill(raw) for raw in _sequence(data, "skills"))
         edges = tuple(_edge(raw) for raw in _sequence(data, "edges", required=False))
-        return cls(str(data.get("id", "")), str(data.get("version", "")), skills, edges)
+        return cls(
+            _text(data, "id", "framework"), _text(data, "version", "framework"), skills, edges
+        )
 
 
 def _no_extra(data: Mapping[str, Any], allowed: frozenset[str], where: str) -> None:
@@ -159,6 +166,13 @@ def _sequence(
     return cast(list[Mapping[str, Any]], value)
 
 
+def _text(data: Mapping[str, Any], key: str, where: str, *, required: bool = True) -> str:
+    value = data.get(key, None if required else "")
+    if not isinstance(value, str) or (required and not value):
+        raise FrameworkError(f"{where}: '{key}' must be a non-empty string")
+    return value
+
+
 def _number(value: object, where: str) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise FrameworkError(f"{where} must be a number")
@@ -173,9 +187,9 @@ def _skill(raw: Mapping[str, Any]) -> Skill:
         raise FrameworkError(f"{where}: critical must be true or false")
     try:
         return Skill(
-            id=str(raw.get("id", "")),
-            label=str(raw.get("label", "")),
-            family=str(raw.get("family", "")),
+            id=_text(raw, "id", where),
+            label=_text(raw, "label", where, required=False),
+            family=_text(raw, "family", where),
             half_life_days=_number(raw.get("half_life_days"), f"{where}: half_life_days"),
             critical=critical,
         )
@@ -189,8 +203,8 @@ def _edge(raw: Mapping[str, Any]) -> SkillEdge:
     if kind not in _EDGE_KINDS:
         raise FrameworkError(f"edge kind must be prerequisite or part_of, not {kind!r}")
     return SkillEdge(
-        from_skill=str(raw.get("from", "")),
-        to_skill=str(raw.get("to", "")),
+        from_skill=_text(raw, "from", "edge"),
+        to_skill=_text(raw, "to", "edge"),
         kind=cast(EdgeKind, kind),
         threshold=_number(raw.get("threshold", 0.5), "edge threshold"),
     )

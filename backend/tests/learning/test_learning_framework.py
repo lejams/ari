@@ -113,6 +113,13 @@ def test_the_hash_ignores_order_and_changes_with_content() -> None:
         (lambda d: d["skills"][0].update(critical="yes"), "true or false"),
         (lambda d: d["skills"][0].update(half_life_days=-5), "positive"),
         (lambda d: d["edges"][0].update(to="ghost"), "unknown skill"),
+        (lambda d: d.update(id=None), "non-empty string"),
+        (lambda d: d.update(version=1), "non-empty string"),
+        (lambda d: d["skills"][0].update(id=None), "non-empty string"),
+        (lambda d: d["skills"][0].pop("family"), "non-empty string"),
+        (lambda d: d["skills"][0].update(label=3), "string"),
+        (lambda d: d["skills"][0].update(half_life_days=float("nan")), "finite"),
+        (lambda d: d["edges"][0].update(to=None), "non-empty string"),
     ],
 )
 def test_loading_refuses_what_it_does_not_recognise(edit, message: str) -> None:  # type: ignore[no-untyped-def]
@@ -125,3 +132,9 @@ def test_loading_refuses_what_it_does_not_recognise(edit, message: str) -> None:
 def test_edges_are_optional() -> None:
     bare = {k: v for k, v in TOY_TAXONOMY.items() if k != "edges"}
     assert SkillFramework.from_mapping(bare).edges == ()
+
+
+def test_the_hash_does_not_depend_on_how_a_number_is_written() -> None:
+    whole = SkillFramework("f", "1", (Skill("s", "S", "f", 30),))
+    decimal = SkillFramework("f", "1", (Skill("s", "S", "f", 30.0),))
+    assert whole.content_hash == decimal.content_hash
