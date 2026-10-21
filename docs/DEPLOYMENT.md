@@ -174,6 +174,11 @@ Supprimer la clé privée après l'exercice. Documenter le temps réel nécessai
 - Retour arrière du code : `ARI_IMAGE_TAG=<sha précédent> docker compose --profile serve up -d --no-build`.
 - Retour arrière des données (si une migration a tourné) : restaurer le jeu `predeploy-<sha>`.
   Ne jamais faire `alembic downgrade` en production.
+- À partir de `0004_evaluation_runs`, l'ancien code est incompatible avec le schéma. Le service
+  `migrate` de l'ancienne image ne connaît pas la révision et échoue. Contourné, l'ancien code ne peut
+  plus créer d'évaluation (`evaluations.current_run_id` est obligatoire). Une fois remis à jour, le
+  nouveau code afficherait l'analyse du run courant, pas celle écrite entre-temps. Retour arrière
+  au-delà de 0004 : restauration du jeu `predeploy-<sha>` uniquement.
 - Ne jamais lancer `docker compose down -v` sur le projet live : cela détruit les volumes.
 
 ## 10bis. Promotion CI par image immuable

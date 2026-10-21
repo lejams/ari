@@ -7,12 +7,15 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    func,
     select,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -42,6 +45,7 @@ from ari.domain.models import (
     TurnResponseState,
     VocabularyObservation,
     VocabularyState,
+    new_id,
     utc_now,
 )
 from ari.infrastructure.persistence.platform.base import Base
@@ -124,10 +128,48 @@ class TurnRow(Base):
     )
 
 
+class EvaluationRunRow(Base):
+    """One analysis of a session, kept forever: UPDATE and DELETE are refused by triggers
+    (0004_evaluation_runs). A re-analysis adds run `run_no + 1`; a failed one adds nothing."""
+
+    __tablename__ = "evaluation_runs"
+    __table_args__ = (
+        UniqueConstraint("session_id", "run_no"),
+        # Target of the pointer's composite key: the current run belongs to its session.
+        UniqueConstraint("session_id", "id"),
+        CheckConstraint("run_no >= 1", name="ck_evaluation_run_no_positive"),
+    )
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"))
+    run_no: Mapped[int] = mapped_column(Integer)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    schema_version: Mapped[str] = mapped_column(String)
+    prompt_version: Mapped[str] = mapped_column(String)
+    # NULL only on backfilled runs whose execution could not be identified without guessing.
+    prompt_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    model: Mapped[str | None] = mapped_column(String, nullable=True)
+    model_returned: Mapped[str | None] = mapped_column(String, nullable=True)
+    rubric_version: Mapped[str] = mapped_column(String)
+    execution_id: Mapped[str | None] = mapped_column(ForeignKey("executions.id"), nullable=True)
+    # When the evaluation was produced (`payload.created_at`), for new and backfilled runs alike.
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class EvaluationRow(Base):
+    """Pointer to the current run of a session. `payload` is a copy of that run's payload,
+    kept so that readers of the former single-row table keep working."""
+
     __tablename__ = "evaluations"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["session_id", "current_run_id"],
+            ["evaluation_runs.session_id", "evaluation_runs.id"],
+            name="fk_evaluations_current_run",
+        ),
+    )
     session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), primary_key=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    current_run_id: Mapped[str] = mapped_column(String)
 
 
 class MetricsRow(Base):
@@ -180,6 +222,7 @@ class ExecutionRow(Base):
     cost_micro_eur: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     pricing_version: Mapped[str | None] = mapped_column(String, nullable=True)
     cost_unknown: Mapped[list[str]] = mapped_column(JSONB)
+    model_returned: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 def _goal(value: dict[str, Any]) -> LearningGoal:
@@ -406,6 +449,9 @@ class SqlSessionRepository:
                 )
             )
             evaluation_row = db.get(EvaluationRow, session_id)
+            current_run = (
+                db.get(EvaluationRunRow, evaluation_row.current_run_id) if evaluation_row else None
+            )
             metrics_row = db.get(MetricsRow, session_id)
             learning = db.get(VoiceLearningRow, session_id)
             start = db.scalar(select(VoiceStartRow).where(VoiceStartRow.session_id == session_id))
@@ -432,7 +478,7 @@ class SqlSessionRepository:
                 voice_stack_config=dict(row.voice_stack_config),
                 status=SessionStatus(row.status),
                 turns=turns,
-                evaluation=self._evaluation(evaluation_row.payload) if evaluation_row else None,
+                evaluation=self._evaluation(current_run.payload) if current_run else None,
                 metrics=SessionMetrics(**metrics_row.payload) if metrics_row else None,
                 vocabulary=vocab,
                 executions=executions,
@@ -858,9 +904,60 @@ class SqlSessionRepository:
         evaluation: Evaluation,
         metrics: SessionMetrics,
         vocabulary: tuple[VocabularyObservation, ...],
+        execution: ExecutionRecord,
     ) -> None:
+        """Append a new evaluation run and point the session at it, in one transaction.
+
+        `execution` is the succeeded call that produced `evaluation`. Its recorded row, not the
+        object passed in, is what is checked and copied: a failed call never becomes a run, and
+        the previous run stays current.
+        """
+        payload = _jsonable(evaluation)
         with Session(self.engine) as db:
-            db.merge(EvaluationRow(session_id=session_id, payload=_jsonable(evaluation)))
+            # Serialises concurrent analyses of one session, so run numbers never collide. NO
+            # KEY UPDATE still lets other writers insert rows that reference the session.
+            row = db.get(SessionRow, session_id, with_for_update={"key_share": True})
+            if row is None:
+                raise NotFoundError(f"Session {session_id} was not found")
+            recorded = db.get(ExecutionRow, execution.id)
+            if recorded is None:
+                raise InvalidStateError("The evaluation execution was never recorded")
+            if recorded.session_id != session_id:
+                raise InvalidStateError("The evaluation execution belongs to another session")
+            if recorded.operation != "session_evaluation":
+                raise InvalidStateError("The execution is not a session evaluation")
+            if recorded.status != ExecutionStatus.SUCCEEDED.value:
+                raise InvalidStateError("A failed execution cannot produce an evaluation run")
+            if recorded.prompt_version != evaluation.prompt_version:
+                raise InvalidStateError("The evaluation and its execution disagree on the prompt")
+            last = db.scalar(
+                select(func.max(EvaluationRunRow.run_no)).where(
+                    EvaluationRunRow.session_id == session_id
+                )
+            )
+            run = EvaluationRunRow(
+                id=new_id(),
+                session_id=session_id,
+                run_no=(last or 0) + 1,
+                payload=payload,
+                schema_version=evaluation.schema_version,
+                prompt_version=evaluation.prompt_version,
+                prompt_hash=recorded.prompt_hash,
+                model=recorded.model,
+                model_returned=recorded.model_returned,
+                rubric_version=evaluation.rubric_version,
+                execution_id=recorded.id,
+                # The evaluation's own timestamp, like backfilled runs: the date of the evidence.
+                created_at=evaluation.created_at,
+            )
+            db.add(run)
+            db.flush()
+            pointer = db.get(EvaluationRow, session_id)
+            if pointer is None:
+                db.add(EvaluationRow(session_id=session_id, payload=payload, current_run_id=run.id))
+            else:
+                pointer.payload = payload
+                pointer.current_run_id = run.id
             db.merge(MetricsRow(session_id=session_id, payload=_jsonable(metrics)))
             existing = tuple(
                 db.scalars(select(VocabularyRow).where(VocabularyRow.session_id == session_id))
@@ -871,9 +968,6 @@ class SqlSessionRepository:
                 values = asdict(observation)
                 values["state"] = observation.state.value
                 db.add(VocabularyRow(**values))
-            row = db.get(SessionRow, session_id)
-            if row is None:
-                raise NotFoundError(f"Session {session_id} was not found")
             row.status = SessionStatus.COMPLETED.value
             if row.ended_at is None:
                 row.ended_at = utc_now()
@@ -977,4 +1071,5 @@ class SqlSessionRepository:
             error_message=row.error_message,
             retryable=row.retryable,
             created_at=_dt(row.created_at),
+            model_returned=row.model_returned,
         )

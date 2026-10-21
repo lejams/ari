@@ -67,6 +67,7 @@ class OpenAILLMProvider:
                 ExecutionStatus.SUCCEEDED,
                 usage,
                 response.id,
+                model_returned=response.model,
             )
             return ProviderResult(value=parsed, execution=execution)
         except Exception as exc:
@@ -82,6 +83,7 @@ class OpenAILLMProvider:
         usage: dict[str, object],
         request_id: str | None,
         error: Exception | None = None,
+        model_returned: str | None = None,
     ) -> ExecutionRecord:
         context = request.context
         return ExecutionRecord(
@@ -102,4 +104,5 @@ class OpenAILLMProvider:
             error_code=type(error).__name__ if error else None,
             error_message=str(error)[:1000] if error else None,
             retryable=error is not None,
+            model_returned=model_returned,
         )

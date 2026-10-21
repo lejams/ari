@@ -39,7 +39,7 @@ invariants 3 et 4, versionnement du gold et propagation, paiement et effacement 
 ## Avancement
 
 Mettre à jour ce tableau à la fin de chaque étape. **Pour reprendre le travail dans une nouvelle
-session, lire d'abord `docs/HANDOFF.md`.** État au 19 octobre 2026, `main` en `b843f9f`.
+session, lire d'abord `docs/HANDOFF.md`.** État au 21 octobre 2026, `main` en `b1458b1`.
 
 | Étape | Branche | État | Note |
 |---|---|---|---|
@@ -47,8 +47,8 @@ session, lire d'abord `docs/HANDOFF.md`.** État au 19 octobre 2026, `main` en `
 | Action 2 Limites structurelles | `feature/usage-limits` | **fusionnée** (PR #10) | une session vocale à la fois, quota de 2 examens, durée de l'examen dérivée du scénario, inactivité, coupe-circuit d'abus optionnel |
 | Action 4 Cycle de vie du contenu | `feature/content-lifecycle` | **fusionnée** (PR #11) | item 1 (remplacement des révisions) et item 2 (scan des détails identifiants dans le texte généré) gardés ; item 3 retiré à la demande du propriétaire |
 | Action 3 Voix ElevenLabs | 3a : `spike/elevenlabs-tts` (jetable, ne pas fusionner). 3b : `feature/elevenlabs-tts` | **3a : GO du propriétaire le 20 octobre 2026, sans mesure** (`docs/spikes/exam-elevenlabs.md`, section 8). **3b item 1 fait** : adaptateur `infrastructure/providers/elevenlabs/tts.py` (WebSocket Text to Dialogue, pool de connexions, coût `tts_character`), désactivé par défaut (`ARI_TTS_PROVIDER=openai`) | protocole non confronté au service réel : premier appel avec la clé = essai. Reste : choix des `voice_id` par le propriétaire, items 2 à 6 de 3b (moteur d'examen en chaîne). Échéance dure : `gpt-4o-mini-tts` s'arrête le 6 janvier 2027 |
-| Action 6 Noyau `ari.learning` | `feature/learning-core` (commit `c682fb9`, `main` fusionné) | **code terminé, 356 tests verts. EN ATTENTE DE LA REVUE OPUS obligatoire avant fusion** | brief de revue prêt : `docs/reviews/action6-opus-review-brief.md`. `docs/LEARNING_CORE.md` |
-| Action 5 Évaluations immuables | | à faire (revue Opus obligatoire) | |
+| Action 6 Noyau `ari.learning` | `feature/learning-core` | **fusionnée** (PR #13), après revue Opus et relecture de ses correctifs | `docs/LEARNING_CORE.md`, brief : `docs/reviews/action6-opus-review-brief.md` |
+| Action 5 Évaluations immuables | `claude/evaluation-runs-51a8b7` (non commitée) | **code terminé, revue Opus faite, constats traités puis contre-vérifiés (verdict final : approuvé), 403 tests verts, `alembic check` propre sur les deux chaînes. À commiter, pousser et fusionner** | `evaluation_runs` en ajout seul (migration `0004_evaluation_runs`), `evaluations` devient un pointeur. Brief : `docs/reviews/action5-opus-review-brief.md`, note : `docs/reviews/action5-note-de-fin.md` |
 | Action 7 Taxonomie FSP et observations | | à faire (revue Opus obligatoire) | **bloquée par un atelier de 4 h avec le médecin** (taxonomie, erreur critique) |
 | Actions 8, 9, 10, 11, 12 | | à faire | 10 exige une rubrique Arztbrief validée ; 11 et 12 exigent une revue Opus ; 12 exige les textes juridiques |
 
