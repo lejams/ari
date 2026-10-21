@@ -114,6 +114,16 @@ class Settings(BaseSettings):
 
     tts_model: str = "gpt-4o-mini-tts"
     tts_voice: str = "alloy"
+    # Training voice. "openai" uses tts_model and tts_voice above (gpt-4o-mini-tts is retired on
+    # 6 January 2027); "elevenlabs" uses the settings below (docs/spikes/exam-elevenlabs.md).
+    tts_provider: Literal["openai", "elevenlabs"] = "openai"
+    elevenlabs_api_key: str | None = None
+    elevenlabs_voice_id: str | None = None
+    elevenlabs_tts_model: str = "eleven_v4_turbo"
+    elevenlabs_output_format: str = "pcm_24000"  # the only format the players accept
+    elevenlabs_base_url: str = "wss://api.elevenlabs.io/v1/text-to-dialogue/stream-input"
+    # How a voice is registered on a new connection; the documentation leaves it open.
+    elevenlabs_voice_registration: Literal["objects", "ids"] = "objects"
     patient_timeout_seconds: float = 30.0
     evaluation_timeout_seconds: float = 60.0
     tts_timeout_seconds: float = 30.0

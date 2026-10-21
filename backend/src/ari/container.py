@@ -80,20 +80,53 @@ class Container:
 
 def _voice_stack(settings: Settings) -> VoiceStack:
     """Training: push-to-talk pipeline (Whisper, structured LLM, TTS), pinned on the session."""
+    parameters: dict[str, object] = {
+        "sample_rate": settings.audio_sample_rate,
+        "stt_base_url": settings.stt_base_url,
+        "tts_voice": settings.tts_voice,
+    }
+    tts_model = settings.tts_model
+    if settings.tts_provider == "elevenlabs":
+        # Only an ElevenLabs stack names its provider: OpenAI stacks keep the snapshot they
+        # already had, so sessions created before this setting existed still resume.
+        tts_model = settings.elevenlabs_tts_model
+        parameters["tts_voice"] = settings.elevenlabs_voice_id or ""
+        parameters["tts_provider"] = "elevenlabs"
+        parameters["tts_output_format"] = settings.elevenlabs_output_format
     return VoiceStack(
         PIPELINE_STACK_ID,
         "1",
         settings.provider_mode,
         MappingProxyType(
-            {"stt": settings.stt_model, "llm": settings.patient_model, "tts": settings.tts_model}
+            {"stt": settings.stt_model, "llm": settings.patient_model, "tts": tts_model}
         ),
-        MappingProxyType(
-            {
-                "sample_rate": settings.audio_sample_rate,
-                "stt_base_url": settings.stt_base_url,
-                "tts_voice": settings.tts_voice,
-            }
-        ),
+        MappingProxyType(parameters),
+    )
+
+
+def _tts_provider(settings: Settings) -> StreamingTTSProvider:
+    """The training voice for ARI_PROVIDER_MODE=openai, chosen by ARI_TTS_PROVIDER."""
+    if settings.tts_provider == "elevenlabs":
+        from ari.infrastructure.providers.elevenlabs import ElevenLabsStreamingTTSProvider
+
+        assert settings.elevenlabs_api_key and settings.elevenlabs_voice_id
+        return ElevenLabsStreamingTTSProvider(
+            settings.elevenlabs_api_key,
+            model=settings.elevenlabs_tts_model,
+            voice_id=settings.elevenlabs_voice_id,
+            timeout_seconds=settings.tts_timeout_seconds,
+            output_format=settings.elevenlabs_output_format,
+            base_url=settings.elevenlabs_base_url,
+            voice_registration=settings.elevenlabs_voice_registration,
+        )
+    from ari.infrastructure.providers.openai import OpenAIStreamingTTSProvider
+
+    assert settings.openai_api_key
+    return OpenAIStreamingTTSProvider(
+        settings.openai_api_key,
+        model=settings.tts_model,
+        voice=settings.tts_voice,
+        timeout_seconds=settings.tts_timeout_seconds,
     )
 
 
@@ -177,6 +210,14 @@ def build_container(settings: Settings) -> Container:
             for name, value in (
                 ("ARI_OPENAI_API_KEY", settings.openai_api_key),
                 ("ARI_STT_API_KEY", settings.stt_api_key),
+                *(
+                    (
+                        ("ARI_ELEVENLABS_API_KEY", settings.elevenlabs_api_key),
+                        ("ARI_ELEVENLABS_VOICE_ID", settings.elevenlabs_voice_id),
+                    )
+                    if settings.tts_provider == "elevenlabs"
+                    else ()
+                ),
             )
             if not value
         ]
@@ -192,10 +233,7 @@ def build_container(settings: Settings) -> Container:
             LEARNER_TASKS,
             llm_provider_from_settings,
         )
-        from ari.infrastructure.providers.openai import (
-            OpenAIRealtimeEngine,
-            OpenAIStreamingTTSProvider,
-        )
+        from ari.infrastructure.providers.openai import OpenAIRealtimeEngine
         from ari.infrastructure.providers.whisper import WhisperTranscriber
 
         llm = llm_provider_from_settings(settings, pricing, LEARNER_TASKS)
@@ -205,12 +243,7 @@ def build_container(settings: Settings) -> Container:
             model=settings.stt_model,
             timeout_seconds=settings.stt_timeout_seconds,
         )
-        tts = OpenAIStreamingTTSProvider(
-            settings.openai_api_key,
-            model=settings.tts_model,
-            voice=settings.tts_voice,
-            timeout_seconds=settings.tts_timeout_seconds,
-        )
+        tts = _tts_provider(settings)
         realtime = OpenAIRealtimeEngine(
             settings.openai_api_key,
             model=settings.realtime_model,
