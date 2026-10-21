@@ -46,6 +46,9 @@ propriétaire, car les fichiers `.env` ne sont pas lisibles par les outils.
 
 Relevé du 15 octobre 2026, prix catalogue en dollars hors taxes. Ces valeurs alimenteront
 `pricing/pricing-v1.yaml` à l'action 1.
+`pricing/pricing-v2.yaml` (21 octobre 2026) reprend ces prix sans changement et ajoute Claude
+Sonnet 5.5 (2 $ / 10 $, cache lu 0,20 $), Opus 5.5 (4 $ / 20 $, cache lu 0,20 $) et Haiku 5.5
+(0,10 $ / 0,50 $ jusqu'à 100 000 jetons de prompt) ; c'est la grille par défaut.
 - Les remises propres au compte ne sont pas connues.
 - Les montants marqués « secondaire » viennent de sites tiers ; ils sont à confirmer sur la page
   officielle du fournisseur avant de figer la grille.
@@ -102,6 +105,7 @@ Hypothèses :
 |---|---|---|
 | OpenAI | LLM, TTS, temps réel | Plafond mensuel fixé dans le tableau de bord. Par apprenant : limites structurelles seulement, pas de plafond en euros (action 2) |
 | Groq | STT | Point de terminaison compatible OpenAI |
+| Anthropic (`anthropic` 2.x) | LLM, au choix par tâche | Désactivé par défaut. `ARI_<TÂCHE>_PROVIDER=anthropic` (patient, évaluation, audit des faits, contenu) avec un modèle Claude, par exemple `claude-sonnet-5-5`. Prix dans `pricing/pricing-v2.yaml` (grille Anthropic au 6 octobre 2026) ; le démarrage refuse une route Claude dont le modèle n'a pas de prix. Tout changement de modèle en production exige un rapport `ari.evals` (invariant 5) |
 | ElevenLabs | TTS cible (action 3) | Pas encore intégré. Modèles retenus : `eleven_v4_turbo` (streaming examen) et `eleven_v4` (pré-génération) |
 | Serveur SMTP | E-mails de compte | `ARI_EMAIL_MODE=log` en développement |
 | Hébergeur VPS, stockage S3 compatible | Exploitation, sauvegardes chiffrées | Voir `docs/DEPLOYMENT.md` |

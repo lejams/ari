@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from ari.application.ports.llm import LLMProvider
 from ari.application.prompting import load_prompt
+from ari.application.services.costing import PricingTable
 from ari.config import Settings
 from ari.content.domain.documents import Job, JobType
 from ari.content.fake_handlers import FAKE_CONTENT_HANDLERS
@@ -43,21 +44,16 @@ class ContentContainer:
     handlers: dict[JobType, JobHandler]
 
 
-def _llm(settings: Settings) -> LLMProvider:
+def _llm(settings: Settings, pricing: PricingTable) -> LLMProvider:
     if settings.provider_mode == "openai":
-        if not settings.openai_api_key:
+        if settings.content_provider == "openai" and not settings.openai_api_key:
             raise RuntimeError("ARI_OPENAI_API_KEY est requis en mode openai")
-        from ari.infrastructure.providers.openai.llm import OpenAILLMProvider
-
-        return OpenAILLMProvider(
-            settings.openai_api_key,
-            patient_model=settings.patient_model,
-            evaluation_model=settings.evaluation_model,
-            patient_timeout_seconds=settings.patient_timeout_seconds,
-            evaluation_timeout_seconds=settings.evaluation_timeout_seconds,
-            content_model=settings.content_model,
-            content_timeout_seconds=settings.content_timeout_seconds,
+        from ari.infrastructure.providers.llm_routing import (
+            CONTENT_TASKS,
+            llm_provider_from_settings,
         )
+
+        return llm_provider_from_settings(settings, pricing, CONTENT_TASKS)
     return FakeLLMProvider(handlers=FAKE_CONTENT_HANDLERS)
 
 
@@ -65,13 +61,14 @@ def build_content_container(
     settings: Settings, *, llm: LLMProvider | None = None
 ) -> ContentContainer:
     engine = create_content_engine(settings.content_database_url)
-    repository = SqlContentRepository(engine, pricing=load_pricing(settings.pricing_path))
+    pricing = load_pricing(settings.pricing_path)
+    repository = SqlContentRepository(engine, pricing=pricing)
     queue = PostgresJobQueue(engine)
     storage = FilesystemDocumentStorage(settings.content_storage_dir)
     extractor = PyMuPdfExtractor()
     prompts_dir = settings.prompt_directory / "content"
     model = ContentModel(
-        llm or _llm(settings),
+        llm or _llm(settings, pricing),
         ContentPrompts(
             segmentation=load_prompt(prompts_dir / "segmentation_v1.txt", "segmentation-v1"),
             extraction=load_prompt(

@@ -9,6 +9,7 @@ description = "ARI voice-based FSP training vertical slice"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.19,<2",
+  "anthropic>=2.0,<3",
   "argon2-cffi>=23.1,<26",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
@@ -93,6 +94,7 @@ type = "forbidden"
 source_modules = ["ari.domain", "ari.application", "ari.content.domain", "ari.content.services"]
 forbidden_modules = [
   "alembic",
+  "anthropic",
   "fastapi",
   "httpx",
   "openai",

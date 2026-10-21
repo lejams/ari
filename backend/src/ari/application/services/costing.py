@@ -19,6 +19,7 @@ Billing = Literal["tokens", "stt_minute", "tts_minute", "tts_character", "free"]
 TOKEN_UNITS = (
     "input_token",
     "cached_input_token",
+    "cache_write_input_token",
     "audio_input_token",
     "cached_audio_input_token",
     "output_token",
@@ -115,6 +116,20 @@ def _tokens(usage: Mapping[str, Any]) -> tuple[dict[str, float], list[str]]:
             "input_token": prompt - cached,
             "cached_input_token": cached,
             "output_token": completion,
+        }, []
+    # Anthropic Messages: input_tokens excludes the prompt cache, which is reported apart as
+    # reads and writes; thinking tokens are part of output_tokens. Checked before the Realtime
+    # shape, which shares the input_tokens / output_tokens names.
+    if "cache_read_input_tokens" in usage or "cache_creation_input_tokens" in usage:
+        inputs = _number(usage.get("input_tokens"))
+        outputs = _number(usage.get("output_tokens"))
+        if inputs is None or outputs is None:
+            return {}, ["usage.tokens"]
+        return {
+            "input_token": inputs,
+            "cached_input_token": _number(usage.get("cache_read_input_tokens")) or 0.0,
+            "cache_write_input_token": _number(usage.get("cache_creation_input_tokens")) or 0.0,
+            "output_token": outputs,
         }, []
     # Realtime and Responses: input_tokens / output_tokens with text and audio details.
     if "input_tokens" in usage:

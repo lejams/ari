@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     backoffice_invitation_hours: int = 48
     prompt_directory: Path = PROJECT_ROOT / "backend" / "src" / "ari" / "prompts"
     # Versioned price list: every model call is costed against it when it is recorded.
-    pricing_path: Path = PROJECT_ROOT / "backend" / "src" / "ari" / "pricing" / "pricing-v1.yaml"
+    pricing_path: Path = PROJECT_ROOT / "backend" / "src" / "ari" / "pricing" / "pricing-v2.yaml"
     frontend_origin: str = "http://localhost:5173"
     feedback_language: str = "fr-FR"
     application_version: str | None = None
@@ -91,6 +91,27 @@ class Settings(BaseSettings):
     stt_timeout_seconds: float = 30.0
     patient_model: str = "gpt-6-luna"
     evaluation_model: str = "gpt-6-luna"
+    # Provider of each LLM task (infrastructure/providers/llm_routing.py). The model of a task
+    # must be one of its provider's: ARI_EVALUATION_PROVIDER=anthropic goes with
+    # ARI_EVALUATION_MODEL=claude-sonnet-5-5. Unset, the exam fact audit follows the patient.
+    patient_provider: Literal["openai", "anthropic"] = "openai"
+    evaluation_provider: Literal["openai", "anthropic"] = "openai"
+    content_provider: Literal["openai", "anthropic"] = "openai"
+    fact_attribution_provider: Literal["openai", "anthropic"] | None = None
+    fact_attribution_model: str | None = None
+    anthropic_api_key: str | None = None
+    anthropic_max_tokens: int = Field(default=16000, ge=1024)
+    # None keeps the model's own default effort (high on Claude Sonnet 5.5).
+    anthropic_effort: Literal["low", "medium", "high", "xhigh", "max"] | None = None
+
+    @field_validator(
+        "fact_attribution_provider", "fact_attribution_model", "anthropic_effort", mode="before"
+    )
+    @classmethod
+    def empty_means_unset(cls, value: object) -> object:
+        """Compose passes an unset variable as an empty string."""
+        return None if isinstance(value, str) and not value.strip() else value
+
     tts_model: str = "gpt-4o-mini-tts"
     tts_voice: str = "alloy"
     patient_timeout_seconds: float = 30.0

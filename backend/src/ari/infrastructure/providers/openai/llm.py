@@ -10,11 +10,9 @@ from pydantic import BaseModel
 from ari.application.contracts import LLMRequest, ProviderResult
 from ari.domain.errors import ProviderError
 from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
+from ari.infrastructure.providers.llm_routing import CONTENT_OPERATIONS
 
 T = TypeVar("T", bound=BaseModel)
-
-# Operations of the content pipeline run on the content model with its long timeout.
-CONTENT_OPERATIONS = frozenset({"protocol_segmentation", "protocol_extraction", "bundle_draft"})
 
 
 class OpenAILLMProvider:
@@ -48,6 +46,13 @@ class OpenAILLMProvider:
         self, request: LLMRequest, response_model: type[T]
     ) -> ProviderResult[T]:
         model, timeout = self._model_and_timeout(request.context.operation)
+        return await self.generate(request, response_model, model=model, timeout_seconds=timeout)
+
+    async def generate(
+        self, request: LLMRequest, response_model: type[T], *, model: str, timeout_seconds: float
+    ) -> ProviderResult[T]:
+        """Structured generation on the model a route chose (see llm_routing)."""
+        timeout = timeout_seconds
         started = time.perf_counter()
         try:
             async with asyncio.timeout(timeout):

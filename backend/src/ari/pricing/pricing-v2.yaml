@@ -1,0 +1,118 @@
+# Grille tarifaire versionnée : prix catalogue, hors taxes.
+# pricing-v2 (21 octobre 2026) = pricing-v1 inchangée, plus les modèles Claude (Anthropic). Les prix
+# OpenAI, ElevenLabs et Groq sont identiques à ceux de pricing-v1 (relevés le 15 octobre 2026).
+# Sources et fiabilité de chaque prix : docs/DEPENDENCIES.md, section « Tarifs publics relevés ».
+#
+# Unités : les prix de jetons sont donnés par million de jetons, les prix à la minute par minute
+# d'audio, les prix au caractère par millier de caractères. `null` = prix inconnu : le coût des
+# appels concernés reste inconnu et visible, jamais compté à zéro.
+#
+# Toute modification de prix crée une nouvelle version de ce fichier (pricing-v2.yaml, …) : un coût
+# enregistré garde la version de la grille qui l'a calculé.
+
+version: pricing-v2
+recorded_on: "2026-10-21"
+
+to_eur:
+  EUR: 1.0
+  USD: 0.88  # Hypothèse de travail (EUR/USD autour de 1,12 à 1,15), cours d'octobre non vérifié.
+
+models:
+  # ----- OpenAI, texte -----------------------------------------------------------------------
+  - provider: openai
+    model: gpt-6-luna
+    billing: tokens
+    currency: USD
+    prices: {input_token: 0.10, cached_input_token: null, output_token: 0.50}
+  - provider: openai
+    model: gpt-5.6-terra
+    billing: tokens
+    currency: USD
+    prices: {input_token: 2.00, cached_input_token: 0.20, output_token: 12.00}
+  - provider: openai
+    model: gpt-5.6-luna
+    billing: tokens
+    currency: USD
+    prices: {input_token: null, cached_input_token: null, output_token: null}
+
+  # ----- Anthropic, texte (grille Anthropic au 6 octobre 2026, API directe) -------------------
+  # Le prompt cache n'est pas utilisé par ARI : l'écriture en cache n'a pas de prix relevé ; si elle
+  # apparaît, le coût de l'appel devient inconnu (visible), jamais compté à zéro.
+  - provider: anthropic
+    model: claude-sonnet-5-5
+    billing: tokens
+    currency: USD
+    prices: {input_token: 2.00, cached_input_token: 0.20, cache_write_input_token: null, output_token: 10.00}
+  - provider: anthropic
+    model: claude-opus-5-5
+    billing: tokens
+    currency: USD
+    prices: {input_token: 4.00, cached_input_token: 0.20, cache_write_input_token: null, output_token: 20.00}
+  # Prix valables jusqu'à 100 000 jetons de prompt (0,50 $ / 2,50 $ au-delà) : les prompts d'ARI
+  # restent en dessous.
+  - provider: anthropic
+    model: claude-haiku-5-5
+    billing: tokens
+    currency: USD
+    prices: {input_token: 0.10, cached_input_token: null, cache_write_input_token: null, output_token: 0.50}
+
+  # ----- OpenAI, temps réel --------------------------------------------------------------------
+  - provider: openai
+    model: gpt-realtime-2.1-mini
+    billing: tokens
+    currency: USD
+    prices:
+      input_token: 0.60
+      cached_input_token: 0.06
+      output_token: 2.40
+      audio_input_token: 10.00
+      cached_audio_input_token: 0.30
+      audio_output_token: 20.00
+  - provider: openai
+    model: gpt-realtime-mini
+    billing: tokens
+    currency: USD
+    prices:
+      input_token: null
+      cached_input_token: null
+      output_token: null
+      audio_input_token: null
+      cached_audio_input_token: null
+      audio_output_token: null
+
+  # ----- Voix ----------------------------------------------------------------------------------
+  - provider: openai
+    model: gpt-4o-mini-tts
+    billing: tts_minute
+    currency: USD
+    prices: {tts_minute: 0.015}
+  - provider: elevenlabs
+    model: eleven_v4_turbo
+    billing: tts_character
+    currency: USD
+    prices: {tts_character: 0.04}
+  - provider: elevenlabs
+    model: eleven_v4
+    billing: tts_character
+    currency: USD
+    prices: {tts_character: 0.08}
+
+  # ----- Transcription (le fournisseur est l'hôte du point de terminaison) ---------------------
+  - provider: api.groq.com
+    model: whisper-large-v3
+    billing: stt_minute
+    currency: USD
+    minimum_billed_seconds: 10
+    prices: {stt_minute: 0.00185}  # 0,111 $ par heure.
+  - provider: api.openai.com
+    model: whisper-1
+    billing: stt_minute
+    currency: USD
+    prices: {stt_minute: null}
+
+  # ----- Fournisseurs simulés ------------------------------------------------------------------
+  - provider: fake
+    model: deterministic-fake-v1
+    billing: free
+    currency: USD
+    prices: {}
