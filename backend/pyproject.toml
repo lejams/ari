@@ -21,6 +21,7 @@ dependencies = [
   "pyyaml>=6.0,<7",
   "sqlalchemy>=2.0,<3",
   "uvicorn[standard]>=0.35,<1",
+  "websockets>=13,<17",
 ]
 
 [project.optional-dependencies]
