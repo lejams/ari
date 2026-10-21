@@ -44,6 +44,10 @@ class _Response:
     usage = _Usage()
     choices: ClassVar[list[_Choice]] = [_Choice()]
 
+    def __init__(self, model: str) -> None:
+        # Like the API: the dated snapshot that answered, not the alias that was requested.
+        self.model = f"{model}-2026-10-01"
+
 
 class _Completions:
     def __init__(self, selected_models: list[str]) -> None:
@@ -52,7 +56,7 @@ class _Completions:
     async def parse(self, *, model: str, **kwargs: object) -> _Response:
         del kwargs
         self._selected_models.append(model)
-        return _Response()
+        return _Response(model)
 
 
 class _Chat:
@@ -152,8 +156,9 @@ async def test_openai_llm_selects_model_per_operation() -> None:
         evaluation_timeout_seconds=1,
     )
     provider._client = cast(Any, _OfflineClient(selected_models))
+    returned: list[str | None] = []
     for operation in ("patient_simulation", "session_evaluation"):
-        await provider.generate_structured(
+        result = await provider.generate_structured(
             LLMRequest(
                 messages=({"role": "user", "content": "offline"},),
                 context=ExecutionContext(
@@ -165,4 +170,6 @@ async def test_openai_llm_selects_model_per_operation() -> None:
             ),
             _StructuredResult,
         )
+        returned.append(result.execution.model_returned)
     assert selected_models == ["patient-luna", "evaluation-terra"]
+    assert returned == ["patient-luna-2026-10-01", "evaluation-terra-2026-10-01"]

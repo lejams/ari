@@ -40,6 +40,7 @@ def _execution(
         operation=operation,
         provider="fake",
         model="deterministic-fake-v1",
+        model_returned="deterministic-fake-v1",
         status=ExecutionStatus.SUCCEEDED,
         prompt_version=context.prompt_version,
         prompt_hash=context.prompt_hash,
