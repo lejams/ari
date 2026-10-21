@@ -103,4 +103,5 @@ class SessionRepository(Protocol):
         evaluation: Evaluation,
         metrics: SessionMetrics,
         vocabulary: tuple[VocabularyObservation, ...],
+        execution: ExecutionRecord,
     ) -> None: ...

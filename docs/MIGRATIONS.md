@@ -24,8 +24,14 @@ append-only tables and `ari_only_columns_mutable('status', ...)` lets only the l
 of a content row change. Both raise with SQLSTATE class 23
 (`integrity_constraint_violation`) so psycopg surfaces `IntegrityError`, exactly like a
 violated constraint; the shared helpers live in
-`backend/src/ari/infrastructure/persistence/ddl.py`. Row locks (`SELECT ... FOR UPDATE`, or
-`FOR SHARE` when a session pins a published scenario) serialise workflow mutations.
+`backend/src/ari/infrastructure/persistence/ddl.py`. Later revisions add their own append-only
+tables the same way: `0004_evaluation_runs` keeps every analysis of a session in
+`evaluation_runs` (UPDATE and DELETE refused) and turns `evaluations` into a pointer to the
+current run (`current_run_id`, a composite key that keeps the run in its session); its
+backfill makes each existing evaluation run 1 and can be replayed without duplicates. Its
+downgrade keeps the current analysis of each session and drops the earlier runs and
+`executions.model_returned`. Row locks (`SELECT ... FOR UPDATE`, or `FOR SHARE` when a session
+pins a published scenario) serialise workflow mutations.
 
 Tests clone one template database migrated once per session (`backend/tests/conftest.py`,
 `ARI_TEST_DATABASE_URL`); `python -m ari.demo` and the tests pass URLs through

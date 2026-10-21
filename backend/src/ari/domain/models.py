@@ -388,6 +388,8 @@ class ExecutionRecord:
     # the repository derives both from the session.
     learner_id: str | None = None
     attempt_ref: str | None = None
+    # The model the provider says answered (`model` is the one requested); None when unknown.
+    model_returned: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

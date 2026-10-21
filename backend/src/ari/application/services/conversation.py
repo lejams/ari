@@ -232,7 +232,9 @@ class ConversationOrchestrator:
                 )
                 for item in outcome.vocabulary_candidates
             )
-            self.repository.save_analysis(session_id, outcome.evaluation, metrics, vocabulary)
+            self.repository.save_analysis(
+                session_id, outcome.evaluation, metrics, vocabulary, outcome.execution
+            )
             if self._lexicon is not None:
                 cadence = self.repository.get_learner(session.learner_id).details
                 self._lexicon.ingest_session(
