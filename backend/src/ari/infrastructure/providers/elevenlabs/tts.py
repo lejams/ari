@@ -64,14 +64,18 @@ class _Pooled:
         self.idle_since = time.monotonic()
 
 
+# The training player accepts only audio/pcm;rate=24000 (web/app.js) and the placement oral
+# wraps the bytes at ARI_AUDIO_SAMPLE_RATE (24 kHz): any other rate would play at the wrong speed.
+SUPPORTED_OUTPUT_FORMATS = frozenset({"pcm_24000"})
+
+
 def pcm_rate(output_format: str) -> int:
-    kind, _, rate = output_format.partition("_")
-    if kind != "pcm" or not rate.isdigit():
+    if output_format not in SUPPORTED_OUTPUT_FORMATS:
         raise ValueError(
-            f"ElevenLabs output format {output_format!r}: the voice pipeline plays raw PCM, "
-            "use pcm_<rate> (for example pcm_24000)"
+            f"ElevenLabs output format {output_format!r}: the voice pipeline plays raw PCM at "
+            f"24 kHz only, use {', '.join(sorted(SUPPORTED_OUTPUT_FORMATS))}"
         )
-    return int(rate)
+    return int(output_format.partition("_")[2])
 
 
 class ElevenLabsStreamingTTSProvider:
@@ -111,17 +115,21 @@ class ElevenLabsStreamingTTSProvider:
 
     async def stream(self, text: str, context: ExecutionContext) -> AsyncIterator[AudioStreamEvent]:
         started = time.perf_counter()
+        # One deadline for the whole sentence (connection, retry and every frame), like the
+        # enclosing timeout of the OpenAI adapter: a service that keeps streaming cannot hold a
+        # turn past ARI_TTS_TIMEOUT_SECONDS.
+        deadline = time.monotonic() + self._timeout_seconds
         first_audio_ms: int | None = None
         audio_bytes = 0
         reusable = False
         socket: DialogueSocket | None = None
         try:
             for attempt in (1, 2):
-                socket = await self._acquire()
+                socket = await self._acquire(deadline)
                 message = {"inputs": [{"text": text, "voice_id": self._voice_id}], "flush": True}
                 try:
                     await socket.send(json.dumps(message))
-                    async for chunk, final in self._sentence(socket):
+                    async for chunk, final in self._sentence(socket, deadline):
                         if final:
                             reusable = True
                             break
@@ -166,17 +174,22 @@ class ElevenLabsStreamingTTSProvider:
         for pooled in idle:
             await _close_quietly(pooled.socket)
 
-    async def _sentence(self, socket: DialogueSocket) -> AsyncIterator[tuple[bytes, bool]]:
+    async def _sentence(
+        self, socket: DialogueSocket, deadline: float
+    ) -> AsyncIterator[tuple[bytes, bool]]:
         """(audio, False) per audio frame, then (b"", True) on the final frame."""
         heard = False
         while True:
-            wait = self._idle_end_seconds if heard else self._timeout_seconds
+            remaining = _remaining(deadline)
+            idle_end = heard and self._idle_end_seconds < remaining
             try:
-                raw = await asyncio.wait_for(socket.recv(), wait)
+                raw = await asyncio.wait_for(
+                    socket.recv(), self._idle_end_seconds if idle_end else remaining
+                )
             except TimeoutError:
-                if not heard:
-                    raise
-                return  # silence after audio: the sentence is over, but not cleanly
+                if idle_end:
+                    return  # silence after audio: the sentence is over, but not cleanly
+                raise TimeoutError(f"speech synthesis exceeded {self._timeout_seconds} s") from None
             frame = _frame(raw)
             if frame.get("error"):
                 raise ElevenLabsProtocolError(f"service error: {_redact(frame)}")
@@ -188,14 +201,14 @@ class ElevenLabsStreamingTTSProvider:
                 yield b"", True
                 return
 
-    async def _acquire(self) -> DialogueSocket:
+    async def _acquire(self, deadline: float) -> DialogueSocket:
         now = time.monotonic()
         while self._idle:
             pooled = self._idle.pop()
             if now - pooled.idle_since <= self._max_connection_idle_seconds:
                 return pooled.socket
             await _close_quietly(pooled.socket)
-        return await self._open()
+        return await self._open(_remaining(deadline))
 
     async def _release(self, socket: DialogueSocket) -> None:
         if len(self._idle) < self._max_idle_connections:
@@ -203,10 +216,10 @@ class ElevenLabsStreamingTTSProvider:
         else:
             await _close_quietly(socket)
 
-    async def _open(self) -> DialogueSocket:
+    async def _open(self, timeout_seconds: float) -> DialogueSocket:
         try:
             socket = await self._connector(
-                self._url, {"xi-api-key": self._api_key}, self._timeout_seconds
+                self._url, {"xi-api-key": self._api_key}, timeout_seconds
             )
         except InvalidStatus as exc:
             # The body says why (bad key, unknown model, format); the key itself is never in it.
@@ -257,6 +270,13 @@ class ElevenLabsStreamingTTSProvider:
             error_message=str(error)[:1000] if error else None,
             retryable=error is not None,
         )
+
+
+def _remaining(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("speech synthesis deadline passed")
+    return remaining
 
 
 def _frame(raw: str | bytes) -> dict[str, Any]:

@@ -238,10 +238,31 @@ async def test_a_silent_service_times_out_without_retrying() -> None:
         assert loop.time() - started < 0.9  # one wait, not two
 
 
-def test_only_raw_pcm_output_formats_are_accepted() -> None:
-    with pytest.raises(ValueError, match="pcm_"):
-        provider("ws://unused", output_format="mp3_44100_128")
-    assert provider("ws://unused", output_format="pcm_16000")._mime_type == "audio/pcm;rate=16000"
+def test_only_the_24_khz_pcm_the_players_expect_is_accepted() -> None:
+    # The training player takes audio/pcm;rate=24000 only and the placement oral wraps at 24 kHz.
+    for unsupported in ("mp3_44100_128", "pcm_16000", "pcm_22050"):
+        with pytest.raises(ValueError, match="24 kHz"):
+            provider("ws://unused", output_format=unsupported)
+    assert provider("ws://unused")._mime_type == "audio/pcm;rate=24000"
+
+
+async def test_a_service_that_never_stops_streaming_fails_at_the_overall_deadline() -> None:
+    async def endless(ws: ServerConnection) -> None:
+        await ws.recv()  # voice registration
+        await ws.recv()  # the sentence
+        while True:  # audio forever, never a final frame, never a pause
+            await ws.send(json.dumps({"audio": base64.b64encode(PCM).decode()}))
+            await asyncio.sleep(0.05)
+
+    async with serve(endless, "127.0.0.1", 0) as server:
+        port = next(iter(server.sockets)).getsockname()[1]
+        tts = provider(f"ws://127.0.0.1:{port}/", timeout_seconds=0.5, idle_end_seconds=0.2)
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        with pytest.raises(ProviderError) as caught:
+            await speak(tts, "Hallo.")
+        assert loop.time() - started < 1.0
+        assert caught.value.execution.status is ExecutionStatus.FAILED
 
 
 # ----- configuration --------------------------------------------------------------------------

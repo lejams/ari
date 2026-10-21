@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str | None = None
     elevenlabs_voice_id: str | None = None
     elevenlabs_tts_model: str = "eleven_v4_turbo"
-    elevenlabs_output_format: str = "pcm_24000"
+    elevenlabs_output_format: str = "pcm_24000"  # the only format the players accept
     elevenlabs_base_url: str = "wss://api.elevenlabs.io/v1/text-to-dialogue/stream-input"
     # How a voice is registered on a new connection; the documentation leaves it open.
     elevenlabs_voice_registration: Literal["objects", "ids"] = "objects"
