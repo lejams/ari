@@ -1,6 +1,6 @@
 # ARI : plan d'exécution pour Claude Code
 
-Version 1.0, 15 octobre 2026. Ce document est l'instruction de travail. Il est autonome : il ne suppose pas l'accès aux rapports d'audit dont il est issu.
+Version 1.1, 22 octobre 2026 (1.0 du 15 octobre 2026, ajout de l'action 13 : tests et audit UI/UX). Ce document est l'instruction de travail. Il est autonome : il ne suppose pas l'accès aux rapports d'audit dont il est issu.
 
 ## 0. Comment utiliser ce document
 
@@ -60,14 +60,14 @@ Toute valeur marquée « Hypothèse, paramètre » vit dans la configuration ou 
 
 ## 4. Calendrier et jalons
 
-Phase 1 (actions 1 à 8) : octobre 2026 à mi-février 2027. Phase 2a (actions 9 à 12) : mi-février à juin 2027.
+Phase 1 (actions 1 à 8) : octobre 2026 à mi-février 2027. Phase 2a (actions 9 à 12) : mi-février à juin 2027. L'action 13 (UI/UX) se fait en deux passes : l'application avant J3, la landing avant J4.
 
 | Jalon | Cible | Condition |
 |---|---|---|
 | J1 Coûts et quotas en production | fin novembre 2026 | actions 1 et 2 fusionnées |
 | J2 Examen ElevenLabs v1 | mi-décembre 2026 | action 3 fusionnée, avant la dépréciation OpenAI Realtime (janvier 2027) |
-| J3 Bêta fermée gratuite | mi-février 2027 | actions 1 à 8 fusionnées |
-| J4 Pilote payant | juin 2027 | actions 9 à 12 fusionnées |
+| J3 Bêta fermée gratuite | mi-février 2027 | actions 1 à 8 fusionnées, passe « application » de l'action 13 faite |
+| J4 Pilote payant | juin 2027 | actions 9 à 12 fusionnées, passe « landing » de l'action 13 faite |
 
 ---
 
@@ -359,6 +359,32 @@ Tests : propriétés (monotonie : une réussite n'abaisse jamais `mean` ; bornes
 7. Pilote de 20 à 30 apprenants.
 
 **Acceptation.** Un nouvel utilisateur obtient diagnostic et programme en moins de 20 minutes. Effacement d'un compte vérifié par test (aucune donnée identifiante résiduelle, observations conservées pseudonymisées). Webhook rejoué → aucun double traitement. Aucune nouvelle erreur critique sur le holdout. Marge brute mesurée ≥ 75 % sur les 50 premiers payants. Rapport de cohorte produit.
+
+---
+
+### Action 13 : tests et audit UI/UX (application et landing)
+
+**Objectif.** Vérifier que l'apprenant comprend et termine les parcours clés sans aide, et que la landing convertit un médecin visiteur en inscrit, avec des constats priorisés et des corrections en petites PR. Deux passes indépendantes : **application** (avant J3, la bêta) et **landing** (avant J4, le pilote payant).
+
+**Dépend de.** Rien pour démarrer. La passe application se refait sur les écrans modifiés par les actions 3, 9, 10 et 12 quand ils arrivent.
+
+**Outils.** Skills Claude Code à installer dans la session avant de commencer (ils ne sont pas dans le dépôt) :
+- `cro-optimization` (dépôt founder-skills) pour la landing (`web/landing.html`, `web/login.html`) ;
+- `ux-audit` ou `design-audit` pour l'application (`web/`) et, en second, le back-office (`backoffice-web/`).
+Si un skill est introuvable, le dire et appliquer la même grille à la main, sans inventer son contenu.
+
+**Lire d'abord.** `AGENTS.md` (section Frontend), `web/*.html` et `web/*.mjs`, `web/tests/` (dont `practice-e2e.mjs`, Playwright), `.github/workflows/ci.yml` (job e2e), `README.md` (ce qu'ARI promet et ne promet pas : pas de niveau CECRL certifié, pas de certification), `docs/CAPABILITIES.md`.
+
+**Faire.**
+1. Passe application (`ux-audit` ou `design-audit`), en mode fake puis sur un vrai compte de test : inscription, onboarding et profil, test de positionnement, programme de la semaine, consultation vocale en entraînement, examen, feedback et prochaines actions, lexique et révisions, progression. Sur mobile et sur ordinateur. Couvrir les états vides et d'erreur (catalogue vide, micro refusé, STT en échec, coupure réseau, limite d'une session vocale atteinte, quota d'examens épuisé), l'accessibilité (contraste, navigation clavier, libellés, taille des cibles tactiles) et la clarté des textes en français.
+2. Passe landing (`cro-optimization`) : proposition de valeur en une phrase pour un médecin qui prépare la FSP, appel à l'action, preuves, objections (prix, temps, niveau d'allemand requis), friction jusqu'à la première consultation. Aucune promesse de réussite, de certification ou d'information réglementaire non sourcée.
+3. Rapports : `docs/reviews/ux-app-audit.md` et `docs/reviews/ux-landing-cro.md`, chaque constat avec écran, capture, gravité (bloquant, majeur, mineur), correction proposée et effort. Les constats bloquants et majeurs deviennent des PR ; le reste est listé.
+4. Tests : étendre `web/tests/practice-e2e.mjs` aux parcours de l'étape 1 en mode fake, avec captures en largeur mobile et ordinateur, exécutés dans le job e2e existant. Ajouter un contrôle d'accessibilité automatique sur les pages principales si une dépendance légère le permet, sinon le noter.
+5. Test avec de vrais utilisateurs : 3 à 5 médecins de la cible, à voix haute, sur le parcours inscription → première consultation, sans aide. Noter où ils bloquent et le temps jusqu'à la première consultation.
+
+**Points réservés au propriétaire.** Textes marketing et promesses de la landing, prix affichés et offres, tout retrait ou masquage d'un élément visible (préférence : réorganiser ou replier, jamais retirer ; section 6, point 6), changement d'identité visuelle.
+
+**Acceptation.** Les deux rapports existent avec constats priorisés. Aucun constat bloquant ouvert sur les parcours de l'étape 1 avant J3. Les parcours de l'étape 1 sont couverts par l'e2e en mode fake, sur mobile et ordinateur, en CI. Le temps médian jusqu'à la première consultation est mesuré sur le test utilisateur.
 
 ---
 

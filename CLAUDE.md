@@ -33,7 +33,7 @@ invariants 3 et 4, versionnement du gold et propagation, paiement et effacement 
 - L'action 3 n'est pas dans la liste mais le passage du spike 3a à 3b reste une décision du
   propriétaire.
 - Une revue de fin sur l'ensemble s'ajoute à ces revues, elle ne les remplace pas.
-- Les autres actions (2, 4, 8, 9, 10) peuvent être faites sur Sonnet 5.5 sans revue Opus systématique,
+- Les autres actions (2, 4, 8, 9, 10, 13) peuvent être faites sur Sonnet 5.5 sans revue Opus systématique,
   sauf si un changement touche à la sécurité, aux données ou à l'état (voir `AGENTS.md`, section Review).
 
 ## Avancement
@@ -51,6 +51,7 @@ session, lire d'abord `docs/HANDOFF.md`.** État au 21 octobre 2026, `main` en `
 | Action 5 Évaluations immuables | `claude/evaluation-runs-51a8b7` (non commitée) | **code terminé, revue Opus faite, constats traités puis contre-vérifiés (verdict final : approuvé), 403 tests verts, `alembic check` propre sur les deux chaînes. À commiter, pousser et fusionner** | `evaluation_runs` en ajout seul (migration `0004_evaluation_runs`), `evaluations` devient un pointeur. Brief : `docs/reviews/action5-opus-review-brief.md`, note : `docs/reviews/action5-note-de-fin.md` |
 | Action 7 Taxonomie FSP et observations | | à faire (revue Opus obligatoire) | **bloquée par un atelier de 4 h avec le médecin** (taxonomie, erreur critique) |
 | Actions 8, 9, 10, 11, 12 | | à faire | 10 exige une rubrique Arztbrief validée ; 11 et 12 exigent une revue Opus ; 12 exige les textes juridiques |
+| Action 13 Tests et audit UI/UX | | à faire (ajoutée le 22 octobre 2026) | passe application avant J3 (`ux-audit` ou `design-audit`), passe landing avant J4 (`cro-optimization`, dépôt founder-skills) |
 
 Décisions du propriétaire (15 octobre 2026) :
 - tous les modèles texte alignés sur `gpt-6-luna` (remplace la décision intermédiaire « terra seul »),
