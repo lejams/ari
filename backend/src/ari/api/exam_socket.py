@@ -49,6 +49,7 @@ class ChainExamSocket(VoiceSocket):
         self._utterances: asyncio.Queue[bytes | str | RetryAudio | None] = asyncio.Queue()
         self._busy = False
         self._worker: asyncio.Task[None] | None = None
+        self._segmenter: SpeechSegmenter | None = None
 
     def _tts(self) -> StreamingTTSProvider:
         voices: ExamVoices | None = self.services.exam_voices
@@ -57,7 +58,7 @@ class ChainExamSocket(VoiceSocket):
 
     async def _receive_loop(self) -> None:
         settings = self.services.settings
-        segmenter = SpeechSegmenter(
+        segmenter = self._segmenter = SpeechSegmenter(
             sample_rate=self.sample_rate,
             threshold=settings.exam_vad_threshold,
             silence_ms=settings.exam_vad_silence_ms,
@@ -110,8 +111,11 @@ class ChainExamSocket(VoiceSocket):
         while (item := await self._utterances.get()) is not None:
             self._busy = True
             # Speech heard from here on interrupts this item's answer; speech before it was the
-            # utterance itself, or interrupted the previous answer.
+            # utterance itself, or interrupted the previous answer. A learner still speaking
+            # now (an utterance not finished yet) interrupts this answer as well.
             self.barge_in.clear()
+            if self._segmenter is not None and self._segmenter.speaking:
+                self.barge_in.set()
             try:
                 work: Coroutine[object, object, None]
                 if isinstance(item, RetryAudio):

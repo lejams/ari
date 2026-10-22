@@ -474,6 +474,25 @@ def test_speech_during_transcription_interrupts_the_answer_to_come(chain: Contai
     assert chain.repository.get_session(session_id).turns[0].revealed_fact_ids == ()
 
 
+def test_an_utterance_still_being_spoken_interrupts_the_next_queued_answer(
+    chain: Container,
+) -> None:
+    services = replace(chain, transcriber=SlowTranscriber())
+    with TestClient(create_app(services)) as client:
+        session_id = create_exam(client)["id"]
+        with client.websocket_connect(f"/ws/sessions/{session_id}/voice") as socket:
+            receive(socket, "call.started")
+            socket.send_bytes(tone(400) + silence(1000))  # A: being transcribed
+            socket.send_bytes(tone(400) + silence(1000))  # B: queued behind A
+            socket.send_bytes(tone(300))  # C: the learner is still speaking
+            for _ in range(2):  # neither A's nor B's answer plays over C
+                assert receive(socket, "patient.audio_interrupted")["chunks_sent"] == 0
+            socket.send_json({"type": "call.end"})
+            receive(socket, "call.ended")
+    turns = chain.repository.get_session(session_id).turns
+    assert len(turns) == 2 and all(t.revealed_fact_ids == () for t in turns)
+
+
 def test_an_interrupted_answer_is_not_replayed(chain: Container) -> None:
     with TestClient(create_app(chain)) as client:
         session_id = create_exam(client)["id"]
