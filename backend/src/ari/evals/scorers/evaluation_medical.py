@@ -65,6 +65,17 @@ class MedicalItem(EvalItem):
     annotation: MedicalAnnotation
 
 
+def _missed_outcomes(annotation: MedicalAnnotation, reported: set[str]) -> set[str]:
+    critical = {o.item_id for o in annotation.required_omissions if o.critical}
+    other = {o.item_id for o in annotation.required_omissions if not o.critical}
+    outcomes: set[str] = set()
+    if critical - reported or any(e.critical for e in annotation.medical_errors):
+        outcomes.add("missed_critical_medical_error")
+    if other - reported or any(not e.critical for e in annotation.medical_errors):
+        outcomes.add("missed_medical_error")
+    return outcomes
+
+
 class EvaluationMedicalSuite:
     name: str = "evaluation-medical"
     scorer_version: str = "evaluation-medical-scorer-v1"
@@ -108,9 +119,11 @@ class EvaluationMedicalSuite:
             "statement.detected": 0.0,  # No output channel in session-evaluation-v4.
         }
         if value is None:
-            # Every annotated omission was missed: it stays in the recall denominator.
+            # Every annotated omission and error was missed: it stays in the recall denominator
+            # and a critical one still counts as a critical error.
             counts["omission.fn.all"] = float(len(expected))
-            return ItemScore(False, (), counts, json.dumps({"usable": False}))
+            missed = _missed_outcomes(annotation, set())
+            return ItemScore(False, tuple(sorted(missed)), counts, json.dumps({"usable": False}))
         evaluation = cast(EvaluationOutcome, value).evaluation
         reported = {
             str(missing)
@@ -121,13 +134,7 @@ class EvaluationMedicalSuite:
         counts["omission.fp.all"] = float(len(reported - expected))
         counts["omission.fn.all"] = float(len(expected - reported))
         counts["critical.detected"] = float(len(critical_omissions & reported))
-        outcomes: set[str] = set()
-        if critical_omissions - reported or any(e.critical for e in annotation.medical_errors):
-            outcomes.add("missed_critical_medical_error")
-        if (expected - critical_omissions) - reported or any(
-            not e.critical for e in annotation.medical_errors
-        ):
-            outcomes.add("missed_medical_error")
+        outcomes = _missed_outcomes(annotation, reported)
         if reported - expected:
             outcomes.add("false_omission")
         return ItemScore(
