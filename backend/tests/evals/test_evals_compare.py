@@ -149,6 +149,17 @@ async def test_a_new_critical_error_removes_a_cheaper_candidate() -> None:
     assert comparison.candidates[0].new_critical_errors == ["atemnot-04:invented_fact"]
 
 
+async def test_a_report_with_too_few_repetitions_is_never_recommended() -> None:
+    terra = await _report("terra", ScriptedProvider(oracle_patient, model="gpt-5.6-terra"))
+    request = request_for(SUITE, ScriptedProvider(oracle_patient), repetitions=2, gates=GATE_RULES)
+    # Cheaper and clean, but run twice (outside gate mode) while gates.yaml requires three.
+    luna = await run(replace(request, config=config("luna", "gpt-6-luna", "openai")))
+    assert luna.metrics["stability.changed_rate"] is not None
+    comparison = compare([terra, luna], GATE_RULES)
+    assert comparison.recommendation == "terra"
+    assert comparison.rejected["luna"] == ["repetitions >= 3 : 2.0"]
+
+
 async def test_only_reports_on_the_same_dataset_and_split_compare() -> None:
     luna = await _report("luna", ScriptedProvider(oracle_patient))
     other = luna.model_copy(update={"split": "holdout"})

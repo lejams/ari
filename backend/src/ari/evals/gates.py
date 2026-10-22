@@ -2,7 +2,9 @@
 
 A gate passes only when every threshold is met and the run has no NEW critical error: one
 new critical error blocks whatever the averages. A metric that could not be measured (empty
-denominator) fails its threshold: unknown is never taken as good.
+denominator) fails its threshold: unknown is never taken as good. When the run's repetitions
+are given, fewer than `gates.yaml` requires fail too (a report produced outside gate mode, or
+under an older, lower requirement, is never promoted).
 """
 
 from __future__ import annotations
@@ -102,6 +104,7 @@ def evaluate(
     *,
     baseline_critical: list[str] | None = None,
     baseline_id: str | None = None,
+    repetitions: int | None = None,
 ) -> GateResult:
     suite = gates.suites.get(suite_ref)
     if suite is None:
@@ -125,6 +128,9 @@ def evaluate(
             else:
                 status = "passed" if threshold.accepts(value) else "failed"
                 checks.append(_check(name, threshold.bound, round(value, 6), status))
+    if repetitions is not None:
+        status = "passed" if repetitions >= gates.repetitions else "failed"
+        checks.append(_check("repetitions", f">= {gates.repetitions}", repetitions, status))
     new = sorted(set(critical) - set(baseline_critical or ()))
     passed = not new and all(check.status == "passed" for check in checks)
     return GateResult(

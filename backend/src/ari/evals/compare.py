@@ -144,6 +144,9 @@ def compare(reports: Sequence[Report], gates: gate_rules.Gates) -> Comparison:
             own_critical,
             baseline_critical=baseline_critical,
             baseline_id=baseline.config.id,
+            # Re-gated here whatever mode produced the report: fewer repetitions than the
+            # current gates.yaml requires are never promoted.
+            repetitions=report.repetitions,
         )
         summaries.append(
             ConfigSummary(
