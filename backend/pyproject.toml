@@ -137,3 +137,22 @@ forbidden_modules = [
   "websockets",
   "yaml",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Runtime code never imports the evaluation framework (the holdout stays out of production)"
+type = "forbidden"
+source_modules = [
+  "ari.api",
+  "ari.application",
+  "ari.backoffice",
+  "ari.backoffice_api",
+  "ari.container",
+  "ari.content",
+  "ari.demo",
+  "ari.domain",
+  "ari.infrastructure",
+  "ari.learning",
+  "ari.main",
+  "ari.worker",
+]
+forbidden_modules = ["ari.evals"]

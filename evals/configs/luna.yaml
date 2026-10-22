@@ -1,0 +1,12 @@
+# Production au 22 octobre 2026 (décision du propriétaire du 15 octobre 2026).
+# Équivalent : ARI_PATIENT_PROVIDER=openai ARI_PATIENT_MODEL=gpt-6-luna,
+#              ARI_EVALUATION_PROVIDER=openai ARI_EVALUATION_MODEL=gpt-6-luna.
+id: luna
+description: Production, tous les modèles texte sur gpt-6-luna, patient d'entraînement
+provider: live
+routes:
+  patient: {provider: openai, model: gpt-6-luna}
+  evaluation: {provider: openai, model: gpt-6-luna}
+prompts:
+  patient: patient-v3
+  evaluation: evaluation-v6

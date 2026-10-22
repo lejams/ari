@@ -1,0 +1,1686 @@
+{
+  "report_version": "evals-report-v1",
+  "suite": "voice-sim@1",
+  "split": "dev",
+  "gate_mode": false,
+  "started_at": "2026-10-22T16:09:51.415740Z",
+  "duration_ms": 20964,
+  "repetitions": 1,
+  "dataset": {
+    "ref": "voice-sim@1",
+    "manifest_sha256": "2ccf1ca73f41483c6a02c54cf2438151ddf246674f306a70d83b85f9322e18eb",
+    "synthetic": true,
+    "split": "dev",
+    "items": 2,
+    "families": [
+      "exam",
+      "training"
+    ],
+    "files": {
+      "scripts.jsonl": "c2d149b198f52c9f7c9f6edda023d7bbceadeb7775236156e78810d4bced48e7"
+    }
+  },
+  "config": {
+    "id": "voice-fake",
+    "description": "Apprenant simulé en processus, entraînement et chaîne d'examen, modèles simulés",
+    "provider": "fake",
+    "routes": {},
+    "prompts": {},
+    "patient_engine": "training+exam",
+    "feedback_language": "fr-FR",
+    "voice": {
+      "target": "inprocess",
+      "modes": "training,exam",
+      "exam_engine": "chain",
+      "stt": "simulated",
+      "tts": "simulated-paced",
+      "llm": "fake",
+      "audio_pacing": "none"
+    },
+    "sha256": "58a1706e1a371c929a6f164fc797e3ad50ed40985aa83e47006d5bf2cee4e7af"
+  },
+  "versions": {
+    "prompts": {
+      "patient_simulation@patient-v3": {
+        "version": "patient-v3",
+        "sha256": "4115f48cba11d5c01dadaef9192790945a85ef939fb99596ded2d2862d3f543e"
+      },
+      "session_evaluation@evaluation-v6": {
+        "version": "evaluation-v6",
+        "sha256": "d36285e8e51e783cc72e0ffc1fd21ed14d79c96a88cf94637c27988c4b9f8280"
+      },
+      "patient_simulation@patient-exam-v1": {
+        "version": "patient-exam-v1",
+        "sha256": "453288fae35735d0dcd41f9a13e7fb154a95148720246229d7912c501b2e31c6"
+      }
+    },
+    "output_schemas": {},
+    "evaluation_schema_version": "session-evaluation-v4",
+    "scorer": "voice-sim-scorer-v1",
+    "gates": "gates-v2",
+    "pricing": "pricing-v2",
+    "code": null
+  },
+  "models_recorded": {
+    "speech_to_text": [
+      "deterministic-fake-v1"
+    ],
+    "patient_simulation": [
+      "deterministic-fake-v1"
+    ],
+    "text_to_speech": [
+      "deterministic-fake-v1"
+    ],
+    "session_evaluation": [
+      "deterministic-fake-v1"
+    ]
+  },
+  "models_returned": {
+    "speech_to_text": [
+      "deterministic-fake-v1"
+    ],
+    "patient_simulation": [
+      "deterministic-fake-v1"
+    ],
+    "text_to_speech": [
+      "deterministic-fake-v1"
+    ],
+    "session_evaluation": [
+      "deterministic-fake-v1"
+    ]
+  },
+  "metrics": {
+    "leak_rate": 0.0,
+    "invented_fact_rate": 0.0,
+    "answer.recall": 0.25,
+    "refusal.any_recall": 1.0,
+    "turn_failure_rate": 0.0,
+    "credit.violation_rate": 0.0,
+    "interruption.success_rate": 1.0,
+    "transcription.word_error_rate": 0.0,
+    "structured_after_retry": 1.0,
+    "structured_first_try": 1.0,
+    "stability.changed_rate": null,
+    "latency.exam.p50_ms": 60.0,
+    "latency.exam.p95_ms": 816.0,
+    "latency.training.p50_ms": 93.0,
+    "latency.training.p95_ms": 134.0
+  },
+  "segments": {
+    "exam": {
+      "leak_rate": 0.0,
+      "invented_fact_rate": 0.0,
+      "answer.recall": 0.25,
+      "refusal.any_recall": 1.0,
+      "turn_failure_rate": 0.0,
+      "credit.violation_rate": 0.0,
+      "interruption.success_rate": 1.0,
+      "transcription.word_error_rate": 0.0,
+      "structured_after_retry": 1.0,
+      "structured_first_try": 1.0,
+      "stability.changed_rate": null
+    },
+    "training": {
+      "leak_rate": 0.0,
+      "invented_fact_rate": 0.0,
+      "answer.recall": 0.25,
+      "refusal.any_recall": 1.0,
+      "turn_failure_rate": 0.0,
+      "credit.violation_rate": 0.0,
+      "interruption.success_rate": null,
+      "transcription.word_error_rate": 0.0,
+      "structured_after_retry": 1.0,
+      "structured_first_try": 1.0,
+      "stability.changed_rate": null
+    }
+  },
+  "reliability": [],
+  "critical_errors": [],
+  "cost": {
+    "pricing_version": "pricing-v2",
+    "calls": 74,
+    "unknown_calls": 0,
+    "unknown_components": [],
+    "known_micro_eur": 0,
+    "total_micro_eur": 0,
+    "runs": 2,
+    "mean_micro_eur_per_case": 0,
+    "per_operation": {
+      "patient_simulation": {
+        "calls": 24,
+        "unknown_calls": 0,
+        "total_micro_eur": 0
+      },
+      "session_evaluation": {
+        "calls": 2,
+        "unknown_calls": 0,
+        "total_micro_eur": 0
+      },
+      "speech_to_text": {
+        "calls": 24,
+        "unknown_calls": 0,
+        "total_micro_eur": 0
+      },
+      "text_to_speech": {
+        "calls": 24,
+        "unknown_calls": 0,
+        "total_micro_eur": 0
+      }
+    }
+  },
+  "latency": {
+    "patient_simulation": {
+      "calls": 24,
+      "p50_ms": 0,
+      "p95_ms": 0,
+      "max_ms": 0
+    },
+    "session_evaluation": {
+      "calls": 2,
+      "p50_ms": 0,
+      "p95_ms": 0,
+      "max_ms": 0
+    },
+    "speech_to_text": {
+      "calls": 24,
+      "p50_ms": 0,
+      "p95_ms": 0,
+      "max_ms": 0
+    },
+    "text_to_speech": {
+      "calls": 24,
+      "p50_ms": 0,
+      "p95_ms": 0,
+      "max_ms": 0
+    },
+    "voice.exam.end_of_speech_to_first_audio": {
+      "calls": 12,
+      "p50_ms": 60,
+      "p95_ms": 816,
+      "max_ms": 816
+    },
+    "voice.training.end_of_speech_to_first_audio": {
+      "calls": 12,
+      "p50_ms": 93,
+      "p95_ms": 134,
+      "max_ms": 134
+    }
+  },
+  "gate": null,
+  "items": [
+    {
+      "item_id": "dev-fr:training",
+      "family": "training",
+      "case_id": "ARI-DEV-FR",
+      "verdict": true,
+      "outcomes": [],
+      "counts": {
+        "turns": 12.0,
+        "stt.words": 101.0,
+        "stt.word_errors": 0.0,
+        "answer.expected_facts": 8.0,
+        "answer.found_facts": 2.0,
+        "credit.checks": 12.0,
+        "refusal.expected": 2.0,
+        "refusal.refused": 2.0,
+        "runs.total": 1.0,
+        "runs.usable": 1.0,
+        "runs.first_try": 1.0
+      },
+      "runs": [
+        {
+          "repetition": 1,
+          "attempts": 1,
+          "usable": true,
+          "verdict": true,
+          "outcomes": [],
+          "counts": {
+            "turns": 12.0,
+            "stt.words": 101.0,
+            "stt.word_errors": 0.0,
+            "answer.expected_facts": 8.0,
+            "answer.found_facts": 2.0,
+            "credit.checks": 12.0,
+            "refusal.expected": 2.0,
+            "refusal.refused": 2.0,
+            "runs.total": 1.0,
+            "runs.usable": 1.0,
+            "runs.first_try": 1.0
+          },
+          "signature": "s01:out_of_scope:[]:patient.audio_done|s02:out_of_scope:[]:patient.audio_done|s03:out_of_scope:[]:patient.audio_done|s04:out_of_scope:[]:patient.audio_done|s05:out_of_scope:[]:patient.audio_done|s06:out_of_scope:[]:patient.audio_done|s07:sources:['allergy']:patient.audio_done|s08:out_of_scope:[]:patient.audio_done|s09:sources:['family_history']:patient.audio_done|s10:out_of_scope:[]:patient.audio_done|s11:out_of_scope:[]:patient.audio_done|s12:wrong_language:[]:patient.audio_done",
+          "errors": [],
+          "calls": [
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 2.43
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 2926,
+                "output_characters": 49
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 1.5
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3073,
+                "output_characters": 49
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 1.14
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3229,
+                "output_characters": 49
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 1.65
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3424,
+                "output_characters": 49
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 2.04
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3637,
+                "output_characters": 49
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 1.38
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3784,
+                "output_characters": 49
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 0.75
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3920,
+                "output_characters": 58
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 47
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 1.59
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4124,
+                "output_characters": 49
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 1.53
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4300,
+                "output_characters": 65
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 79
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 1.08
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4483,
+                "output_characters": 49
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 1.17
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4654,
+                "output_characters": 49
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 1.02
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4814,
+                "output_characters": 51
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "session_evaluation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4255,
+                "output_characters": 1245
+              }
+            }
+          ],
+          "detail": {
+            "session_id": "c8a57264-1e05-4d87-8dc4-68550a9fb357",
+            "duration_ms": 10328,
+            "turns": 12,
+            "steps": [
+              {
+                "step": "s01",
+                "said": "Bonjour madame, je suis le docteur Weber. Qu'est-ce qui vous amène aujourd'hui ?",
+                "transcript": "Bonjour madame, je suis le docteur Weber. Qu'est-ce qui vous amène aujourd'hui ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 89,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s02",
+                "said": "Comment vous appelez-vous et quel âge avez-vous ?",
+                "transcript": "Comment vous appelez-vous et quel âge avez-vous ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 95,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s03",
+                "said": "Depuis quand avez-vous cette douleur ?",
+                "transcript": "Depuis quand avez-vous cette douleur ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 93,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s04",
+                "said": "Pouvez-vous me décrire la douleur plus précisément ?",
+                "transcript": "Pouvez-vous me décrire la douleur plus précisément ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 78,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s05",
+                "said": "Pardon, je vous coupe : est-ce que la douleur descend dans le bras ?",
+                "transcript": "Pardon, je vous coupe : est-ce que la douleur descend dans le bras ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 63,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s06",
+                "said": "Prenez-vous des médicaments régulièrement ?",
+                "transcript": "Prenez-vous des médicaments régulièrement ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 89,
+                "audio_chunks": 24,
+                "delivery_status": "unconfirmed",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s07",
+                "said": "Avez-vous des allergies ?",
+                "transcript": "Avez-vous des allergies ?",
+                "response_kind": "sources",
+                "chosen_fact_ids": [
+                  "allergy"
+                ],
+                "credited_fact_ids": [
+                  "allergy"
+                ],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 134,
+                "audio_chunks": 18,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s08",
+                "said": "Fumez-vous ? Si oui, combien de cigarettes par jour ?",
+                "transcript": "Fumez-vous ? Si oui, combien de cigarettes par jour ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 107,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s09",
+                "said": "Y a-t-il des maladies du cœur dans votre famille ?",
+                "transcript": "Y a-t-il des maladies du cœur dans votre famille ?",
+                "response_kind": "sources",
+                "chosen_fact_ids": [
+                  "family_history"
+                ],
+                "credited_fact_ids": [
+                  "family_history"
+                ],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 94,
+                "audio_chunks": 31,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s10",
+                "said": "Avez-vous des animaux à la maison ?",
+                "transcript": "Avez-vous des animaux à la maison ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 106,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s11",
+                "said": "Quel temps fera-t-il demain à Munich ?",
+                "transcript": "Quel temps fera-t-il demain à Munich ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 76,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s12",
+                "said": "Seit wann haben Sie die Schmerzen?",
+                "transcript": "Seit wann haben Sie die Schmerzen?",
+                "response_kind": "wrong_language",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 103,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "item_id": "dev-fr:exam",
+      "family": "exam",
+      "case_id": "ARI-DEV-FR",
+      "verdict": true,
+      "outcomes": [],
+      "counts": {
+        "turns": 12.0,
+        "stt.words": 101.0,
+        "stt.word_errors": 0.0,
+        "answer.expected_facts": 8.0,
+        "answer.found_facts": 2.0,
+        "credit.checks": 12.0,
+        "interruption.expected": 1.0,
+        "interruption.succeeded": 1.0,
+        "refusal.expected": 2.0,
+        "refusal.refused": 2.0,
+        "runs.total": 1.0,
+        "runs.usable": 1.0,
+        "runs.first_try": 1.0
+      },
+      "runs": [
+        {
+          "repetition": 1,
+          "attempts": 1,
+          "usable": true,
+          "verdict": true,
+          "outcomes": [],
+          "counts": {
+            "turns": 12.0,
+            "stt.words": 101.0,
+            "stt.word_errors": 0.0,
+            "answer.expected_facts": 8.0,
+            "answer.found_facts": 2.0,
+            "credit.checks": 12.0,
+            "interruption.expected": 1.0,
+            "interruption.succeeded": 1.0,
+            "refusal.expected": 2.0,
+            "refusal.refused": 2.0,
+            "runs.total": 1.0,
+            "runs.usable": 1.0,
+            "runs.first_try": 1.0
+          },
+          "signature": "s01:out_of_scope:[]:patient.audio_done|s02:out_of_scope:[]:patient.audio_done|s03:out_of_scope:[]:patient.audio_done|s04:out_of_scope:[]:patient.audio_interrupted|s05:out_of_scope:[]:patient.audio_done|s06:out_of_scope:[]:patient.audio_done|s07:sources:['allergy']:patient.audio_done|s08:out_of_scope:[]:patient.audio_done|s09:sources:['family_history']:patient.audio_done|s10:out_of_scope:[]:patient.audio_done|s11:out_of_scope:[]:patient.audio_done|s12:wrong_language:[]:patient.audio_done",
+          "errors": [],
+          "calls": [
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 3.54
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3059,
+                "output_characters": 66
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 2.72
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3206,
+                "output_characters": 66
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 2.36
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3362,
+                "output_characters": 66
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 2.86
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3557,
+                "output_characters": 66
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 3.24
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3770,
+                "output_characters": 66
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 2.58
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 3917,
+                "output_characters": 66
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 1.96
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4053,
+                "output_characters": 75
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 47
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 2.8
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4257,
+                "output_characters": 66
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 2.74
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4433,
+                "output_characters": 82
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 79
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 2.3
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4616,
+                "output_characters": 66
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 2.38
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4787,
+                "output_characters": 66
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "speech_to_text",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "audio_seconds": 2.22
+              }
+            },
+            {
+              "operation": "patient_simulation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4947,
+                "output_characters": 68
+              }
+            },
+            {
+              "operation": "text_to_speech",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "characters": 62
+              }
+            },
+            {
+              "operation": "session_evaluation",
+              "provider": "fake",
+              "model": "deterministic-fake-v1",
+              "model_returned": "deterministic-fake-v1",
+              "status": "succeeded",
+              "latency_ms": 0,
+              "cost_micro_eur": 0,
+              "unknown_components": [],
+              "usage": {
+                "input_characters": 4255,
+                "output_characters": 1245
+              }
+            }
+          ],
+          "detail": {
+            "session_id": "2ea6387d-f662-476e-8530-eae3f77d7188",
+            "duration_ms": 10351,
+            "turns": 12,
+            "steps": [
+              {
+                "step": "s01",
+                "said": "Bonjour madame, je suis le docteur Weber. Qu'est-ce qui vous amène aujourd'hui ?",
+                "transcript": "Bonjour madame, je suis le docteur Weber. Qu'est-ce qui vous amène aujourd'hui ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 31,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s02",
+                "said": "Comment vous appelez-vous et quel âge avez-vous ?",
+                "transcript": "Comment vous appelez-vous et quel âge avez-vous ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 58,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s03",
+                "said": "Depuis quand avez-vous cette douleur ?",
+                "transcript": "Depuis quand avez-vous cette douleur ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 62,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s04",
+                "said": "Pouvez-vous me décrire la douleur plus précisément ?",
+                "transcript": "Pouvez-vous me décrire la douleur plus précisément ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_interrupted",
+                "latency_ms": 31,
+                "audio_chunks": 1,
+                "delivery_status": "unconfirmed",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s05",
+                "said": "Pardon, je vous coupe : est-ce que la douleur descend dans le bras ?",
+                "transcript": "Pardon, je vous coupe : est-ce que la douleur descend dans le bras ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 816,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s06",
+                "said": "Prenez-vous des médicaments régulièrement ?",
+                "transcript": "Prenez-vous des médicaments régulièrement ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 60,
+                "audio_chunks": 24,
+                "delivery_status": "unconfirmed",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s07",
+                "said": "Avez-vous des allergies ?",
+                "transcript": "Avez-vous des allergies ?",
+                "response_kind": "sources",
+                "chosen_fact_ids": [
+                  "allergy"
+                ],
+                "credited_fact_ids": [
+                  "allergy"
+                ],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 67,
+                "audio_chunks": 18,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s08",
+                "said": "Fumez-vous ? Si oui, combien de cigarettes par jour ?",
+                "transcript": "Fumez-vous ? Si oui, combien de cigarettes par jour ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 66,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s09",
+                "said": "Y a-t-il des maladies du cœur dans votre famille ?",
+                "transcript": "Y a-t-il des maladies du cœur dans votre famille ?",
+                "response_kind": "sources",
+                "chosen_fact_ids": [
+                  "family_history"
+                ],
+                "credited_fact_ids": [
+                  "family_history"
+                ],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 64,
+                "audio_chunks": 31,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s10",
+                "said": "Avez-vous des animaux à la maison ?",
+                "transcript": "Avez-vous des animaux à la maison ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 32,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s11",
+                "said": "Quel temps fera-t-il demain à Munich ?",
+                "transcript": "Quel temps fera-t-il demain à Munich ?",
+                "response_kind": "out_of_scope",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 67,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              },
+              {
+                "step": "s12",
+                "said": "Seit wann haben Sie die Schmerzen?",
+                "transcript": "Seit wann haben Sie die Schmerzen?",
+                "response_kind": "wrong_language",
+                "chosen_fact_ids": [],
+                "credited_fact_ids": [],
+                "leaked_fact_ids": [],
+                "terminal": "patient.audio_done",
+                "latency_ms": 31,
+                "audio_chunks": 24,
+                "delivery_status": "delivered",
+                "outcomes": [],
+                "errors": []
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

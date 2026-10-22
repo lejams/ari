@@ -45,6 +45,8 @@ jobs:
           psql postgresql://postgres:postgres@localhost:5432/postgres -c 'CREATE DATABASE ari_content'
       - name: Backend tests
         run: make test-backend
+      - name: Evaluations on the fake provider (measurement chain, not model quality)
+        run: make evals-fake
       - name: Ruff
         run: .venv/bin/ruff check backend
       - name: Mypy strict

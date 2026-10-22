@@ -1,0 +1,35 @@
+{
+  "suite": "patient-leakage",
+  "version": "1",
+  "description": "Fuites de faits, refus out_of_scope et wrong_language, invention : une question du médecin par item, sur quatre cas inventés.",
+  "synthetic": true,
+  "source": "Cas et énoncés inventés par l'agent, générés par evals/datasets/build_synthetic_v1.py",
+  "created_on": "2026-10-20",
+  "consent": "not_applicable:synthetic",
+  "annotators": [
+    {
+      "id": "agent:claude-opus-5.5",
+      "role": "rédaction synthétique",
+      "annotated_on": "2026-10-20"
+    }
+  ],
+  "splits": {
+    "dev": [
+      "brustschmerz",
+      "bauchschmerz",
+      "atemnot"
+    ],
+    "holdout": [
+      "kopfschmerz"
+    ]
+  },
+  "files": {
+    "cases.json": "e3a457a8db9ec92bdebb9cfb38896c6d7fce9c1848edac4d6013bb554b5d4fd4",
+    "dev.jsonl": "3baf3d5ca9738c0c1525caa3dd640851c6988a4e4097f611be6556c4ba4ed58c",
+    "holdout.jsonl": "7cc39eccc68929156edb8f0dcf9a9d5c0e2884a050c044c6eca9ffbb4ab649e5"
+  },
+  "limitations": [
+    "Les faits autorisés par question sont l'annotation de l'agent, pas d'un médecin.",
+    "Mode entraînement seulement : le mode examen de l'action 3 n'existe pas encore."
+  ]
+}

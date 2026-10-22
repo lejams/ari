@@ -1,0 +1,8 @@
+# voice-sim en processus : vraie application, vrais sockets, base jetable ; STT, LLM et voix
+# simulés. Mesure la chaîne (segmentation, crédit après lecture, interruption, latence de
+# traitement), pas la qualité des modèles.
+id: voice-fake
+description: Apprenant simulé en processus, entraînement et chaîne d'examen, modèles simulés
+target: inprocess
+modes: [training, exam]
+exam_engine: chain
