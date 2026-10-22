@@ -67,7 +67,14 @@ dans le rapport d'examen et la page Coûts après la bascule.
 **Commandes de validation exécutées.** `.venv/bin/pytest backend` (suite complète verte, dont
 `tests/test_exam_chain.py`), `ruff check backend`, `mypy backend/src`, `lint-imports`.
 
-**Revue.** Action hors liste Opus obligatoire. Revue Codex sur la PR #18, premier passage : trois
-constats, tous corrigés (filtre du texte libre en liste fermée ; interruption remise à zéro au début
-de chaque tour et non après la transcription ; nouvelle synthèse d'un audio en échec passée par la
-file des tours pour ne pas bloquer la lecture du micro).
+**Revue.** Action hors liste Opus obligatoire. Revue Codex sur la PR #18 en cinq passages : sept
+constats, tous corrigés, chacun avec un test qui échouait avant le correctif ; le cinquième passage
+(sur `5a4a21e`) ne trouve plus rien.
+- Passage 1 : filtre du texte libre en liste fermée ; interruption remise à zéro au début de chaque
+  tour et non après la transcription ; nouvelle synthèse d'un audio en échec passée par la file des
+  tours pour ne pas bloquer la lecture du micro.
+- Passage 2 : le worker est protégé de l'annulation d'un vidage concurrent (`asyncio.shield`) et la
+  finalisation passe dans un `finally`.
+- Passage 3 : un vidage annulé attend quand même la fin du tour avant de signaler `drained` ; une
+  parole entendue après le dernier morceau audio prend le chemin interrompu.
+- Passage 4 : un apprenant encore en train de parler interrompt aussi la réponse suivante en file.
