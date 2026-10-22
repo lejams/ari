@@ -22,6 +22,7 @@ from ari.application.ports.realtime import RealtimeEvent
 from ari.application.ports.stt import Transcription
 from ari.application.schemas import (
     EvaluationOutputSchema,
+    ExamPatientResponseSchema,
     PatientResponseSchema,
     SpeakingRatingSchema,
 )
@@ -141,6 +142,14 @@ LANGUAGE_MARKERS: dict[str, frozenset[str]] = {
         {"haben sie", "seit wann", "guten tag", "schmerz", "medikament", "fieber", "wo haben"}
     ),
 }
+# Exam chain: cue in the doctor's utterance, non-clinical kind, the patient's own wording. The
+# last one is clinical wording on purpose: the exam patient's screen must reject it.
+FAKE_NON_CLINICAL = (
+    ("danke", "small_talk", "Gern geschehen."),
+    ("einen moment", "hesitation", "Ja, natürlich."),
+    ("wie bitte", "clarification_request", "Entschuldigung, was meinen Sie?"),
+    ("plaudern", "small_talk", "Ich habe seit drei Tagen Fieber."),
+)
 # Tiny glossary so the fake evaluator can name the German word a French code switch needed.
 FAKE_GLOSSARY_FR_DE = {"douleur": "Schmerz", "fièvre": "Fieber", "médicament": "Medikament"}
 EMPATHY_MARKERS = ("leid", "désolé", "verstehe", "comprends", "schwer", "difficile", "sorry")
@@ -176,6 +185,8 @@ class FakeLLMProvider:
             result = self._handlers[response_model](payload)
         elif response_model is PatientResponseSchema:
             result = self._patient(payload)
+        elif response_model is ExamPatientResponseSchema:
+            result = self._exam_patient(payload)
         elif response_model is EvaluationOutputSchema:
             result = self._evaluation(payload)
         elif response_model is SpeakingRatingSchema:
@@ -240,6 +251,15 @@ class FakeLLMProvider:
         else:
             kind = "out_of_scope"
         return {"response_kind": kind, "source_refs": source_refs}
+
+    @classmethod
+    def _exam_patient(cls, payload: dict[str, object]) -> dict[str, object]:
+        """The training answer, plus non-clinical kinds on a few fixed cues."""
+        question = str(payload["doctor_latest_utterance"]).casefold()
+        for cue, kind, wording in FAKE_NON_CLINICAL:
+            if cue in question:
+                return {"response_kind": kind, "source_refs": [], "free_text": wording}
+        return cls._patient(payload)
 
     @staticmethod
     def _evaluation(payload: dict[str, object]) -> dict[str, object]:

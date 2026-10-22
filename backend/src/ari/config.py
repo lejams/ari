@@ -1,11 +1,36 @@
+import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+from ari.domain.clinical import PERSONA_VARIANTS
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# Only bracketed ElevenLabs audio tags ("[nervous] [sighs]"): never words, so the authored
+# clinical phrases are still exactly what the patient says.
+AUDIO_TAGS = r"^(\[[a-z][a-z ]{0,29}\]\s*){0,4}$"
+
+
+class ElevenLabsVoiceSettings(BaseModel):
+    """ElevenLabs voice settings; unset keeps the voice's own."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stability: float | None = Field(default=None, ge=0, le=1)
+    similarity_boost: float | None = Field(default=None, ge=0, le=1)
+    style: float | None = Field(default=None, ge=0, le=1)
+    speed: float | None = Field(default=None, ge=0.7, le=1.2)
+
+
+class ExamPersonaVoice(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    voice_id: str | None = None
+    tags: Annotated[str, Field(pattern=AUDIO_TAGS)] = ""
+    voice_settings: ElevenLabsVoiceSettings = Field(default_factory=ElevenLabsVoiceSettings)
 
 
 class Settings(BaseSettings):
@@ -118,7 +143,8 @@ class Settings(BaseSettings):
     # 6 January 2027); "elevenlabs" uses the settings below (docs/spikes/exam-elevenlabs.md).
     tts_provider: Literal["openai", "elevenlabs"] = "openai"
     elevenlabs_api_key: str | None = None
-    elevenlabs_voice_id: str | None = None
+    # Chosen by the owner on 22 October 2026 (plan, section 6, point 2).
+    elevenlabs_voice_id: str | None = "3nMIMZ7RlGwsq1WLgxY3"
     elevenlabs_tts_model: str = "eleven_v4_turbo"
     elevenlabs_output_format: str = "pcm_24000"  # the only format the players accept
     elevenlabs_base_url: str = "wss://api.elevenlabs.io/v1/text-to-dialogue/stream-input"
@@ -129,6 +155,43 @@ class Settings(BaseSettings):
     tts_timeout_seconds: float = 30.0
     # Exam mode: open microphone, one speech-to-speech model. Set ARI_REALTIME_MODEL to the
     # exact model id you are entitled to; it is pinned on every exam session.
+    # Exam engine: "openai_realtime" (one speech-to-speech model, the default until the chain
+    # is validated) or "chain" (Whisper, patient fact selection, ElevenLabs voice per persona;
+    # application/services/exam_session.py). Sessions keep the engine they were created with.
+    exam_engine: Literal["openai_realtime", "chain"] = "openai_realtime"
+    elevenlabs_exam_tts_model: str = "eleven_v4_turbo"
+    # How each persona sounds (plan, 6.2: the owner's choice), as JSON, e.g.
+    # {"anxious": {"voice_id": "<id>", "tags": "[nervous]",
+    #              "voice_settings": {"stability": 0.3, "style": 0.6, "speed": 1.1}}}.
+    # Three levers: the voice, its settings and audio tags read before each answer. A persona
+    # left out, or without a voice_id, speaks with ARI_ELEVENLABS_VOICE_ID and default settings.
+    elevenlabs_exam_personas: Annotated[dict[str, ExamPersonaVoice], NoDecode] = Field(
+        default_factory=dict
+    )
+    # Open-microphone speech detection of the chain (hypotheses, to tune on real calls): RMS of
+    # a 20 ms PCM16 frame that counts as speech, speech needed to start, silence that ends it.
+    exam_vad_threshold: int = Field(default=500, ge=1)
+    exam_vad_min_speech_ms: int = Field(default=200, ge=20)
+    exam_vad_silence_ms: int = Field(default=900, ge=100)
+
+    @field_validator("elevenlabs_exam_personas", mode="before")
+    @classmethod
+    def personas_from_json(cls, value: object) -> object:
+        """JSON in the environment; compose passes an unset variable as an empty string."""
+        if isinstance(value, str):
+            return json.loads(value) if value.strip() else {}
+        return value
+
+    @field_validator("elevenlabs_exam_personas")
+    @classmethod
+    def personas_are_known(
+        cls, value: dict[str, ExamPersonaVoice]
+    ) -> dict[str, ExamPersonaVoice]:
+        unknown = sorted(set(value) - set(PERSONA_VARIANTS))
+        if unknown:
+            raise ValueError(f"unknown personas {unknown}; expected {list(PERSONA_VARIANTS)}")
+        return value
+
     realtime_model: str = "gpt-realtime-mini"
     realtime_voice: str = "marin"
     realtime_transcription_model: str = "gpt-4o-mini-transcribe"

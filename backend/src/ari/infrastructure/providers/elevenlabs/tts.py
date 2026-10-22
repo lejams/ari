@@ -21,7 +21,7 @@ import base64
 import contextlib
 import json
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Literal, Protocol
 from urllib.parse import urlencode
 
@@ -93,9 +93,13 @@ class ElevenLabsStreamingTTSProvider:
         max_idle_connections: int = 4,
         max_connection_idle_seconds: float = 15.0,
         connector: Connector = _websocket_connect,
+        voice_settings: Mapping[str, float] | None = None,
+        audio_tags: str = "",
     ) -> None:
         if not api_key or not voice_id:
             raise ValueError("ElevenLabs speech synthesis needs an API key and a voice id")
+        if voice_settings and voice_registration == "ids":
+            raise ValueError("ElevenLabs voice settings need voice_registration='objects'")
         self._api_key = api_key
         self._model = model
         self._voice_id = voice_id
@@ -112,6 +116,11 @@ class ElevenLabsStreamingTTSProvider:
         self._max_connection_idle_seconds = max_connection_idle_seconds
         self._connector = connector
         self._idle: list[_Pooled] = []
+        # Persona levers beyond the voice itself (exam). Settings go with the voice when a
+        # connection registers it; tags (bracketed, never words) are read before each sentence.
+        # Neither has been run against the live service yet.
+        self._voice_settings = dict(voice_settings or {})
+        self._audio_tags = audio_tags.strip()
 
     async def stream(self, text: str, context: ExecutionContext) -> AsyncIterator[AudioStreamEvent]:
         started = time.perf_counter()
@@ -123,10 +132,14 @@ class ElevenLabsStreamingTTSProvider:
         audio_bytes = 0
         reusable = False
         socket: DialogueSocket | None = None
+        spoken = f"{self._audio_tags} {text}" if self._audio_tags else text
         try:
             for attempt in (1, 2):
                 socket = await self._acquire(deadline)
-                message = {"inputs": [{"text": text, "voice_id": self._voice_id}], "flush": True}
+                message = {
+                    "inputs": [{"text": spoken, "voice_id": self._voice_id}],
+                    "flush": True,
+                }
                 try:
                     await socket.send(json.dumps(message))
                     async for chunk, final in self._sentence(socket, deadline):
@@ -151,14 +164,14 @@ class ElevenLabsStreamingTTSProvider:
                 context,
                 started,
                 ExecutionStatus.SUCCEEDED,
-                len(text),
+                len(spoken),
                 first_audio_ms=first_audio_ms,
                 audio_seconds=round(audio_bytes / (self._rate * 2), 3),
             )
             yield AudioStreamEvent("completed", mime_type=self._mime_type, execution=execution)
         except Exception as exc:
             reusable = False
-            execution = self._record(context, started, ExecutionStatus.FAILED, len(text), exc)
+            execution = self._record(context, started, ExecutionStatus.FAILED, len(spoken), exc)
             raise ProviderError("ElevenLabs speech synthesis failed", execution=execution) from exc
         finally:
             # Also reached when the caller stops listening (barge-in): the sentence is abandoned
@@ -227,11 +240,10 @@ class ElevenLabsStreamingTTSProvider:
             raise ElevenLabsProtocolError(
                 f"connection refused (HTTP {exc.response.status_code}): {body}"
             ) from exc
-        voices: list[Any] = (
-            [self._voice_id]
-            if self._voice_registration == "ids"
-            else [{"voice_id": self._voice_id}]
-        )
+        voice: dict[str, Any] = {"voice_id": self._voice_id}
+        if self._voice_settings:
+            voice["voice_settings"] = self._voice_settings
+        voices: list[Any] = [self._voice_id] if self._voice_registration == "ids" else [voice]
         await socket.send(json.dumps({"voices": voices}))
         return socket
 

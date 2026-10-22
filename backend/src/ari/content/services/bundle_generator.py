@@ -27,6 +27,7 @@ from ari.content.services.rubrics import (
     SECTION_LABELS_DE,
 )
 from ari.domain.clinical import (
+    PERSONA_INSTRUCTIONS,
     AnamnesisSectionId,
     ClinicalBundle,
     ClinicalCaseVersion,
@@ -47,12 +48,6 @@ BEHAVIOUR_ITEMS: tuple[tuple[str, str], ...] = (
     ("closing", "Résumer les points recueillis et conclure l'entretien"),
 )
 PRESENTATION_QUESTION_ID = "presentation"
-PERSONA_INSTRUCTIONS: dict[str, str] = {
-    "standard": "kooperativ, antwortet in ganzen Sätzen, ergänzt nichts von sich aus",
-    "anxious": "ängstlich, fragt nach, braucht Beruhigung, antwortet knapp",
-    "talkative": "redselig, schweift ab, muss zurückgeführt werden",
-    "terse": "einsilbig, antwortet nur auf präzise Fragen",
-}
 
 
 class BundleDraftInvalid(Exception):
@@ -498,6 +493,7 @@ def _scenario(
             "rubric": {"id": ANAMNESIS_RUBRIC.id, "version": ANAMNESIS_RUBRIC.version},
             "rubric_hash": ANAMNESIS_RUBRIC.content_hash,
             "persona": output.persona_de,
+            "persona_variant": request.persona_variant,
             "opening": output.opening_de,
             "opening_fact_ids": list(output.opening_fact_ids),
             "objectives": list(output.objectives_fr),

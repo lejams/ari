@@ -4,6 +4,7 @@ from typing import cast
 from ari.application.ports.cases import MedicalCaseCatalog
 from ari.application.ports.evaluator import EvaluationOutcome, Evaluator
 from ari.application.ports.repository import SessionRepository
+from ari.application.services.exam_session import CHAIN_EXAM_STACK_ID, ExamPatient
 from ari.application.services.lexicon import LexiconService
 from ari.application.services.patient import PatientOutcome, PatientSimulator
 from ari.application.voice_stacks import VoiceStack
@@ -47,6 +48,7 @@ class ConversationOrchestrator:
         voice_stack: VoiceStack,
         exam_voice_stack: VoiceStack | None = None,
         lexicon: LexiconService | None = None,
+        exam_patient: ExamPatient | None = None,
     ) -> None:
         self.repository = repository
         self.cases = cases
@@ -57,6 +59,8 @@ class ConversationOrchestrator:
         self._exam_voice_stack = exam_voice_stack or voice_stack
         # Without a lexicon service the analysis completes; nothing carries across sessions.
         self._lexicon = lexicon
+        # The exam chain's patient; sessions pinned on another stack keep the training one.
+        self._exam_patient = exam_patient
 
     def create_learner(
         self, target_cefr: object, details: LearnerDetails | None = None
@@ -176,8 +180,11 @@ class ConversationOrchestrator:
         if session.status is not SessionStatus.ACTIVE:
             raise InvalidStateError("Session is not active")
         case = self._case_for_session(session)
+        simulator: PatientSimulator | ExamPatient = self._patient
+        if self._exam_patient is not None and session.voice_stack_id == CHAIN_EXAM_STACK_ID:
+            simulator = self._exam_patient
         try:
-            patient: PatientOutcome = await self._patient.respond(
+            patient: PatientOutcome = await simulator.respond(
                 session=session,
                 case=case,
                 user_text=turn.user_text,
