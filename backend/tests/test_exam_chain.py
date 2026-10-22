@@ -29,13 +29,14 @@ from ari.application.services.exam_session import (
     CHAIN_EXAM_STACK_ID,
     ExamVoices,
     SpeechSegmenter,
+    non_clinical_fallback,
     screen_free_text,
 )
 from ari.config import PROJECT_ROOT, Settings
 from ari.container import REALTIME_STACK_ID, Container, build_container, exam_persona_voices
 from ari.domain.errors import InvalidStateError
 from ari.domain.models import ExecutionStatus, TurnResponseState
-from ari.infrastructure.providers.fake import FakeTTSProvider, fake_tone
+from ari.infrastructure.providers.fake import FakeTranscriber, FakeTTSProvider, fake_tone
 
 RATE = 24_000
 
@@ -175,21 +176,26 @@ def test_the_schema_keeps_free_text_to_non_clinical_turns() -> None:
             ExamPatientResponseSchema.model_validate_json(json.dumps(payload))
 
 
-def test_free_wording_with_clinical_content_is_rejected(chain: Container) -> None:
+def test_free_wording_is_spoken_only_when_every_word_is_conversational(
+    chain: Container,
+) -> None:
     case = chain.cases.list()[0]
-    assert screen_free_text("Gern geschehen.", case) is None
-    assert screen_free_text("Entschuldigung, was meinen Sie?", case) is None
+    for accepted in ("Gern geschehen.", "Entschuldigung, was meinen Sie?", "Ja, natürlich."):
+        assert screen_free_text(accepted, case) is None
     assert screen_free_text("Seit 3 Tagen.", case) == "digit"
-    assert screen_free_text("Vielleicht drei.", case) == "number_word"
-    assert screen_free_text("Schon eine Woche.", case) == "unit"
-    assert screen_free_text("Mir tut der Kopf weh.", case) == "medical_term"
-    assert screen_free_text("Das sind Kopfschmerzen.", case) == "medical_term"
+    # Unsupported claims, unlisted numbers: not on the closed list, so not spoken.
+    for rejected in ("Ich nehme Aspirin.", "Ich bin blind.", "Dreizehn.", "Mir tut der Kopf weh."):
+        assert screen_free_text(rejected, case) == "unlisted_word"
+    assert screen_free_text("", case) == "empty"
 
 
-def test_a_case_term_is_rejected_in_free_wording(chain: Container) -> None:
-    case = chain.cases.list()[0]
-    case = replace(case, terminology=(replace(case.terminology[0], german="Synkope"),))
-    assert screen_free_text("Eine Synkope vielleicht?", case) == "case_term"
+@pytest.mark.parametrize("language", ["de-DE", "fr-FR"])
+@pytest.mark.parametrize("kind", ["small_talk", "clarification_request", "hesitation"])
+def test_the_authored_fallbacks_pass_their_own_screen(
+    chain: Container, language: str, kind: str
+) -> None:
+    case = replace(chain.cases.list()[0], language=language)
+    assert screen_free_text(non_clinical_fallback(language, kind), case) is None
 
 
 # Engine selection ------------------------------------------------------------------------
@@ -368,7 +374,7 @@ def test_non_clinical_turns_speak_screened_wording_or_the_authored_fallback(
     assert all(t.selected_fact_ids == () for t in session.turns)
     usage = [e.usage for e in session.executions if e.operation == "patient_simulation"]
     assert [u["free_text"] for u in usage] == ["accepted", "rejected"]
-    assert usage[1]["free_text_rejection"] == "unit"  # "seit", the first clinical word
+    assert usage[1]["free_text_rejection"] == "unlisted_word"
 
 
 class SlowTTS:
@@ -422,6 +428,28 @@ def test_speaking_over_the_patient_stops_the_answer_and_credits_nothing(
         1,
         1,
     )
+
+
+class SlowTranscriber:
+    async def transcribe(self, pcm16: bytes, **kw: Any) -> Any:
+        await asyncio.sleep(0.5)
+        return await FakeTranscriber().transcribe(pcm16, **kw)
+
+
+def test_speech_during_transcription_interrupts_the_answer_to_come(chain: Container) -> None:
+    services = replace(chain, transcriber=SlowTranscriber())
+    with TestClient(create_app(services)) as client:
+        session_id = create_exam(client)["id"]
+        with client.websocket_connect(f"/ws/sessions/{session_id}/voice") as socket:
+            receive(socket, "call.started")
+            socket.send_bytes(tone(400) + silence(1000))
+            receive(socket, "user.speech_started")
+            socket.send_bytes(tone(300))  # the learner goes on before the first answer
+            receive(socket, "user.speech_started")
+            assert receive(socket, "patient.audio_interrupted")["chunks_sent"] == 0
+            socket.send_json({"type": "call.end"})
+            receive(socket, "call.ended")
+    assert chain.repository.get_session(session_id).turns[0].revealed_fact_ids == ()
 
 
 def test_an_interrupted_answer_is_not_replayed(chain: Container) -> None:

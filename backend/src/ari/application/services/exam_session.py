@@ -58,101 +58,63 @@ NON_CLINICAL_FALLBACKS: dict[str, dict[str, str]] = {
     },
 }
 
-# Free wording carries no clinical content: no number, unit, duration or medical word at all.
-NUMBER_WORDS = frozenset(
-    {
-        # German
-        "null", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun",
-        "zehn", "elf", "zwölf", "zwanzig", "dreißig", "vierzig", "fünfzig", "sechzig",
-        "siebzig", "achtzig", "neunzig", "hundert", "tausend", "halb", "halbe", "halben",
-        "viertel", "einmal", "zweimal", "dreimal", "erste", "ersten", "zweite", "dritte",
-        # French
-        "zéro", "deux", "trois", "quatre", "cinq", "sept", "huit", "neuf", "onze",
-        "douze", "vingt", "trente", "quarante", "cinquante", "soixante", "cent", "mille",
-        "demi", "demie", "quart", "premier", "première",
-    }
-)  # fmt: skip
-UNIT_WORDS = frozenset(
-    {
-        # German
-        "mg", "milligramm", "gramm", "kg", "kilo", "ml", "milliliter", "liter", "grad",
-        "prozent", "mmhg", "uhr", "sekunde", "sekunden", "minute", "minuten", "stunde",
-        "stunden", "tag", "tage", "tagen", "woche", "wochen", "monat", "monate", "monaten",
-        "jahr", "jahre", "jahren", "tablette", "tabletten", "cm", "meter", "gestern",
-        "vorgestern", "morgens", "abends", "nachts", "seit",
-        # French
-        "jour", "jours", "semaine", "semaines", "mois", "an", "ans", "année", "années",
-        "heure", "heures", "degré", "degrés", "comprimé", "comprimés", "depuis", "hier",
-    }
-)  # fmt: skip
-# Stems of medical vocabulary, matched inside words ("Kopfschmerzen" holds "schmerz").
-MEDICAL_STEMS = (
-    # German
-    "schmerz", "fieber", "husten", "übel", "erbrech", "schwindel", "blut", "herz", "brust",
-    "bauch", "kopf", "magen", "lunge", "atem", "luftnot", "medikament", "tablett", "allerg",
-    "operation", "krankenhaus", "klinik", "diagnos", "krebs", "tumor", "druck", "zucker",
-    "insulin", "infekt", "entzünd", "durchfall", "verstopf", "urin", "stuhl", "rücken",
-    "bein", "arm", "hals", "auge", "ohr", "haut", "niere", "leber", "darm", "gelenk",
-    "rauch", "alkohol", "schwanger", "impf", "krank", "symptom", "beschwerd",
-    # French
-    "douleur", "fièvre", "toux", "nausée", "vomi", "vertige", "sang", "cœur", "coeur",
-    "poitrine", "ventre", "tête", "estomac", "poumon", "souffle", "médicament", "allergi",
-    "opération", "hôpital", "malad", "cancer", "tension", "sucre", "diarrhée", "dos",
-    "jambe", "gorge", "peau", "rein", "foie", "fumer", "tabac", "enceinte", "vaccin",
-)  # fmt: skip
-# Function words shared by authored phrases and harmless replies; never part of a case lexicon.
-COMMON_WORDS = frozenset(
-    {
-        "nicht", "keine", "keinen", "einen", "einem", "einer", "eines", "meine", "meinen",
-        "meiner", "meinem", "meines", "haben", "hatte", "hatten", "schon", "etwas", "immer",
-        "wieder", "bitte", "danke", "gerne", "wirklich", "manchmal", "eigentlich", "glaube",
-        "können", "könnte", "würde", "werden", "wurde", "jetzt", "dieser", "diese", "diesem",
-        "diesen", "ihnen", "unsere", "aber", "auch", "noch", "oder", "sehr",
-        "c'est", "votre", "notre", "suis", "avez", "avoir", "faire", "merci", "parce",
-        "comme", "toujours", "encore", "vraiment", "peut-être", "quelque",
-    }
-)  # fmt: skip
+# Free wording is spoken only when every word is on this closed list of conversational words:
+# a word that is not listed (a drug, a body part, a number, a new claim) sends the authored
+# fallback instead. Absence from a blacklist would prove nothing; membership here does.
+NON_CLINICAL_WORDS: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {
+            "ja", "nein", "danke", "dank", "vielen", "dankeschön", "bitte", "bitteschön",
+            "gern", "gerne", "geschehen", "guten", "tag", "morgen", "abend", "hallo",
+            "auf", "wiedersehen", "tschüss", "herr", "frau", "doktor", "doktorin",
+            "entschuldigung", "entschuldigen", "verzeihung", "sie", "ich", "mich", "mir",
+            "es", "das", "der", "die", "den", "dem", "was", "wie", "ist", "bin",
+            "sind", "war", "habe", "hab", "haben", "können", "könnten", "würden", "noch",
+            "einmal", "mal", "nochmal", "wiederholen", "sagen", "gesagt", "fragen",
+            "verstehe", "verstanden", "nicht", "ganz", "genau", "meinen", "natürlich",
+            "klar", "okay", "gut", "sehr", "schön", "freut", "warte", "warten", "moment",
+            "kein", "problem", "aber", "und", "oder", "so", "also", "hm", "hmm", "äh",
+            "ähm", "ach", "oh", "na", "langsamer", "lauter", "sprechen", "leider",
+            "gehört", "einverstanden", "sicher", "in", "ordnung", "zeit", "lassen",
+            "sich", "ruhig",
+        }
+    ),
+    "fr": frozenset(
+        {
+            "oui", "non", "merci", "beaucoup", "bonjour", "bonsoir", "au", "revoir",
+            "monsieur", "madame", "docteur", "docteure", "pardon", "excusez", "moi", "je",
+            "j'attends", "vous", "ne", "pas", "comprends", "compris", "pouvez", "pourriez",
+            "répéter", "s'il", "plaît", "d'accord", "bien", "sûr", "attends", "attendre",
+            "très", "enchanté", "enchantée", "de", "rien", "comment", "quoi", "plus",
+            "lentement", "fort", "ah", "euh", "hum", "voilà", "bon", "c'est", "ça", "va",
+            "le", "la", "un", "une", "moment", "prenez", "votre", "temps", "allez-y",
+            "entendu", "désolé", "désolée", "j'ai", "bonne", "journée",
+        }
+    ),
+}  # fmt: skip
 WORD = re.compile(r"[^\W\d_]+(?:['\u2019-][^\W\d_]+)*", re.UNICODE)
 
 
-def _tokens(text: str) -> list[str]:
-    return [token.casefold() for token in WORD.findall(text)]
-
-
-def case_lexicon(case: MedicalCase) -> frozenset[str]:
-    """Content words of the case's facts and terminology: what free wording must not say."""
-    texts = [term.german for term in case.terminology]
-    for fact in case.facts:
-        texts.extend((fact.value, fact.patient_phrase, *fact.patient_phrase_variants))
-    return frozenset(
-        token
-        for text in texts
-        for token in _tokens(text)
-        if len(token) >= 5 and token not in COMMON_WORDS
-    )
+def _language(language: str) -> str:
+    primary = language.split("-")[0].lower()
+    return primary if primary in NON_CLINICAL_WORDS else "de"
 
 
 def screen_free_text(text: str, case: MedicalCase) -> str | None:
     """Why a non-clinical reply may not be spoken, or None when it may."""
-    if re.search(r"\d", text):
-        return "digit"
-    lexicon = case_lexicon(case)
-    for token in _tokens(text):
-        if token in NUMBER_WORDS:
-            return "number_word"
-        if token in UNIT_WORDS:
-            return "unit"
-        if any(stem in token for stem in MEDICAL_STEMS):
-            return "medical_term"
-        long_word = len(token) >= 5 and token not in COMMON_WORDS
-        if long_word and any(token in term or term in token for term in lexicon):
-            return "case_term"
+    if not text or re.search(r"\d", text):
+        return "digit" if text else "empty"
+    allowed = NON_CLINICAL_WORDS[_language(case.language)]
+    words = [word.casefold().replace("\u2019", "'") for word in WORD.findall(text)]
+    if not words:
+        return "empty"
+    if any(word not in allowed for word in words):
+        return "unlisted_word"
     return None
 
 
 def non_clinical_fallback(language: str, kind: str) -> str:
-    primary = language.split("-")[0].lower()
-    return NON_CLINICAL_FALLBACKS.get(primary, NON_CLINICAL_FALLBACKS["de"])[kind]
+    return NON_CLINICAL_FALLBACKS[_language(language)][kind]
 
 
 class ExamPatient:

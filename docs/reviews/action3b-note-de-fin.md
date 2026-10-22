@@ -8,10 +8,11 @@ Rédigée le 22 octobre 2026. L'item 1 (adaptateur ElevenLabs) est fusionné (PR
   `patient.py` en expose désormais les trois étapes sans changer la requête d'entraînement).
   `ExamPatientResponseSchema` étend `PatientResponseSchema` de trois types non cliniques (`small_talk`,
   `clarification_request`, `hesitation`) et d'un champ dédié `free_text` (160 caractères), interdit
-  pour tout autre type. `screen_free_text` refuse tout chiffre, nombre écrit, unité ou marqueur de
-  durée, racine de vocabulaire médical (allemand et français) et mot du lexique du cas (faits et
-  terminologie) ; un texte refusé est remplacé par une phrase neutre fixe, et l'appel garde la trace
-  (`usage.free_text`, `usage.free_text_rejection`). Prompt `patient-exam-v1`.
+  pour tout autre type. `screen_free_text` n'accepte le texte que si chacun de ses mots figure sur une
+  liste fermée de mots de conversation (allemand et français : oui, non, merci, pardon, pouvez-vous
+  répéter, un instant…) et s'il ne contient aucun chiffre ; sinon une phrase neutre fixe est dite à la
+  place (revue Codex : une liste d'interdits laissait passer « Ich nehme Aspirin »), et l'appel garde la
+  trace (`usage.free_text`, `usage.free_text_rejection`). Prompt `patient-exam-v1`.
   Socket `api/exam_socket.py` : micro ouvert, `SpeechSegmenter` (détection de parole par énergie sur
   trames de 20 ms), un tour à la fois et dans l'ordre (Whisper, patient, voix en flux).
 - Item 3. Crédit d'un fait seulement après `audio.playback_completed` (`confirm_audio_delivered`,
@@ -66,4 +67,7 @@ dans le rapport d'examen et la page Coûts après la bascule.
 **Commandes de validation exécutées.** `.venv/bin/pytest backend` (suite complète verte, dont
 `tests/test_exam_chain.py`), `ruff check backend`, `mypy backend/src`, `lint-imports`.
 
-**Revue.** Action hors liste Opus obligatoire ; revue Codex sur la PR (boucle du projet).
+**Revue.** Action hors liste Opus obligatoire. Revue Codex sur la PR #18, premier passage : trois
+constats, tous corrigés (filtre du texte libre en liste fermée ; interruption remise à zéro au début
+de chaque tour et non après la transcription ; nouvelle synthèse d'un audio en échec passée par la
+file des tours pour ne pas bloquer la lecture du micro).

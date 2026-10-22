@@ -330,7 +330,6 @@ class VoiceSocket:
     async def _process_final(self, text: str, stt_execution: ExecutionRecord | None = None) -> None:
         repository, orchestrator = self.services.repository, self.services.orchestrator
         async with self.processing_lock:
-            self.barge_in.clear()
             turn_id = new_id()
             if stt_execution is not None:
                 repository.record_execution(replace(stt_execution, turn_id=turn_id))

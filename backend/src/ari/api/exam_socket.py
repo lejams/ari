@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Coroutine
 from contextlib import suppress
+from dataclasses import dataclass
 
 from fastapi import WebSocket
 from pydantic import ValidationError
@@ -27,6 +29,11 @@ from ari.domain.models import TurnResponseState
 CLOSE_GRACE_SECONDS = 30
 
 
+@dataclass(frozen=True, slots=True)
+class RetryAudio:
+    turn_id: str
+
+
 class ChainExamSocket(VoiceSocket):
     interaction = "open_microphone"
 
@@ -38,8 +45,8 @@ class ChainExamSocket(VoiceSocket):
         session_id: str,
     ) -> None:
         super().__init__(services, lifecycles, websocket, session_id)
-        # Utterances (PCM) or debug transcripts (str) in the order the learner said them.
-        self._utterances: asyncio.Queue[bytes | str | None] = asyncio.Queue()
+        # Utterances (PCM), debug transcripts (str) and audio retries, in the learner's order.
+        self._utterances: asyncio.Queue[bytes | str | RetryAudio | None] = asyncio.Queue()
         self._busy = False
         self._worker: asyncio.Task[None] | None = None
 
@@ -82,7 +89,8 @@ class ChainExamSocket(VoiceSocket):
             if control.type in {"audio.playback_started", "audio.playback_completed"}:
                 await self._acknowledge_audio(control)
             elif control.type == "turn.retry_tts" and control.turn_id:
-                await self._retry_failed_tts(control.turn_id)
+                # Through the worker: the microphone keeps being read while the audio streams.
+                self._utterances.put_nowait(RetryAudio(control.turn_id))
             elif (
                 control.type == "debug.transcript"
                 and settings.provider_mode == "fake"
@@ -101,12 +109,17 @@ class ChainExamSocket(VoiceSocket):
     async def _answer_in_order(self) -> None:
         while (item := await self._utterances.get()) is not None:
             self._busy = True
+            # Speech heard from here on interrupts this item's answer; speech before it was the
+            # utterance itself, or interrupted the previous answer.
+            self.barge_in.clear()
             try:
-                work = (
-                    self._process_final(item)
-                    if isinstance(item, str)
-                    else self._answer_utterance(item)
-                )
+                work: Coroutine[object, object, None]
+                if isinstance(item, RetryAudio):
+                    work = self._retry_failed_tts(item.turn_id)
+                elif isinstance(item, str):
+                    work = self._process_final(item)
+                else:
+                    work = self._answer_utterance(item)
                 if not await self._guard(work):
                     return
             finally:

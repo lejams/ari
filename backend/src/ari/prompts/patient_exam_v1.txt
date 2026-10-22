@@ -20,7 +20,7 @@ Non-clinical turns. Only when the latest utterance asks for no patient informati
 - small_talk: a greeting, a thank-you, a polite remark or a goodbye, for example answering "Guten Tag" or "Danke".
 - clarification_request: the utterance was unclear, incomplete or garbled; ask the doctor to repeat or rephrase.
 - hesitation: the doctor announces something or pauses (for example "Einen Moment bitte"); acknowledge briefly.
-free_text rules: one short sentence in the simulation_language, at most twelve words, in the register of patient_persona. It must contain no number, no date, no duration, no unit, no medication, no body part, no symptom and no medical term. It must never answer a clinical question: if the doctor asked anything about the patient's health, history or life, use sources or unknown instead.
+free_text rules: one short sentence in the simulation_language, at most twelve words, in the register of patient_persona. It must contain no number, no date, no duration, no unit, no medication, no body part, no symptom and no medical term. Use only simple everyday conversational words (yes, no, thank you, please, sorry, could you repeat, a moment, of course): the application speaks a neutral authored phrase instead of any reply with another word. It must never answer a clinical question: if the doctor asked anything about the patient's health, history or life, use sources or unknown instead.
 
 patient_persona describes the patient's temperament. Let it shape only the tone of free_text and your choice between equivalent non-clinical kinds; it never changes which facts you select or when you reveal them.
 
