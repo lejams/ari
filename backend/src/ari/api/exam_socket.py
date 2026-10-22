@@ -138,20 +138,29 @@ class ChainExamSocket(VoiceSocket):
         """Utterances not yet started are dropped; the one in progress finishes and is saved.
 
         Two callers may drain at once (an end requested over HTTP, then the socket's own
-        cleanup); cancelling one must neither cancel the shared worker nor skip the
-        finalisation that releases the learner's voice connection.
+        cleanup). Cancelling one must not cancel the shared worker, and the session is only
+        finalised (drained, so the analysis may start) once the worker has really finished.
         """
+        if not self.finalized.is_set() and self._worker is not None:
+            while not self._utterances.empty():
+                self._utterances.get_nowait()
+            self._utterances.put_nowait(None)
         try:
-            if not self.finalized.is_set() and self._worker is not None:
-                while not self._utterances.empty():
-                    self._utterances.get_nowait()
-                self._utterances.put_nowait(None)
-                try:
-                    async with asyncio.timeout(CLOSE_GRACE_SECONDS):
-                        await asyncio.shield(self._worker)
-                except TimeoutError:
-                    self._worker.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await self._worker
+            await self._settle_worker()
         finally:
+            if self._worker is not None and not self._worker.done():
+                # This waiter was cancelled: still wait for the turn in progress.
+                with suppress(asyncio.CancelledError):
+                    await self._settle_worker()
             await super()._drain()
+
+    async def _settle_worker(self) -> None:
+        if self._worker is None or self._worker.done():
+            return
+        try:
+            async with asyncio.timeout(CLOSE_GRACE_SECONDS):
+                await asyncio.shield(self._worker)
+        except TimeoutError:
+            self._worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._worker

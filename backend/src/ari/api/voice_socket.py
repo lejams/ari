@@ -422,6 +422,9 @@ class VoiceSocket:
                 turn_id=turn.id,
             )
             return failed
+        # Speech after the last chunk but before the end of the stream interrupts it too: the
+        # browser has already dropped this answer's playback.
+        interrupted = interrupted or self.barge_in.is_set()
         if interrupted:
             if tts_execution is not None:
                 self.services.repository.record_execution(tts_execution)

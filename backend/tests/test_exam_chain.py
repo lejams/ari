@@ -380,14 +380,15 @@ def test_non_clinical_turns_speak_screened_wording_or_the_authored_fallback(
 class SlowTTS:
     """Many chunks with a pause between them, so the learner can speak over the patient."""
 
-    def __init__(self) -> None:
+    def __init__(self, chunks: int = 8, pause: float = 0.1) -> None:
         self.completed = 0
+        self.chunks, self.pause = chunks, pause
 
     async def stream(self, text: str, context: ExecutionContext) -> AsyncIterator[AudioStreamEvent]:
         audio = fake_tone(text)
-        for _ in range(8):
+        for _ in range(self.chunks):
             yield AudioStreamEvent("chunk", data=audio, mime_type="audio/pcm;rate=24000")
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(self.pause)
         self.completed += 1
         fake = [e async for e in FakeTTSProvider().stream(text, context)]
         yield fake[-1]
@@ -428,6 +429,27 @@ def test_speaking_over_the_patient_stops_the_answer_and_credits_nothing(
         1,
         1,
     )
+
+
+def test_speech_after_the_last_chunk_still_interrupts_the_answer(chain: Container) -> None:
+    slow = SlowTTS(chunks=1, pause=0.6)  # the stream ends well after its only chunk
+    services = replace(chain, exam_voices=ExamVoices(MappingProxyType({"standard": slow})))
+    with TestClient(create_app(services)) as client:
+        session_id = create_exam(client)["id"]
+        with client.websocket_connect(f"/ws/sessions/{session_id}/voice") as socket:
+            receive(socket, "call.started")
+            socket.send_json({"type": "debug.transcript", "transcript": "Erzählen Sie von fact-1."})
+            receive(socket, "patient.audio_chunk")
+            socket.send_bytes(tone(300))
+            receive(socket, "user.speech_started")
+            event = socket.receive_json()
+            while event["type"] not in {"patient.audio_interrupted", "patient.audio_sent"}:
+                event = socket.receive_json()
+            assert event["type"] == "patient.audio_interrupted"
+            assert event["data"]["chunks_sent"] == 1
+            socket.send_json({"type": "call.end"})
+            receive(socket, "call.ended")
+    assert chain.repository.get_session(session_id).turns[0].revealed_fact_ids == ()
 
 
 class SlowTranscriber:
@@ -495,12 +517,15 @@ async def test_a_cancelled_drain_neither_cancels_the_worker_nor_skips_finalisati
     first = asyncio.create_task(socket._drain())  # e.g. an end requested over HTTP
     await asyncio.sleep(0.05)
     first.cancel()  # the browser disconnected: run() cancels that watcher
+    await asyncio.sleep(0.05)
+    # Not finalised while the turn is still in progress, so the analysis cannot start early.
+    assert not socket.lifecycle.drained.is_set()
     with pytest.raises(asyncio.CancelledError):
         await first
-    assert not socket._worker.cancelled()
-    await socket._drain()  # run()'s own cleanup
+    assert socket._worker.done() and not socket._worker.cancelled()
     assert socket.lifecycle.drained.is_set() and unconfirmed == ["s"]
-    await socket._worker
+    await socket._drain()  # run()'s own cleanup returns at once
+    assert unconfirmed == ["s"]
 
 
 # The ElevenLabs persona levers -------------------------------------------------------------
