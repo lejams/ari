@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 from conftest import ADMIN_URL
@@ -25,7 +26,7 @@ from ari.evals.configs import ConfigError
 from ari.evals.gates import load_gates
 from ari.evals.manifest import DatasetError
 from ari.evals.report import read_report
-from ari.evals.voice.driver import StepTrace
+from ari.evals.voice.driver import Driver, StepTrace
 from ari.evals.voice.runner import VoiceRunRequest, load_voice_config, run_inprocess
 from ari.evals.voice.scoring import score_session, word_errors
 from ari.evals.voice.script import Script, Step, load_voice_dataset
@@ -102,6 +103,62 @@ def test_script_rules() -> None:
         Step.model_validate(
             {"id": "a", "kind": "foreign", "utterance": "Hello", "allowed_fact_ids": ["x"]}
         )
+
+
+class _RejectingSocket:
+    """Answers each question; the server rejects the first answer's playback receipts."""
+
+    def __init__(self) -> None:
+        self.events: list[dict[str, Any]] = [{"type": "call.started"}]
+        self.turns = 0
+
+    def send_bytes(self, data: bytes) -> None:
+        del data
+
+    def send_json(self, data: Any) -> None:
+        kind, turn_id = data["type"], data.get("turn_id")
+        if kind == "user.turn.finish":
+            self.turns += 1
+            turn_id = f"t{self.turns}"
+            stream = {"turn_id": turn_id, "response_id": "r", "audio_stream_id": "a"}
+            self.events += [
+                {"type": "user.transcript_final", "data": {"text": "x"}},
+                {"type": "turn.persisted", "data": {"turn": {"id": turn_id}}},
+                {"type": "patient.audio_streaming", "data": stream},
+                {"type": "patient.audio_chunk", "data": {"turn_id": turn_id}},
+                {"type": "patient.audio_done", "data": {**stream, "last_index": 0}},
+            ]
+        elif kind.startswith("audio.playback_") and turn_id == "t1":
+            self.events.append(
+                {"type": "audio.ack_rejected", "data": {"turn_id": turn_id, "message": "stale"}}
+            )
+        elif kind.startswith("audio.playback_"):
+            accepted = "turn.audio_started" if kind.endswith("started") else "turn.delivered"
+            self.events.append({"type": accepted, "data": {"turn": {"id": turn_id}}})
+        elif kind == "call.end":
+            self.events.append({"type": "call.ended"})
+
+    def receive_json(self) -> Any:
+        if not self.events:
+            raise AssertionError("the driver waits for an event that never comes")
+        return self.events.pop(0)
+
+
+def test_a_rejected_playback_receipt_ends_the_step_and_the_session_goes_on() -> None:
+    script = Script.model_validate(
+        {
+            "id": "x",
+            "case_id": "c",
+            "language": "fr-FR",
+            "steps": [
+                {"id": "a", "kind": "question", "utterance": "Bonjour ?"},
+                {"id": "b", "kind": "question", "utterance": "Et ensuite ?"},
+            ],
+        }
+    )
+    first, second = Driver(_RejectingSocket(), "training", vad_silence_ms=500).play(script)
+    assert (first.acknowledged, first.errors) == (False, ["audio.ack_rejected: stale"] * 2)
+    assert (second.acknowledged, second.errors) == (True, [])
 
 
 # The scoring ------------------------------------------------------------------------------

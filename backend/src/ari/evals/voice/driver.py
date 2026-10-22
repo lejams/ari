@@ -4,7 +4,8 @@ Training is push-to-talk: the question's frames, then `user.turn.finish`. Exam i
 microphone: a little silence, the question, then enough silence for the speech segmenter to
 end the utterance. For a step marked `interrupt`, the next question is spoken as soon as the
 first audio chunk of this answer arrives. Playback is confirmed like the browser does, except
-for a step marked `acknowledge: false`. Every event is matched to its step by turn id.
+for a step marked `acknowledge: false`; a rejected receipt is kept as an error and the
+session goes on. Every event is matched to its step by turn id.
 """
 
 from __future__ import annotations
@@ -49,6 +50,7 @@ class StepTrace:
     chunks: int = 0
     terminal: str | None = None
     acknowledged: bool = False
+    ack_replies: int = 0  # Server replies to the two playback receipts, accepted or rejected.
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -61,7 +63,8 @@ class StepTrace:
     def done(self) -> bool:
         if self.terminal is None:
             return False
-        return self.acknowledged or not self._acknowledges()
+        # A rejected receipt still ends the step: the unconfirmed turn is then scored.
+        return self.acknowledged or self.ack_replies >= 2 or not self._acknowledges()
 
     def _acknowledges(self) -> bool:
         return self.terminal == "patient.audio_done" and self.step.acknowledge
@@ -108,6 +111,12 @@ class Driver:
                 trace.terminal = kind
             elif kind == "turn.delivered":
                 trace.acknowledged = True
+                trace.ack_replies += 1
+            elif kind == "turn.audio_started":
+                trace.ack_replies += 1
+            elif kind == "audio.ack_rejected":
+                trace.ack_replies += 1
+                trace.errors.append(f"audio.ack_rejected: {data.get('message')}")
             elif kind == "voice.error":
                 trace.errors.append(str(data.get("message")))
             if trace.done and next_index < len(traces) and all(t.done for t in traces[:next_index]):
