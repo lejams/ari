@@ -135,16 +135,23 @@ class ChainExamSocket(VoiceSocket):
         await self._retry_tts(turn_id)
 
     async def _drain(self) -> None:
-        """Utterances not yet started are dropped; the one in progress finishes and is saved."""
-        if not self.finalized.is_set() and self._worker is not None:
-            while not self._utterances.empty():
-                self._utterances.get_nowait()
-            self._utterances.put_nowait(None)
-            try:
-                async with asyncio.timeout(CLOSE_GRACE_SECONDS):
-                    await self._worker
-            except TimeoutError:
-                self._worker.cancel()
-                with suppress(asyncio.CancelledError):
-                    await self._worker
-        await super()._drain()
+        """Utterances not yet started are dropped; the one in progress finishes and is saved.
+
+        Two callers may drain at once (an end requested over HTTP, then the socket's own
+        cleanup); cancelling one must neither cancel the shared worker nor skip the
+        finalisation that releases the learner's voice connection.
+        """
+        try:
+            if not self.finalized.is_set() and self._worker is not None:
+                while not self._utterances.empty():
+                    self._utterances.get_nowait()
+                self._utterances.put_nowait(None)
+                try:
+                    async with asyncio.timeout(CLOSE_GRACE_SECONDS):
+                        await asyncio.shield(self._worker)
+                except TimeoutError:
+                    self._worker.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await self._worker
+        finally:
+            await super()._drain()

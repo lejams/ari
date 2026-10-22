@@ -12,7 +12,7 @@ import math
 import struct
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import replace
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
 from typing import Any
 
 import pytest
@@ -474,6 +474,33 @@ def test_microphone_frames_alone_do_not_count_as_activity(chain: Container) -> N
             socket.send_json({"type": "call.end"})
             receive(socket, "call.ended")
     assert chain.repository.get_session(session_id).turns == ()
+
+
+async def test_a_cancelled_drain_neither_cancels_the_worker_nor_skips_finalisation() -> None:
+    from ari.api.exam_socket import ChainExamSocket
+    from ari.api.voice_socket import VoiceLifecycle
+
+    unconfirmed: list[str] = []
+    socket = ChainExamSocket.__new__(ChainExamSocket)
+    socket.session_id = "s"
+    socket.finalized = asyncio.Event()
+    socket.processing_lock = asyncio.Lock()
+    socket.lifecycle = VoiceLifecycle()
+    socket.services = SimpleNamespace(  # type: ignore[assignment]
+        repository=SimpleNamespace(mark_session_delivery_unconfirmed=unconfirmed.append)
+    )
+    socket._utterances = asyncio.Queue()
+    socket._worker = asyncio.create_task(asyncio.sleep(0.3))  # an answer still streaming
+
+    first = asyncio.create_task(socket._drain())  # e.g. an end requested over HTTP
+    await asyncio.sleep(0.05)
+    first.cancel()  # the browser disconnected: run() cancels that watcher
+    with pytest.raises(asyncio.CancelledError):
+        await first
+    assert not socket._worker.cancelled()
+    await socket._drain()  # run()'s own cleanup
+    assert socket.lifecycle.drained.is_set() and unconfirmed == ["s"]
+    await socket._worker
 
 
 # The ElevenLabs persona levers -------------------------------------------------------------
