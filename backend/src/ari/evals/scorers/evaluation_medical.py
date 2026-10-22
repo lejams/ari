@@ -80,7 +80,10 @@ class EvaluationMedicalSuite:
     name: str = "evaluation-medical"
     scorer_version: str = "evaluation-medical-scorer-v1"
     prompt_roles: tuple[str, ...] = ("evaluation",)
-    output_schemas: tuple[type[BaseModel], ...] = (EvaluationOutputSchema,)
+
+    def output_schemas(self, patient_engine: str) -> tuple[type[BaseModel], ...]:
+        del patient_engine
+        return (EvaluationOutputSchema,)
 
     def parse_item(self, row: Mapping[str, object]) -> MedicalItem:
         return MedicalItem.model_validate_json(json.dumps(row))

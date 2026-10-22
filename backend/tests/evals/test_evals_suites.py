@@ -371,6 +371,8 @@ async def test_exam_chain_non_clinical_turns_reveal_nothing_and_count_as_refusal
     assert report.metrics["refusal.recall"] < 1.0  # Small talk is not the expected kind.
     assert report.metrics["free_text_rejection_rate"] == pytest.approx(1 / 3)
     assert report.models_returned == {"patient_simulation": ["gpt-6-luna-2026-10-01"]}
+    # The schema the exam chain actually requested, not the training one.
+    assert set(report.versions.output_schemas) == {"ExamPatientResponseSchema"}
 
 
 def test_an_unusable_patient_answer_keeps_its_expected_facts_unanswered() -> None:

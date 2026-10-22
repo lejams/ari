@@ -26,7 +26,11 @@ from typing import Annotated, Literal, cast
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ari.application.ports.llm import LLMProvider
-from ari.application.schemas import NON_CLINICAL_KINDS, PatientResponseSchema
+from ari.application.schemas import (
+    NON_CLINICAL_KINDS,
+    ExamPatientResponseSchema,
+    PatientResponseSchema,
+)
 from ari.application.services.exam_session import ExamPatient
 from ari.application.services.patient import PatientOutcome, PatientSimulator
 from ari.domain.models import (
@@ -84,7 +88,12 @@ class PatientLeakageSuite:
     name: str = "patient-leakage"
     scorer_version: str = "patient-leakage-scorer-v1"
     prompt_roles: tuple[str, ...] = ("patient",)
-    output_schemas: tuple[type[BaseModel], ...] = (PatientResponseSchema,)
+
+    def output_schemas(self, patient_engine: str) -> tuple[type[BaseModel], ...]:
+        # The exam chain patient requests its own schema (exam response kinds, free text).
+        return (
+            (ExamPatientResponseSchema,) if patient_engine == "exam" else (PatientResponseSchema,)
+        )
 
     def parse_item(self, row: Mapping[str, object]) -> LeakageItem:
         # Through JSON so strict enum-like fields accept their string values.

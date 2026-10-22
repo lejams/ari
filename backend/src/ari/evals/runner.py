@@ -198,7 +198,7 @@ async def run(request: RunRequest) -> Report:
                 schema.__name__: hashlib.sha256(
                     json.dumps(schema.model_json_schema(), sort_keys=True).encode()
                 ).hexdigest()
-                for schema in suite.output_schemas
+                for schema in suite.output_schemas(request.config.patient_engine)
             },
             evaluation_schema_version=(
                 EVALUATION_SCHEMA_VERSION if "evaluation" in suite.prompt_roles else None

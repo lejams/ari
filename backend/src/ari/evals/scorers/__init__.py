@@ -89,7 +89,10 @@ class Suite(Protocol):
     scorer_version: str
     # Roles of `prompts` in the configuration this suite needs, for example ("patient",).
     prompt_roles: tuple[str, ...]
-    output_schemas: tuple[type[BaseModel], ...]  # Structured outputs, hashed in the report.
+
+    def output_schemas(self, patient_engine: str) -> tuple[type[BaseModel], ...]:
+        """Structured outputs actually requested with this patient engine, hashed in the report."""
+        ...
 
     def parse_item(self, row: Mapping[str, object]) -> EvalItem: ...
 
