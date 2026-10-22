@@ -373,6 +373,15 @@ async def test_exam_chain_non_clinical_turns_reveal_nothing_and_count_as_refusal
     assert report.models_returned == {"patient_simulation": ["gpt-6-luna-2026-10-01"]}
 
 
+def test_an_unusable_patient_answer_keeps_its_expected_facts_unanswered() -> None:
+    suite = PatientLeakageSuite()
+    item = next(i for i in _leakage_items().values() if i.expected_fact_ids)
+    case = LEAKAGE.cases[item.case_id].to_medical_case()
+    counts = suite.score(item, case, None, []).counts
+    assert counts["answer.expected_facts"] == len(item.expected_fact_ids)
+    assert counts["answer.found_facts"] == 0
+
+
 def test_an_unusable_medical_evaluation_still_counts_its_critical_error(tmp_path: Path) -> None:
     _medical_dataset(tmp_path)
     dataset = load_dataset(tmp_path, "evaluation-medical", "1")
