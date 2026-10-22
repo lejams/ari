@@ -7,7 +7,8 @@ from typing import Any
 
 from fastapi.encoders import jsonable_encoder
 
-from ari.domain.models import ConversationSession, ConversationTurn, SessionStatus
+from ari.application.services.exam_session import exam_report
+from ari.domain.models import ConversationSession, ConversationTurn, LearningMode, SessionStatus
 
 TURN_FIELDS = (
     "id",
@@ -146,6 +147,10 @@ def public_session(session: ConversationSession) -> dict[str, Any]:
             for item in evaluation.criteria
         ]
         result["evaluation"] = payload
+    # Exam: per-turn evidence and delivery, from the persisted record (fact ids stay internal).
+    result["exam_report"] = (
+        exam_report(session) if finished and session.learning_mode is LearningMode.EXAM else None
+    )
     result["metrics"] = (
         _fields(
             session.metrics,

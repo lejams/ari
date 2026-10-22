@@ -27,6 +27,38 @@ class PatientResponseSchema(StrictModel):
         return self
 
 
+# Exam turns that carry no clinical content: only these may use the patient's own words.
+NON_CLINICAL_KINDS = ("small_talk", "clarification_request", "hesitation")
+
+
+class ExamPatientResponseSchema(PatientResponseSchema):
+    """The patient schema of the exam chain: the same sources, plus three non-clinical kinds.
+
+    A non-clinical turn carries the patient's own short wording in `free_text`; the
+    application still screens it (application/services/exam_session.py) before it is spoken.
+    """
+
+    response_kind: Literal[  # type: ignore[assignment]
+        "sources",
+        "unknown",
+        "out_of_scope",
+        "wrong_language",
+        "small_talk",
+        "clarification_request",
+        "hesitation",
+    ]
+    free_text: Annotated[str, Field(max_length=160)] | None = None
+
+    @model_validator(mode="after")
+    def free_text_only_for_non_clinical_turns(self) -> Self:
+        non_clinical = self.response_kind in NON_CLINICAL_KINDS
+        if non_clinical and not (self.free_text or "").strip():
+            raise ValueError("non-clinical responses require free_text")
+        if not non_clinical and self.free_text is not None:
+            raise ValueError("only non-clinical responses may carry free_text")
+        return self
+
+
 class EvidenceObservationSchema(StrictModel):
     text: Annotated[str, Field(min_length=1, max_length=350)]
     evidence_turn_sequences: list[int] = Field(min_length=1, max_length=5)

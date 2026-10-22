@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from types import MappingProxyType
+from typing import cast
 
 from ari.application.ports.email import EmailSender
 from ari.application.ports.llm import LLMProvider
@@ -13,6 +15,7 @@ from ari.application.prompting import VersionedPrompt, load_prompt
 from ari.application.services.accounts import LearnerAuth
 from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
+from ari.application.services.exam_session import CHAIN_EXAM_STACK_ID, ExamPatient, ExamVoices
 from ari.application.services.lexicon import LexiconService
 from ari.application.services.patient import PatientSimulator
 from ari.application.services.placement import PlacementService
@@ -20,7 +23,8 @@ from ari.application.services.practice import PracticeService
 from ari.application.services.realtime_patient import FactAttributor
 from ari.application.services.usage_guard import UsageGuard
 from ari.application.voice_stacks import VoiceStack
-from ari.config import Settings
+from ari.config import ExamPersonaVoice, Settings
+from ari.domain.clinical import PERSONA_VARIANTS
 from ari.domain.errors import InvalidStateError
 from ari.domain.models import ConversationSession
 from ari.infrastructure.cases.clinical_catalog import ClinicalCatalog
@@ -67,10 +71,15 @@ class Container:
     email: EmailSender
     auth: LearnerAuth
     usage_guard: UsageGuard
+    # The exam chain (ARI_EXAM_ENGINE=chain); None when it is off, and its sessions then refuse
+    # to resume rather than continue on another engine.
+    chain_stack: VoiceStack | None = None
+    exam_voices: ExamVoices | None = None
 
     def resolve_voice_stack(self, session: ConversationSession) -> VoiceStack:
         """The exact stack a session was created with, or an error: never a silent swap."""
-        for stack in (self.voice_stack, self.realtime_stack):
+        stacks = (self.voice_stack, self.realtime_stack, *(s for s in (self.chain_stack,) if s))
+        for stack in stacks:
             if stack.id == session.voice_stack_id:
                 return stack.resolve_persisted(
                     session.voice_stack_id, session.voice_stack_version, session.voice_stack_config
@@ -153,6 +162,73 @@ def _realtime_stack(settings: Settings) -> VoiceStack:
     )
 
 
+def exam_persona_voices(settings: Settings) -> dict[str, dict[str, object]]:
+    """How each persona sounds: its voice (else ARI_ELEVENLABS_VOICE_ID), settings and tags."""
+    fallback = settings.elevenlabs_voice_id or ""
+    voices: dict[str, dict[str, object]] = {}
+    for persona in PERSONA_VARIANTS:
+        chosen = settings.elevenlabs_exam_personas.get(persona, ExamPersonaVoice())
+        voices[persona] = {
+            "voice_id": chosen.voice_id or fallback,
+            "tags": chosen.tags.strip(),
+            "voice_settings": chosen.voice_settings.model_dump(exclude_none=True),
+        }
+    return voices
+
+
+def _chain_stack(settings: Settings) -> VoiceStack:
+    """Exam on the controlled chain: open microphone, Whisper, fact selection, ElevenLabs."""
+    return VoiceStack(
+        CHAIN_EXAM_STACK_ID,
+        "1",
+        settings.provider_mode,
+        MappingProxyType(
+            {
+                "stt": settings.stt_model,
+                "llm": settings.patient_model,
+                "tts": settings.elevenlabs_exam_tts_model,
+            }
+        ),
+        MappingProxyType(
+            {
+                "sample_rate": settings.audio_sample_rate,
+                "stt_base_url": settings.stt_base_url,
+                "tts_provider": "elevenlabs",
+                "tts_output_format": settings.elevenlabs_output_format,
+                "personas": exam_persona_voices(settings),
+                "vad_threshold": settings.exam_vad_threshold,
+                "vad_min_speech_ms": settings.exam_vad_min_speech_ms,
+                "vad_silence_ms": settings.exam_vad_silence_ms,
+            }
+        ),
+    )
+
+
+def _exam_voices(settings: Settings) -> ExamVoices:
+    """One ElevenLabs provider (one connection pool) per distinct way of speaking."""
+    from ari.infrastructure.providers.elevenlabs import ElevenLabsStreamingTTSProvider
+
+    assert settings.elevenlabs_api_key
+    by_sound: dict[str, StreamingTTSProvider] = {}
+    providers: dict[str, StreamingTTSProvider] = {}
+    for persona, sound in exam_persona_voices(settings).items():
+        key = json.dumps(sound, sort_keys=True)
+        if key not in by_sound:
+            by_sound[key] = ElevenLabsStreamingTTSProvider(
+                settings.elevenlabs_api_key,
+                model=settings.elevenlabs_exam_tts_model,
+                voice_id=str(sound["voice_id"]),
+                timeout_seconds=settings.tts_timeout_seconds,
+                output_format=settings.elevenlabs_output_format,
+                base_url=settings.elevenlabs_base_url,
+                voice_registration=settings.elevenlabs_voice_registration,
+                voice_settings=cast(dict[str, float], sound["voice_settings"]),
+                audio_tags=str(sound["tags"]),
+            )
+        providers[persona] = by_sound[key]
+    return ExamVoices(MappingProxyType(providers))
+
+
 def _email_sender(settings: Settings) -> EmailSender:
     if settings.email_mode == "log":
         if settings.environment == "production":
@@ -192,6 +268,8 @@ def build_container(settings: Settings) -> Container:
     realtime_prompt = load_prompt(
         settings.prompt_directory / "patient_realtime_v1.txt", "patient-realtime-v1"
     )
+    exam_prompt = load_prompt(settings.prompt_directory / "patient_exam_v1.txt", "patient-exam-v1")
+    chain = settings.exam_engine == "chain"
     attribution_prompt = load_prompt(
         settings.prompt_directory / "fact_attribution_v1.txt", "fact-attribution-v1"
     )
@@ -200,6 +278,8 @@ def build_container(settings: Settings) -> Container:
     )
     voice_stack = _voice_stack(settings)
     realtime_stack = _realtime_stack(settings)
+    chain_stack = _chain_stack(settings) if chain else None
+    exam_voices: ExamVoices | None = None
     llm: LLMProvider
     transcriber: UtteranceTranscriber
     tts: StreamingTTSProvider
@@ -218,9 +298,21 @@ def build_container(settings: Settings) -> Container:
                     if settings.tts_provider == "elevenlabs"
                     else ()
                 ),
+                *(
+                    (
+                        ("ARI_ELEVENLABS_API_KEY", settings.elevenlabs_api_key),
+                        (
+                            "ARI_ELEVENLABS_VOICE_ID or a voice_id per persona",
+                            all(v["voice_id"] for v in exam_persona_voices(settings).values()),
+                        ),
+                    )
+                    if chain
+                    else ()
+                ),
             )
             if not value
         ]
+        missing = list(dict.fromkeys(missing))
         if missing:
             raise RuntimeError(
                 f"{', '.join(missing)} required in .env when ARI_PROVIDER_MODE=openai. "
@@ -244,6 +336,8 @@ def build_container(settings: Settings) -> Container:
             timeout_seconds=settings.stt_timeout_seconds,
         )
         tts = _tts_provider(settings)
+        if chain:
+            exam_voices = _exam_voices(settings)
         realtime = OpenAIRealtimeEngine(
             settings.openai_api_key,
             model=settings.realtime_model,
@@ -257,6 +351,8 @@ def build_container(settings: Settings) -> Container:
         transcriber = FakeTranscriber()
         tts = FakeTTSProvider()
         realtime = FakeRealtimeEngine()
+        if chain:
+            exam_voices = ExamVoices(MappingProxyType({"standard": tts}))
 
     lexicon = LexiconService(SqlLexiconRepository(repository.engine))
     orchestrator = ConversationOrchestrator(
@@ -265,8 +361,9 @@ def build_container(settings: Settings) -> Container:
         PatientSimulator(llm, patient_prompt),
         LLMBackedEvaluator(llm, evaluation_prompt, settings.feedback_language),
         voice_stack,
-        exam_voice_stack=realtime_stack,
+        exam_voice_stack=chain_stack or realtime_stack,
         lexicon=lexicon,
+        exam_patient=ExamPatient(llm, exam_prompt) if chain else None,
     )
     practice_service = PracticeService(
         PublishedPracticeCatalog(cases.store), SqlPracticeRepository(repository.engine)
@@ -304,4 +401,6 @@ def build_container(settings: Settings) -> Container:
             exam_sessions_per_month=settings.exam_sessions_per_month,
             cost_ceiling_eur=settings.learner_cost_ceiling_eur,
         ),
+        chain_stack=chain_stack,
+        exam_voices=exam_voices,
     )

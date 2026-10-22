@@ -14,11 +14,10 @@ from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
-from ari.domain.clinical import ClinicalModel
+from ari.domain.clinical import ClinicalModel, PersonaVariant
 from ari.domain.models import utc_now
 
 Phase = Literal["arzt_patient", "arzt_arzt", "fachbegriffe"]
-PersonaVariant = Literal["standard", "anxious", "talkative", "terse"]
 PHASES: tuple[Phase, ...] = ("arzt_patient", "arzt_arzt", "fachbegriffe")
 
 
