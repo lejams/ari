@@ -225,7 +225,7 @@ def test_full_placement_flow_updates_the_profile(placement_container: Container)
     # The TTS adapters label their own operation; the attempt reference tells placement apart.
     assert {e.operation for e in executions} == {"text_to_speech", "placement_speaking"}
     assert all(e.session_id is None and e.learner_id == profile["id"] for e in executions)
-    assert all(e.cost_micro_eur == 0 and e.pricing_version == "pricing-v1" for e in executions)
+    assert all(e.cost_micro_eur == 0 and e.pricing_version == "pricing-v2" for e in executions)
 
 
 def test_wrong_answers_descend_and_early_finish_ignores_missing_phases(

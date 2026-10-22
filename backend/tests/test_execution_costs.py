@@ -77,7 +77,7 @@ def test_session_calls_are_costed_and_attributed_to_the_learner(container: Conta
     for row in rows.values():
         assert row.learner_id == learner.id
         assert row.attempt_ref == f"session:{session.id}"
-        assert row.pricing_version == "pricing-v1"
+        assert row.pricing_version == "pricing-v2"
     assert rows[fake.id].cost_micro_eur == 0 and rows[fake.id].cost_unknown == []
     # 10k input x 0.10 $/M + 2k output x 0.50 $/M = 0.002 $, at 0.88 €/$.
     assert rows[priced.id].cost_micro_eur == round(0.002 * 0.88 * 1_000_000)
@@ -116,7 +116,7 @@ def test_pipeline_calls_are_costed(content_container: ContentContainer) -> None:
     with Session(engine) as db:
         rows = {row.id: row for row in db.scalars(select(AiRunRow))}
     assert rows[run.id].cost_micro_eur == round((0.10 + 0.05) * 0.88 * 1_000_000)
-    assert rows[run.id].pricing_version == "pricing-v1"
+    assert rows[run.id].pricing_version == "pricing-v2"
     assert rows[unpriced.id].cost_micro_eur is None
     assert rows[unpriced.id].cost_unknown == ["price:openai/model-without-price"]
 

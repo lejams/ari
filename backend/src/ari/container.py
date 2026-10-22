@@ -172,9 +172,8 @@ def _email_sender(settings: Settings) -> EmailSender:
 
 
 def build_container(settings: Settings) -> Container:
-    repository = SqlSessionRepository(
-        settings.database_url, pricing=load_pricing(settings.pricing_path)
-    )
+    pricing = load_pricing(settings.pricing_path)
+    repository = SqlSessionRepository(settings.database_url, pricing=pricing)
     if settings.environment == "production" and "localhost" in settings.public_url:
         logger.warning("ARI_PUBLIC_URL points at localhost: e-mailed links will not work")
     email = _email_sender(settings)
@@ -230,18 +229,14 @@ def build_container(settings: Settings) -> Container:
                 "ARI_STT_MODEL=whisper-1 and ARI_STT_API_KEY to the same key."
             )
         assert settings.openai_api_key and settings.stt_api_key
-        from ari.infrastructure.providers.openai import OpenAILLMProvider, OpenAIRealtimeEngine
+        from ari.infrastructure.providers.llm_routing import (
+            LEARNER_TASKS,
+            llm_provider_from_settings,
+        )
+        from ari.infrastructure.providers.openai import OpenAIRealtimeEngine
         from ari.infrastructure.providers.whisper import WhisperTranscriber
 
-        llm = OpenAILLMProvider(
-            settings.openai_api_key,
-            patient_model=settings.patient_model,
-            evaluation_model=settings.evaluation_model,
-            patient_timeout_seconds=settings.patient_timeout_seconds,
-            evaluation_timeout_seconds=settings.evaluation_timeout_seconds,
-            content_model=settings.content_model,
-            content_timeout_seconds=settings.content_timeout_seconds,
-        )
+        llm = llm_provider_from_settings(settings, pricing, LEARNER_TASKS)
         transcriber = WhisperTranscriber(
             settings.stt_api_key,
             base_url=settings.stt_base_url,

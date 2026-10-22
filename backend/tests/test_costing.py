@@ -198,7 +198,7 @@ def test_without_a_price_list_every_cost_is_unknown() -> None:
 def test_shipped_price_list_loads_and_prices_the_default_models() -> None:
     settings = Settings(_env_file=None)
     table = load_pricing(settings.pricing_path)
-    assert table.version == "pricing-v1"
+    assert table.version == "pricing-v2"
     for model in {settings.patient_model, settings.evaluation_model, settings.content_model}:
         assert ("openai", model) in table.models
     usage = {"prompt_tokens": 1_000_000, "completion_tokens": 1_000_000}
