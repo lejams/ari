@@ -108,6 +108,8 @@ class EvaluationMedicalSuite:
             "statement.detected": 0.0,  # No output channel in session-evaluation-v4.
         }
         if value is None:
+            # Every annotated omission was missed: it stays in the recall denominator.
+            counts["omission.fn.all"] = float(len(expected))
             return ItemScore(False, (), counts, json.dumps({"usable": False}))
         evaluation = cast(EvaluationOutcome, value).evaluation
         reported = {

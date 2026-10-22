@@ -11,6 +11,7 @@ import pytest
 from scripted import DATASETS, GATES, ScriptedProvider, item_id_of, repetition_of, request_for
 
 from ari.application.contracts import LLMRequest
+from ari.evals.configs import ConfigError
 from ari.evals.gates import load_gates
 from ari.evals.manifest import load_dataset
 from ari.evals.runner import run
@@ -369,3 +370,28 @@ async def test_exam_chain_non_clinical_turns_reveal_nothing_and_count_as_refusal
     assert report.metrics["refusal.recall"] < 1.0  # Small talk is not the expected kind.
     assert report.metrics["free_text_rejection_rate"] == pytest.approx(1 / 3)
     assert report.models_returned == {"patient_simulation": ["gpt-6-luna-2026-10-01"]}
+
+
+def test_an_unusable_evaluation_counts_its_annotated_errors_as_missed() -> None:
+    suite = EvaluationLanguageSuite()
+    item = next(i for i in _language_items().values() if i.truth.language_errors)
+    case = LANGUAGE.cases[item.case_id].to_medical_case()
+    counts = suite.score(item, case, None, []).counts
+    for error in item.truth.language_errors:
+        assert counts[f"lang.fn.{error.category}"] >= 1
+    assert counts.get("cs.fn.all", 0) == len({c.turn for c in item.truth.code_switches})
+    assert counts.get("section.fn.all", 0) == len(set(item.truth.missing_sections))
+    assert not any(key.startswith("lang.tp.") for key in counts)
+
+
+async def test_a_gate_run_without_thresholds_for_the_dataset_is_refused() -> None:
+    gates = GATE_RULES.model_copy(update={"suites": {}})
+    request = request_for(
+        EvaluationLanguageSuite(),
+        ScriptedProvider(oracle_evaluator),
+        gate_mode=True,
+        repetitions=GATE_RULES.repetitions,
+        gates=gates,
+    )
+    with pytest.raises(ConfigError, match="pas de seuils"):
+        await run(request)

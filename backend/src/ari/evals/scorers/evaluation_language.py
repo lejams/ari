@@ -116,6 +116,12 @@ class EvaluationLanguageSuite:
         for error in truth.language_errors:
             count(f"lang.injected.{error.category}")
         if value is None:
+            # No usable evaluation even after a retry: every annotated error was missed, so it
+            # stays in the recall denominators instead of vanishing from them.
+            for error in truth.language_errors:
+                count(f"lang.fn.{error.category}")
+            count("cs.fn.all", len({c.turn for c in truth.code_switches}))
+            count("section.fn.all", len(set(truth.missing_sections)))
             return ItemScore(
                 verdict=False,
                 outcomes=(),

@@ -112,6 +112,9 @@ class VoiceRunRequest:
 
 
 def run_inprocess(request: VoiceRunRequest) -> Report:
+    suite_ref = request.dataset.ref
+    if request.gate_mode and (request.gates is None or suite_ref not in request.gates.suites):
+        raise ConfigError(f"{suite_ref} n'a pas de seuils dans gates.yaml : run gate refusé")
     settings = Settings(
         _env_file=None,  # type: ignore[call-arg]
         environment="test",
@@ -136,12 +139,14 @@ def run_inprocess(request: VoiceRunRequest) -> Report:
     entries: list[ItemEntry] = []
     latencies: dict[str, list[int]] = {}
     prompts: dict[str, PromptVersion] = {}
+    played_cases: dict[str, str] = {}
     try:
         with TestClient(create_app(container)) as client:
             for script in request.dataset.scripts:
                 case = published.get(script.case_id)
                 if case is None:
                     raise ConfigError(f"{script.id} : le cas {script.case_id} n'est pas publié")
+                played_cases[case.id] = f"{case.version}:{case.content_hash}"
                 for mode in request.config.modes:
                     item = EvalItem(id=f"{script.id}:{mode}", family=mode, case_id=case.id)
                     runs = []
@@ -176,7 +181,6 @@ def run_inprocess(request: VoiceRunRequest) -> Report:
             names = seen.setdefault(call.operation, [])
             if model is not None and model not in names:
                 names.append(model)
-    suite_ref = request.dataset.ref
     critical: list[str] = []
     gate = None
     if request.gates is not None and suite_ref in request.gates.suites:
@@ -209,6 +213,7 @@ def run_inprocess(request: VoiceRunRequest) -> Report:
             items=len(entries),
             families=sorted({e.family for e in entries}),
             files={str(k): v for k, v in request.dataset.manifest.files.items()},
+            cases=dict(sorted(played_cases.items())),
         ),
         config=ConfigInfo(
             id=request.config.id,

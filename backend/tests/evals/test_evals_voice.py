@@ -21,6 +21,7 @@ from ari.domain.models import (
     LearningGoal,
 )
 from ari.evals.__main__ import main
+from ari.evals.configs import ConfigError
 from ari.evals.gates import load_gates
 from ari.evals.manifest import DatasetError
 from ari.evals.report import read_report
@@ -207,6 +208,9 @@ def test_in_process_run_over_the_real_voice_chain(database_url: str) -> None:
         key.startswith("patient_simulation@patient-exam-v1") for key in report.versions.prompts
     )
     assert report.config.voice["exam_engine"] == "chain"
+    [(case_id, played)] = report.dataset.cases.items()
+    version, digest = played.split(":")
+    assert case_id == "ARI-DEV-FR" and version and len(digest) == 64
 
     misheard = run_inprocess(replace(request, mishear={"allergies": "à l'heure gilles"}))
     assert misheard.metrics["transcription.word_error_rate"] > 0
@@ -223,3 +227,20 @@ def test_voice_command_creates_and_drops_its_own_database(
     report = read_report(out)
     assert report.suite == "voice-sim@1" and report.dataset.synthetic
     assert json.loads(out.read_text("utf-8"))["config"]["voice"]["target"] == "inprocess"
+
+
+def test_a_voice_gate_run_without_thresholds_is_refused_before_anything_runs() -> None:
+    config, digest = load_voice_config(CONFIG)
+    request = VoiceRunRequest(
+        dataset=load_voice_dataset(DATASETS, "1"),
+        config=config,
+        config_sha256=digest,
+        database_url="postgresql+psycopg://unused@localhost:1/unused",
+        pricing=PRICING,
+        pricing_path=PRICING_PATH,
+        repetitions=GATE_RULES.repetitions,
+        gates=GATE_RULES.model_copy(update={"suites": {}}),
+        gate_mode=True,
+    )
+    with pytest.raises(ConfigError, match="pas de seuils"):
+        run_inprocess(request)

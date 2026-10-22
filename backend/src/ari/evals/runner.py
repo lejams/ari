@@ -22,7 +22,7 @@ from ari.application.services.evaluation import EVALUATION_SCHEMA_VERSION
 from ari.domain.errors import ProviderError
 from ari.domain.models import MedicalCase
 from ari.evals import gates as gate_rules
-from ari.evals.configs import EvalConfig
+from ari.evals.configs import ConfigError, EvalConfig
 from ari.evals.manifest import Dataset, Split
 from ari.evals.metrics import COMMON_RATIOS, Ratio, compute, total
 from ari.evals.report import (
@@ -69,9 +69,9 @@ def ratios_for(suite: Suite, keys: Sequence[str]) -> list[Ratio]:
 
 
 async def run(request: RunRequest) -> Report:
-    if request.gate_mode and request.gates is None:
-        raise ValueError("a gate run needs the gates")
     suite, dataset = request.suite, request.dataset
+    if request.gate_mode and (request.gates is None or dataset.ref not in request.gates.suites):
+        raise ConfigError(f"{dataset.ref} n'a pas de seuils dans gates.yaml : run gate refusé")
     rows = dataset.read_split(request.split, gate=request.gate_mode)
     items = [suite.parse_item(row) for row in rows]
     cases: dict[str, MedicalCase] = {}

@@ -16,10 +16,13 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from ari.evals import gates as gate_rules
-from ari.evals.metrics import Ratio, bootstrap_interval, paired_difference_interval
+from ari.evals.metrics import COMMON_RATIOS, Ratio, bootstrap_interval, paired_difference_interval
 from ari.evals.report import Report, format_micro_eur
 from ari.evals.runner import ratios_for
 from ari.evals.suites import SUITES
+from ari.evals.voice.scoring import RATIOS as VOICE_RATIOS
+
+VOICE_SUITE = "voice-sim"
 
 COMPARE_VERSION = "evals-compare-v1"
 
@@ -105,10 +108,14 @@ def compare(reports: Sequence[Report], gates: gate_rules.Gates) -> Comparison:
             )
         if [i.item_id for i in report.items] != [i.item_id for i in baseline.items]:
             raise CompareError(f"{report.config.id} : les items diffèrent de la baseline")
+        if report.dataset.cases != baseline.dataset.cases:
+            raise CompareError(f"{report.config.id} : les versions de cas diffèrent de la baseline")
     ids = [r.config.id for r in reports]
     if len(ids) != len(set(ids)):
         raise CompareError("deux rapports portent le même identifiant de configuration")
-    suite = SUITES[baseline.suite.partition("@")[0]]
+    suite_name = baseline.suite.partition("@")[0]
+    if suite_name != VOICE_SUITE and suite_name not in SUITES:
+        raise CompareError(f"{baseline.suite} : jeu inconnu")
     if baseline.suite not in gates.suites:
         raise CompareError(f"{baseline.suite} n'a pas de seuils dans gates.yaml")
     critical_kinds = gates.suites[baseline.suite].critical_outcomes
@@ -120,7 +127,13 @@ def compare(reports: Sequence[Report], gates: gate_rules.Gates) -> Comparison:
 
     baseline_critical = critical_of(baseline)
     keys = sorted({k for r in reports for e in r.items for k in e.counts})
-    ratios = ratios_for(suite, keys)
+    # voice-sim reports come from their own runner, with their own ratios (latency stays in
+    # the report's metrics and its gate thresholds).
+    ratios = (
+        [*VOICE_RATIOS, *COMMON_RATIOS]
+        if suite_name == VOICE_SUITE
+        else ratios_for(SUITES[suite_name], keys)
+    )
     summaries: list[ConfigSummary] = []
     for report in reports:
         own_critical = critical_of(report)

@@ -10,10 +10,11 @@ from scripted import GATES, ScriptedProvider, config, item_id_of, request_for
 from test_evals_suites import oracle_patient
 
 from ari.application.contracts import LLMRequest
+from ari.config import PROJECT_ROOT
 from ari.evals.compare import CompareError, compare, render_markdown
 from ari.evals.gates import Gates, evaluate, load_gates
 from ari.evals.metrics import Ratio, bootstrap_interval, paired_difference_interval
-from ari.evals.report import Report
+from ari.evals.report import Report, read_report
 from ari.evals.runner import run
 from ari.evals.scorers.patient_leakage import PatientLeakageSuite
 
@@ -161,3 +162,21 @@ async def test_only_reports_on_the_same_dataset_and_split_compare() -> None:
         )
     with pytest.raises(CompareError):
         compare([luna], GATE_RULES)
+
+
+def test_voice_reports_compare_with_their_own_ratios() -> None:
+    baseline = read_report(PROJECT_ROOT / "evals" / "reports" / "examples" / "voice-sim-fake.json")
+    candidate = baseline.model_copy(
+        update={"config": baseline.config.model_copy(update={"id": "candidate"})}
+    )
+    comparison = compare([baseline, candidate], GATE_RULES)
+    assert "leak_rate" in comparison.configs[0].metrics
+    other_case = candidate.model_copy(
+        update={
+            "dataset": candidate.dataset.model_copy(
+                update={"cases": {"ARI-DEV-FR": "5:" + "0" * 64}}
+            )
+        }
+    )
+    with pytest.raises(CompareError, match="versions de cas"):
+        compare([baseline, other_case], GATE_RULES)

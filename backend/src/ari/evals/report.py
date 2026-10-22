@@ -102,6 +102,9 @@ class DatasetInfo(_Model):
     items: int
     families: list[str]
     files: dict[str, str]
+    # Case id -> "version:content_hash" of the published case actually played, when the
+    # dataset does not hash its cases itself (voice-sim reads them from the registry).
+    cases: dict[str, str] = {}
 
 
 class ConfigInfo(_Model):
