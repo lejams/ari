@@ -36,6 +36,7 @@ from ari.evals.report import (
     Report,
     RunEntry,
     Versions,
+    baseline_mismatch,
     summarize_cost,
     summarize_latency,
 )
@@ -72,6 +73,15 @@ async def run(request: RunRequest) -> Report:
     suite, dataset = request.suite, request.dataset
     if request.gate_mode and (request.gates is None or dataset.ref not in request.gates.suites):
         raise ConfigError(f"{dataset.ref} n'a pas de seuils dans gates.yaml : run gate refusé")
+    if request.gate_mode and request.baseline is not None:
+        mismatch = baseline_mismatch(
+            request.baseline,
+            suite=dataset.ref,
+            split=request.split,
+            manifest_sha256=dataset.manifest_hash,
+        )
+        if mismatch is not None:
+            raise ConfigError(f"baseline {request.baseline.config.id} : {mismatch}")
     rows = dataset.read_split(request.split, gate=request.gate_mode)
     items = [suite.parse_item(row) for row in rows]
     cases: dict[str, MedicalCase] = {}
@@ -133,6 +143,17 @@ async def run(request: RunRequest) -> Report:
             request.gates.suites[suite_ref].critical_outcomes,
         )
         if request.gate_mode:
+            if request.baseline is not None:
+                mismatch = baseline_mismatch(
+                    request.baseline,
+                    suite=suite_ref,
+                    split=request.split,
+                    manifest_sha256=dataset.manifest_hash,
+                    item_ids=[e.item_id for e in entries],
+                    cases={},
+                )
+                if mismatch is not None:
+                    raise ConfigError(f"baseline {request.baseline.config.id} : {mismatch}")
             gate = gate_rules.evaluate(
                 request.gates,
                 suite_ref,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -393,6 +394,28 @@ def test_an_unusable_evaluation_counts_its_annotated_errors_as_missed() -> None:
     assert counts.get("cs.fn.all", 0) == len({c.turn for c in item.truth.code_switches})
     assert counts.get("section.fn.all", 0) == len(set(item.truth.missing_sections))
     assert not any(key.startswith("lang.tp.") for key in counts)
+
+
+async def test_a_gate_run_refuses_a_baseline_from_other_inputs() -> None:
+    request = request_for(
+        PatientLeakageSuite(),
+        ScriptedProvider(oracle_patient),
+        repetitions=GATE_RULES.repetitions,
+        gates=GATE_RULES,
+    )
+    baseline = await run(request)
+    gated = replace(request, gate_mode=True)
+    assert (await run(replace(gated, baseline=baseline))).gate is not None
+    # Another dataset version: refused before anything runs.
+    other_version = baseline.model_copy(
+        update={"dataset": baseline.dataset.model_copy(update={"manifest_sha256": "0" * 64})}
+    )
+    with pytest.raises(ConfigError, match="même jeu"):
+        await run(replace(gated, baseline=other_version))
+    # Same version but other items under the same ids would exempt new critical errors.
+    other_items = baseline.model_copy(update={"items": baseline.items[1:]})
+    with pytest.raises(ConfigError, match="items diffèrent"):
+        await run(replace(gated, baseline=other_items))
 
 
 async def test_a_gate_run_without_thresholds_for_the_dataset_is_refused() -> None:

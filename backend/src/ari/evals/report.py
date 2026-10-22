@@ -9,7 +9,7 @@ and is counted apart; the mean cost per case is then None, never a partial sum.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -148,6 +148,34 @@ class Report(_Model):
     latency: dict[str, LatencySummary]
     gate: GateResult | None
     items: list[ItemEntry]
+
+
+def baseline_mismatch(
+    baseline: Report,
+    *,
+    suite: str,
+    split: str,
+    manifest_sha256: str,
+    item_ids: Sequence[str] | None = None,
+    cases: Mapping[str, str] | None = None,
+) -> str | None:
+    """Why `baseline` did not run on the same inputs, or None.
+
+    Its critical errors (and its metrics, in a comparison) only mean something for the same
+    dataset version, split, items and played cases. `item_ids` and `cases` left out are not
+    checked (before a run, when they are not known yet).
+    """
+    if (baseline.suite, baseline.split, baseline.dataset.manifest_sha256) != (
+        suite,
+        split,
+        manifest_sha256,
+    ):
+        return "ne porte pas sur le même jeu, la même version et la même partition que la baseline"
+    if item_ids is not None and [i.item_id for i in baseline.items] != list(item_ids):
+        return "les items diffèrent de la baseline"
+    if cases is not None and baseline.dataset.cases != dict(cases):
+        return "les versions de cas diffèrent de la baseline"
+    return None
 
 
 def write_report(report: Report, path: Path) -> None:

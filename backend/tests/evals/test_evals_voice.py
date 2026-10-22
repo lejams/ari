@@ -216,6 +216,32 @@ def test_in_process_run_over_the_real_voice_chain(database_url: str) -> None:
     assert misheard.metrics["transcription.word_error_rate"] > 0
 
 
+def test_a_voice_gate_run_refuses_a_baseline_that_played_another_case_version(
+    database_url: str,
+) -> None:
+    config, digest = load_voice_config(CONFIG)
+    baseline = read_report(PROJECT_ROOT / "evals" / "reports" / "examples" / "voice-sim-fake.json")
+    # Same dataset version and scripts, but another version of the published case.
+    stale = baseline.model_copy(
+        update={"dataset": baseline.dataset.model_copy(update={"cases": {"ARI-DEV-FR": "0:x"}})}
+    )
+    request = VoiceRunRequest(
+        dataset=load_voice_dataset(DATASETS, "1"),
+        config=config,
+        config_sha256=digest,
+        database_url=database_url,
+        pricing=PRICING,
+        pricing_path=PRICING_PATH,
+        repetitions=1,
+        gates=GATE_RULES,
+        gate_mode=True,
+        baseline=stale,
+        tts_chunk_delay=0.02,
+    )
+    with pytest.raises(ConfigError, match="versions de cas"):
+        run_inprocess(request)
+
+
 def test_voice_command_creates_and_drops_its_own_database(
     tmp_path: Path, template_database: str
 ) -> None:
@@ -244,3 +270,11 @@ def test_a_voice_gate_run_without_thresholds_is_refused_before_anything_runs() -
     )
     with pytest.raises(ConfigError, match="pas de seuils"):
         run_inprocess(request)
+    other_version = read_report(
+        PROJECT_ROOT / "evals" / "reports" / "examples" / "voice-sim-fake.json"
+    )
+    other_version = other_version.model_copy(
+        update={"dataset": other_version.dataset.model_copy(update={"manifest_sha256": "0" * 64})}
+    )
+    with pytest.raises(ConfigError, match="même jeu"):
+        run_inprocess(replace(request, gates=GATE_RULES, baseline=other_version))

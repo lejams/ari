@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict
 
 from ari.evals import gates as gate_rules
 from ari.evals.metrics import COMMON_RATIOS, Ratio, bootstrap_interval, paired_difference_interval
-from ari.evals.report import Report, format_micro_eur
+from ari.evals.report import Report, baseline_mismatch, format_micro_eur
 from ari.evals.runner import ratios_for
 from ari.evals.suites import SUITES
 from ari.evals.voice.scoring import RATIOS as VOICE_RATIOS
@@ -97,19 +97,16 @@ def compare(reports: Sequence[Report], gates: gate_rules.Gates) -> Comparison:
         raise CompareError("comparer exige une baseline et au moins un candidat")
     baseline, candidates = reports[0], list(reports[1:])
     for report in candidates:
-        if (report.suite, report.split, report.dataset.manifest_sha256) != (
-            baseline.suite,
-            baseline.split,
-            baseline.dataset.manifest_sha256,
-        ):
-            raise CompareError(
-                f"{report.config.id} ne porte pas sur le même jeu, la même version et la même "
-                "partition que la baseline"
-            )
-        if [i.item_id for i in report.items] != [i.item_id for i in baseline.items]:
-            raise CompareError(f"{report.config.id} : les items diffèrent de la baseline")
-        if report.dataset.cases != baseline.dataset.cases:
-            raise CompareError(f"{report.config.id} : les versions de cas diffèrent de la baseline")
+        mismatch = baseline_mismatch(
+            baseline,
+            suite=report.suite,
+            split=report.split,
+            manifest_sha256=report.dataset.manifest_sha256,
+            item_ids=[i.item_id for i in report.items],
+            cases=report.dataset.cases,
+        )
+        if mismatch is not None:
+            raise CompareError(f"{report.config.id} : {mismatch}")
     ids = [r.config.id for r in reports]
     if len(ids) != len(set(ids)):
         raise CompareError("deux rapports portent le même identifiant de configuration")

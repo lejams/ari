@@ -53,6 +53,7 @@ from ari.evals.report import (
     Report,
     RunEntry,
     Versions,
+    baseline_mismatch,
     summarize_cost,
     summarize_latency,
 )
@@ -115,6 +116,15 @@ def run_inprocess(request: VoiceRunRequest) -> Report:
     suite_ref = request.dataset.ref
     if request.gate_mode and (request.gates is None or suite_ref not in request.gates.suites):
         raise ConfigError(f"{suite_ref} n'a pas de seuils dans gates.yaml : run gate refusé")
+    if request.gate_mode and request.baseline is not None:
+        mismatch = baseline_mismatch(
+            request.baseline,
+            suite=suite_ref,
+            split="dev",
+            manifest_sha256=request.dataset.manifest_hash,
+        )
+        if mismatch is not None:
+            raise ConfigError(f"baseline {request.baseline.config.id} : {mismatch}")
     settings = Settings(
         _env_file=None,  # type: ignore[call-arg]
         environment="test",
@@ -189,6 +199,18 @@ def run_inprocess(request: VoiceRunRequest) -> Report:
             request.gates.suites[suite_ref].critical_outcomes,
         )
         if request.gate_mode:
+            if request.baseline is not None:
+                # The voice manifest does not hash the cases: the played versions must match.
+                mismatch = baseline_mismatch(
+                    request.baseline,
+                    suite=suite_ref,
+                    split="dev",
+                    manifest_sha256=request.dataset.manifest_hash,
+                    item_ids=[e.item_id for e in entries],
+                    cases=dict(sorted(played_cases.items())),
+                )
+                if mismatch is not None:
+                    raise ConfigError(f"baseline {request.baseline.config.id} : {mismatch}")
             gate = gate_rules.evaluate(
                 request.gates,
                 suite_ref,
