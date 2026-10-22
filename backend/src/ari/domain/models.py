@@ -228,6 +228,8 @@ class MedicalCase:
     cefr: str | None = None  # Authored scenario level; the programme filters on it.
     land: Land | None = None  # Where the source protocol was examined; catalogue filter.
     city: str | None = None
+    # Temperament of the simulated patient: the exam voice and wording follow it, never the facts.
+    persona_variant: str = "standard"
 
     @property
     def fact_ids(self) -> frozenset[str]:

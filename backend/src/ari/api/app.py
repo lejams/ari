@@ -19,6 +19,7 @@ from ari.api.dto import (
     UpdateGoalRequest,
     UpdateProfileRequest,
 )
+from ari.api.exam_socket import ChainExamSocket
 from ari.api.lexicon import lexicon_router, public_report
 from ari.api.ownership import OwnershipMiddleware
 from ari.api.pause import ServicePauseMiddleware
@@ -29,6 +30,7 @@ from ari.api.realtime_socket import RealtimeVoiceSocket
 from ari.api.voice_session_dto import public_session
 from ari.api.voice_socket import VoiceLifecycles, VoiceSocket
 from ari.application.services.catalog import land_summary
+from ari.application.services.exam_session import CHAIN_EXAM_STACK_ID
 from ari.config import Settings, get_settings
 from ari.container import Container, build_container
 from ari.domain.errors import (
@@ -295,6 +297,8 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             stack_id = services.repository.get_session(session_id).voice_stack_id
             if stack_id == services.realtime_stack.id:
                 socket_class = RealtimeVoiceSocket
+            elif stack_id == CHAIN_EXAM_STACK_ID:
+                socket_class = ChainExamSocket
         await socket_class(services, voice_lifecycles, websocket, session_id).run()
 
     web_dir = Path(__file__).resolve().parents[4] / "web"

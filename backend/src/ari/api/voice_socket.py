@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from ari.api.voice_session_dto import public_turn
 from ari.application.contracts import ExecutionContext, TranscriptionConfig
+from ari.application.ports.tts import StreamingTTSProvider
 from ari.application.schemas import ClientControlMessage
 from ari.container import Container
 from ari.domain.errors import (
@@ -145,6 +146,9 @@ class VoiceSocket:
         self.voice_failed = asyncio.Event()
         self.finalized = asyncio.Event()
         self.audio_buffer = bytearray()
+        # Set by an open-microphone socket when the learner speaks over the patient: the rest
+        # of the answer's audio is not sent, so its facts are never heard nor credited.
+        self.barge_in = asyncio.Event()
         self.sample_rate = services.settings.audio_sample_rate
         self.last_activity = time.monotonic()
         # Set in run() once the session and its pinned case are resolved.
@@ -289,6 +293,9 @@ class VoiceSocket:
     async def _finish_turn(self) -> None:
         pcm = bytes(self.audio_buffer)
         self.audio_buffer.clear()
+        await self._answer_utterance(pcm)
+
+    async def _answer_utterance(self, pcm: bytes) -> None:
         if len(pcm) < int(self.sample_rate * 2 * MIN_TURN_SECONDS):
             await self.send("user.turn.empty")
             return
@@ -323,6 +330,7 @@ class VoiceSocket:
     async def _process_final(self, text: str, stt_execution: ExecutionRecord | None = None) -> None:
         repository, orchestrator = self.services.repository, self.services.orchestrator
         async with self.processing_lock:
+            self.barge_in.clear()
             turn_id = new_id()
             if stt_execution is not None:
                 repository.record_execution(replace(stt_execution, turn_id=turn_id))
@@ -375,11 +383,16 @@ class VoiceSocket:
         mime_type = PCM_MIME_TYPE
         tts_execution: ExecutionRecord | None = None
         all_sent = True
+        interrupted = False
         pcm_remainder = b""
         try:
-            async for audio_event in self.services.tts.stream(turn.patient_text, context):
+            async for audio_event in self._tts().stream(turn.patient_text, context):
                 mime_type = audio_event.mime_type
-                if audio_event.type == "chunk" and audio_event.data:
+                if audio_event.type == "chunk" and self.barge_in.is_set():
+                    # Interrupted: keep reading to the end of the sentence so the call is
+                    # recorded with its cost, but send nothing more to the browser.
+                    interrupted = True
+                elif audio_event.type == "chunk" and audio_event.data:
                     audio_bytes = pcm_remainder + audio_event.data
                     complete_length = len(audio_bytes) - (len(audio_bytes) % 2)
                     pcm_remainder = audio_bytes[complete_length:]
@@ -410,6 +423,12 @@ class VoiceSocket:
                 turn_id=turn.id,
             )
             return failed
+        if interrupted:
+            if tts_execution is not None:
+                self.services.repository.record_execution(tts_execution)
+            # The turn stays undelivered: the session drain marks it unconfirmed, no credit.
+            await self.send("patient.audio_interrupted", turn_id=turn.id, chunks_sent=index)
+            return repository.get_session(session_id).turns[turn.sequence - 1]
         incomplete = index == 0 or bool(pcm_remainder)
         if tts_execution is not None:
             if incomplete:
@@ -440,6 +459,9 @@ class VoiceSocket:
         await self.send("patient.audio_done", **correlation)
         await self.send("turn.completed", turn=public_turn(turn))
         return turn
+
+    def _tts(self) -> StreamingTTSProvider:
+        return self.services.tts
 
     async def _retry_tts(self, turn_id: str) -> None:
         async with self.processing_lock:

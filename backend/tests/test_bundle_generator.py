@@ -255,7 +255,11 @@ def test_worker_stores_drafts_and_invalid_outputs_with_their_reasons(
     assert [ref.phase for ref in draft.scenario_refs] == ["arzt_patient", "arzt_arzt"]
     assert draft.bundle is not None and draft.created_by_account_id == "owner-1"
     assert len(runs) == 1 and runs[0].id == draft.ai_run_id and runs[0].protocol_id == head.id
-    ClinicalBundle.model_validate_json(json.dumps(draft.bundle))  # stored as a valid bundle
+    stored = ClinicalBundle.model_validate_json(json.dumps(draft.bundle))  # a valid bundle
+    # The requested temperament travels with the patient scenario (exam voice and wording).
+    patient = next(s for s in stored.scenarios if s.phase == "arzt_patient")
+    assert patient.persona_variant == "anxious"
+    assert all(s.persona_variant is None for s in stored.scenarios if s.phase != "arzt_patient")
 
     # A model output that ignores the skeleton becomes an invalid draft, not a dead job.
     careless = build_content_container(

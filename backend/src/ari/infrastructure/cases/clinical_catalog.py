@@ -141,4 +141,5 @@ class ClinicalCatalog:
             cefr=scenario.cefr,
             land=case.location.land,
             city=case.location.city,
+            persona_variant=scenario.persona_variant or "standard",
         )

@@ -345,6 +345,18 @@ class EmpathyMoment(ClinicalModel):
     expected_fr: Text  # The expected reaction, e.g. acknowledge, pause, then return to the case.
 
 
+# How a simulated patient behaves; the facts never change with it.
+PersonaVariant = Literal["standard", "anxious", "talkative", "terse"]
+PERSONA_VARIANTS: tuple[PersonaVariant, ...] = ("standard", "anxious", "talkative", "terse")
+# The temperament as the content generator and the exam patient brief the model (German).
+PERSONA_INSTRUCTIONS: dict[str, str] = {
+    "standard": "kooperativ, antwortet in ganzen Sätzen, ergänzt nichts von sich aus",
+    "anxious": "ängstlich, fragt nach, braucht Beruhigung, antwortet knapp",
+    "talkative": "redselig, schweift ab, muss zurückgeführt werden",
+    "terse": "einsilbig, antwortet nur auf präzise Fragen",
+}
+
+
 class AnamnesisSection(ClinicalModel):
     id: AnamnesisSectionId
     label_de: Text
@@ -360,6 +372,8 @@ class TrainingScenarioVersion(VersionRef):
     terminology_hash: Digest
     phase: Literal["arzt_patient", "arzt_arzt", "fachbegriffe", "arztbrief"]
     persona: Text
+    # The patient's temperament (exam voice and wording); None on scenarios authored before it.
+    persona_variant: PersonaVariant | None = None
     difficulty: Text
     cefr: Literal["A1", "A2", "B1", "B2", "C1", "C2"]
     opening: Text
@@ -389,6 +403,8 @@ class TrainingScenarioVersion(VersionRef):
         # Additive optional assets: old payloads/hashes/reviews remain byte-for-byte canonical.
         if self.practice is None:
             payload.pop("practice", None)
+        if self.persona_variant is None:
+            payload.pop("persona_variant", None)
         if not self.empathy_moments:
             payload.pop("empathy_moments", None)
         if not self.anamnesis_sections:
