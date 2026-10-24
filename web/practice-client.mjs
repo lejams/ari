@@ -73,4 +73,7 @@ export class PracticeClient {
 }
 export const phaseLabel = phase => ({arzt_arzt: "Arzt–Arzt", fachbegriffe: "Fachbegriffe", arzt_patient: "Arzt–Patient"}[phase] || phase);
 export const stateLabel = state => ({no_data: "Pas de données", provisional: "Provisoire", evaluated: "Évalué selon cette méthode", active: "En cours", paused: "En pause", completed: "Terminé", observed: "Variante observée", not_matched: "Formulation non reconnue", not_answered: "Sans réponse"}[state] || state);
+// Learner-facing mode names (owner decision, 24 October 2026: French labels).
+export const MODE_LABELS = {training: "Entraînement", exam: "Examen", unknown: "Historique"};
+export const modeLabel = mode => MODE_LABELS[mode] || mode;
 export const dimensionText = d => `${d.label} : ${d.score === null ? "—" : `${d.score.toFixed(2)} / ${d.max_score}`} · ${stateLabel(d.state)} · ${d.answered_weight === undefined ? d.feedback : `poids répondus ${d.answered_weight} / ${d.expected_weight}`}`;

@@ -91,7 +91,7 @@ def practice_router(services: Container) -> APIRouter:
     def history(request: Request) -> dict[str, Any]:
         owner = request.state.learner_id
         items = practice_history(practice.repository.list(owner)) + voice_history(
-            services.repository.list_sessions(owner),
+            services.repository.list_sessions(owner), services.cases
         )
         return {"items": sorted(items, key=lambda item: item["created_at"], reverse=True)}
 
