@@ -282,13 +282,15 @@ function renderWeek(program) {
   $('week-budget').textContent = `${week.planned_minutes} / ${week.budget_minutes} min`;
   $('week-message').textContent = week.message;
   $('week-limitations').textContent = week.limitations;
-  const todayOffset = Math.max(0, Math.round((new Date(week.today + 'T00:00:00') - new Date(week.week_start + 'T00:00:00')) / 86400000));
+  const offsetOf = day => Math.max(0, Math.round((new Date(day + 'T00:00:00') - new Date(week.week_start + 'T00:00:00')) / 86400000));
+  const todayOffset = offsetOf(week.today), startOffset = week.starts_on ? offsetOf(week.starts_on) : 0;
+  $('week-joined').hidden = !startOffset;
   $('week-days').replaceChildren(...DAY_LETTERS.map((letter, offset) => {
     const slots = week.slots.filter(slot => slot.day_offset === offset);
-    const state = !slots.length ? 'rest' : slots.every(slot => slot.state === 'done') ? 'done' : slots.some(slot => slot.state === 'missed') ? 'missed' : offset === todayOffset ? 'today' : 'todo';
+    const state = offset < startOffset ? 'before' : !slots.length ? 'rest' : slots.every(slot => slot.state === 'done') ? 'done' : slots.some(slot => slot.state === 'missed') ? 'missed' : offset === todayOffset ? 'today' : 'todo';
     const pill = node('button', undefined, 'week-pill'); pill.type = 'button'; pill.dataset.state = state; pill.setAttribute('role', 'listitem');
-    pill.append(node('span', letter, 'week-pill-day'), node('span', slots.length ? String(slots.length) : '·', 'week-pill-count'));
-    pill.title = slots.map(slot => SLOT_LABELS[slot.kind]).join(', ') || 'repos';
+    pill.append(node('span', letter, 'week-pill-day'), node('span', state === 'before' ? 'avant' : slots.length ? String(slots.length) : '·', 'week-pill-count'));
+    pill.title = state === 'before' ? 'avant votre inscription' : slots.map(slot => SLOT_LABELS[slot.kind]).join(', ') || 'repos';
     pill.addEventListener('click', () => renderWeekDay(offset));
     return pill;
   }));
@@ -298,10 +300,9 @@ async function home() {
   if (!client.profile) { restoreDraft(); view('onboarding', false); return; }
   await loadCatalog(); historyItems = (await client.api('/api/history')).items;
   const details = client.profile.details || {};
-  const estimated = details.estimated_level ? `niveau estimé ${details.estimated_level} le ${new Date(details.estimated_at).toLocaleDateString('fr-FR')}` : 'niveau non mesuré';
-  // The programme follows the estimated level when there is one: say so when the declared one differs.
-  const differs = details.estimated_level && details.declared_level && details.declared_level !== details.estimated_level;
-  $('profile-goal').textContent = `Objectif personnel ${client.profile.goal.target_cefr} · ${estimated}.` + (differs ? ` Le programme suit ce niveau estimé par le test, pas le niveau ${details.declared_level} que vous avez déclaré.` : '');
+  // Estimated first, then declared: the programme and the cases follow the estimate when there is one.
+  const estimated = details.estimated_level ? `niveau estimé ${details.estimated_level}${details.declared_level ? `, déclaré ${details.declared_level}` : ''} (test du ${new Date(details.estimated_at).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long'})})` : 'niveau non mesuré';
+  $('profile-goal').textContent = `Objectif personnel ${client.profile.goal.target_cefr} · ${estimated}.` + (details.estimated_level ? ' L’estimation sert à calibrer le programme et les cas, ce n’est pas un certificat.' : '');
   $('goal-target').value = client.profile.goal.target_cefr;
   $('local-profile-summary').textContent = [details.land, details.minutes_per_day ? `${details.minutes_per_day} min/jour` : '', details.declared_level ? `niveau déclaré ${details.declared_level} (${details.level_source === 'certificate' ? 'certificat' : 'auto-évaluation'})` : '', details.exam_date ? `examen le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}` : ''].filter(Boolean).join(' · ') || 'Renseignez vos préférences pour calibrer votre pratique.';
   $('placement-cta').textContent = details.estimated_level ? 'Refaire le test de niveau' : 'Passer le test de niveau';

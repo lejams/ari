@@ -160,9 +160,14 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   assert.equal(nodes.get("placement-home").classList.contains("primary"), false, "one primary action on the result");
 }
 {
-  // Declared B1, estimated A2: home says which level the programme follows.
+  // Declared B1, estimated A2, joined on Wednesday: home names both levels and greys the days before.
+  responses["/api/program"] = { ...program, week: { ...program.week, starts_on: "2026-09-16" } };
   const { nodes } = await load("#home");
-  assert.match(nodes.get("profile-goal").textContent, /niveau estimé A2 le .*pas le niveau B1 que vous avez déclaré/);
+  assert.match(nodes.get("profile-goal").textContent, /niveau estimé A2, déclaré B1 \(test du 19 septembre\)\. L’estimation sert à calibrer/);
+  const pills = nodes.get("week-days").children;
+  assert.deepEqual(pills.map(p => p.dataset.state).slice(0, 3), ["before", "before", "rest"]);
+  assert.equal(pills[0].children[1].textContent, "avant");
+  assert.equal(nodes.get("week-joined").hidden, false);
   assert.match(nodes.get("local-profile-summary").textContent, /niveau déclaré B1 \(auto-évaluation\)/);
   assert.equal(nodes.get("error").hidden, true);
   responses["/api/profile"] = profile; responses["/api/program"] = program;

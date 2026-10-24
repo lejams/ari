@@ -331,6 +331,7 @@ def plan_week(
         "phase": phase,
         "message": PHASE_MESSAGES[phase],
         "week_start": start.isoformat(),
+        "starts_on": (start + timedelta(days=first_day)).isoformat(),
         "today": today.isoformat(),
         "budget_minutes": budget,
         "planned_minutes": total,

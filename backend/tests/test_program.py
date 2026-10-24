@@ -170,6 +170,7 @@ def test_a_week_joined_midway_starts_on_the_profile_day(published_container: Con
     assert all(s["date"] >= saturday.isoformat() for s in week["slots"])
     assert not any(s["state"] == "missed" for s in week["slots"])
     assert week["budget_minutes"] == 2 * 30
+    assert week["starts_on"] == saturday.isoformat()
     assert week["planned_minutes"] <= week["budget_minutes"]
     # Fachbegriffe fell on Monday, Wednesday and Friday: one occurrence moves to Saturday.
     fach = [s for s in week["slots"] if s["kind"] == "fachbegriffe"]
@@ -206,6 +207,7 @@ def test_a_week_joined_midway_starts_on_the_profile_day(published_container: Con
         completed={},
     )
     assert earlier == plan_week(model(declared_level="B1"), cases, practice, TODAY, completed={})
+    assert earlier["starts_on"] == earlier["week_start"]
 
 
 def test_recommendation_prefers_due_words_weak_sections_and_level(

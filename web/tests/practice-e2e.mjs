@@ -64,7 +64,7 @@ async function completePlacement(page) {
   assert.match(await page.locator("#placement-next button").innerText(), /^Prochaine étape : /);
   await page.getByRole("button", {name:"Retour à l’accueil", exact:true}).click();
   await page.locator("#home:not([hidden])").waitFor();
-  assert.match(await page.locator("#profile-goal").innerText(), /niveau estimé [ABC][12] le /);
+  assert.match(await page.locator("#profile-goal").innerText(), /niveau estimé [ABC][12], déclaré B2 \(test du /);
   assert.equal(await page.locator("#placement-cta").innerText(), "Refaire le test de niveau");
 }
 try {
