@@ -539,6 +539,11 @@ class VoiceSocket:
                 pass
             await self._settle_interrupted_streams()
         finally:
+            if self.interrupted_streams:
+                # This waiter was cancelled: the costs of interrupted answers are still
+                # recorded before the session is finalised.
+                with suppress(asyncio.CancelledError):
+                    await self._settle_interrupted_streams()
             self.services.repository.mark_session_delivery_unconfirmed(self.session_id)
             self.lifecycle.drained.set()
 

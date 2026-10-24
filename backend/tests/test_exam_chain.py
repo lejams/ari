@@ -576,6 +576,34 @@ async def test_a_cancelled_drain_neither_cancels_the_worker_nor_skips_finalisati
     assert unconfirmed == ["s"]
 
 
+async def test_a_cancelled_drain_still_waits_for_interrupted_answers_costs() -> None:
+    from ari.api.voice_socket import VoiceLifecycle, VoiceSocket
+
+    unconfirmed: list[str] = []
+    socket = VoiceSocket.__new__(VoiceSocket)
+    socket.session_id = "s"
+    socket.finalized = asyncio.Event()
+    socket.processing_lock = asyncio.Lock()
+    socket.lifecycle = VoiceLifecycle()
+    socket.services = SimpleNamespace(  # type: ignore[assignment]
+        repository=SimpleNamespace(mark_session_delivery_unconfirmed=unconfirmed.append)
+    )
+    reading = asyncio.create_task(asyncio.sleep(0.3))  # the end of an interrupted sentence
+    socket.interrupted_streams = {reading}
+    reading.add_done_callback(socket.interrupted_streams.discard)
+
+    first = asyncio.create_task(socket._drain())  # e.g. an end requested over HTTP
+    await asyncio.sleep(0.05)
+    first.cancel()  # the browser disconnected: run() cancels that watcher
+    await asyncio.sleep(0.05)
+    # Not finalised while the synthesis is still being read, so its cost is not lost.
+    assert not socket.lifecycle.drained.is_set()
+    with pytest.raises(asyncio.CancelledError):
+        await first
+    assert reading.done() and not reading.cancelled()
+    assert socket.lifecycle.drained.is_set() and unconfirmed == ["s"]
+
+
 # The ElevenLabs persona levers -------------------------------------------------------------
 
 
