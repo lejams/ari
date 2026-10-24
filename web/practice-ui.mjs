@@ -3,6 +3,7 @@ import {LexiconClient, RATINGS, lexiconStateLabel, ratingLabel, sourceLabel} fro
 import {PlacementClient, LEVEL_LABELS, PHASE_LABELS, describeResult} from './placement-client.mjs';
 import {PcmRecorder} from './pcm-recorder.mjs';
 import {completedDayKeys, lastLocalDays, localDayKey, scrollDelta} from './calendar.mjs';
+import {clearFieldErrorOnInput, microphoneErrorMessage, validateFields} from './errors.mjs';
 
 const client = new PracticeClient();
 const lexicon = new LexiconClient((path, options) => client.api(path, options));
@@ -149,14 +150,16 @@ async function startSelected() {
     location.href = `/voice.html?case=${encodeURIComponent(item.id)}&mode=${mode}`;
   } else await showRun(await client.start(item, mode));
 }
-function caseCard(item, kind, mode) {
+// `examBlocked`: the monthly voice exam quota is spent, so the card offers the case in Training.
+function caseCard(item, kind, mode, examBlocked = false) {
   const card = node('article', undefined, 'card case-card');
   const synthetic = item.provenance === 'synthetic_demo';
   card.append(node('span', synthetic ? 'Démo synthétique · non validée' : kind === 'voice' ? 'Consultation vocale disponible' : `Exercice publié · ${phaseLabel(item.phase)}`, 'badge'));
   const title = node('h2', item.title); title.lang = 'de'; card.append(title);
   card.append(node('p', item.public_summary || item.summary || '', 'muted'));
   if (item.limitation) card.append(node('p', item.limitation, 'help'));
-  card.append(actionButton(mode === 'exam' ? 'Commencer en Examen →' : 'Préparer cette session →', () => prepare(item, kind, mode)));
+  if (mode === 'exam' && examBlocked) card.append(actionButton('Faire ce cas en Training →', () => prepare(item, kind, 'training')));
+  else card.append(actionButton(mode === 'exam' ? 'Commencer en Examen →' : 'Préparer cette session →', () => prepare(item, kind, mode)));
   return card;
 }
 function renderCatalog() {
@@ -315,9 +318,24 @@ async function showCases() {
   renderCatalog(); view('cases');
   try { renderLandSummary(await client.api('/api/cases/summary')); } catch { $('land-summary').textContent = ''; }
 }
+// The monthly quota of voice exams (written exercises have none), shown before any start.
+function renderExamUsage(usage) {
+  $('exam-usage').hidden = !usage || usage.quota === null;
+  $('exam-quota').hidden = true;
+  if (!usage || usage.quota === null) return false;
+  const renews = new Date(`${usage.renews_on}T00:00:00`).toLocaleDateString('fr-FR');
+  $('exam-usage').textContent = `Consultations en Examen ce mois-ci : ${usage.used} sur ${usage.quota} · renouvellement le ${renews}.`;
+  if (usage.remaining > 0) return false;
+  $('exam-quota').replaceChildren(node('strong', `Vous avez utilisé vos ${usage.quota} consultations en Examen de ce mois.`), node('p', `Elles se renouvellent le ${renews}. Les consultations restent disponibles en Training, et les exercices écrits en Examen.`));
+  $('exam-quota').hidden = false;
+  return true;
+}
 async function showExam() {
   await loadCatalog();
-  $('exam-cases').replaceChildren(...voiceCases.map(item => caseCard(item,'voice','exam')), ...catalog.map(item => caseCard(item,'practice','exam')));
+  let usage = null;
+  try { usage = await client.api('/api/usage/exams'); } catch { usage = null; } // The server still enforces the quota.
+  const blocked = renderExamUsage(usage);
+  $('exam-cases').replaceChildren(...voiceCases.map(item => caseCard(item,'voice','exam',blocked)), ...catalog.map(item => caseCard(item,'practice','exam')));
   if (!$('exam-cases').children.length) $('exam-cases').append(node('p','Aucun scénario approuvé ou exercice disponible pour le mode Examen.','availability'));
   view('exam');
 }
@@ -357,7 +375,7 @@ async function showRun(run) {
 async function openHistoryItem(item) { if(item.kind==='voice') location.href=`/voice.html?session=${encodeURIComponent(item.id)}`; else await showRun(await client.getRun(item.id)); }
 async function showHistory() {
   historyItems=(await client.api('/api/history')).items; $('history-list').replaceChildren();
-  if(!historyItems.length)$('history-list').append(node('p','Pas encore de session enregistrée. Choisissez un exercice pour commencer.','availability'));
+  if(!historyItems.length){const empty=node('div',undefined,'availability');empty.append(node('p','Pas encore de session enregistrée. Choisissez un exercice pour commencer.'),actionButton('Explorer la bibliothèque →',showCases,true));$('history-list').append(empty);}
   for(const item of historyItems){const card=node('article',undefined,'card');card.append(node('h2',item.content.title),node('p',`${phaseLabel(item.content.phase)} · ${item.mode} · ${stateLabel(item.status)} · ${formatDate(item.ended_at||item.created_at)}`),node('p',`Feedback : ${stateLabel(item.feedback_state)}`,'help'),actionButton(item.has_feedback?'Voir le feedback':'Reprendre cette session',()=>openHistoryItem(item)));$('history-list').append(card);}view('history');
 }
 const ERROR_LABELS = {gender: 'Genre', case: 'Cas et déclinaison', verb_form: 'Forme verbale', word_order: 'Ordre des mots', word_choice: 'Choix du mot', register: 'Registre', other: 'Autre'};
@@ -609,7 +627,8 @@ function renderPlacementResult(attempt) {
 async function toggleRecording() {
   if (!recorder) {
     recorder = new PcmRecorder(); recordedAudio = null; $('placement-send').disabled = true;
-    await recorder.start();
+    try { await recorder.start(); }
+    catch (error) { recorder = null; throw new Error(microphoneErrorMessage(error, 'Enregistrer'), {cause: error}); }
     const started = Date.now();
     $('placement-record').textContent = 'Arrêter';
     recordTimer = setInterval(() => { $('placement-record-status').textContent = `Enregistrement… ${Math.floor((Date.now() - started) / 1000)} s`; }, 500);
@@ -629,11 +648,12 @@ async function navigate(name) {
 }
 async function route() { const match=location.hash.match(/^#practice\/([A-Za-z0-9_.-]+)$/);if(client.profile&&match)return showRun(await client.getRun(match[1]));return navigate(location.hash.slice(1)||'home'); }
 $('retry').onclick=()=>retryAction&&perform(retryAction);
-$('next-profile').onclick=()=>{if($('draft-land').reportValidity()&&$('draft-date').reportValidity()){onboardingStep(2,true);writeDraft();}};
+for(const id of ['draft-land','draft-date','draft-specialty','add-lemma'])clearFieldErrorOnInput($(id));
+$('next-profile').onclick=()=>{if(validateFields([$('draft-land'),$('draft-date')])){onboardingStep(2,true);writeDraft();}};
 $('back-project').onclick=()=>{onboardingStep(1,true);writeDraft();};
 $('profile-form').addEventListener('input',()=>{sourceState();writeDraft();});
 $('profile-form').addEventListener('change',()=>{sourceState();writeDraft();});
-$('profile-form').onsubmit=event=>{event.preventDefault();if($('person-step').hidden)return;if(!$('draft-land').value){onboardingStep(1);$('draft-land').reportValidity();return;}if(!$('draft-specialty').reportValidity())return;const draft=writeDraft();const details=profileDetails();perform(async()=>{const created=!client.profile;if(!client.profile){await client.restoreProfile();if(!client.profile)await client.createProfile($('target').value,details);try{localStorage.setItem(localKey(),JSON.stringify(draft));localStorage.removeItem('ari:onboarding:v3:anonymous');}catch{}}if(!created||client.profile.details?.declared_level!==details.declared_level){await client.updateProfile(details);}if(client.profile.goal.target_cefr!==$('target').value){await client.api(`/api/learners/${encodeURIComponent(client.profile.id)}/goal`,{method:'PATCH',body:JSON.stringify({target_cefr:$('target').value})});await client.restoreProfile();}if(created&&!client.profile.details?.estimated_level){await showPlacement();return;}await home();});};
+$('profile-form').onsubmit=event=>{event.preventDefault();if($('person-step').hidden)return;if(!$('draft-land').value){onboardingStep(1);validateFields([$('draft-land')]);return;}if(!validateFields([$('draft-specialty')]))return;const draft=writeDraft();const details=profileDetails();perform(async()=>{const created=!client.profile;if(!client.profile){await client.restoreProfile();if(!client.profile)await client.createProfile($('target').value,details);try{localStorage.setItem(localKey(),JSON.stringify(draft));localStorage.removeItem('ari:onboarding:v3:anonymous');}catch{}}if(!created||client.profile.details?.declared_level!==details.declared_level){await client.updateProfile(details);}if(client.profile.goal.target_cefr!==$('target').value){await client.api(`/api/learners/${encodeURIComponent(client.profile.id)}/goal`,{method:'PATCH',body:JSON.stringify({target_cefr:$('target').value})});await client.restoreProfile();}if(created&&!client.profile.details?.estimated_level){await showPlacement();return;}await home();});};
 $('goal-form').onsubmit=event=>{event.preventDefault();perform(async()=>{await client.api(`/api/learners/${encodeURIComponent(client.profile.id)}/goal`,{method:'PATCH',body:JSON.stringify({target_cefr:$('goal-target').value})});await client.restoreProfile();await home();});};
 $('edit-profile').onclick=()=>{restoreDraft();history.replaceState(null,'','#onboarding');view('onboarding',false);};
 $('logout').onclick=()=>perform(async()=>{await client.api('/api/auth/logout',{method:'POST'});location.assign('/');});
@@ -652,7 +672,7 @@ $('vocab-search').oninput=renderVocabList;$('vocab-source').onchange=renderVocab
 $('vocab-cadence-form').onsubmit=event=>{event.preventDefault();const days=Number($('vocab-cadence').value);perform(async()=>{await client.updateProfile({maintenance_cadence_days:days});await showVocab();});};
 $('review-form').onsubmit=event=>{event.preventDefault();if(reviewEntry)revealReview($('review-input').value);};
 $('review-reveal').onclick=()=>{if(reviewEntry)revealReview('');};
-$('vocab-add-form').onsubmit=event=>{event.preventDefault();if(!$('add-lemma').reportValidity())return;const lemma=$('add-lemma').value,translation=$('add-translation').value,example=$('add-example').value;perform(async()=>{await lexicon.add(lemma,translation,example);$('vocab-add-form').reset();await showVocab();});};
+$('vocab-add-form').onsubmit=event=>{event.preventDefault();if(!validateFields([$('add-lemma')]))return;const lemma=$('add-lemma').value,translation=$('add-translation').value,example=$('add-example').value;perform(async()=>{await lexicon.add(lemma,translation,example);$('vocab-add-form').reset();await showVocab();});};
 $('answer-form').onsubmit=event=>{event.preventDefault();const run=currentRun,text=$('answer').value;perform(async()=>showRun(await client.answer(run,text)));};
 for(const action of ['pause','resume','finish'])$(action).onclick=()=>{const run=currentRun;perform(async()=>showRun(await client.action(run,action)));};
 for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>perform(()=>navigate(button.dataset.view));

@@ -22,7 +22,13 @@ async function signIn(page, account) {
 }
 
 async function onboard(page, official = false) {
-  await page.locator("#profile-form").getByLabel("Land", {exact:true}).selectOption("Bayern");
+  // A missing Land is said in French under the field, not in the browser's own bubble.
+  await page.getByRole("button", {name:"Continuer →", exact:true}).click();
+  assert.equal(await page.locator("#draft-land-error").innerText(), "Choisissez une option dans la liste.");
+  assert.equal(await page.evaluate(() => document.activeElement.id), "draft-land");
+  assert.equal(await page.locator("#draft-land").getAttribute("aria-invalid"), "true");
+  await page.locator("#profile-form").getByRole("combobox", {name:"Land", exact:true}).selectOption("Bayern");
+  assert.equal(await page.locator("#draft-land-error").count(), 0, "a valid choice clears the message");
   await page.getByRole("button", {name:"Continuer →", exact:true}).click();
   await page.getByLabel("Spécialité visée").fill("Médecine interne");
   if (official) {
@@ -39,6 +45,22 @@ async function onboard(page, official = false) {
   await page.locator("#home:not([hidden])").waitFor();
 }
 try {
+  {
+    // Sign-in page: French field messages, and an activation link opened in a tab already there.
+    const signInPage = await (await browser.newContext()).newPage();
+    signInPage.on("pageerror", error => errors.push(error.message));
+    await signInPage.goto(base + "/connexion");
+    await signInPage.getByRole("tab", {name: "Créer un compte"}).click();
+    await signInPage.getByRole("button", {name: "Recevoir mon lien", exact: true}).click();
+    assert.equal(await signInPage.locator("#signup-form-email-error").innerText(), "Ce champ est obligatoire.");
+    await signInPage.locator("#signup-form input[name=email]").fill("pas-une-adresse");
+    await signInPage.getByRole("button", {name: "Recevoir mon lien", exact: true}).click();
+    assert.match(await signInPage.locator("#signup-form-email-error").innerText(), /adresse e-mail valide/);
+    await signInPage.evaluate(() => { location.hash = "#jeton=lien-perime"; });
+    await signInPage.locator("#view-forgot:not([hidden])").waitFor();
+    assert.match(await signInPage.locator("#status").innerText(), /Demandez un nouveau lien/);
+    await signInPage.context().close();
+  }
   const context = await browser.newContext();
   const page = await context.newPage();
   page.on("pageerror", error => errors.push(error.message));
@@ -50,6 +72,18 @@ try {
   assert.match(await page.locator("#week-phase").innerText(), /Anamnèse · niveau B2/);
   assert.equal(await page.locator("#week-days .week-pill").count(), 7, "the week strip has seven days");
   assert.match(await page.locator("#recommendation h1").innerText(), /./, "the hero names the next step");
+  // Offline, the learner reads French, then retries once the network is back.
+  await context.setOffline(true);
+  await page.getByRole("button", {name: "Carnet", exact: true}).first().click();
+  await page.locator("#error:visible").waitFor();
+  assert.match(await page.locator("#error-text").innerText(), /^Connexion impossible : vérifiez votre réseau\./);
+  await context.setOffline(false);
+  await page.getByRole("button", {name: "Réessayer", exact: true}).click();
+  await page.locator("#vocab:not([hidden])").waitFor();
+  // The exam page shows the month's count before any start.
+  await page.goto(base + "/app#exam");
+  await page.locator("#exam:not([hidden])").waitFor();
+  assert.match(await page.locator("#exam-usage").innerText(), /Consultations en Examen ce mois-ci : 0 sur 2/);
   await page.goto(base + "/app#cases");
   // The catalogue opens on the learner's Land (Bayern, from onboarding) and counts its cases.
   await page.getByText(/Bayern : 1 cas publié/).waitFor();
@@ -120,6 +154,8 @@ try {
   await other.locator("#error:visible").waitFor();
   await other.getByRole("button", {name: "Historique", exact: true}).click();
   await other.getByText("Pas encore de session enregistrée.", {exact: false}).waitFor();
+  await other.getByRole("button", {name: "Explorer la bibliothèque →", exact: true}).click();
+  await other.locator("#cases:not([hidden])").waitFor();
   // Mobile layout has no page-level horizontal overflow.
   await page.setViewportSize({width: 390, height: 844});
   await page.goto(base + "/app#cases");

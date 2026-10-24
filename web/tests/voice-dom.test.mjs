@@ -180,3 +180,30 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
   assert.equal(result.nodes.get("start").disabled, true, "invalid explicit case does not fall back");
   assert.equal(result.calls.some(path => path.startsWith("/api/sessions/")), false);
 }
+
+{
+  // A spent exam quota is said before "Commencer", and Training stays one click away.
+  const spent = { used: 2, quota: 2, remaining: 0, renews_on: "2026-11-01" };
+  const result = await load("?case=case-1&mode=exam", {
+    "/api/health": health, "/api/cases": [caseItem], "/api/usage/exams": spent,
+  });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(result.nodes.get("start").disabled, true, "no exam start once the quota is spent");
+  assert.equal(result.nodes.get("exam-quota").classList.contains("hidden"), false);
+  assert.match(result.nodes.get("exam-quota").textContent, /2 consultations en Examen.*01\/11\/2026.*Training/);
+  result.modeButtons[0].click();
+  assert.equal(result.nodes.get("start").disabled, false, "Training is still available");
+  assert.equal(result.nodes.get("exam-quota").classList.contains("hidden"), true);
+  result.modeButtons[1].click();
+  assert.equal(result.nodes.get("start").disabled, true);
+}
+
+{
+  const left = { used: 1, quota: 2, remaining: 1, renews_on: "2026-11-01" };
+  const result = await load("?case=case-1&mode=exam", {
+    "/api/health": health, "/api/cases": [caseItem], "/api/usage/exams": left,
+  });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(result.nodes.get("start").disabled, false);
+  assert.equal(result.nodes.get("exam-quota").classList.contains("hidden"), true);
+}
