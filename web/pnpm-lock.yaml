@@ -8,11 +8,18 @@ importers:
 
   .:
     devDependencies:
+      axe-core:
+        specifier: 4.10.3
+        version: 4.10.3
       playwright:
         specifier: 1.62.1
         version: 1.62.1
 
 packages:
+
+  axe-core@4.10.3:
+    resolution: {integrity: sha512-Xm7bpRXnDSX2YE2YFfBk2FnF0ep6tmG7xPh8iHee8MIcrgq762Nkce856dYtJYLkuIoYZvGfTs/PbZhideTcEg==}
+    engines: {node: '>=4'}
 
   fsevents@2.3.2:
     resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
@@ -30,6 +37,8 @@ packages:
     hasBin: true
 
 snapshots:
+
+  axe-core@4.10.3: {}
 
   fsevents@2.3.2:
     optional: true

@@ -4,5 +4,5 @@
   "version": "0.1.0",
   "packageManager": "pnpm@11.19.0",
   "scripts": {"test:e2e": "node tests/practice-e2e.mjs"},
-  "devDependencies": {"playwright": "1.62.1"}
+  "devDependencies": {"axe-core": "4.10.3", "playwright": "1.62.1"}
 }
