@@ -10,7 +10,7 @@ on:
       voices:
         description: "Candidate voices, space separated NAME=VOICE_ID (empty: the personas' voices)"
         required: false
-        default: ""
+        default: "George=JBFqnCBsd6RMkjVDRZzb"
         type: string
       personas:
         description: "With candidate voices, also test the personas' voices"
