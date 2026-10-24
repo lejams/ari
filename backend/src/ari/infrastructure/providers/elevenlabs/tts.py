@@ -2,9 +2,11 @@
 
 `eleven_v4_turbo` is only served by the Text to Dialogue WebSocket, one voice per connection
 (docs/spikes/exam-elevenlabs.md, section 2). The protocol below follows ElevenLabs'
-documentation as read on 19 October 2026; it has not been run against the live service, so
-the first real calls are its test, and the few shapes the documentation leaves open are
-settings (`voice_registration`) or tolerated (`isFinal` / `is_final` / `final`, binary frames).
+documentation as read on 19 October 2026, corrected by the first live call (24 October 2026):
+the service validates `voices` as a list of voice id strings and refuses objects (code 1007), so
+voices are registered by id and voice settings go beside them in the same first message.
+`voice_registration="objects"` stays for comparison only. Final frames are tolerated under every
+documented name (`isFinal`, `is_final`, `is_final_audio_for_turn`, `final`), binary frames too.
 
 One sentence at a time per connection: a sentence is sent with `flush`, its audio frames are
 relayed as they arrive, and the sentence ends on a final frame, or after a short silence once
@@ -33,7 +35,7 @@ from ari.domain.errors import ProviderError
 from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
 
 DEFAULT_URL = "wss://api.elevenlabs.io/v1/text-to-dialogue/stream-input"
-FINAL_KEYS = ("isFinal", "is_final", "final")
+FINAL_KEYS = ("isFinal", "is_final", "is_final_audio_for_turn", "final")
 VoiceRegistration = Literal["objects", "ids"]
 
 
@@ -88,7 +90,7 @@ class ElevenLabsStreamingTTSProvider:
         timeout_seconds: float,
         output_format: str = "pcm_24000",
         base_url: str = DEFAULT_URL,
-        voice_registration: VoiceRegistration = "objects",
+        voice_registration: VoiceRegistration = "ids",
         idle_end_seconds: float = 1.5,
         max_idle_connections: int = 4,
         max_connection_idle_seconds: float = 15.0,
@@ -98,8 +100,6 @@ class ElevenLabsStreamingTTSProvider:
     ) -> None:
         if not api_key or not voice_id:
             raise ValueError("ElevenLabs speech synthesis needs an API key and a voice id")
-        if voice_settings and voice_registration == "ids":
-            raise ValueError("ElevenLabs voice settings need voice_registration='objects'")
         self._api_key = api_key
         self._model = model
         self._voice_id = voice_id
@@ -240,11 +240,18 @@ class ElevenLabsStreamingTTSProvider:
             raise ElevenLabsProtocolError(
                 f"connection refused (HTTP {exc.response.status_code}): {body}"
             ) from exc
-        voice: dict[str, Any] = {"voice_id": self._voice_id}
-        if self._voice_settings:
-            voice["voice_settings"] = self._voice_settings
-        voices: list[Any] = [self._voice_id] if self._voice_registration == "ids" else [voice]
-        await socket.send(json.dumps({"voices": voices}))
+        first: dict[str, Any]
+        if self._voice_registration == "ids":
+            # Settings are only accepted on this first message, beside the voices.
+            first = {"voices": [self._voice_id]}
+            if self._voice_settings:
+                first["voice_settings"] = self._voice_settings
+        else:
+            voice: dict[str, Any] = {"voice_id": self._voice_id}
+            if self._voice_settings:
+                voice["voice_settings"] = self._voice_settings
+            first = {"voices": [voice]}
+        await socket.send(json.dumps(first))
         return socket
 
     def _record(
