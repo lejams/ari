@@ -123,3 +123,41 @@ Code et tests terminés, non commités. Mode d'emploi : `docs/EVALS.md`.
 - `make test-backend` sur PostgreSQL 17 local (port 5433). Les 45 tests de `backend/tests/evals/`
   sont verts, et la suite complète aussi : 517 tests verts.
 - `make evals-fake` : les quatre exécutions écrivent leur rapport.
+
+## Suite : compte d'évaluation (point 1), 24 octobre 2026
+
+Branche `claude/project-thread-f6hwc2`, depuis `main` en `462ed72`. Décision du propriétaire :
+option A (« ok pour A »).
+
+### Fait
+- Migration `0005_evaluation_accounts`, ajout seul de deux colonnes, sans reprise de données :
+  - `learners.evaluation_since` : NULL pour tout apprenant, date de la marque sinon ;
+  - `sessions.evaluation_account` : `false` par défaut, fixé à la création de la session.
+- Marque posée et retirée par un administrateur, en ligne de commande dans le conteneur du
+  back-office : `python -m ari.backoffice_api.cli evaluation-account mark|unmark|list`. Aucune
+  route web. Le compte doit avoir terminé l'onboarding.
+- Quota : `UsageGuard` saute le quota d'examens d'un compte marqué. Le décompte ignore les sessions
+  d'évaluation. Le coupe-circuit d'abus optionnel s'applique encore.
+- Exclusions des sessions marquées : programme de la semaine, modèle de l'apprenant, progression,
+  résumé des cas travaillés, carnet de vocabulaire. L'historique les garde.
+- Page Coûts : appels exclus de tous les totaux, de la médiane et des sessions récentes, affichés à
+  part sur une ligne (`evaluation_excluded`).
+- La session publique expose `evaluation_account`, pour que la cible staging vérifie la marque
+  avant de mesurer.
+
+### Décisions prises dans mon périmètre
+- La marque est sur l'apprenant, pas sur le compte de connexion : quota, sessions et programme
+  sont rattachés à l'apprenant.
+- La session garde sa marque : retirer la marque d'un compte ne réintègre pas ses mesures passées.
+- Un appel sans session (test de niveau) est exclu des coûts tant que son apprenant est marqué.
+- Pas de nouveau plafond, pas de changement de la valeur du quota.
+
+### Validation
+- `make lint` vert (ruff, mypy strict sur 195 fichiers, 6 contrats import-linter).
+- `alembic -n platform check` sans écart, aller-retour `downgrade 0004` puis `upgrade head`.
+- 8 nouveaux tests dans `backend/tests/test_evaluation_accounts.py` ; suite complète `make test-backend` : 535 tests verts (PostgreSQL 16 local).
+- `make test-backoffice-web` vert.
+
+### Revue
+- Revue Opus obligatoire avant fusion : brief `docs/reviews/action8-evaluation-account-opus-review-brief.md`.
+  Relecteur, PR et correctifs à noter ici après la revue.

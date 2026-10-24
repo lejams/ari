@@ -128,6 +128,7 @@ const responses = {
     unknown_reasons: {"usage.audio_seconds": 1},
     by_learner: [{learner_id: "learner-1", email: "l@example.org", calls: 3, known_micro_eur: 528000, unknown_calls: 1, ratio_to_median: 1.0}], median_learner_micro_eur: 528000,
     by_kind: [{kind: "session", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
+    evaluation_excluded: {calls: 4, known_micro_eur: 120000, unknown_calls: 0},
     recent_sessions: [{session_id: "session-1-abcdef", learner_id: "learner-1", case_id: "FSP-BY-P-cccccccc-000", learning_mode: "exam", last_call_at: "2026-10-15T10:00:00Z", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
   }, content: {total: {calls: 0, known_micro_eur: 0, unknown_calls: 0}, by_day: [], by_operation: [], unknown_reasons: {}}},
   "/api/gold": {items: [], total: 0}, "/api/accounts": {items: [{id: "owner-1", email: "o@example.org", display_name: "Owner", roles: ["owner"], active: true, has_password: true, created_at: "2026-09-18T00:00:00Z"}], total: 1},
@@ -168,6 +169,8 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   assert.ok(calls.includes("/api/costs?days=30"), "the costs page asks for the selected period");
   assert.equal(nodes.get("costs-unknown").hidden, false, "unknown costs are announced, not hidden");
   assert.match(nodes.get("costs-unknown").textContent, /durée audio non rapportée \(1\)/);
+  assert.equal(nodes.get("costs-evaluation").hidden, false, "evaluation calls are excluded, not hidden");
+  assert.match(nodes.get("costs-evaluation").textContent, /exclus des chiffres de cette page : 4 appel\(s\)/);
 }
 {
   const {nodes} = await load(`#/documents/${"c".repeat(64)}`);

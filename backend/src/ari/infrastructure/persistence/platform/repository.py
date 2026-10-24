@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -15,6 +16,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
     select,
 )
@@ -72,6 +74,10 @@ class LearnerRow(Base):
     goal: Mapped[dict[str, Any]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    # Written only by `EvaluationAccounts` (administrator), never by the learner's own requests.
+    evaluation_since: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class SessionRow(Base):
@@ -89,6 +95,7 @@ class SessionRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     call_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    evaluation_account: Mapped[bool] = mapped_column(Boolean, server_default=false(), default=False)
 
 
 class TurnRow(Base):
@@ -311,6 +318,7 @@ class SqlSessionRepository:
                 goal=_goal(row.goal),
                 created_at=_dt(row.created_at),
                 details=_details(row.details),
+                evaluation_since=_dt(row.evaluation_since) if row.evaluation_since else None,
             )
 
     def update_learner(self, learner: LearnerProfile) -> LearnerProfile:
@@ -393,6 +401,7 @@ class SqlSessionRepository:
                     created_at=session.created_at,
                     call_started_at=session.call_started_at,
                     ended_at=session.ended_at,
+                    evaluation_account=session.evaluation_account,
                 )
             )
             if session.start_request_id is not None:
@@ -485,6 +494,7 @@ class SqlSessionRepository:
                 created_at=_dt(row.created_at),
                 call_started_at=(_dt(row.call_started_at) if row.call_started_at else None),
                 ended_at=_dt(row.ended_at) if row.ended_at else None,
+                evaluation_account=row.evaluation_account,
             )
 
     def list_sessions(self, learner_id: str) -> tuple[ConversationSession, ...]:
