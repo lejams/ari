@@ -431,6 +431,34 @@ def test_speaking_over_the_patient_stops_the_answer_and_credits_nothing(
     )
 
 
+def test_the_next_answer_does_not_wait_for_the_end_of_an_interrupted_sentence(
+    chain: Container,
+) -> None:
+    slow = SlowTTS(chunks=20, pause=0.1)  # two seconds of speech per answer
+    services = replace(chain, exam_voices=ExamVoices(MappingProxyType({"standard": slow})))
+    with TestClient(create_app(services)) as client:
+        session_id = create_exam(client)["id"]
+        with client.websocket_connect(f"/ws/sessions/{session_id}/voice") as socket:
+            receive(socket, "call.started")
+            socket.send_json({"type": "debug.transcript", "transcript": "Erzählen Sie von fact-1."})
+            first = receive(socket, "patient.audio_chunk")["turn_id"]
+            socket.send_bytes(tone(400) + silence(1000))  # a new question over the answer
+            receive(socket, "patient.audio_interrupted")
+            second = receive(socket, "patient.audio_chunk")["turn_id"]
+            # The second answer plays while the first sentence is still being synthesised.
+            assert second != first and slow.completed == 0
+            socket.send_json({"type": "call.end"})
+            receive(socket, "call.ended")
+    # Both sentences were read to their end and recorded with their cost.
+    assert slow.completed == 2
+    tts = [
+        e
+        for e in chain.repository.get_session(session_id).executions
+        if e.operation == "text_to_speech"
+    ]
+    assert len(tts) == 2
+
+
 def test_speech_after_the_last_chunk_still_interrupts_the_answer(chain: Container) -> None:
     slow = SlowTTS(chunks=1, pause=0.6)  # the stream ends well after its only chunk
     services = replace(chain, exam_voices=ExamVoices(MappingProxyType({"standard": slow})))
@@ -526,6 +554,7 @@ async def test_a_cancelled_drain_neither_cancels_the_worker_nor_skips_finalisati
     socket.session_id = "s"
     socket.finalized = asyncio.Event()
     socket.processing_lock = asyncio.Lock()
+    socket.interrupted_streams = set()
     socket.lifecycle = VoiceLifecycle()
     socket.services = SimpleNamespace(  # type: ignore[assignment]
         repository=SimpleNamespace(mark_session_delivery_unconfirmed=unconfirmed.append)

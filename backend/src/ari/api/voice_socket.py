@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import time
-from collections.abc import Coroutine
+from collections.abc import AsyncIterator, Coroutine
 from contextlib import suppress
 from dataclasses import dataclass, field, replace
 from typing import cast
@@ -17,7 +17,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from ari.api.voice_session_dto import public_turn
-from ari.application.contracts import ExecutionContext, TranscriptionConfig
+from ari.application.contracts import AudioStreamEvent, ExecutionContext, TranscriptionConfig
 from ari.application.ports.tts import StreamingTTSProvider
 from ari.application.schemas import ClientControlMessage
 from ari.container import Container
@@ -44,6 +44,8 @@ from ari.domain.models import (
 PCM_MIME_TYPE = "audio/pcm;rate=24000"
 MAX_TURN_SECONDS = 300
 MIN_TURN_SECONDS = 0.25
+# How long the end of a session waits for interrupted answers' synthesis to finish.
+INTERRUPTED_TTS_GRACE_SECONDS = 30
 
 # Events that say nothing about the learner being there; every other event resets the idle clock.
 PASSIVE_EVENTS = frozenset({"call.started", "call.ended", "session.time_limit", "voice.error"})
@@ -149,6 +151,8 @@ class VoiceSocket:
         # Set by an open-microphone socket when the learner speaks over the patient: the rest
         # of the answer's audio is not sent, so its facts are never heard nor credited.
         self.barge_in = asyncio.Event()
+        # Interrupted answers whose synthesis is still read to its end, for its cost.
+        self.interrupted_streams: set[asyncio.Task[None]] = set()
         self.sample_rate = services.settings.audio_sample_rate
         self.last_activity = time.monotonic()
         # Set in run() once the session and its pinned case are resolved.
@@ -384,13 +388,19 @@ class VoiceSocket:
         all_sent = True
         interrupted = False
         pcm_remainder = b""
+        events = aiter(self._tts().stream(turn.patient_text, context))
         try:
-            async for audio_event in self._tts().stream(turn.patient_text, context):
+            async for audio_event in events:
                 mime_type = audio_event.mime_type
                 if audio_event.type == "chunk" and self.barge_in.is_set():
-                    # Interrupted: keep reading to the end of the sentence so the call is
-                    # recorded with its cost, but send nothing more to the browser.
+                    # Interrupted: send nothing more. The rest of the sentence is read in the
+                    # background so the call is recorded with its cost, without making the
+                    # next answer wait for it.
                     interrupted = True
+                    task = asyncio.create_task(self._finish_interrupted_stream(events))
+                    self.interrupted_streams.add(task)
+                    task.add_done_callback(self.interrupted_streams.discard)
+                    break
                 elif audio_event.type == "chunk" and audio_event.data:
                     audio_bytes = pcm_remainder + audio_event.data
                     complete_length = len(audio_bytes) - (len(audio_bytes) % 2)
@@ -426,7 +436,7 @@ class VoiceSocket:
         # browser has already dropped this answer's playback.
         interrupted = interrupted or self.barge_in.is_set()
         if interrupted:
-            if tts_execution is not None:
+            if tts_execution is not None:  # Otherwise recorded by the background reader.
                 self.services.repository.record_execution(tts_execution)
             # The turn stays undelivered: the session drain marks it unconfirmed, no credit.
             await self.send("patient.audio_interrupted", turn_id=turn.id, chunks_sent=index)
@@ -461,6 +471,27 @@ class VoiceSocket:
         await self.send("patient.audio_done", **correlation)
         await self.send("turn.completed", turn=public_turn(turn))
         return turn
+
+    async def _finish_interrupted_stream(self, events: AsyncIterator[AudioStreamEvent]) -> None:
+        execution: ExecutionRecord | None = None
+        try:
+            async for audio_event in events:
+                if audio_event.execution is not None:
+                    execution = audio_event.execution
+        except ProviderError as exc:
+            execution = cast(ExecutionRecord, exc.execution)
+        if execution is not None:
+            self.services.repository.record_execution(execution)
+
+    async def _settle_interrupted_streams(self) -> None:
+        if not self.interrupted_streams:
+            return
+        pending = asyncio.gather(*self.interrupted_streams, return_exceptions=True)
+        try:
+            async with asyncio.timeout(INTERRUPTED_TTS_GRACE_SECONDS):
+                await asyncio.shield(pending)
+        except TimeoutError:
+            pending.cancel()
 
     def _tts(self) -> StreamingTTSProvider:
         return self.services.tts
@@ -506,6 +537,7 @@ class VoiceSocket:
         try:
             async with self.processing_lock:
                 pass
+            await self._settle_interrupted_streams()
         finally:
             self.services.repository.mark_session_delivery_unconfirmed(self.session_id)
             self.lifecycle.drained.set()
