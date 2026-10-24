@@ -431,6 +431,34 @@ def test_speaking_over_the_patient_stops_the_answer_and_credits_nothing(
     )
 
 
+def test_the_next_answer_does_not_wait_for_the_end_of_an_interrupted_sentence(
+    chain: Container,
+) -> None:
+    slow = SlowTTS(chunks=20, pause=0.1)  # two seconds of speech per answer
+    services = replace(chain, exam_voices=ExamVoices(MappingProxyType({"standard": slow})))
+    with TestClient(create_app(services)) as client:
+        session_id = create_exam(client)["id"]
+        with client.websocket_connect(f"/ws/sessions/{session_id}/voice") as socket:
+            receive(socket, "call.started")
+            socket.send_json({"type": "debug.transcript", "transcript": "Erzählen Sie von fact-1."})
+            first = receive(socket, "patient.audio_chunk")["turn_id"]
+            socket.send_bytes(tone(400) + silence(1000))  # a new question over the answer
+            receive(socket, "patient.audio_interrupted")
+            second = receive(socket, "patient.audio_chunk")["turn_id"]
+            # The second answer plays while the first sentence is still being synthesised.
+            assert second != first and slow.completed == 0
+            socket.send_json({"type": "call.end"})
+            receive(socket, "call.ended")
+    # Both sentences were read to their end and recorded with their cost.
+    assert slow.completed == 2
+    tts = [
+        e
+        for e in chain.repository.get_session(session_id).executions
+        if e.operation == "text_to_speech"
+    ]
+    assert len(tts) == 2
+
+
 def test_speech_after_the_last_chunk_still_interrupts_the_answer(chain: Container) -> None:
     slow = SlowTTS(chunks=1, pause=0.6)  # the stream ends well after its only chunk
     services = replace(chain, exam_voices=ExamVoices(MappingProxyType({"standard": slow})))
@@ -526,6 +554,7 @@ async def test_a_cancelled_drain_neither_cancels_the_worker_nor_skips_finalisati
     socket.session_id = "s"
     socket.finalized = asyncio.Event()
     socket.processing_lock = asyncio.Lock()
+    socket.interrupted_streams = set()
     socket.lifecycle = VoiceLifecycle()
     socket.services = SimpleNamespace(  # type: ignore[assignment]
         repository=SimpleNamespace(mark_session_delivery_unconfirmed=unconfirmed.append)
@@ -545,6 +574,34 @@ async def test_a_cancelled_drain_neither_cancels_the_worker_nor_skips_finalisati
     assert socket.lifecycle.drained.is_set() and unconfirmed == ["s"]
     await socket._drain()  # run()'s own cleanup returns at once
     assert unconfirmed == ["s"]
+
+
+async def test_a_cancelled_drain_still_waits_for_interrupted_answers_costs() -> None:
+    from ari.api.voice_socket import VoiceLifecycle, VoiceSocket
+
+    unconfirmed: list[str] = []
+    socket = VoiceSocket.__new__(VoiceSocket)
+    socket.session_id = "s"
+    socket.finalized = asyncio.Event()
+    socket.processing_lock = asyncio.Lock()
+    socket.lifecycle = VoiceLifecycle()
+    socket.services = SimpleNamespace(  # type: ignore[assignment]
+        repository=SimpleNamespace(mark_session_delivery_unconfirmed=unconfirmed.append)
+    )
+    reading = asyncio.create_task(asyncio.sleep(0.3))  # the end of an interrupted sentence
+    socket.interrupted_streams = {reading}
+    reading.add_done_callback(socket.interrupted_streams.discard)
+
+    first = asyncio.create_task(socket._drain())  # e.g. an end requested over HTTP
+    await asyncio.sleep(0.05)
+    first.cancel()  # the browser disconnected: run() cancels that watcher
+    await asyncio.sleep(0.05)
+    # Not finalised while the synthesis is still being read, so its cost is not lost.
+    assert not socket.lifecycle.drained.is_set()
+    with pytest.raises(asyncio.CancelledError):
+        await first
+    assert reading.done() and not reading.cancelled()
+    assert socket.lifecycle.drained.is_set() and unconfirmed == ["s"]
 
 
 # The ElevenLabs persona levers -------------------------------------------------------------
