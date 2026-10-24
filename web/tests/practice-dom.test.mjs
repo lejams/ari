@@ -147,7 +147,7 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   assert.equal(nodes.get("error").hidden, true, nodes.get("error-text").textContent);
   assert.equal(nodes.get("exam-quota").hidden, false, "a spent quota is said before any start");
   assert.match(nodes.get("exam-quota").children[1].textContent, /01\/11\/2026/);
-  assert.equal(nodes.get("exam-cases").children[0].children.at(-1).textContent, "Faire ce cas en Training →");
+  assert.equal(nodes.get("exam-cases").children[0].children.at(-1).textContent, "Faire ce cas en Entraînement →");
   responses["/api/usage/exams"] = { used: 0, quota: null, remaining: null, renews_on: "2026-11-01" };
   const evaluation = await load("#exam");
   assert.equal(evaluation.nodes.get("exam-usage").hidden, true, "an account without quota shows no count");

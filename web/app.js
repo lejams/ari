@@ -299,7 +299,7 @@ function applyExamQuota() {
   const blocked = !state.sessionId && state.learningMode === "exam" && usage?.quota != null && usage.remaining <= 0;
   if (blocked) {
     const renews = new Date(`${usage.renews_on}T00:00:00`).toLocaleDateString("fr-FR");
-    $("exam-quota").textContent = `Vous avez utilisé vos ${usage.quota} consultations en Examen de ce mois. Elles se renouvellent le ${renews}. Choisissez « Training » pour faire ce cas maintenant.`;
+    $("exam-quota").textContent = `Vous avez utilisé vos ${usage.quota} consultations en Examen de ce mois. Elles se renouvellent le ${renews}. Passez en mode Entraînement pour faire ce cas maintenant.`;
     $("start").disabled = true;
   } else if (state.quotaBlocked) {
     $("start").disabled = false;

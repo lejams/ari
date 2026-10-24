@@ -190,7 +190,7 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(result.nodes.get("start").disabled, true, "no exam start once the quota is spent");
   assert.equal(result.nodes.get("exam-quota").classList.contains("hidden"), false);
-  assert.match(result.nodes.get("exam-quota").textContent, /2 consultations en Examen.*01\/11\/2026.*Training/);
+  assert.match(result.nodes.get("exam-quota").textContent, /2 consultations en Examen.*01\/11\/2026.*Entraînement/);
   result.modeButtons[0].click();
   assert.equal(result.nodes.get("start").disabled, false, "Training is still available");
   assert.equal(result.nodes.get("exam-quota").classList.contains("hidden"), true);

@@ -158,7 +158,7 @@ function caseCard(item, kind, mode, examBlocked = false) {
   const title = node('h2', item.title); title.lang = 'de'; card.append(title);
   card.append(node('p', item.public_summary || item.summary || '', 'muted'));
   if (item.limitation) card.append(node('p', item.limitation, 'help'));
-  if (mode === 'exam' && examBlocked) card.append(actionButton('Faire ce cas en Training →', () => prepare(item, kind, 'training')));
+  if (mode === 'exam' && examBlocked) card.append(actionButton('Faire ce cas en Entraînement →', () => prepare(item, kind, 'training')));
   else card.append(actionButton(mode === 'exam' ? 'Commencer en Examen →' : 'Préparer cette session →', () => prepare(item, kind, mode)));
   return card;
 }
@@ -326,7 +326,7 @@ function renderExamUsage(usage) {
   const renews = new Date(`${usage.renews_on}T00:00:00`).toLocaleDateString('fr-FR');
   $('exam-usage').textContent = `Consultations en Examen ce mois-ci : ${usage.used} sur ${usage.quota} · renouvellement le ${renews}.`;
   if (usage.remaining > 0) return false;
-  $('exam-quota').replaceChildren(node('strong', `Vous avez utilisé vos ${usage.quota} consultations en Examen de ce mois.`), node('p', `Elles se renouvellent le ${renews}. Les consultations restent disponibles en Training, et les exercices écrits en Examen.`));
+  $('exam-quota').replaceChildren(node('strong', `Vous avez utilisé vos ${usage.quota} consultations en Examen de ce mois.`), node('p', `Elles se renouvellent le ${renews}. Les consultations restent disponibles en Entraînement, et les exercices écrits en Examen.`));
   $('exam-quota').hidden = false;
   return true;
 }
