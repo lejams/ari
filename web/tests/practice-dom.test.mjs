@@ -97,7 +97,7 @@ async function load(hash) {
   globalThis.fetch = async path => {
     calls.push(String(path));
     const body = responses[String(path)];
-    return { ok: body !== undefined, status: body === undefined ? 404 : 200, json: async () => body };
+    return { ok: body !== undefined, status: body === undefined ? 404 : 200, json: async () => body ?? {} };
   };
   await import(`${moduleUrl}?dom-test=${encodeURIComponent(hash)}-${Math.random()}`);
   await new Promise(resolve => setTimeout(resolve, 20));
@@ -134,5 +134,27 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   assert.equal(nodes.get("case-land").value, "Bayern", "the Land filter defaults to the profile's Land");
   assert.equal(nodes.get("voice-cases").children.length, 1, "the Bayern case passes the Land filter");
   assert.match(nodes.get("land-summary").textContent, /Bayern : 1 cas publié, 0 déjà travaillé \(0 %\)/);
+}
+{
+  // Learners read the case title and French mode names; versions sit in a folded "Détails techniques".
+  responses["/api/history"] = { items: [{ id: "v1", kind: "voice", mode: "training", status: "completed", created_at: "2026-09-17T00:00:00Z", ended_at: null, content: { title: "Bauchschmerzen", phase: "arzt_patient" }, feedback_state: "provisional", has_feedback: true }] };
+  responses["/api/progression"] = { ...progression, groups: [{ kind: "voice", mode: "exam", content: { title: "Bauchschmerzen", phase: "arzt_patient", scenario_id: "scn", scenario_version: "4", rubric_id: "rub", rubric_version: "1" }, points: [] }] };
+  const history = (await load("#history")).nodes.get("history-list").children[0];
+  assert.match(history.children[1].textContent, /Entraînement/);
+  const group = (await load("#progress")).nodes.get("progress-list").children[0];
+  assert.equal(group.children[0].textContent, "Bauchschmerzen · Examen");
+  assert.equal(group.children[1].tagName, "DETAILS");
+  assert.match(group.children[1].children[1].textContent, /contenu scn@4 · rubrique rub@1/);
+  responses["/api/history"] = { items: [] }; responses["/api/progression"] = progression;
+}
+{
+  // Before a profile exists the navigation is hidden: it would only lead back to onboarding.
+  delete responses["/api/profile"];
+  const { nodes } = await load("#home");
+  assert.equal(nodes.get("onboarding").hidden, false);
+  assert.equal(document.body.classList.contains("onboarding-active"), true);
+  responses["/api/profile"] = profile;
+  await load("#home");
+  assert.equal(document.body.classList.contains("onboarding-active"), false);
 }
 console.log("Practice DOM: every route renders without a caught error; Carnet, Progression and home show their data");

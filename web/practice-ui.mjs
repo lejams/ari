@@ -1,4 +1,4 @@
-import {PracticeClient, phaseLabel, stateLabel, dimensionText} from './practice-client.mjs';
+import {PracticeClient, phaseLabel, stateLabel, dimensionText, modeLabel} from './practice-client.mjs';
 import {LexiconClient, RATINGS, lexiconStateLabel, ratingLabel, sourceLabel} from './lexicon-client.mjs';
 import {PlacementClient, LEVEL_LABELS, PHASE_LABELS, describeResult} from './placement-client.mjs';
 import {PcmRecorder} from './pcm-recorder.mjs';
@@ -103,6 +103,8 @@ function restoreDraft() {
 }
 function view(name, changeHash = true) {
   for (const id of views) $(id).hidden = id !== name;
+  // No profile yet: the navigation would only lead back to onboarding.
+  document.body.classList.toggle('onboarding-active', name === 'onboarding' && !client.profile);
   document.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-current', button.dataset.view === name ? 'page' : 'false'));
   if (name !== 'exercise') document.body.classList.remove('exam-active');
   if (changeHash && !['onboarding', 'exercise'].includes(name)) history.replaceState(null, '', '#' + name);
@@ -215,7 +217,7 @@ function renderCalendar() {
 }
 
 // ----- weekly programme -----------------------------------------------------------------
-const SLOT_LABELS = {lexicon_review: 'Réviser mon carnet', lexicon_maintenance: 'Entretien du carnet', fachbegriffe: 'Fachbegriffe', arzt_arzt: 'Arzt–Arzt', voice_training: 'Consultation · Training', voice_exam: 'Consultation · Examen', placement: 'Test de niveau'};
+const SLOT_LABELS = {lexicon_review: 'Réviser mon carnet', lexicon_maintenance: 'Entretien du carnet', fachbegriffe: 'Fachbegriffe', arzt_arzt: 'Arzt–Arzt', voice_training: 'Consultation · Entraînement', voice_exam: 'Consultation · Examen', placement: 'Test de niveau'};
 const SLOT_STATES = {done: '✓', today: '○', todo: '·', missed: '—'};
 const PHASE_LABELS_FR = {positionnement: 'Positionnement', prerequis: 'Prérequis', fondations: 'Fondations', anamnese: 'Anamnèse', examen: 'Examen'};
 function slotTitle(slot) {
@@ -335,7 +337,7 @@ async function showRun(run) {
   const examActive = run.mode === 'exam' && run.status !== 'completed';
   document.body.classList.toggle('exam-active', examActive);
   $('exercise-title').textContent = run.content.title;
-  $('exercise-meta').textContent = `${phaseLabel(run.content.phase)} · ${run.mode === 'exam' ? 'Examen' : 'Training'} · ${stateLabel(run.status)}`;
+  $('exercise-meta').textContent = `${phaseLabel(run.content.phase)} · ${modeLabel(run.mode)} · ${stateLabel(run.status)}`;
   $('exercise-warning').textContent = (run.content.provenance === 'synthetic_demo' ? 'Démo synthétique non validée. ' : '') + run.content.limitation;
   $('exercise-context').hidden = !run.context.length; $('exercise-context').replaceChildren();
   for (const fact of run.context) { const line=node('p',fact.text_de); line.lang='de'; $('exercise-context').append(line); if(fact.polarity==='unknown') $('exercise-context').append(node('p','Information inconnue : ne pas déduire une absence.','help')); }
@@ -347,18 +349,25 @@ async function showRun(run) {
   $('question').textContent=run.current_question?.prompt_de || '';
   $('coaching').hidden=run.mode!=='training'; $('coaching').textContent=run.mode==='training' ? run.current_question?.coaching_fr || '' : '';
   $('training-feedback').replaceChildren(); $('training-feedback').hidden=run.mode!=='training'||!run.training_feedback;
-  if(run.mode==='training'&&run.training_feedback) $('training-feedback').append(node('h2','Retour Training'),feedbackItem(run.training_feedback));
+  if(run.mode==='training'&&run.training_feedback) $('training-feedback').append(node('h2','Retour d’entraînement'),feedbackItem(run.training_feedback));
   for(const action of ['pause','resume','finish']) $(action).hidden=action==='pause'?run.status!=='active':action==='resume'?run.status!=='paused':run.status==='completed';
   $('finish-note').textContent=run.status==='completed'?'Cette tentative est terminée et ne peut plus être modifiée.':run.answers.length<run.question_count?'Vous pouvez terminer maintenant : les questions sans réponse restent non évaluées.':'Toutes les réponses sont enregistrées. Terminez pour recevoir votre feedback.';
   $('feedback').replaceChildren();
-  if(run.feedback){const hero=node('article',undefined,'card');hero.append(node('p','Votre prochaine étape','eyebrow'),node('h2',`Votre feedback · ${stateLabel(run.feedback.state)}`),node('p',run.feedback.next_step));$('feedback').append(hero,node('p',run.feedback.limitations,'availability'),node('p',`${run.content.scenario_id}@${run.content.scenario_version} · rubrique ${run.content.rubric_id}@${run.content.rubric_version}`,'help'));for(const dimension of run.feedback.dimensions)$('feedback').append(node('p',dimensionText(dimension)));for(const item of run.feedback.items)$('feedback').append(feedbackItem(item));const actions=node('div',undefined,'feedback-actions');actions.append(actionButton('Voir ma progression',showProgress,true),actionButton('Choisir une autre session',showCases));$('feedback').append(actions);}
+  if(run.feedback){const hero=node('article',undefined,'card');hero.append(node('p','Votre prochaine étape','eyebrow'),node('h2',`Votre feedback · ${stateLabel(run.feedback.state)}`),node('p',run.feedback.next_step));$('feedback').append(hero,node('p',run.feedback.limitations,'availability'),technicalDetails(run.content));for(const dimension of run.feedback.dimensions)$('feedback').append(node('p',dimensionText(dimension)));for(const item of run.feedback.items)$('feedback').append(feedbackItem(item));const actions=node('div',undefined,'feedback-actions');actions.append(actionButton('Voir ma progression',showProgress,true),actionButton('Choisir une autre session',showCases));$('feedback').append(actions);}
   view('exercise',false);
+}
+// Content and rubric versions stay available, folded away from the learner's reading path.
+function technicalDetails(content) {
+  const details = node('details', undefined, 'technical'); details.append(node('summary', 'Détails techniques'));
+  const ids = [content.scenario_id && `contenu ${content.scenario_id}@${content.scenario_version}`, content.rubric_id && `rubrique ${content.rubric_id}@${content.rubric_version}`].filter(Boolean);
+  details.append(node('p', ids.length ? ids.join(' · ') : 'Aucune version enregistrée.', 'help'));
+  return details;
 }
 async function openHistoryItem(item) { if(item.kind==='voice') location.href=`/voice.html?session=${encodeURIComponent(item.id)}`; else await showRun(await client.getRun(item.id)); }
 async function showHistory() {
   historyItems=(await client.api('/api/history')).items; $('history-list').replaceChildren();
   if(!historyItems.length)$('history-list').append(node('p','Pas encore de session enregistrée. Choisissez un exercice pour commencer.','availability'));
-  for(const item of historyItems){const card=node('article',undefined,'card');card.append(node('h2',item.content.title),node('p',`${phaseLabel(item.content.phase)} · ${item.mode} · ${stateLabel(item.status)} · ${formatDate(item.ended_at||item.created_at)}`),node('p',`Feedback : ${stateLabel(item.feedback_state)}`,'help'),actionButton(item.has_feedback?'Voir le feedback':'Reprendre cette session',()=>openHistoryItem(item)));$('history-list').append(card);}view('history');
+  for(const item of historyItems){const card=node('article',undefined,'card');card.append(node('h2',item.content.title),node('p',`${phaseLabel(item.content.phase)} · ${modeLabel(item.mode)} · ${stateLabel(item.status)} · ${formatDate(item.ended_at||item.created_at)}`),node('p',`Feedback : ${stateLabel(item.feedback_state)}`,'help'),actionButton(item.has_feedback?'Voir le feedback':'Reprendre cette session',()=>openHistoryItem(item)));$('history-list').append(card);}view('history');
 }
 const ERROR_LABELS = {gender: 'Genre', case: 'Cas et déclinaison', verb_form: 'Forme verbale', word_order: 'Ordre des mots', word_choice: 'Choix du mot', register: 'Registre', other: 'Autre'};
 const VERDICT_LABELS = {acknowledged: 'Réaction adaptée', partial: 'Réaction minimale', ignored: 'Pas de réaction'};
@@ -441,7 +450,7 @@ async function showProgress() {
   $('progress-note').textContent=progress.axes.limitations;$('progress-series-note').textContent=progress.limitations;renderAxes(progress.axes);$('progress-list').replaceChildren();
   if(!progress.groups.length)$('progress-list').append(node('p','Pas de données comparables : terminez un exercice pour retrouver ses dimensions.','availability'));
   for(const excluded of progress.excluded||[])$('progress-list').append(node('p',`${excluded.reason} · session ${excluded.run_id}. Le feedback reste disponible dans l’historique.`,'help'));
-  for(const group of progress.groups){const card=node('article',undefined,'card');card.append(node('h2',`${group.content.title} · ${group.mode}`),node('p',`Contenu ${group.content.scenario_id}@${group.content.scenario_version} · rubrique ${group.content.rubric_id}@${group.content.rubric_version}`,'help'));for(const point of group.points){card.append(node('h3',formatDate(point.created_at)));for(const dimension of point.dimensions)card.append(node('p',dimensionText(dimension)));card.append(actionButton('Voir les preuves',()=>openHistoryItem({id:point.run_id,kind:group.kind})));}$('progress-list').append(card);}view('progress');
+  for(const group of progress.groups){const card=node('article',undefined,'card');card.append(node('h2',`${group.content.title} · ${modeLabel(group.mode)}`),technicalDetails(group.content));for(const point of group.points){card.append(node('h3',formatDate(point.created_at)));for(const dimension of point.dimensions)card.append(node('p',dimensionText(dimension)));card.append(actionButton('Voir les preuves',()=>openHistoryItem({id:point.run_id,kind:group.kind})));}$('progress-list').append(card);}view('progress');
 }
 function renderReviewCard() {
   reviewEntry = reviewQueue[0] || null;
@@ -597,7 +606,8 @@ function renderPlacement(attempt) {
 function renderPlacementResult(attempt) {
   $('placement-run').hidden = true; $('placement-result').hidden = false;
   const result = attempt.result;
-  $('placement-band').textContent = `${result.band} · ${LEVEL_LABELS[result.band] || ''}`;
+  $('placement-band').textContent = `Niveau estimé : ${result.band}`;
+  $('placement-band-label').textContent = LEVEL_LABELS[result.band] ? `Repère CECRL : ${LEVEL_LABELS[result.band]}.` : '';
   $('placement-detail').textContent = describeResult(result) + ` · ${result.mcq_answered} questions, ${result.listening_answered} écoutes, ${result.speaking_answered} prises de parole.`;
   $('placement-speaking-feedback').replaceChildren(...attempt.speaking_feedback.map(item => {
     const card = node('article', undefined, 'card'); card.append(node('h3', `Expression orale · ${item.estimated_level} (confiance ${Math.round(item.confidence * 100)} %)`));

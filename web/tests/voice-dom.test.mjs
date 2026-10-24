@@ -138,6 +138,12 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
   assert.equal(result.nodes.get("feedback-transcript").children.length, 1);
   assert.equal(result.nodes.get("feedback-transcript").children[0].className, "fb-turn cited");
   assert.match(result.nodes.get("feedback-meta").textContent, /Douleur · Examen · 1 tour/);
+  // The session is over: the way out says so, and only the session's mode stays on screen.
+  assert.equal(result.nodes.get("back-link").textContent, "Retour à l’accueil");
+  const [training, exam] = result.modeButtons;
+  assert.equal(training.classList.contains("hidden"), true);
+  assert.equal(exam.classList.contains("hidden"), false);
+  assert.equal(result.nodes.get("mode-change").classList.contains("hidden"), true);
 }
 
 {
@@ -166,6 +172,13 @@ const health = { provider_mode: "fake", voice_transport: "pipeline", technical_t
   const result = await load("?case=case-1&mode=training", {
     "/api/health": health, "/api/cases": [caseItem],
   });
+  // The mode was chosen in the library: shown read-only, with a way to change it before starting.
+  const [training, exam] = result.modeButtons;
+  assert.equal(training.disabled && !training.classList.contains("hidden"), true);
+  assert.equal(exam.classList.contains("hidden"), true);
+  result.nodes.get("mode-change").click();
+  assert.equal(exam.classList.contains("hidden") || exam.disabled, false, "both modes are offered again");
+  assert.equal(result.nodes.get("mode-change").classList.contains("hidden"), true);
   const subtitles = result.nodes.get("subtitles-toggle");
   assert.equal(subtitles.hidden, false);
   subtitles.click();

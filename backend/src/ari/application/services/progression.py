@@ -6,7 +6,7 @@ from typing import Any
 from ari.application.ports.cases import MedicalCaseCatalog
 from ari.application.services.practice import content_summary
 from ari.domain.errors import AriError
-from ari.domain.models import ConversationSession
+from ari.domain.models import ConversationSession, MedicalCase
 from ari.domain.practice import PracticeRun
 
 # v3 and v4 add qualitative fields (code switches, empathy) and deterministic extras
@@ -68,7 +68,23 @@ def practice_progression(runs: tuple[PracticeRun, ...]) -> dict[str, Any]:
     }
 
 
-def voice_history(sessions: tuple[ConversationSession, ...]) -> list[dict[str, Any]]:
+def _voice_title(session: ConversationSession, cases: MedicalCaseCatalog) -> str:
+    # Learners see the case title; ids and versions stay in the session's technical details.
+    try:
+        return cases.get(
+            session.case_id,
+            session.case_version,
+            scenario_id=session.training_snapshot.get("scenario_id"),
+            scenario_version=session.training_snapshot.get("scenario_version"),
+        ).title
+    except AriError:
+        return "Consultation vocale"
+
+
+def voice_history(
+    sessions: tuple[ConversationSession, ...],
+    cases: MedicalCaseCatalog,
+) -> list[dict[str, Any]]:
     return [
         {
             "id": s.id,
@@ -78,7 +94,7 @@ def voice_history(sessions: tuple[ConversationSession, ...]) -> list[dict[str, A
             "created_at": s.created_at.isoformat(),
             "ended_at": s.ended_at.isoformat() if s.ended_at else None,
             "content": {
-                "title": f"Session vocale · {s.case_id}@{s.case_version}",
+                "title": _voice_title(s, cases),
                 "phase": "arzt_patient",
                 "case_hash": s.case_hash,
                 **dict(s.training_snapshot),
@@ -89,6 +105,16 @@ def voice_history(sessions: tuple[ConversationSession, ...]) -> list[dict[str, A
         }
         for s in sessions
     ]
+
+
+def _weighted_feedback(criterion: dict[str, Any], case: MedicalCase) -> str:
+    # The stored line ("Évaluation pondérée: 0/1 poids satisfaits.") stays in the evaluation;
+    # the learner reads the same weights in plain words.
+    weights = {i.id: i.weight for i in case.assessment_items}
+    items = criterion.get("assessment_items") or []
+    earned = sum(weights.get(i["item_id"], 0) for i in items if i.get("satisfied"))
+    total = sum(weights.get(i["item_id"], 0) for i in items)
+    return f"Éléments attendus : {earned:g} point{'s' if earned > 1 else ''} sur {total:g}"
 
 
 def voice_progression(
@@ -185,7 +211,7 @@ def voice_progression(
                         "score": c["score"] if session.turns else None,
                         "max_score": rubric[c["criterion_id"]].max_score,
                         "state": state if session.turns else "no_data",
-                        "feedback": c["feedback"],
+                        "feedback": _weighted_feedback(c, case),
                         "evidence_turn_sequences": c["evidence_turn_sequences"],
                     }
                     for c in evaluation.criteria
