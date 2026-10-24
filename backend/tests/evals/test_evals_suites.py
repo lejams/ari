@@ -118,7 +118,7 @@ async def test_patient_leak_refusal_and_over_refusal_are_counted() -> None:
     assert detail is not None and detail["leaked_fact_ids"] == ["smoking"]
 
 
-async def test_an_invented_fact_is_critical_even_when_the_retry_succeeds() -> None:
+async def test_an_invented_fact_is_counted_even_when_the_retry_succeeds() -> None:
     def inventive(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
         if item_id_of(request) == "bauchschmerz-06" and inventive.calls == 0:  # type: ignore[attr-defined]
             inventive.calls += 1  # type: ignore[attr-defined]
@@ -136,11 +136,14 @@ async def test_an_invented_fact_is_critical_even_when_the_retry_succeeds() -> No
     first = item.runs[0]
     assert first.attempts == 2 and first.usable and first.outcomes == ["invented_fact"]
     assert len(first.calls) == 2  # Both attempts are recorded and costed.
-    assert report.critical_errors == ["bauchschmerz-06:invented_fact"]
+    # Not critical (owner, 24 October 2026): gated by its rate, here one turn in 180.
+    assert report.critical_errors == []
+    assert report.metrics["invented_fact_rate"] == pytest.approx(1 / 180)
     assert report.metrics["structured_first_try"] < 1.0
     assert report.metrics["structured_after_retry"] == 1.0
-    assert report.gate is not None and report.gate.status == "failed"
-    assert report.gate.new_critical_errors == ["bauchschmerz-06:invented_fact"]
+    assert report.gate is not None and report.gate.status == "passed"
+    check = next(c for c in report.gate.checks if c.metric == "invented_fact_rate")
+    assert check.status == "passed" and check.bound == "<= 0.02"
     assert provider.calls == 60 * 3 + 1
 
 

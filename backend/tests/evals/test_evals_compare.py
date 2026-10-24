@@ -143,7 +143,21 @@ async def test_a_new_critical_error_removes_a_cheaper_candidate() -> None:
 
     # Leaks nothing and every metric passes after the retry, but it invented a fact.
     luna = await _report("luna", ScriptedProvider(inventive, model="gpt-6-luna"))
-    comparison = compare([terra, luna], GATE_RULES)
+    # gates.yaml: an invention is not critical (owner, 24 October 2026), one stays under its
+    # threshold and the cheaper configuration is still recommended.
+    assert compare([terra, luna], GATE_RULES).recommendation == "luna"
+    suite = GATE_RULES.suites["patient-leakage@1"]
+    critical_rules = GATE_RULES.model_copy(
+        update={
+            "suites": {
+                **GATE_RULES.suites,
+                "patient-leakage@1": suite.model_copy(
+                    update={"critical_outcomes": ["invented_fact"]}
+                ),
+            }
+        }
+    )
+    comparison = compare([terra, luna], critical_rules)
     assert comparison.recommendation == "terra"
     assert comparison.rejected["luna"][-1].startswith("nouvelle erreur critique")
     assert comparison.candidates[0].new_critical_errors == ["atemnot-04:invented_fact"]

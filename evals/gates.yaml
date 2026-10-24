@@ -9,7 +9,7 @@
 # - une seule NOUVELLE erreur critique (absente de la baseline) bloque, quelle que soit la moyenne.
 #   Les types d'erreur critiques sont listés par suite dans `critical_outcomes`.
 
-version: gates-v2
+version: gates-v3
 repetitions: 3  # Un run gate répète chaque item 3 fois (stabilité, intervalles).
 
 suites:
@@ -24,9 +24,10 @@ suites:
       - metric: structured_after_retry
         min: 0.995
         source: "plan : structure exploitable après un retry ≥ 99,5 %"
-    # Proposition de l'agent, à confirmer par le propriétaire : l'acceptation de l'action 3 exige
-    # « zéro invention » ; une référence à un fait absent du cas est donc traitée comme critique.
-    critical_outcomes: [invented_fact]
+      - metric: invented_fact_rate
+        max: 0.02
+        source: "propriétaire, 24 octobre 2026 : une invention n'est pas critique, seuil aligné sur la fuite de faits (≤ 2 % des tours)"
+    critical_outcomes: []
 
   evaluation-language@1:
     thresholds:
