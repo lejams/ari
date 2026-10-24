@@ -35,8 +35,37 @@ async function onboard(page, official = false) {
   // A new profile without an estimate lands on the placement test; the learner may skip it.
   await page.locator("#placement:not([hidden])").waitFor();
   assert.match(await page.locator("#placement-status").innerText(), /Niveau de départ/);
-  await page.goto(base + "/app#home");
+  await page.getByRole("button", {name:"Faire le test plus tard", exact:true}).click();
   await page.locator("#home:not([hidden])").waitFor();
+  // The profile was created today: no earlier day of this week counts as missed.
+  assert.equal(await page.locator("#week-days .week-pill[data-state=missed]").count(), 0);
+}
+async function completePlacement(page) {
+  await page.locator("#placement-cta").click();
+  await page.getByRole("button", {name:"Commencer le test →", exact:true}).click();
+  const choice = page.locator("#placement-choice-form:visible"), text = page.locator("#placement-text-form:visible");
+  const result = page.locator("#placement-result:visible");
+  for (let step = 0; step < 40; step += 1) {
+    await choice.or(text).or(result).first().waitFor();
+    if (await result.isVisible()) break;
+    const before = await page.locator("#placement-progress").innerText();
+    if (await choice.isVisible()) {
+      await page.locator("#placement-options input[type=radio]").first().check();
+      await choice.getByRole("button", {name:"Valider", exact:true}).click();
+    } else {
+      await page.getByLabel("Mode fake : écrivez votre réponse").fill("Ich habe seit drei Tagen Bauchschmerzen.");
+      await text.getByRole("button", {name:"Envoyer", exact:true}).click();
+    }
+    await page.waitForFunction(previous => document.querySelector("#placement-progress").innerText !== previous
+      || !document.querySelector("#placement-result").hidden, before);
+  }
+  // The result offers the programme's next step, and home shows the estimate without a reload.
+  await page.locator("#placement-next button").waitFor();
+  assert.match(await page.locator("#placement-next button").innerText(), /^Prochaine étape : /);
+  await page.getByRole("button", {name:"Retour à l’accueil", exact:true}).click();
+  await page.locator("#home:not([hidden])").waitFor();
+  assert.match(await page.locator("#profile-goal").innerText(), /niveau estimé [ABC][12], déclaré B2 \(test du /);
+  assert.equal(await page.locator("#placement-cta").innerText(), "Refaire le test de niveau");
 }
 try {
   const context = await browser.newContext();
@@ -116,6 +145,7 @@ try {
   await signIn(other, accounts[1]);
   await other.getByRole("heading", {name:"Quel est votre objectif ?",exact:true}).waitFor();
   await onboard(other, true);
+  await completePlacement(other);
   await other.goto(privateRunUrl);
   await other.locator("#error:visible").waitFor();
   await other.getByRole("button", {name: "Historique", exact: true}).click();
