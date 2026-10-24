@@ -122,3 +122,44 @@ Code et tests terminés, non commités. Mode d'emploi : `docs/EVALS.md`.
 - `make test-backend` sur PostgreSQL 17 local (port 5433). Les 45 tests de `backend/tests/evals/`
   sont verts, et la suite complète aussi : 517 tests verts.
 - `make evals-fake` : les quatre exécutions écrivent leur rapport.
+
+## Suite du 24 octobre 2026 : gate de promotion (points 2 et 4)
+
+Branche `claude/project-thread-wk7n4m`, à partir de `main` en `462ed72` (PR #20 fusionnée).
+
+### Fait
+- **Point 2 tranché par le propriétaire** : `invented_fact` n'est pas une erreur critique de
+  `patient-leakage@1`. Elle compte dans un seuil `invented_fact_rate ≤ 0,02`, aligné sur la fuite de
+  faits. `gates.yaml` passe en `gates-v3`. `voice-sim@1` garde `invented_fact` critique : la
+  question ne portait pas sur cette suite.
+- **Empreinte IA** (`ari/evals/promotion.py`, `python -m ari.evals fingerprint`) : prompts, versions
+  chargées par les conteneurs, variables modèle, fournisseur, effort et moteur de
+  `docker-compose.yml`, `llm_routing.py`.
+- **Verdict de promotion** (`python -m ari.evals promotion`) : les trois runs exigés, sur le holdout,
+  en mode gate, sur les vrais modèles.
+- **`evals-live.yml`** : workflow manuel, `main` seulement, environnement `evals`, clés en secrets.
+- **`promote.yml`** : si l'empreinte du candidat diffère de la dernière mise en production, exige un
+  run `evals-live` réussi dont le verdict est `passed` pour cette empreinte ; sinon refuse.
+- Mode d'emploi : `docs/EVALS.md`, section 10.
+
+### Décisions prises dans mon périmètre
+- L'empreinte suit `docker-compose.yml` et non `config.py` : c'est ce que la production exécute. Un
+  test vérifie que chaque réglage IA de `Settings` y figure.
+- La comparaison se fait avec la dernière mise en production réussie (artefact gardé 90 jours).
+  Une empreinte déjà promue a été vérifiée ; l'absence d'artefact exige le gate (on ne suppose
+  jamais).
+- Pas de baseline dans les runs gate de promotion : toute erreur critique bloque.
+- Aucune dérogation manuelle au gate : à ajouter seulement si le propriétaire le demande.
+
+### Points remontés au propriétaire
+1. Créer l'environnement GitHub `evals` et ses secrets `ARI_OPENAI_API_KEY` (et
+   `ARI_ANTHROPIC_API_KEY` si besoin).
+2. La première mise en production après la fusion exige un run `evals-live` réussi. Les seuils du
+   plan n'ont jamais été mesurés sur les vrais modèles : un échec bloquerait la production.
+3. Un modèle changé dans le `.env` du serveur échappe au gate (`docs/EVALS.md`, section 9).
+
+### Commandes de validation exécutées
+- `make lint` : ruff, mypy strict et import-linter verts.
+- `actionlint` (avec shellcheck) sur les workflows : aucun constat.
+- `pytest backend/tests` sur PostgreSQL 16 local.
+- Aucun appel payant : les clés ne sont pas dans l'environnement de l'agent.

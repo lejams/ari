@@ -1,0 +1,56 @@
+name: Evals on real models
+# Manual, billed: runs the promotion suites of ari.evals (backend/src/ari/evals/promotion.py) on
+# the real models with the keys of the `evals` environment. The `eval-gate` artifact (reports,
+# verdict.json, fingerprint.json) is what promote.yml asks for when a prompt, a model or the
+# routing policy changed. See docs/EVALS.md, section 10.
+on:
+  workflow_dispatch:
+    inputs:
+      split:
+        description: "holdout: promotion gate (3 repetitions); dev: measurement only, never a passing verdict"
+        required: true
+        default: holdout
+        type: choice
+        options: [holdout, dev]
+permissions: {contents: read}
+jobs:
+  evals:
+    name: Promotion suites on real models
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: evals
+    concurrency: {group: evals-live, cancel-in-progress: false}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.lock
+      - name: Install locked Python dependencies
+        run: |
+          python -m venv .venv
+          make install-locked
+      - name: Run the promotion suites
+        env:
+          ARI_OPENAI_API_KEY: "${{ secrets.ARI_OPENAI_API_KEY }}"
+          ARI_ANTHROPIC_API_KEY: "${{ secrets.ARI_ANTHROPIC_API_KEY }}"
+          SPLIT: "${{ inputs.split }}"
+        run: |
+          set -euo pipefail
+          test -n "$ARI_OPENAI_API_KEY" || { echo "secret ARI_OPENAI_API_KEY missing in the evals environment" >&2; exit 1; }
+          PYTHONPATH=backend/src .venv/bin/python -m ari.evals fingerprint --out eval-gate/fingerprint.json >/dev/null
+          PYTHONPATH=backend/src .venv/bin/python -m ari.evals promotion --split "$SPLIT" --live --out-dir eval-gate
+      - name: Publish the verdict
+        if: always()
+        run: |
+          test -f eval-gate/verdict.json || exit 0
+          { echo '### ari.evals on real models'; echo; echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Verdict: \`$(jq -r .status eval-gate/verdict.json)\`"
+            echo "- AI fingerprint: \`$(jq -r .fingerprint eval-gate/verdict.json)\`"; echo
+            jq -r '.runs[] | "- \(.suite) \(.config): \(.status)\(if .reason then " (\(.reason))" else "" end)"' eval-gate/verdict.json
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: eval-gate, path: eval-gate, if-no-files-found: ignore, retention-days: 90}

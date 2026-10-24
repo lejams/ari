@@ -36,7 +36,7 @@ def test_fake_run_writes_a_complete_report(suite: str, tmp_path: Path) -> None:
     assert report.suite == suite and report.split == "dev" and not report.gate_mode
     assert report.config.provider == "fake" and len(report.config.sha256) == 64
     assert report.cost.total_micro_eur == 0 and report.cost.unknown_calls == 0
-    assert report.versions.pricing == "pricing-v2" and report.versions.gates == "gates-v2"
+    assert report.versions.pricing == "pricing-v2" and report.versions.gates == "gates-v3"
     assert report.models_recorded == report.models_returned  # The fake reports its model.
     assert report.dataset.synthetic and report.dataset.manifest_sha256
     assert report.metrics["structured_after_retry"] == 1.0

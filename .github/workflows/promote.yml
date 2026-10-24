@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       staging_run_id: {description: "Successful CI run ID that produced staged-release", required: true, type: string}
+      eval_run_id: {description: "Successful 'Evals on real models' run ID; required when the AI fingerprint changed", required: false, type: string}
 permissions: {contents: read, actions: read}
 jobs:
   production:
@@ -39,6 +40,50 @@ jobs:
           [[ "$image" =~ ^ghcr\.io/lejams/ari@sha256:[0-9a-f]{64}$ ]]
           test "$sha" = "$release_sha"; test "$sha" = "$marker_sha"; test "$image" = "$marker_image"
           printf 'sha=%s\nimage=%s\n' "$sha" "$image" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.lock
+      - name: Install the evaluation tooling
+        run: |
+          python -m venv .venv
+          make install-locked
+      # plan, action 8, point 6: a prompt, model or routing policy change needs a passing gate on
+      # the real models. The fingerprint of the candidate is computed by main's code on the
+      # candidate's files. A fingerprint already promoted was gated (or equal to one that was).
+      - name: Require the ari.evals gate when the AI changed
+        id: gate
+        env: {GH_TOKEN: "${{ github.token }}", SHA: "${{ steps.candidate.outputs.sha }}", EVAL_RUN_ID: "${{ inputs.eval_run_id }}"}
+        run: |
+          set -euo pipefail
+          git worktree add --detach candidate-tree "$SHA"
+          PYTHONPATH=backend/src .venv/bin/python -m ari.evals fingerprint --root candidate-tree --out ai-fingerprint.json >/dev/null
+          fingerprint="$(jq -r .sha256 ai-fingerprint.json)"; [[ "$fingerprint" =~ ^[0-9a-f]{64}$ ]]
+          last_run="$(gh run list -R "$GITHUB_REPOSITORY" --workflow promote.yml --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          previous=""
+          if [ -n "$last_run" ] && gh run download "$last_run" -R "$GITHUB_REPOSITORY" -n production-release -D previous-release; then
+            previous="$(jq -r '.ai_fingerprint // empty' previous-release/production-release.json)"
+          fi
+          if [ "$fingerprint" = "$previous" ]; then
+            echo "AI fingerprint unchanged since the last production release: no gate needed."
+            printf 'fingerprint=%s\neval_run_id=\n' "$fingerprint" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "AI fingerprint changed (${previous:-no previous production release on record}): the ari.evals gate is required."
+          case "$EVAL_RUN_ID" in *[!0-9]*|'') echo "eval_run_id must be a successful 'Evals on real models' run for fingerprint $fingerprint" >&2; exit 1;; esac
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$EVAL_RUN_ID")"
+          workflow_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/evals-live.yml" --jq .id)"
+          test "$(jq -r .repository.full_name <<<"$run_json")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r .workflow_id <<<"$run_json")" = "$workflow_id"
+          test "$(jq -r .event <<<"$run_json")" = workflow_dispatch
+          test "$(jq -r .conclusion <<<"$run_json")" = success
+          eval_sha="$(jq -r .head_sha <<<"$run_json")"; [[ "$eval_sha" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$eval_sha" origin/main
+          gh run download "$EVAL_RUN_ID" -R "$GITHUB_REPOSITORY" -n eval-gate -D eval-gate
+          test "$(jq -r .status eval-gate/verdict.json)" = passed || { echo "the gate run did not pass" >&2; exit 1; }
+          test "$(jq -r .fingerprint eval-gate/verdict.json)" = "$fingerprint" || { echo "the gate run measured another AI fingerprint than the candidate's" >&2; exit 1; }
+          printf 'fingerprint=%s\neval_run_id=%s\n' "$fingerprint" "$EVAL_RUN_ID" >> "$GITHUB_OUTPUT"
       - name: Transfer the staged artifact to production
         env:
           DEPLOY_HOST: "${{ vars.DEPLOY_HOST }}"
@@ -51,5 +96,16 @@ jobs:
           GHCR_TOKEN: "${{ github.token }}"
         run: deploy/transfer-release.sh production staged-release "${{ steps.candidate.outputs.image }}" "${{ steps.candidate.outputs.sha }}"
       - name: Publish deployed release metadata
+        env:
+          SHA: "${{ steps.candidate.outputs.sha }}"
+          IMAGE: "${{ steps.candidate.outputs.image }}"
+          FINGERPRINT: "${{ steps.gate.outputs.fingerprint }}"
+          EVAL_RUN: "${{ steps.gate.outputs.eval_run_id }}"
         run: |
-          { echo '### Production release'; echo; echo "- Commit: \`${{ steps.candidate.outputs.sha }}\`"; echo "- Image: \`${{ steps.candidate.outputs.image }}\`"; } >> "$GITHUB_STEP_SUMMARY"
+          printf '{"sha":"%s","image":"%s","ai_fingerprint":"%s","eval_run_id":"%s"}\n' "$SHA" "$IMAGE" "$FINGERPRINT" "$EVAL_RUN" > production-release.json
+          { echo '### Production release'; echo; echo "- Commit: \`$SHA\`"; echo "- Image: \`$IMAGE\`"
+            echo "- AI fingerprint: \`$FINGERPRINT\` (gate: ${EVAL_RUN:-unchanged since the last release})"; } >> "$GITHUB_STEP_SUMMARY"
+      # The next promotion compares its fingerprint with this one (kept 90 days; past that, the
+      # gate is required again).
+      - uses: actions/upload-artifact@v4
+        with: {name: production-release, path: production-release.json, if-no-files-found: error, retention-days: 90}

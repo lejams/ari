@@ -247,7 +247,7 @@ a donc pas de recommandation. C'est attendu : le fournisseur simulé ne mesure p
 
 ## 7. Seuils et erreurs critiques
 
-`evals/gates.yaml` (version `gates-v2`) reprend les seuils du plan :
+`evals/gates.yaml` (version `gates-v3`) reprend les seuils du plan :
 
 | Mesure | Seuil |
 |---|---|
@@ -255,6 +255,7 @@ a donc pas de recommandation. C'est attendu : le fournisseur simulé ne mesure p
 | Fausses erreurs dues au STT | ≤ 5 % |
 | Hallucination de preuve | ≤ 2 % |
 | Fuite de faits | ≤ 2 % des tours |
+| Inventions du patient (`invented_fact_rate`) | ≤ 2 % des tours (décision du propriétaire, 24 octobre 2026) |
 | Verdicts changeants | ≤ 10 % |
 | Structure exploitable | ≥ 99,5 % |
 | Rappel des erreurs médicales critiques | ≥ 0,90 |
@@ -265,8 +266,8 @@ a donc pas de recommandation. C'est attendu : le fournisseur simulé ne mesure p
 Une métrique non mesurable fait échouer son seuil.
 
 Erreurs critiques (`critical_outcomes`) :
-- `patient-leakage` : `invented_fact`. C'est une proposition à confirmer, fondée sur « zéro
-  invention » (action 3).
+- `patient-leakage` : aucune. Le propriétaire a décidé le 24 octobre 2026 qu'une invention n'est
+  pas critique : elle compte dans `invented_fact_rate`, avec un seuil.
 - `voice-sim` : `invented_fact` et `credit_without_ack`.
 - `evaluation-medical` : un élément marqué `critical` par le médecin et non relevé. Le code ne
   décide jamais de ce qui est critique.
@@ -302,7 +303,57 @@ par transcript :
 - `voice-sim@1` n'a qu'un script, en français, sur le seul cas vocal publié par `cases/dev`. Les
   scripts en allemand viendront avec les cas allemands publiés.
 - La cible staging de `voice-sim` et le moteur `openai_realtime` en processus ne sont pas faits.
-- Le blocage de `promote.yml` sur un changement de prompt ou de modèle n'est pas branché, et le
-  workflow manuel sur vrais modèles n'existe pas. Les deux relèvent du propriétaire : le premier
-  bloquerait toute mise en production tant qu'aucune mesure de référence sur les vrais modèles
-  n'existe, le second demande une clé dans les secrets GitHub.
+- Le gate de promotion ne voit que ce que le dépôt fixe. Un modèle choisi dans le `.env` du serveur
+  (`ARI_PATIENT_MODEL=...`) lui échappe : changer de modèle en production passe par
+  `docker-compose.yml`, ou par un run de `evals-live.yml` sur une configuration qui le décrit.
+- Les runs gate de la promotion n'ont pas de baseline : toute erreur critique bloque, même déjà
+  présente en production.
+
+## 10. Gate de promotion
+
+Le plan (action 8, point 6) demande un gate dans `promote.yml` dès qu'un prompt, un modèle ou une
+politique change, détecté par empreinte. Code : `backend/src/ari/evals/promotion.py`.
+
+**Empreinte IA** (`python -m ari.evals fingerprint [--root <checkout>]`). SHA-256 de :
+- chaque fichier de `backend/src/ari/prompts/` ;
+- les versions de prompts que chargent les conteneurs de production (`container.py`), pour voir
+  un retour à un ancien fichier ;
+- les valeurs par défaut des variables modèle, fournisseur, effort et moteur de
+  `docker-compose.yml`, ce que la production exécute (un test vérifie que chaque réglage IA de
+  `Settings` y passe) ;
+- la politique de routage, `infrastructure/providers/llm_routing.py`.
+
+Une voix, une clé, un délai ou un fichier sans rapport ne la changent pas.
+
+**Runs exigés** (`PROMOTION_RUNS`) : `patient-leakage@1` sur `luna.yaml` (entraînement) et
+`luna-exam.yaml` (chaîne d'examen), `evaluation-language@1` sur `luna.yaml`. Tous sur le holdout,
+en mode gate, sur les vrais modèles. Un test vérifie que ces configurations ont les modèles, les
+fournisseurs et les prompts de production. `evaluation-medical@1` s'y ajoutera avec les annotations
+du médecin, `voice-sim@1` avec sa cible staging.
+
+**Workflow manuel `Evals on real models`** (`.github/workflows/evals-live.yml`), sur `main`
+seulement, dans l'environnement GitHub `evals` :
+- secrets à créer dans cet environnement : `ARI_OPENAI_API_KEY` (obligatoire),
+  `ARI_ANTHROPIC_API_KEY` (pour une configuration Claude) ;
+- `split: holdout` : le gate, qui écrit `verdict.json` (`passed` ou `failed`) ;
+- `split: dev` : une mesure en 3 répétitions, dont le verdict est `measurement` et ne permet jamais
+  une promotion ;
+- l'artefact `eval-gate` garde les rapports, le verdict et l'empreinte 90 jours.
+
+En local, la même chose : `python -m ari.evals promotion --live --out-dir <dossier>`.
+
+**`promote.yml`.** Avant le transfert en production :
+1. calcule l'empreinte du commit candidat, avec le code de `main` ;
+2. la compare à celle de la dernière mise en production réussie (artefact `production-release`,
+   gardé 90 jours) ;
+3. si elle est identique, rien à faire ;
+4. sinon, exige `eval_run_id` : un run réussi de `Evals on real models`, lancé à la main sur un
+   commit de `main`, dont le verdict est `passed` pour exactement cette empreinte.
+
+Conséquences :
+- la première mise en production après la fusion de ce gate exige un run, faute d'empreinte
+  enregistrée ;
+- au-delà de 90 jours sans mise en production, l'artefact a expiré : un run est de nouveau exigé ;
+- les seuils sont ceux du plan, à recalibrer après la première mesure. Si le gate échoue sur les
+  vrais modèles, aucune mise en production n'est possible tant que la qualité ou les seuils ne
+  sont pas revus.

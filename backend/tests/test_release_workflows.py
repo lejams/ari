@@ -59,6 +59,30 @@ def test_promotion_is_manual_main_only_and_validates_staging_proof() -> None:
     assert "staging-success.json" in steps
     assert "workflow_run" not in steps
 
+def test_promotion_requires_the_evals_gate_before_deploying_a_changed_ai() -> None:
+    production = load_workflow(".github/workflows/promote.yml")["jobs"]["production"]
+    names = [step.get("name", "") for step in production["steps"]]
+    gate = names.index("Require the ari.evals gate when the AI changed")
+    assert gate < names.index("Transfer the staged artifact to production")
+    script = production["steps"][gate]["run"]
+    assert "ari.evals fingerprint --root candidate-tree" in script
+    assert "evals-live.yml" in script and "merge-base --is-ancestor" in script
+    assert '.status eval-gate/verdict.json)" = passed' in script
+    assert '.fingerprint eval-gate/verdict.json)" = "$fingerprint"' in script
+    assert "production-release" in str(production["steps"][-1])
+
+
+def test_live_evals_are_manual_main_only_with_scoped_keys() -> None:
+    workflow = load_workflow(".github/workflows/evals-live.yml")
+    assert set(workflow["on"]) == {"workflow_dispatch"}
+    job = workflow["jobs"]["evals"]
+    assert "refs/heads/main" in job["if"] and job["environment"] == "evals"
+    run_step = next(s for s in job["steps"] if s.get("name") == "Run the promotion suites")
+    assert run_step["env"]["ARI_OPENAI_API_KEY"] == "${{ secrets.ARI_OPENAI_API_KEY }}"
+    assert "promotion --split" in run_step["run"] and "--live" in run_step["run"]
+    assert "eval-gate" in str(job["steps"][-1])
+
+
 def test_transfer_helper_rejects_bad_metadata_before_ssh(tmp_path: Path) -> None:
     bundle = tmp_path / "bundle"
     bundle.mkdir()
