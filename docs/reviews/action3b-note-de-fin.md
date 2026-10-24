@@ -45,7 +45,7 @@ scénario publié. Le frontend gérait déjà le micro ouvert et l'arrêt de lec
 
 **Décisions prises dans mon périmètre.** Détection de parole côté serveur, par énergie, paramètres en
 configuration (`ARI_EXAM_VAD_*`, hypothèses). Énoncés neutres de repli en allemand et en français.
-Rapport exposé par l'API, pas encore affiché dans la page de résultats.
+Rapport exposé par l'API ; affiché dans la page de résultats depuis le 24 octobre 2026 (section repliable « Rapport d'examen », `web/exam-report.mjs`).
 
 **Points remontés au propriétaire.** Voix : `3nMIMZ7RlGwsq1WLgxY3` pour les quatre personas en
 attendant d'autres choix (section 6, point 2). Idées notées pour après la 3b : choix de la voix par
@@ -56,12 +56,21 @@ point 7) : il exige un rapport `patient-leakage@1` (action 8) sur `patient-exam-
 **Mesures.** Aucune sur le service réel (décision du 20 octobre 2026). Latence et coût seront lus
 dans le rapport d'examen et la page Coûts après la bascule.
 
+**Suivi du 24 octobre 2026 : retard après une interruption (découverte 1 de l'action 8).**
+Une réponse interrompue n'est plus lue jusqu'au bout avant la suivante. Le reste de la synthèse
+est lu en tâche de fond (`VoiceSocket._finish_interrupted_stream`) : l'appel garde son coût
+(invariant 9) et la fin de session attend ces lectures avant de finaliser, sans jamais les
+annuler : chaque adaptateur TTS borne déjà son flux (`tts_timeout_seconds`) et échoue alors avec
+l'exécution, qui est enregistrée. Mesure
+`voice-sim@1` en processus : P95 examen 167 ms au lieu de 816 ms. Test :
+`test_the_next_answer_does_not_wait_for_the_end_of_an_interrupted_sentence`.
+
 **Reste ouvert.**
 - Premier essai avec la vraie clé : protocole, et prise en compte effective de `voice_settings` à
   l'enregistrement de la voix et des balises par `eleven_v4_turbo`, non vérifiées.
 - Réglage du seuil de détection de parole sur de vrais micros ; risque d'écho (la voix du patient
   captée par le micro déclencherait une interruption), atténué par l'annulation d'écho du navigateur.
-- Affichage du rapport d'examen dans la page de résultats ; acceptation (1) à (4) de l'action 3
+- Acceptation (1) à (4) de l'action 3
   (fuites, latence P95, interruption sur réseau réel).
 
 **Commandes de validation exécutées.** `.venv/bin/pytest backend` (suite complète verte, dont

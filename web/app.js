@@ -1,5 +1,6 @@
 import { PcmPlaybackTracker } from "./audio-delivery.mjs";
 import { allowsInCallHelp, voiceLaunchIntent } from "./voice-presentation.mjs";
+import { examReportView } from "./exam-report.mjs";
 
 const launchIntent = voiceLaunchIntent(location.search, localStorage.getItem("ari.current_session_id"));
 
@@ -1003,6 +1004,15 @@ function renderFeedbackTranscript(session, cited) {
   }));
 }
 
+// Exam only: what the learner heard and how fast the patient answered, turn by turn.
+function renderExamReport(report) {
+  const view = examReportView(report);
+  $("details-exam-report").classList.toggle("hidden", !view);
+  fillList("exam-report-summary", view?.summary || []);
+  fillList("exam-report-turns", view?.turns || []);
+  $("exam-report-count").textContent = view?.count || "";
+}
+
 function showFeedback(session) {
   const evaluation = session.evaluation;
   if (!evaluation) return;
@@ -1049,6 +1059,7 @@ function showFeedback(session) {
     $("lexicon-count").textContent = "";
     setTile("lexicon", "none", "indisponible");
   }
+  renderExamReport(session.exam_report);
   renderFeedbackTranscript(session, citedTurns(evaluation, session));
   $("feedback").classList.remove("hidden");
   $("feedback").scrollIntoView({ behavior: "smooth" });

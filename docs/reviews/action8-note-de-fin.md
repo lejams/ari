@@ -93,7 +93,8 @@ Code et tests terminés, non commités. Mode d'emploi : `docs/EVALS.md`.
 5. Faire relire les phrases allemandes par un germanophone.
 6. Pour le médecin : 30 à 50 transcripts annotés, avec consentement, hors dépôt.
 7. Ajouter un champ « erreurs médicales » à l'évaluation : c'est un changement de prompt.
-8. Pour l'action 3b : le retard après interruption (découverte 1).
+8. Pour l'action 3b : le retard après interruption (découverte 1). Corrigé le 24 octobre 2026
+   (voir la note de l'action 3b) : P95 examen en processus 167 ms au lieu de 816 ms.
 
 ### Mesures
 - `patient-leakage@1`, fake, dev, 3 répétitions :
