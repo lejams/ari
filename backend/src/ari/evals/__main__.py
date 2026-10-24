@@ -1,4 +1,4 @@
-"""Command line: `python -m ari.evals run|voice|compare|fingerprint|promotion ...`.
+"""Command line: `python -m ari.evals run|voice|pronunciation|compare|fingerprint|promotion`.
 
 See docs/EVALS.md. Real models are only called with `--live` and a configuration whose
 provider is not `fake`; every call is then costed with the versioned price list.
@@ -71,6 +71,27 @@ def _parser() -> argparse.ArgumentParser:
     voice_cmd.add_argument("--datasets-dir", type=Path, default=DEFAULT_DATASETS)
     voice_cmd.add_argument("--gates", type=Path, default=DEFAULT_GATES)
     voice_cmd.add_argument("--pricing", type=Path, default=DEFAULT_PRICING)
+
+    pronunciation_cmd = commands.add_parser(
+        "pronunciation", help="voix du patient sur des phrases fixes, réécoutées par le STT"
+    )
+    pronunciation_cmd.add_argument("--suite", default="voice-snippets@1")
+    pronunciation_cmd.add_argument(
+        "--voice",
+        action="append",
+        default=[],
+        metavar="NOM=VOICE_ID",
+        help="voix candidate à tester (répétable) ; sans --voice, les voix des personas",
+    )
+    pronunciation_cmd.add_argument(
+        "--personas", action="store_true", help="tester aussi les personas avec --voice"
+    )
+    pronunciation_cmd.add_argument("--repeat", type=int, default=1, help="passages par phrase")
+    pronunciation_cmd.add_argument("--live", action="store_true", help="vraie voix et vrai STT")
+    pronunciation_cmd.add_argument("--seed", type=int, help="ordre de l'écoute à l'aveugle")
+    pronunciation_cmd.add_argument("--out-dir", type=Path)
+    pronunciation_cmd.add_argument("--datasets-dir", type=Path, default=DEFAULT_DATASETS)
+    pronunciation_cmd.add_argument("--pricing", type=Path, default=DEFAULT_PRICING)
 
     compare_cmd = commands.add_parser(
         "compare", help="comparer des rapports ; le premier est la baseline"
@@ -204,6 +225,39 @@ def _voice(args: argparse.Namespace) -> int:
     return 1 if report.gate is not None and report.gate.status == "failed" else 0
 
 
+def _pronunciation(args: argparse.Namespace) -> int:
+    from ari.evals.pronunciation.dataset import SUITE, load_snippets
+    from ari.evals.pronunciation.runner import PronunciationRun, run_pronunciation, summary_text
+    from ari.evals.pronunciation.voices import build_voices
+
+    name, version = parse_suite_ref(args.suite)
+    if name != SUITE:
+        raise DatasetError(f"la commande pronunciation exécute {SUITE}, pas {name}")
+    if args.repeat < 1:
+        raise ConfigError("--repeat vaut au moins 1")
+    dataset = load_snippets(args.datasets_dir, version)
+    setup = build_voices(Settings(), args.voice, personas=args.personas, live=args.live)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    out_dir = args.out_dir or PROJECT_ROOT / "var" / "evals" / dataset.ref / stamp
+    request = PronunciationRun(
+        dataset=dataset,
+        voices=setup.voices,
+        transcriber=setup.transcriber,
+        pricing=load_pricing(args.pricing),
+        out_dir=out_dir,
+        live=args.live,
+        tts_model=setup.tts_model,
+        stt_provider=setup.stt_provider,
+        stt_model=setup.stt_model,
+        repetitions=args.repeat,
+        seed=args.seed,
+        code_version=os.environ.get("GITHUB_SHA"),
+    )
+    report = asyncio.run(run_pronunciation(request, setup.close))
+    print(summary_text(report, out_dir))
+    return 1 if any(result.outcome == "failed" for result in report.results) else 0
+
+
 def _compare(args: argparse.Namespace) -> int:
     gates, _ = gate_rules.load_gates(args.gates)
     comparison = compare([read_report(path) for path in args.reports], gates)
@@ -268,6 +322,8 @@ def main(argv: list[str] | None = None) -> int:
             return asyncio.run(_run(args))
         if args.command == "voice":
             return _voice(args)
+        if args.command == "pronunciation":
+            return _pronunciation(args)
         if args.command == "fingerprint":
             return _fingerprint(args)
         if args.command == "promotion":

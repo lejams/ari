@@ -1,0 +1,23 @@
+{
+  "suite": "voice-snippets",
+  "version": "1",
+  "description": "Phrases de patient en allemand, dites par la voix ElevenLabs de chaque persona puis retranscrites par le STT de production : écart de transcription, termes critiques (chiffres, doses, dates, termes médicaux) et fichiers audio pour une écoute à l'aveugle.",
+  "synthetic": true,
+  "source": "Phrases patient_phrase des cas inventés de patient-leakage@1 et phrases du spike 3a (scripts/spikes/german_tts_sentences.txt, branche spike/elevenlabs-tts)",
+  "created_on": "2026-10-24",
+  "annotators": [
+    {
+      "id": "agent:claude-opus-5.5",
+      "role": "sélection des phrases et des termes critiques",
+      "annotated_on": "2026-10-24"
+    }
+  ],
+  "files": {
+    "snippets.jsonl": "dad67b995ec41c79f4ef3c81f0a9612f6ca568eb85cef03cd8e842daf03cdb40"
+  },
+  "limitations": [
+    "Les phrases et les termes critiques ont été choisis par l'agent ; un germanophone doit les relire.",
+    "Le STT peut se tromper sur une prononciation correcte : un terme manqué signale une phrase à écouter, il ne prouve pas l'erreur de la voix.",
+    "Le STT est appelé sans le contexte de transcription du cas, plus strict que la production, pour ne pas masquer une mauvaise prononciation."
+  ]
+}

@@ -21,6 +21,7 @@ pour les autres. Le seul modèle appelé est celui de la configuration testée.
 | `patient-leakage@1` | le patient réel : `PatientSimulator` (`patient-v3`, entraînement) ou `ExamPatient` (`patient-exam-v1`, chaîne d'examen) selon la configuration | type de réponse attendu, faits que la question demande légitimement | 80 questions sur 4 cas inventés (60 dev, 20 holdout) |
 | `evaluation-language@1` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v6`) | erreurs injectées : genre, cas, forme verbale, ordre des mots ; mot français ; artefact de transcription ; section oubliée | 120 transcripts synthétiques (90 dev, 30 holdout) |
 | `evaluation-medical@1` | l'évaluateur réel | omissions exigibles et erreurs médicales relevées par le médecin | **en attente du médecin** (section 6 du plan) |
+| `voice-snippets@1` | la voix ElevenLabs de chaque persona sur des phrases fixes, puis le STT | termes critiques de chaque phrase (chiffres, doses, termes) | 33 phrases de patient en allemand |
 | `voice-sim@1` | toute la chaîne vocale, de bout en bout : sockets, segmentation de la parole, STT, patient, voix, accusés de lecture, évaluation finale | faits demandés par chaque question du script | 1 script de 12 questions sur le cas `ARI-DEV-FR` |
 
 Les jeux de `patient-leakage` et `evaluation-language` sont générés par
@@ -86,7 +87,7 @@ PYTHONPATH=backend/src .venv/bin/python -m ari.evals run --suite patient-leakage
 - `--repeat N` : passages par item (1 par défaut, 3 en mode gate).
 - `--out` : chemin du rapport. Par défaut `var/evals/reports/...`, dossier ignoré par git.
 - `make evals-fake` lance toutes les suites sur le fournisseur simulé : entraînement, chaîne
-  d'examen et `voice-sim`. La CI l'exécute à chaque commit.
+  d'examen, `voice-sim` et `voice-snippets`. La CI l'exécute à chaque commit.
 
 **Vrais modèles.** Une configuration `provider: live` est refusée sans `--live`. Avec `--live`,
 les clés sont lues dans l'environnement (`ARI_OPENAI_API_KEY`, `ARI_ANTHROPIC_API_KEY`). Chaque
@@ -182,6 +183,67 @@ avec les vrais modèles, 20 sessions par configuration. Les deux moteurs d'exame
 La cible staging devra vérifier `evaluation_account` sur chaque session créée et s'arrêter si la
 valeur est fausse. Staging force aujourd'hui les fournisseurs simulés (`docs/DEPLOYMENT.md`) :
 jouer les vrais modèles y demande une décision du propriétaire.
+
+## 4bis. La voix du patient sur des phrases fixes : `voice-snippets@1`
+
+Avant de tester la voix en conversation, on l'écoute sur des phrases connues. Chaque phrase est
+dite par la voix ElevenLabs de chaque persona (ou par des voix candidates), retranscrite par le
+STT, puis comparée au texte par du code. Aucun modèle ne note.
+
+Le jeu (`evals/datasets/voice-snippets/1/snippets.jsonl`) contient 33 phrases de patient en
+allemand :
+- les `patient_phrase` des cas inventés de `patient-leakage@1` ;
+- les phrases difficiles du spike 3a : températures, tension, doses, dates, termes médicaux.
+
+Chaque phrase liste ses **termes critiques** (chiffre, dose, date, médicament, terme médical),
+avec les graphies acceptées.
+
+**Comparaison.** Les deux textes sont normalisés de la même façon : minuscules, nombres écrits
+en toutes lettres (« 38,5 » et « achtunddreißig Komma fünf » sont identiques), unités
+abrégées développées (« mg »), traits d'union retirés. Verdict par phrase :
+- `ok` : tout est entendu tel qu'écrit ;
+- `listen` : les termes critiques sont entendus, d'autres mots diffèrent ;
+- `critical_missed` : un terme critique n'est pas entendu ;
+- `failed` : pas d'audio ou pas de transcription.
+
+Un terme manqué désigne une phrase à écouter, pas une faute prouvée : le STT peut se tromper sur
+une prononciation correcte. Le STT est appelé sans le contexte de transcription du cas, plus
+strict que la production, pour ne pas masquer une mauvaise prononciation. Il n'y a pas de seuil :
+c'est l'écoute qui tranche.
+
+```bash
+# Simulé (CI) : vérifie la chaîne, pas la voix.
+PYTHONPATH=backend/src .venv/bin/python -m ari.evals pronunciation
+# Vraie voix et vrai STT : ARI_ELEVENLABS_API_KEY et ARI_STT_API_KEY dans l'environnement.
+PYTHONPATH=backend/src .venv/bin/python -m ari.evals pronunciation --live
+# Comparer des voix candidates, en gardant les personas :
+PYTHONPATH=backend/src .venv/bin/python -m ari.evals pronunciation --live --voice anna=<voice_id> --voice paul=<voice_id> --personas
+```
+
+- Sans `--voice`, les voix testées sont celles des personas, comme la chaîne d'examen les
+  construit (`ARI_ELEVENLABS_EXAM_PERSONAS`, sinon `ARI_ELEVENLABS_VOICE_ID`). Les personas qui
+  sonnent pareil forment une seule voix.
+- Le STT est celui des réglages `ARI_STT_*` : Groq `whisper-large-v3` par défaut, comme en
+  production. Le rapport nomme le service et le modèle utilisés.
+
+**Sorties** (`var/evals/voice-snippets@1/<date>/` ou `--out-dir`) :
+- `report.json` : par voix et par phrase, ce qui a été entendu, le verdict, le premier audio,
+  le coût ;
+- `a-verifier.md` : les phrases à écouter, avec le texte écrit et le texte entendu ;
+- `audio/<voix>/<phrase>.wav` ;
+- `ecoute/` : les mêmes fichiers sous des noms anonymes, dans un ordre mélangé, avec
+  `grille.csv` (naturel, clarté, prononciation, crédibilité, de 1 à 5) et `index.html` pour les
+  écouter ;
+- `cle-ecoute.json` (hors de `ecoute/`, à ne pas montrer aux écouteurs) dit qui est qui.
+
+**Workflow manuel `Patient voice on fixed sentences`** (`.github/workflows/voice-snippets.yml`),
+sur `main`, dans l'environnement GitHub `evals` :
+- secrets : `ARI_ELEVENLABS_API_KEY`, `ARI_STT_API_KEY` ;
+- variables facultatives : `ARI_ELEVENLABS_EXAM_PERSONAS` (le JSON de la production),
+  `ARI_STT_BASE_URL` et `ARI_STT_MODEL` pour un autre STT, par exemple OpenAI `whisper-1` ;
+- l'artefact `voice-snippets` garde rapport et audio 30 jours.
+
+Seules des phrases inventées sont dites : aucun audio d'apprenant n'est enregistré.
 
 ## 5. Lire un rapport
 

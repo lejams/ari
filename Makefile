@@ -78,6 +78,7 @@ evals-fake:
 	PYTHONPATH=backend/src $(PYTHON) -m ari.evals run --suite patient-leakage@1 --config evals/configs/fake-exam.yaml --repeat 3 --out var/evals/fake/patient-leakage-exam.json
 	# Real sockets and a throwaway database created on ARI_TEST_DATABASE_URL, dropped afterwards.
 	PYTHONPATH=backend/src $(PYTHON) -m ari.evals voice --config evals/configs/voice/fake.yaml --out var/evals/fake/voice-sim.json
+	PYTHONPATH=backend/src $(PYTHON) -m ari.evals pronunciation --seed 0 --out-dir var/evals/fake/voice-snippets
 
 test-web:
 	$(NODE) --check web/practice-client.mjs
