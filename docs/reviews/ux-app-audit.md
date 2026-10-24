@@ -39,7 +39,7 @@ Aucun constat bloquant en mode fake : un nouveau compte va de l'inscription au f
 consultation sans erreur JavaScript. Les messages des limites structurelles (une session vocale à la fois,
 quota d'examens) sont clairs et en français.
 
-Onze constats majeurs, regroupés en quatre chantiers de correction proposés (section 5). Les trois
+Onze constats majeurs, regroupés en quatre chantiers de correction proposés, plus un chantier de direction visuelle (section 5). Les trois
 qui pèsent le plus sur la bêta :
 
 1. Juste après le test de positionnement, l'accueil affiche « niveau non mesuré » et « Passer le test de
@@ -220,8 +220,22 @@ et l'accueil propose ensuite un exercice texte plutôt qu'une consultation (M3, 
 | C. Messages et états d'erreur | M5, M6, M10, m5, m8 | M | M6 peut demander un petit point d'API en lecture |
 | D. Textes et clarté | M7, M11, m3, m4, m6, m9 | S à M | libellés de mode à confirmer par le propriétaire |
 
-Hors chantier, en attente de décision : m7 (identité
-visuelle).
+| E. Direction visuelle A | m7 + reprise des écrans selon les maquettes A | M | après A à D, ou en parallèle sur des fichiers distincts |
+
+Direction visuelle (décision du propriétaire, 24 octobre 2026) : **direction A, Continuité**, parmi les
+trois proposées dans le canevas « Maquettes ARI » (https://claude.ai/artifact/BGtjQ98mFQGZQvLaMiVjix),
+argumentées dans le doc « ARI jugée par trois skills de design »
+(https://claude.ai/artifact/3nufSCvpW4uy6SJ7iwEAfe). L'identité actuelle est gardée : violet, fond clair,
+barre latérale. Les maquettes A servent de référence aux chantiers A à E :
+
+- m7 est tranché par la direction : une seule police, Atkinson Hyperlegible Next, chargée sur toutes les
+  pages (connexion, application, page vocale) ;
+- l'accueil commence par le patient du jour (sa phrase en allemand, un seul bouton pour répondre), la
+  semaine marque les jours d'avant l'inscription comme tels ;
+- la navigation est faite de liens avec `aria-current` (chantier B) ;
+- le retour de consultation commence par les phrases à dire la prochaine fois, puis les scores ; la
+  prononciation est marquée « pas encore évaluée » ;
+- contrastes du texte à 4,5:1 au moins, cibles de 44 px au moins, `lang="de"` sur les phrases allemandes.
 
 L'étape 4 du plan (e2e de tous les parcours en mode fake, captures mobile et ordinateur, en CI) se fait
 avec le chantier B pour la partie débordement et axe, puis s'étend au fil des autres chantiers. axe-core
