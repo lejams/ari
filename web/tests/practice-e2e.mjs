@@ -42,9 +42,16 @@ try {
   const context = await browser.newContext();
   const page = await context.newPage();
   page.on("pageerror", error => errors.push(error.message));
+  const foreign = [];
+  page.on("request", request => { if (!request.url().startsWith(base) && !request.url().startsWith("data:")) foreign.push(request.url()); });
+  const atkinsonLoaded = () => page.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some(face => face.family.replace(/"/g, "") === "Atkinson Hyperlegible Next" && face.status === "loaded"); });
   await page.goto(base + "/app");
   await signIn(page, accounts[0]);
+  assert.ok(await atkinsonLoaded(), "the sign-in page renders in Atkinson Hyperlegible Next");
   await onboard(page);
+  // One typeface on every learner page (m7), served by ARI itself: no request leaves the origin.
+  assert.ok(await atkinsonLoaded(), "the app renders in Atkinson Hyperlegible Next");
+  assert.deepEqual(foreign, [], "no third-party request (fonts included)");
   assert.match(await page.locator("#profile-goal").innerText(), /niveau non mesuré/);
   // The weekly programme is computed from the profile: a declared B2 without estimate is "anamnese".
   assert.match(await page.locator("#week-phase").innerText(), /Anamnèse · niveau B2/);
@@ -88,7 +95,7 @@ try {
   await page.getByRole("button", {name: "Voir ma progression"}).click();
   await page.locator("#progress:not([hidden])").waitFor();
   assert.match(await page.locator("#progress-list").innerText(), /Lexique : 5.00/);
-  await page.getByRole("button", {name: "Historique", exact: true}).click();
+  await page.getByRole("link", {name: "Historique", exact: true}).click();
   await page.locator("#history:not([hidden])").waitFor();
   assert.match(await page.locator("#history-list").innerText(), /exam/);
   assert.equal(await page.locator("#history-list article").count(), 1);
@@ -118,7 +125,7 @@ try {
   await onboard(other, true);
   await other.goto(privateRunUrl);
   await other.locator("#error:visible").waitFor();
-  await other.getByRole("button", {name: "Historique", exact: true}).click();
+  await other.getByRole("link", {name: "Historique", exact: true}).click();
   await other.getByText("Pas encore de session enregistrée.", {exact: false}).waitFor();
   // Mobile layout has no page-level horizontal overflow.
   await page.setViewportSize({width: 390, height: 844});

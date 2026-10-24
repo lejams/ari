@@ -78,6 +78,8 @@ def _public_case(case: MedicalCase) -> dict[str, object]:
         "title": case.title,
         "language": case.language,
         "public_summary": case.public_summary,
+        # The patient's first sentence: the home page quotes it before a training consultation.
+        "opening_statement": case.opening_statement,
         "difficulty": case.difficulty,
         "cefr": case.cefr,
         "land": case.land.value if case.land else None,

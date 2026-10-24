@@ -83,7 +83,7 @@ const progression = {
 };
 const placement = { available: true, set: { description_fr: "d" }, limitations: "l", latest: null, declared_level: "B1" };
 const laender = ["Baden-Württemberg", "Bayern", "Berlin"];
-const voiceCase = { id: "CASE", version: "1", title: "Fall", public_summary: "s", language: "de-DE", land: "Bayern", city: null, cefr: "B2", educational_target: { exam: "FSP", phase: "arzt_patient", duration_minutes: 10 } };
+const voiceCase = { id: "CASE", version: "1", title: "Fall", public_summary: "s", opening_statement: "Ich habe Schmerzen in der Brust.", language: "de-DE", land: "Bayern", city: null, cefr: "B2", educational_target: { exam: "FSP", phase: "arzt_patient", duration_minutes: 10 } };
 const casesSummary = { learner_land: "Bayern", laender: [{ land: "Bayern", cases: 1, worked: 0, share_worked: 0 }], without_land: 0 };
 const responses = {
   "/api/profile": profile, "/api/program": program, "/api/exercises": { items: [] }, "/api/cases": [voiceCase],
@@ -125,8 +125,33 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
 }
 {
   const { nodes } = await load("#home");
-  assert.match(nodes.get("recommendation").children[1].textContent, /Réviser mon carnet/);
+  const [text, ...rest] = nodes.get("recommendation").children;
+  assert.match(text.children[1].textContent, /Réviser mon carnet/);
+  assert.deepEqual(rest.map(child => child.className), ["hero-actions"], "no patient quote outside a training consultation");
   assert.equal(nodes.get("week-days").children.length, 7);
+}
+{
+  // A training consultation next: the hero quotes its patient, in the case's language, with one button.
+  const voiceSlot = { id: "voice_training-3", day_offset: 3, date: "2026-09-17", kind: "voice_training", minutes: 15, state: "today", rationale: "r", recommended: { kind: "voice", id: "CASE", version: "1", title: "Fall", mode: "training" } };
+  const saved = responses["/api/program"];
+  responses["/api/program"] = { ...program, week: { ...program.week, slots: [voiceSlot], next: voiceSlot } };
+  const { nodes } = await load("#home");
+  responses["/api/program"] = saved;
+  const [text, quote, actions] = nodes.get("recommendation").children;
+  assert.equal(text.children[1].textContent, "Votre consultation du jour");
+  assert.equal(actions.children.filter(child => child.tagName === "BUTTON").map(button => button.textContent).join("|"), "Commencer la consultation");
+  assert.equal(quote.tagName, "FIGURE");
+  assert.equal(quote.children[0].textContent, "« Ich habe Schmerzen in der Brust. »");
+  assert.equal(quote.children[0].lang, "de");
+}
+{
+  // An exam next: no quote, the help stays out of exam mode.
+  const examSlot = { id: "voice_exam-3", day_offset: 3, date: "2026-09-17", kind: "voice_exam", minutes: 15, state: "today", rationale: "r", recommended: { kind: "voice", id: "CASE", version: "1", title: "Fall", mode: "exam" } };
+  const saved = responses["/api/program"];
+  responses["/api/program"] = { ...program, week: { ...program.week, slots: [examSlot], next: examSlot } };
+  const { nodes } = await load("#home");
+  responses["/api/program"] = saved;
+  assert.equal(nodes.get("recommendation").children.length, 2, "text and actions, no quote");
 }
 {
   const { nodes } = await load("#cases");

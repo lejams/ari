@@ -169,6 +169,13 @@ def test_http_and_websocket_vertical_slice(container: Container) -> None:
         assert payload["turns"][0]["audio_delivered_at"] is None
 
 
+def test_public_case_carries_the_patient_opening(container: Container) -> None:
+    with TestClient(create_app(container)) as client:
+        case = client.get("/api/cases").json()[0]
+    expected = container.cases.get(case["id"], case["version"]).opening_statement
+    assert expected and case["opening_statement"] == expected
+
+
 def test_end_without_transcript_keeps_session_resumable(container: Container) -> None:
     app = create_app(container)
     with TestClient(app) as client:
