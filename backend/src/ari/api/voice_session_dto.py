@@ -43,6 +43,7 @@ SESSION_FIELDS = (
     "call_started_at",
     "ended_at",
     "learning_mode",
+    "evaluation_account",
 )
 SNAPSHOT_FIELDS = (
     "scenario_id",

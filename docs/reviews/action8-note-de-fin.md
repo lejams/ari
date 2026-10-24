@@ -93,7 +93,8 @@ Code et tests terminés, non commités. Mode d'emploi : `docs/EVALS.md`.
 5. Faire relire les phrases allemandes par un germanophone.
 6. Pour le médecin : 30 à 50 transcripts annotés, avec consentement, hors dépôt.
 7. Ajouter un champ « erreurs médicales » à l'évaluation : c'est un changement de prompt.
-8. Pour l'action 3b : le retard après interruption (découverte 1).
+8. Pour l'action 3b : le retard après interruption (découverte 1). Corrigé le 24 octobre 2026
+   (voir la note de l'action 3b) : P95 examen en processus 167 ms au lieu de 816 ms.
 
 ### Mesures
 - `patient-leakage@1`, fake, dev, 3 répétitions :
@@ -122,6 +123,46 @@ Code et tests terminés, non commités. Mode d'emploi : `docs/EVALS.md`.
 - `make test-backend` sur PostgreSQL 17 local (port 5433). Les 45 tests de `backend/tests/evals/`
   sont verts, et la suite complète aussi : 517 tests verts.
 - `make evals-fake` : les quatre exécutions écrivent leur rapport.
+
+## Suite : compte d'évaluation (point 1), 24 octobre 2026
+
+Branche `claude/project-thread-f6hwc2`, depuis `main` en `462ed72`. Décision du propriétaire :
+option A (« ok pour A »).
+
+### Fait
+- Migration `0005_evaluation_accounts`, ajout seul de deux colonnes, sans reprise de données :
+  - `learners.evaluation_since` : NULL pour tout apprenant, date de la marque sinon ;
+  - `sessions.evaluation_account` : `false` par défaut, fixé à la création de la session.
+- Marque posée et retirée par un administrateur, en ligne de commande dans le conteneur du
+  back-office : `python -m ari.backoffice_api.cli evaluation-account mark|unmark|list`. Aucune
+  route web. Le compte doit avoir terminé l'onboarding.
+- Quota : `UsageGuard` saute le quota d'examens d'un compte marqué. Le décompte ignore les sessions
+  d'évaluation. Le coupe-circuit d'abus optionnel s'applique encore.
+- Exclusions des sessions marquées : programme de la semaine, modèle de l'apprenant, progression,
+  résumé des cas travaillés, carnet de vocabulaire. L'historique les garde.
+- Page Coûts : appels exclus de tous les totaux, de la médiane et des sessions récentes, affichés à
+  part sur une ligne (`evaluation_excluded`).
+- La session publique expose `evaluation_account`, pour que la cible staging vérifie la marque
+  avant de mesurer.
+
+### Décisions prises dans mon périmètre
+- La marque est sur l'apprenant, pas sur le compte de connexion : quota, sessions et programme
+  sont rattachés à l'apprenant.
+- La session garde sa marque : retirer la marque d'un compte ne réintègre pas ses mesures passées.
+- Un appel sans session (test de niveau) est exclu des coûts tant que son apprenant est marqué.
+- Pas de nouveau plafond, pas de changement de la valeur du quota.
+
+### Validation
+- `make lint` vert (ruff, mypy strict sur 195 fichiers, 6 contrats import-linter).
+- `alembic -n platform check` sans écart, aller-retour `downgrade 0004` puis `upgrade head`.
+- 8 nouveaux tests dans `backend/tests/test_evaluation_accounts.py` ; suite complète `make test-backend` : 535 tests verts (PostgreSQL 16 local).
+- `make test-backoffice-web` vert.
+
+### Revue
+- Brief Opus prêt : `docs/reviews/action8-evaluation-account-opus-review-brief.md`.
+- Décision du propriétaire du 24 octobre 2026 : la revue Codex de la PR #23 suffit, la revue Opus
+  n'a pas eu lieu. Cette dispense ne vaut que pour cette PR, pas pour les actions 5, 6, 7, 11 et 12.
+- PR #23 fusionnée le 24 octobre 2026.
 
 ## Suite du 24 octobre 2026 : gate de promotion (points 2 et 4)
 

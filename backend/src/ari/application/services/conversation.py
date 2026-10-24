@@ -118,6 +118,7 @@ class ConversationOrchestrator:
             voice_stack_version=stack.version,
             voice_stack_config=stack.snapshot(),
             status=SessionStatus.CREATED,
+            evaluation_account=learner.evaluation_account,
         )
         return self.repository.create_session(session)
 
@@ -242,7 +243,9 @@ class ConversationOrchestrator:
             self.repository.save_analysis(
                 session_id, outcome.evaluation, metrics, vocabulary, outcome.execution
             )
-            if self._lexicon is not None:
+            # An evaluation session leaves the learner's notebook as it was: the next measure
+            # starts from the same state.
+            if self._lexicon is not None and not session.evaluation_account:
                 cadence = self.repository.get_learner(session.learner_id).details
                 self._lexicon.ingest_session(
                     session, case, outcome, maintenance_days=cadence.maintenance_cadence_days

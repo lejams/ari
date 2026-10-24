@@ -18,7 +18,8 @@ def completed_since_week_start(
     completed: dict[str, list[datetime]] = {}
     for session in services.repository.list_sessions(learner_id):
         if (
-            session.status is SessionStatus.COMPLETED
+            not session.evaluation_account  # an evaluation session never fills a programme slot
+            and session.status is SessionStatus.COMPLETED
             and session.ended_at
             and session.ended_at >= start
         ):

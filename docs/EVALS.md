@@ -161,14 +161,27 @@ C'est le rôle de la cible staging, décrite plus bas, qui n'est pas encore fait
 
 **Cible staging (à faire).** Même script, joué contre l'environnement de staging sur le réseau réel,
 avec les vrais modèles, 20 sessions par configuration. Les deux moteurs d'examen seront couverts
-(`ARI_EXAM_ENGINE=chain|openai_realtime`). Prérequis, recommandés et non encore implémentés :
-- **un compte d'évaluation dédié**, marqué comme tel par un administrateur et exempté du quota
-  d'examens. Le quota reste inchangé pour tous les autres comptes, jamais désactivé pour les
-  apprenants ;
-- **ses sessions marquées « évaluation »** et exclues des métriques, du programme et de la page
-  Coûts des apprenants.
+(`ARI_EXAM_ENGINE=chain|openai_realtime`). Son prérequis, le compte d'évaluation, existe
+(migration `0005_evaluation_accounts`, décision du propriétaire du 24 octobre 2026) :
+- **un compte d'évaluation dédié**, marqué par un administrateur depuis le serveur :
+  `python -m ari.backoffice_api.cli evaluation-account mark --email <adresse>` (aussi `unmark` et
+  `list`). Le compte doit avoir terminé l'onboarding. Aucune route web ne pose ni ne retire la
+  marque ;
+- ce compte n'a **pas de quota d'examens**. Le quota reste inchangé pour tous les autres comptes.
+  Le coupe-circuit d'abus optionnel, lui, s'applique encore s'il est configuré ;
+- **chaque session qu'il démarre est marquée** (`sessions.evaluation_account`, visible dans la
+  réponse de l'API sous `evaluation_account`). Elle reste hors du programme de la semaine, du
+  modèle de l'apprenant, de la progression, du résumé des cas travaillés et du carnet de
+  vocabulaire. Elle reste dans l'historique ;
+- sur la page Coûts, les appels de ces sessions, et ceux d'un apprenant marqué qui n'ont pas de
+  session (test de niveau), sortent de tous les totaux, de la médiane et des sessions récentes. Ils
+  sont affichés à part sur une ligne, pour que la dépense ne disparaisse pas ;
+- retirer la marque rend le quota au compte à partir de ce moment. Ses sessions d'évaluation passées
+  restent exclues, et ne comptent pas dans le quota.
 
-C'est une migration en production : elle demande une revue Opus.
+La cible staging devra vérifier `evaluation_account` sur chaque session créée et s'arrêter si la
+valeur est fausse. Staging force aujourd'hui les fournisseurs simulés (`docs/DEPLOYMENT.md`) :
+jouer les vrais modèles y demande une décision du propriétaire.
 
 ## 5. Lire un rapport
 

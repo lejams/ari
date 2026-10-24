@@ -140,6 +140,13 @@ class LearnerProfile:
     goal: LearningGoal
     created_at: datetime = field(default_factory=utc_now)
     details: LearnerDetails = field(default_factory=LearnerDetails)
+    # Set by an administrator only, never by the learner: an account used to measure ARI
+    # (`voice-sim` on staging), exempt from the exam quota. None for every real learner.
+    evaluation_since: datetime | None = None
+
+    @property
+    def evaluation_account(self) -> bool:
+        return self.evaluation_since is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -418,6 +425,8 @@ class ConversationSession:
     learning_mode: LearningMode | None = None  # Historical sessions: unknown, not inferred.
     start_request_id: str | None = None
     start_request_hash: str | None = None
+    # Started by an evaluation account: kept out of learner metrics, programme and costs.
+    evaluation_account: bool = False
 
 
 def new_id() -> str:
