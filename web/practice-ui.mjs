@@ -242,7 +242,7 @@ async function runSlot(slot) {
   return showCases();
 }
 const DAY_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-let weekProgram = null, weekSelectedOffset = 0;
+let weekProgram = null, weekSelectedOffset = 0, weekPills = [];
 function renderHero(program) {
   const week = program.week, model = program.model, next = week.next;
   const today = week.slots.filter(slot => slot.state === 'today' || (slot.state === 'done' && slot.date === week.today));
@@ -262,7 +262,7 @@ function renderHero(program) {
 function renderWeekDay(offset) {
   weekSelectedOffset = offset;
   const week = weekProgram.week;
-  Array.from($('week-days').children).forEach((pill, index) => pill.setAttribute('aria-pressed', String(index === offset)));
+  weekPills.forEach((pill, index) => pill.setAttribute('aria-pressed', String(index === offset)));
   const day = new Date(week.week_start + 'T00:00:00'); day.setDate(day.getDate() + offset);
   const slots = week.slots.filter(slot => slot.day_offset === offset);
   const detail = $('week-day-detail');
@@ -283,15 +283,17 @@ function renderWeek(program) {
   $('week-message').textContent = week.message;
   $('week-limitations').textContent = week.limitations;
   const todayOffset = Math.max(0, Math.round((new Date(week.today + 'T00:00:00') - new Date(week.week_start + 'T00:00:00')) / 86400000));
-  $('week-days').replaceChildren(...DAY_LETTERS.map((letter, offset) => {
+  // A toggle button cannot carry role="listitem" (axe aria-allowed-attr): each one sits in a list item.
+  weekPills = DAY_LETTERS.map((letter, offset) => {
     const slots = week.slots.filter(slot => slot.day_offset === offset);
     const state = !slots.length ? 'rest' : slots.every(slot => slot.state === 'done') ? 'done' : slots.some(slot => slot.state === 'missed') ? 'missed' : offset === todayOffset ? 'today' : 'todo';
-    const pill = node('button', undefined, 'week-pill'); pill.type = 'button'; pill.dataset.state = state; pill.setAttribute('role', 'listitem');
+    const pill = node('button', undefined, 'week-pill'); pill.type = 'button'; pill.dataset.state = state;
     pill.append(node('span', letter, 'week-pill-day'), node('span', slots.length ? String(slots.length) : '·', 'week-pill-count'));
     pill.title = slots.map(slot => SLOT_LABELS[slot.kind]).join(', ') || 'repos';
     pill.addEventListener('click', () => renderWeekDay(offset));
     return pill;
-  }));
+  });
+  $('week-days').replaceChildren(...weekPills.map(pill => { const item = node('div', undefined, 'week-pill-item'); item.setAttribute('role', 'listitem'); item.append(pill); return item; }));
   renderWeekDay(todayOffset);
 }
 async function home() {

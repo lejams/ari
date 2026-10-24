@@ -3,7 +3,9 @@
 import assert from "node:assert/strict";
 import {createRequire} from "node:module";
 import {readFile} from "node:fs/promises";
-const {chromium} = createRequire(import.meta.url)("playwright");
+const require = createRequire(import.meta.url);
+const {chromium} = require("playwright");
+const axeSource = await readFile(require.resolve("axe-core/axe.min.js"), "utf8");
 const base = process.env.ARI_E2E_URL || "http://127.0.0.1:8010";
 if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(base)) throw new Error("Local disposable demo only");
 const browser = await chromium.launch({headless: true,
@@ -12,6 +14,20 @@ const errors = [];
 const accountFile = process.env.ARI_E2E_ACCOUNT_FILE;
 assert.ok(accountFile, "ARI_E2E_ACCOUNT_FILE must point at the seeded account file");
 const accounts = JSON.parse(await readFile(accountFile, "utf8"));
+
+// axe-core on the rendered page: WCAG 2.0/2.1 A and AA plus best practices, no violation allowed.
+async function assertAccessible(page, label) {
+  if (!await page.evaluate(() => "axe" in window)) await page.addScriptTag({content: axeSource});
+  const violations = await page.evaluate(async () => (await window.axe.run(document, {
+    runOnly: {type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"]},
+  })).violations.map(v => `${v.impact} ${v.id}: ${v.nodes.slice(0, 3).map(n => n.target.join(" ")).join(", ")}`));
+  assert.deepEqual(violations, [], `axe violations on ${label}`);
+}
+
+async function assertNoOverflow(page, label) {
+  const widths = await page.evaluate(() => [document.documentElement.scrollWidth, innerWidth]);
+  assert.ok(widths[0] <= widths[1], `${label} overflows horizontally: ${widths[0]} > ${widths[1]} px`);
+}
 
 async function signIn(page, account) {
   await page.goto(base + "/connexion");
@@ -120,13 +136,43 @@ try {
   await other.locator("#error:visible").waitFor();
   await other.getByRole("button", {name: "Historique", exact: true}).click();
   await other.getByText("Pas encore de session enregistrée.", {exact: false}).waitFor();
-  // Mobile layout has no page-level horizontal overflow.
-  await page.setViewportSize({width: 390, height: 844});
+  // A training voice consultation in fake mode: one typed sentence, then the feedback.
+  await page.goto(base + "/app#cases");
+  await page.locator("#voice-cases article").getByRole("button", {name: "Préparer cette session →"}).click();
+  await page.getByRole("button", {name: "Commencer la session →", exact: true}).click();
+  await page.waitForURL(/\/voice\.html/);
+  await page.getByRole("button", {name: "Commencer la consultation", exact: true}).click();
+  await page.locator("#end:enabled").waitFor();
+  await page.getByLabel("Phrase de test").fill("Guten Tag, was führt Sie zu mir?");
+  await page.locator("#debug-form").getByRole("button", {name: "Envoyer"}).click();
+  await page.locator("#transcript .turn.patient").first().waitFor();
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({width, height: 844});
+    await assertAccessible(page, `voice call at ${width} px`);
+    await assertNoOverflow(page, `voice call at ${width} px`);
+  }
+  await page.getByRole("button", {name: "Terminer", exact: true}).click();
+  await page.locator("#feedback:not(.hidden)").waitFor();
+  const voiceFeedbackUrl = page.url();
+  // Every main page, filled with the sessions above, on desktop and mobile: axe and no horizontal overflow.
+  for (const [width, height] of [[1280, 860], [390, 844]]) {
+    await page.setViewportSize({width, height});
+    for (const view of ["home", "cases", "exam", "progress", "vocab", "history", "placement"]) {
+      await page.goto(base + "/app#" + view);
+      await page.locator(`#${view}:not([hidden])`).waitFor();
+      await page.waitForLoadState("networkidle");
+      await assertAccessible(page, `${view} at ${width} px`);
+      await assertNoOverflow(page, `${view} at ${width} px`);
+    }
+    await page.goto(voiceFeedbackUrl);
+    await page.locator("#feedback:not(.hidden)").waitFor();
+    await assertAccessible(page, `voice feedback at ${width} px`);
+    await assertNoOverflow(page, `voice feedback at ${width} px`);
+  }
   await page.goto(base + "/app#cases");
   await page.locator("#cases:not([hidden])").waitFor();
   assert.equal(await page.locator("#voice-cases article").count(), 1);
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);
   await page.screenshot({path: process.env.ARI_E2E_SCREENSHOT || "/tmp/ari-mvp-mobile.png", fullPage: true});
-  console.log("Browser E2E passed: onboarding, both phases, modes, resume, feedback, history, progression, isolation, mobile.");
+  console.log("Browser E2E passed: onboarding, both phases, modes, resume, feedback, history, progression, isolation, voice training, axe and overflow on desktop and mobile.");
 } finally { await browser.close(); }
