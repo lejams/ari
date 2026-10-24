@@ -109,9 +109,16 @@ try {
   const context = await browser.newContext();
   const page = await context.newPage();
   page.on("pageerror", error => errors.push(error.message));
+  const foreign = [];
+  page.on("request", request => { if (!request.url().startsWith(base) && !request.url().startsWith("data:")) foreign.push(request.url()); });
+  const atkinsonLoaded = () => page.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some(face => face.family.replace(/"/g, "") === "Atkinson Hyperlegible Next" && face.status === "loaded"); });
   await page.goto(base + "/app");
   await signIn(page, accounts[0]);
+  assert.ok(await atkinsonLoaded(), "the sign-in page renders in Atkinson Hyperlegible Next");
   await onboard(page);
+  // One typeface on every learner page (m7), served by ARI itself: no request leaves the origin.
+  assert.ok(await atkinsonLoaded(), "the app renders in Atkinson Hyperlegible Next");
+  assert.deepEqual(foreign, [], "no third-party request (fonts included)");
   assert.match(await page.locator("#profile-goal").innerText(), /niveau non mesuré/);
   // The weekly programme is computed from the profile: a declared B2 without estimate is "anamnese".
   assert.match(await page.locator("#week-phase").innerText(), /Anamnèse · niveau B2/);
@@ -119,7 +126,7 @@ try {
   assert.match(await page.locator("#recommendation h1").innerText(), /./, "the hero names the next step");
   // Offline, the learner reads French, then retries once the network is back.
   await context.setOffline(true);
-  await page.getByRole("button", {name: "Carnet", exact: true}).first().click();
+  await page.getByRole("link", {name: "Carnet", exact: true}).first().click();
   await page.locator("#error:visible").waitFor();
   assert.match(await page.locator("#error-text").innerText(), /^Connexion impossible : vérifiez votre réseau\./);
   await context.setOffline(false);
@@ -167,7 +174,7 @@ try {
   await page.getByRole("button", {name: "Voir ma progression"}).click();
   await page.locator("#progress:not([hidden])").waitFor();
   assert.match(await page.locator("#progress-list").innerText(), /Lexique : 5.00/);
-  await page.getByRole("button", {name: "Historique", exact: true}).click();
+  await page.getByRole("link", {name: "Historique", exact: true}).click();
   await page.locator("#history:not([hidden])").waitFor();
   assert.match(await page.locator("#history-list").innerText(), /Examen/);
   assert.equal(await page.locator("#history-list article").count(), 1);
@@ -198,7 +205,7 @@ try {
   await completePlacement(other);
   await other.goto(privateRunUrl);
   await other.locator("#error:visible").waitFor();
-  await other.getByRole("button", {name: "Historique", exact: true}).click();
+  await other.getByRole("link", {name: "Historique", exact: true}).click();
   await other.getByText("Pas encore de session enregistrée.", {exact: false}).waitFor();
   await other.getByRole("button", {name: "Explorer la bibliothèque →", exact: true}).click();
   await other.locator("#cases:not([hidden])").waitFor();
