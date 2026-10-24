@@ -44,8 +44,6 @@ from ari.domain.models import (
 PCM_MIME_TYPE = "audio/pcm;rate=24000"
 MAX_TURN_SECONDS = 300
 MIN_TURN_SECONDS = 0.25
-# How long the end of a session waits for interrupted answers' synthesis to finish.
-INTERRUPTED_TTS_GRACE_SECONDS = 30
 
 # Events that say nothing about the learner being there; every other event resets the idle clock.
 PASSIVE_EVENTS = frozenset({"call.started", "call.ended", "session.time_limit", "voice.error"})
@@ -484,14 +482,11 @@ class VoiceSocket:
             self.services.repository.record_execution(execution)
 
     async def _settle_interrupted_streams(self) -> None:
-        if not self.interrupted_streams:
-            return
-        pending = asyncio.gather(*self.interrupted_streams, return_exceptions=True)
-        try:
-            async with asyncio.timeout(INTERRUPTED_TTS_GRACE_SECONDS):
-                await asyncio.shield(pending)
-        except TimeoutError:
-            pending.cancel()
+        # Never cancelled here: a cancelled reader would lose the call and its cost. Each TTS
+        # adapter bounds its whole stream (`tts_timeout_seconds`) and then fails with a
+        # ProviderError carrying the execution, which the reader records.
+        if self.interrupted_streams:
+            await asyncio.shield(asyncio.gather(*self.interrupted_streams, return_exceptions=True))
 
     def _tts(self) -> StreamingTTSProvider:
         return self.services.tts

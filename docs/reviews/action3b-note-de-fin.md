@@ -59,7 +59,9 @@ dans le rapport d'examen et la page Coûts après la bascule.
 **Suivi du 24 octobre 2026 : retard après une interruption (découverte 1 de l'action 8).**
 Une réponse interrompue n'est plus lue jusqu'au bout avant la suivante. Le reste de la synthèse
 est lu en tâche de fond (`VoiceSocket._finish_interrupted_stream`) : l'appel garde son coût
-(invariant 9) et la fin de session attend ces lectures, 30 s au plus, avant de finaliser. Mesure
+(invariant 9) et la fin de session attend ces lectures avant de finaliser, sans jamais les
+annuler : chaque adaptateur TTS borne déjà son flux (`tts_timeout_seconds`) et échoue alors avec
+l'exécution, qui est enregistrée. Mesure
 `voice-sim@1` en processus : P95 examen 167 ms au lieu de 816 ms. Test :
 `test_the_next_answer_does_not_wait_for_the_end_of_an_interrupted_sentence`.
 
