@@ -1,0 +1,8 @@
+# Fournisseur simulé, patient de la chaîne d'examen (action 3b) : vérifie la chaîne de mesure.
+id: fake-exam
+description: Fournisseur simulé déterministe (CI), patient de la chaîne d'examen
+provider: fake
+patient_engine: exam
+prompts:
+  patient: patient-exam-v1
+  evaluation: evaluation-v6

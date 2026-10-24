@@ -1,0 +1,22 @@
+{
+  "suite": "voice-sim",
+  "version": "1",
+  "description": "Apprenant simulé scripté sur la vraie chaîne vocale : questions attendues, question sans réponse dans le cas, hors sujet, autre langue, interruption volontaire, lecture non confirmée.",
+  "synthetic": true,
+  "source": "Script rédigé par l'agent pour le cas synthétique ARI-DEV-FR de cases/dev",
+  "created_on": "2026-10-22",
+  "annotators": [
+    {
+      "id": "agent:claude-opus-5.5",
+      "role": "rédaction synthétique",
+      "annotated_on": "2026-10-22"
+    }
+  ],
+  "files": {
+    "scripts.jsonl": "c2d149b198f52c9f7c9f6edda023d7bbceadeb7775236156e78810d4bced48e7"
+  },
+  "limitations": [
+    "Un seul cas, en français : le seul cas vocal publié par cases/dev. Les scripts en allemand viendront avec les cas allemands publiés.",
+    "Les faits autorisés par question sont l'annotation de l'agent, pas d'un médecin."
+  ]
+}

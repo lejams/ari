@@ -7,7 +7,7 @@ MYPY ?= .venv/bin/mypy
 ALEMBIC ?= .venv/bin/alembic
 LINT_IMPORTS ?= .venv/bin/lint-imports
 
-.PHONY: install install-locked db-up db-down db-reset dev dev-fr backoffice worker migrate migrate-content migration-check migration-check-content test test-backend test-web test-backoffice-web lint format
+.PHONY: install install-locked db-up db-down db-reset dev dev-fr backoffice worker migrate migrate-content migration-check migration-check-content test test-backend test-web test-backoffice-web evals-fake lint format
 
 install:
 	$(PYTHON) -m pip install -e "backend[dev]"
@@ -69,6 +69,15 @@ test-backoffice-web:
 
 test-backend:
 	$(PYTEST) backend/tests
+
+# Every suite with a committed dataset, on the deterministic fake provider: checks the
+# measurement chain (datasets, services, scoring, report), says nothing about model quality.
+evals-fake:
+	PYTHONPATH=backend/src $(PYTHON) -m ari.evals run --suite patient-leakage@1 --config evals/configs/fake.yaml --repeat 3 --out var/evals/fake/patient-leakage.json
+	PYTHONPATH=backend/src $(PYTHON) -m ari.evals run --suite evaluation-language@1 --config evals/configs/fake.yaml --repeat 3 --out var/evals/fake/evaluation-language.json
+	PYTHONPATH=backend/src $(PYTHON) -m ari.evals run --suite patient-leakage@1 --config evals/configs/fake-exam.yaml --repeat 3 --out var/evals/fake/patient-leakage-exam.json
+	# Real sockets and a throwaway database created on ARI_TEST_DATABASE_URL, dropped afterwards.
+	PYTHONPATH=backend/src $(PYTHON) -m ari.evals voice --config evals/configs/voice/fake.yaml --out var/evals/fake/voice-sim.json
 
 test-web:
 	$(NODE) --check web/practice-client.mjs

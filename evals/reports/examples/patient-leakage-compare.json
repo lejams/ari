@@ -1,0 +1,327 @@
+{
+  "compare_version": "evals-compare-v1",
+  "suite": "patient-leakage@1",
+  "split": "dev",
+  "dataset_manifest_sha256": "b55826c637cf5b2142ca9d6676ab3766dc008ecd4f02fa486aadb554f2055f87",
+  "gates_version": "gates-v2",
+  "baseline": "fake",
+  "configs": [
+    {
+      "config_id": "fake",
+      "routes": {},
+      "prompts": {
+        "patient": "patient-v3",
+        "evaluation": "evaluation-v6"
+      },
+      "gate": {
+        "gates_version": "gates-v2",
+        "status": "failed",
+        "checks": [
+          {
+            "metric": "leak_rate",
+            "bound": "<= 0.02",
+            "value": 0.1,
+            "status": "failed"
+          },
+          {
+            "metric": "stability.changed_rate",
+            "bound": "<= 0.1",
+            "value": 0.0,
+            "status": "passed"
+          },
+          {
+            "metric": "structured_after_retry",
+            "bound": ">= 0.995",
+            "value": 1.0,
+            "status": "passed"
+          }
+        ],
+        "new_critical_errors": [],
+        "baseline": "fake"
+      },
+      "mean_micro_eur_per_case": 0,
+      "unknown_cost_calls": 0,
+      "metrics": {
+        "leak_rate": {
+          "value": 0.1,
+          "interval": [
+            0.033333,
+            0.183333
+          ]
+        },
+        "invented_fact_rate": {
+          "value": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "refusal.recall": {
+          "value": 0.9230769230769231,
+          "interval": [
+            0.727273,
+            1.0
+          ]
+        },
+        "refusal.any_recall": {
+          "value": 0.9230769230769231,
+          "interval": [
+            0.727273,
+            1.0
+          ]
+        },
+        "over_refusal_rate": {
+          "value": 0.23404255319148937,
+          "interval": [
+            0.119048,
+            0.354167
+          ]
+        },
+        "answer.recall": {
+          "value": 0.7,
+          "interval": [
+            0.542857,
+            0.847826
+          ]
+        },
+        "free_text_rejection_rate": {
+          "value": null,
+          "interval": null
+        },
+        "structured_after_retry": {
+          "value": 1.0,
+          "interval": [
+            1.0,
+            1.0
+          ]
+        },
+        "structured_first_try": {
+          "value": 1.0,
+          "interval": [
+            1.0,
+            1.0
+          ]
+        },
+        "stability.changed_rate": {
+          "value": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    {
+      "config_id": "fake-exam",
+      "routes": {},
+      "prompts": {
+        "patient": "patient-exam-v1",
+        "evaluation": "evaluation-v6"
+      },
+      "gate": {
+        "gates_version": "gates-v2",
+        "status": "failed",
+        "checks": [
+          {
+            "metric": "leak_rate",
+            "bound": "<= 0.02",
+            "value": 0.1,
+            "status": "failed"
+          },
+          {
+            "metric": "stability.changed_rate",
+            "bound": "<= 0.1",
+            "value": 0.0,
+            "status": "passed"
+          },
+          {
+            "metric": "structured_after_retry",
+            "bound": ">= 0.995",
+            "value": 1.0,
+            "status": "passed"
+          }
+        ],
+        "new_critical_errors": [],
+        "baseline": "fake"
+      },
+      "mean_micro_eur_per_case": 0,
+      "unknown_cost_calls": 0,
+      "metrics": {
+        "leak_rate": {
+          "value": 0.1,
+          "interval": [
+            0.033333,
+            0.183333
+          ]
+        },
+        "invented_fact_rate": {
+          "value": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "refusal.recall": {
+          "value": 0.9230769230769231,
+          "interval": [
+            0.727273,
+            1.0
+          ]
+        },
+        "refusal.any_recall": {
+          "value": 0.9230769230769231,
+          "interval": [
+            0.727273,
+            1.0
+          ]
+        },
+        "over_refusal_rate": {
+          "value": 0.23404255319148937,
+          "interval": [
+            0.119048,
+            0.354167
+          ]
+        },
+        "answer.recall": {
+          "value": 0.7,
+          "interval": [
+            0.542857,
+            0.847826
+          ]
+        },
+        "free_text_rejection_rate": {
+          "value": null,
+          "interval": null
+        },
+        "structured_after_retry": {
+          "value": 1.0,
+          "interval": [
+            1.0,
+            1.0
+          ]
+        },
+        "structured_first_try": {
+          "value": 1.0,
+          "interval": [
+            1.0,
+            1.0
+          ]
+        },
+        "stability.changed_rate": {
+          "value": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ]
+        }
+      }
+    }
+  ],
+  "candidates": [
+    {
+      "config_id": "fake-exam",
+      "metric_deltas": {
+        "leak_rate": {
+          "baseline": 0.1,
+          "candidate": 0.1,
+          "delta": 0.0,
+          "delta_interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "invented_fact_rate": {
+          "baseline": 0.0,
+          "candidate": 0.0,
+          "delta": 0.0,
+          "delta_interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "refusal.recall": {
+          "baseline": 0.9230769230769231,
+          "candidate": 0.9230769230769231,
+          "delta": 0.0,
+          "delta_interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "refusal.any_recall": {
+          "baseline": 0.9230769230769231,
+          "candidate": 0.9230769230769231,
+          "delta": 0.0,
+          "delta_interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "over_refusal_rate": {
+          "baseline": 0.23404255319148937,
+          "candidate": 0.23404255319148937,
+          "delta": 0.0,
+          "delta_interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "answer.recall": {
+          "baseline": 0.7,
+          "candidate": 0.7,
+          "delta": 0.0,
+          "delta_interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "free_text_rejection_rate": {
+          "baseline": null,
+          "candidate": null,
+          "delta": null,
+          "delta_interval": null
+        },
+        "structured_after_retry": {
+          "baseline": 1.0,
+          "candidate": 1.0,
+          "delta": 0.0,
+          "delta_interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "structured_first_try": {
+          "baseline": 1.0,
+          "candidate": 1.0,
+          "delta": 0.0,
+          "delta_interval": [
+            0.0,
+            0.0
+          ]
+        },
+        "stability.changed_rate": {
+          "baseline": 0.0,
+          "candidate": 0.0,
+          "delta": 0.0,
+          "delta_interval": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "verdict_changes": [],
+      "new_critical_errors": []
+    }
+  ],
+  "ranking": [],
+  "rejected": {
+    "fake": [
+      "leak_rate <= 0.02 : 0.1"
+    ],
+    "fake-exam": [
+      "leak_rate <= 0.02 : 0.1"
+    ]
+  },
+  "recommendation": null,
+  "recommendation_reason": "Aucune configuration ne passe tous les seuils."
+}

@@ -1,0 +1,7 @@
+# Fournisseur simulé déterministe : vérifie la chaîne de mesure, pas la qualité. Coût nul.
+id: fake
+description: Fournisseur simulé déterministe (CI), prompts de production, patient d'entraînement
+provider: fake
+prompts:
+  patient: patient-v3
+  evaluation: evaluation-v6

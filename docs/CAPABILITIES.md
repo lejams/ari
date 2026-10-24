@@ -29,6 +29,7 @@ de production viennent de l'environnement (`ARI_*`) et peuvent différer.
 | Programme hebdomadaire | Règles (phases, créneaux, budget temps, score de recommandation) | `program-rules-v2` | Non |
 | Progression par axes | Déterministe, aucun score global | `progress-axes-v1` | Non |
 | Métriques de session | Déterministe | `session-metrics-v1` | Oui |
+| Évaluation des sorties IA (`ari.evals`) | Suites rejouées sur les services réels (patient d'entraînement et d'examen, évaluateur, chaîne vocale complète avec apprenant simulé), scorers déterministes, seuils `gates.yaml`, classement par coût | `evals-report-v1`, `gates-v2` | Rapports JSON hors base (`var/evals/`) ; voir `docs/EVALS.md` |
 
 Il n'existe aujourd'hui ni compétence explicite, ni maîtrise persistée en dehors du carnet, ni estimation
 d'incertitude (plan, actions 6 à 9).

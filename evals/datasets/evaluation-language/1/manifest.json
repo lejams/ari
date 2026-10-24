@@ -1,0 +1,35 @@
+{
+  "suite": "evaluation-language",
+  "version": "1",
+  "description": "Transcripts synthétiques à erreurs injectées (genre, cas, forme verbale, ordre des mots, mot français, artefact STT, section oubliée) : vérité connue par construction.",
+  "synthetic": true,
+  "source": "Cas et énoncés inventés par l'agent, générés par evals/datasets/build_synthetic_v1.py",
+  "created_on": "2026-10-20",
+  "consent": "not_applicable:synthetic",
+  "annotators": [
+    {
+      "id": "agent:claude-opus-5.5",
+      "role": "rédaction synthétique",
+      "annotated_on": "2026-10-20"
+    }
+  ],
+  "splits": {
+    "dev": [
+      "brustschmerz",
+      "bauchschmerz",
+      "atemnot"
+    ],
+    "holdout": [
+      "kopfschmerz"
+    ]
+  },
+  "files": {
+    "cases.json": "e3a457a8db9ec92bdebb9cfb38896c6d7fce9c1848edac4d6013bb554b5d4fd4",
+    "dev.jsonl": "7ebdff2f1460e1a9709f69db7daec3de6a6ce5cc2c973a61b85352688c716638",
+    "holdout.jsonl": "d3e0dca5b6911653a45d94d3860089c329f36727d4d298f9961e073bd9618673"
+  },
+  "limitations": [
+    "Variantes allemandes rédigées par l'agent : relecture par un germanophone requise avant de se fier aux seuils.",
+    "Une phrase « correcte » qui contiendrait une vraie faute compterait comme fausse erreur du modèle."
+  ]
+}

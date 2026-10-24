@@ -1,0 +1,12 @@
+# Routage mixte inter-fournisseurs : évaluation de session sur Claude Sonnet 5.5.
+# Équivalent : ARI_EVALUATION_PROVIDER=anthropic ARI_EVALUATION_MODEL=claude-sonnet-5-5
+#              (ARI_ANTHROPIC_API_KEY requis), patient inchangé sur gpt-6-luna.
+id: luna-patient-sonnet-evaluation
+description: Patient sur gpt-6-luna, évaluation sur claude-sonnet-5-5
+provider: live
+routes:
+  patient: {provider: openai, model: gpt-6-luna}
+  evaluation: {provider: anthropic, model: claude-sonnet-5-5}
+prompts:
+  patient: patient-v3
+  evaluation: evaluation-v6

@@ -1,0 +1,11 @@
+# Patient de la chaîne d'examen (ARI_EXAM_ENGINE=chain) sur gpt-6-luna.
+id: luna-exam
+description: Production, gpt-6-luna, patient de la chaîne d'examen
+provider: live
+patient_engine: exam
+routes:
+  patient: {provider: openai, model: gpt-6-luna}
+  evaluation: {provider: openai, model: gpt-6-luna}
+prompts:
+  patient: patient-exam-v1
+  evaluation: evaluation-v6

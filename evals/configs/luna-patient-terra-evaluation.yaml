@@ -1,0 +1,11 @@
+# Routage mixte : patient sur le modèle léger, évaluation de session sur le modèle plus fort.
+# Équivalent : ARI_PATIENT_MODEL=gpt-6-luna, ARI_EVALUATION_MODEL=gpt-5.6-terra (OpenAI).
+id: luna-patient-terra-evaluation
+description: Patient sur gpt-6-luna, évaluation sur gpt-5.6-terra
+provider: live
+routes:
+  patient: {provider: openai, model: gpt-6-luna}
+  evaluation: {provider: openai, model: gpt-5.6-terra}
+prompts:
+  patient: patient-v3
+  evaluation: evaluation-v6
