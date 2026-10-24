@@ -24,6 +24,7 @@ from ari.evals.pronunciation.runner import (
     SimulatedVoice,
     VoiceUnderTest,
     run_pronunciation,
+    summary_text,
 )
 from ari.evals.pronunciation.scoring import german_number, normalize, score
 from ari.evals.pronunciation.voices import build_voices, parse_candidate
@@ -154,6 +155,10 @@ async def test_misheard_numbers_and_failed_voices_are_flagged(tmp_path: Path) ->
     assert flagged["fever-two"] == ["38,5"] and flagged["atem-medication"] == ["tiotropium"]
     assert broken.sentences["failed"] == len(dataset.snippets)
     assert all(r.audio is None and r.error for r in report.results if r.voice == "broken")
+    # The log says why: one line per distinct error, with its count.
+    assert f"{len(dataset.snippets)} x voix : ElevenLabs speech synthesis failed" in summary_text(
+        report, tmp_path
+    )
     to_check = (tmp_path / "a-verifier.md").read_text("utf-8")
     assert "fever-two" in to_check and "38,5" in to_check
 

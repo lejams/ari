@@ -148,8 +148,9 @@ class Settings(BaseSettings):
     elevenlabs_tts_model: str = "eleven_v4_turbo"
     elevenlabs_output_format: str = "pcm_24000"  # the only format the players accept
     elevenlabs_base_url: str = "wss://api.elevenlabs.io/v1/text-to-dialogue/stream-input"
-    # How a voice is registered on a new connection; the documentation leaves it open.
-    elevenlabs_voice_registration: Literal["objects", "ids"] = "objects"
+    # How a voice is registered on a new connection: by id, the shape the service accepts
+    # (first live call, 24 October 2026); "objects" is refused with a validation error.
+    elevenlabs_voice_registration: Literal["objects", "ids"] = "ids"
     patient_timeout_seconds: float = 30.0
     evaluation_timeout_seconds: float = 60.0
     tts_timeout_seconds: float = 30.0
@@ -184,9 +185,7 @@ class Settings(BaseSettings):
 
     @field_validator("elevenlabs_exam_personas")
     @classmethod
-    def personas_are_known(
-        cls, value: dict[str, ExamPersonaVoice]
-    ) -> dict[str, ExamPersonaVoice]:
+    def personas_are_known(cls, value: dict[str, ExamPersonaVoice]) -> dict[str, ExamPersonaVoice]:
         unknown = sorted(set(value) - set(PERSONA_VARIANTS))
         if unknown:
             raise ValueError(f"unknown personas {unknown}; expected {list(PERSONA_VARIANTS)}")

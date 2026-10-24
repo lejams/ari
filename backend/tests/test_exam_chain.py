@@ -615,7 +615,7 @@ async def test_tags_are_read_before_the_sentence_and_settings_go_with_the_voice(
     seen: dict[str, Any] = {}
 
     async def handle(ws: ServerConnection) -> None:
-        seen["voices"] = json.loads(await ws.recv())["voices"]
+        seen["first"] = json.loads(await ws.recv())
         message = json.loads(await ws.recv())
         seen["text"] = message["inputs"][0]["text"]
         await ws.send(json.dumps({"audio": "AQI="}))
@@ -636,24 +636,11 @@ async def test_tags_are_read_before_the_sentence_and_settings_go_with_the_voice(
             session_id="s", operation="text_to_speech", case_version="1", case_hash="h"
         )
         events = [event async for event in tts.stream("Seit gestern.", context)]
-    assert seen["voices"] == [{"voice_id": "voice-anxious", "voice_settings": {"stability": 0.3}}]
+    # Voices by id, as the service requires; settings beside them in the first message.
+    assert seen["first"] == {"voices": ["voice-anxious"], "voice_settings": {"stability": 0.3}}
     assert seen["text"] == "[nervous] Seit gestern."
     execution = events[-1].execution
     assert execution is not None and execution.usage["characters"] == len("[nervous] Seit gestern.")
-
-
-def test_voice_settings_need_voices_registered_as_objects() -> None:
-    from ari.infrastructure.providers.elevenlabs import ElevenLabsStreamingTTSProvider
-
-    with pytest.raises(ValueError):
-        ElevenLabsStreamingTTSProvider(
-            "key",
-            model="eleven_v4_turbo",
-            voice_id="v",
-            timeout_seconds=1.0,
-            voice_registration="ids",
-            voice_settings={"speed": 1.1},
-        )
 
 
 def test_scenarios_without_a_persona_variant_keep_their_serialization() -> None:

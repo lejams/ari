@@ -238,6 +238,7 @@ PYTHONPATH=backend/src .venv/bin/python -m ari.evals pronunciation --live --voic
 
 **Workflow manuel `Patient voice on fixed sentences`** (`.github/workflows/voice-snippets.yml`),
 sur `main`, dans l'environnement GitHub `evals` :
+- voix par défaut : George (`JBFqnCBsd6RMkjVDRZzb`), une voix incluse ; vider `voices` pour tester les voix des personas ;
 - secrets : `ARI_ELEVENLABS_API_KEY`, `ARI_STT_API_KEY` ;
 - variables facultatives : `ARI_ELEVENLABS_EXAM_PERSONAS` (le JSON de la production),
   `ARI_STT_BASE_URL` et `ARI_STT_MODEL` pour un autre STT, par exemple OpenAI `whisper-1` ;
