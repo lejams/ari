@@ -56,6 +56,15 @@ point 7) : il exige un rapport `patient-leakage@1` (action 8) sur `patient-exam-
 **Mesures.** Aucune sur le service réel (décision du 20 octobre 2026). Latence et coût seront lus
 dans le rapport d'examen et la page Coûts après la bascule.
 
+**Suivi du 24 octobre 2026 : retard après une interruption (découverte 1 de l'action 8).**
+Une réponse interrompue n'est plus lue jusqu'au bout avant la suivante. Le reste de la synthèse
+est lu en tâche de fond (`VoiceSocket._finish_interrupted_stream`) : l'appel garde son coût
+(invariant 9) et la fin de session attend ces lectures avant de finaliser, sans jamais les
+annuler : chaque adaptateur TTS borne déjà son flux (`tts_timeout_seconds`) et échoue alors avec
+l'exécution, qui est enregistrée. Mesure
+`voice-sim@1` en processus : P95 examen 167 ms au lieu de 816 ms. Test :
+`test_the_next_answer_does_not_wait_for_the_end_of_an_interrupted_sentence`.
+
 **Reste ouvert.**
 - Premier essai avec la vraie clé : protocole, et prise en compte effective de `voice_settings` à
   l'enregistrement de la voix et des balises par `eleven_v4_turbo`, non vérifiées.
