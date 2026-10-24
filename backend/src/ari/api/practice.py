@@ -99,7 +99,10 @@ def practice_router(services: Container) -> APIRouter:
     def progression(request: Request) -> dict[str, Any]:
         owner = request.state.learner_id
         runs = practice.repository.list(owner)
-        sessions = services.repository.list_sessions(owner)
+        # Evaluation sessions stay in the history but never count as progress.
+        sessions = tuple(
+            s for s in services.repository.list_sessions(owner) if not s.evaluation_account
+        )
         result = practice_progression(runs)
         voice = voice_progression(sessions, services.cases)
         result["groups"].extend(voice["groups"])

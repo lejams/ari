@@ -30,7 +30,11 @@ tables the same way: `0004_evaluation_runs` keeps every analysis of a session in
 current run (`current_run_id`, a composite key that keeps the run in its session); its
 backfill makes each existing evaluation run 1 and can be replayed without duplicates. Its
 downgrade keeps the current analysis of each session and drops the earlier runs and
-`executions.model_returned`. Row locks (`SELECT ... FOR UPDATE`, or `FOR SHARE` when a session
+`executions.model_returned`. `0005_evaluation_accounts` only adds two columns, with no
+backfill: `learners.evaluation_since` (NULL for every learner, set by an administrator to mark an
+evaluation account) and `sessions.evaluation_account` (server default `false`, fixed when the
+session is created). Its downgrade drops both, and with them which sessions were evaluations.
+Row locks (`SELECT ... FOR UPDATE`, or `FOR SHARE` when a session
 pins a published scenario) serialise workflow mutations.
 
 Tests clone one template database migrated once per session (`backend/tests/conftest.py`,

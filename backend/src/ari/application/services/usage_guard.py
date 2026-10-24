@@ -1,7 +1,9 @@
 """Structural usage limits: the exam quota of the offer and an optional abuse breaker.
 
 Nothing here rations a normal learner by cost. The breaker is off unless an operator sets a
-ceiling; the quota is the offer itself (exam sessions included per calendar month).
+ceiling; the quota is the offer itself (exam sessions included per calendar month). An
+evaluation account, marked by an administrator to measure ARI on staging, has no exam quota;
+every other learner keeps it.
 """
 
 from __future__ import annotations
@@ -45,6 +47,8 @@ class UsageGuard:
         """Before a voice session is created or its call starts."""
         self.check_new_activity(learner_id)
         if learning_mode is not LearningMode.EXAM:
+            return
+        if self._ledger.is_evaluation_account(learner_id):
             return
         start, end = month_bounds(self._clock())
         used = self._ledger.exam_sessions_started(learner_id, start, end)

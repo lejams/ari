@@ -174,7 +174,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
         worked = {
             session.case_id
             for session in services.repository.list_sessions(learner_id)
-            if session.status is SessionStatus.COMPLETED
+            if session.status is SessionStatus.COMPLETED and not session.evaluation_account
         }
         return land_summary(services.cases.list(), worked, learner.details.land)
 

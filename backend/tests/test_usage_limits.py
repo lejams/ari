@@ -39,6 +39,9 @@ class FakeLedger:
         self.windows.append((start, end))
         return self.exams
 
+    def is_evaluation_account(self, learner_id: str) -> bool:
+        return False
+
     def cost(self, learner_id: str, start: datetime, end: datetime) -> MonthCost:
         return MonthCost(self.cost_micro_eur, 0)
 

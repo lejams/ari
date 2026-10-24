@@ -127,7 +127,7 @@ class LearnerModelService:
         sessions = tuple(
             s
             for s in self._repository.list_sessions(learner_id)
-            if s.status is SessionStatus.COMPLETED
+            if s.status is SessionStatus.COMPLETED and not s.evaluation_account
         )
         overview = self._lexicon.overview(learner_id)
         week_ago = now - timedelta(days=7)

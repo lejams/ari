@@ -222,6 +222,12 @@ production. Docker Compose >= 2.24.4 est requis pour l'override de ports `!overr
 Après le premier staging réussi, depuis le bundle qui a démarré staging, lire l'image du marqueur
 et exécuter dans le conteneur déjà actif : `ARI_IMAGE_REF="$(python3 -c 'import json; print(json.load(open("/opt/ari-staging/.release.json"))["image"])')" docker compose -p ari-staging --env-file /opt/ari-staging/.env -f docker-compose.yml -f deploy/staging.compose.yml exec backoffice python -m ari.backoffice_api.cli create-owner --email vous@exemple.org --name "Votre nom"`. Ne jamais
 copier comptes, mots de passe ou volumes de production vers staging.
+Compte d'évaluation de `voice-sim` (action 8) : créer un compte apprenant sur staging et terminer
+son onboarding, puis le marquer avec la même commande `exec backoffice`, en remplaçant
+`create-owner ...` par `evaluation-account mark --email <adresse>`. `evaluation-account list`
+montre les comptes marqués, `evaluation-account unmark --email <adresse>` retire la marque. Ce
+compte n'a pas de quota d'examens ; ses sessions restent hors des métriques, du programme et de la
+page Coûts (`docs/EVALS.md`, section 4).
 
 La promotion de production doit fournir dans la racine du bundle un fichier
 `staging-success.json` exact (`{"sha":"<sha>","image":"<image@digest>"}`) produit par le

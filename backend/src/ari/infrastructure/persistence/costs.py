@@ -2,6 +2,9 @@
 
 A NULL cost is never summed as zero: every group reports the known total and how many calls have
 an unknown cost, so a missing price shows up instead of shrinking the bill.
+
+Calls made for an evaluation account (`voice-sim` on staging) are kept out of every learner group
+and of the median, and reported apart as one total, so they neither skew nor vanish.
 """
 
 from __future__ import annotations
@@ -9,12 +12,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Date, Engine, case, cast, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import ColumnElement, Date, Engine, case, cast, func, or_, select
+from sqlalchemy.orm import Session, aliased
 
 from ari.infrastructure.persistence.content.rows import AiRunRow
 from ari.infrastructure.persistence.platform.account_rows import LearnerAccountRow
-from ari.infrastructure.persistence.platform.repository import ExecutionRow, SessionRow
+from ari.infrastructure.persistence.platform.repository import (
+    ExecutionRow,
+    LearnerRow,
+    SessionRow,
+)
 from ari.infrastructure.persistence.platform.voice_learning import VoiceLearningRow
 
 RECENT_SESSIONS = 20
@@ -38,9 +45,24 @@ def _group(row: Any, keys: tuple[str, ...]) -> dict[str, Any]:
     return group
 
 
-def _common(db: Session, table: Any, since: datetime) -> dict[str, Any]:
+def _evaluation_call() -> ColumnElement[bool]:
+    """A call of an evaluation session, or of a learner marked now (placement has no session)."""
+    # Aliased so the recent-sessions query, which joins `sessions` itself, keeps its own row.
+    session, learner = aliased(SessionRow), aliased(LearnerRow)
+    return or_(
+        select(session.id)
+        .where(session.id == ExecutionRow.session_id, session.evaluation_account)
+        .correlate(ExecutionRow)
+        .exists(),
+        select(learner.id)
+        .where(learner.id == ExecutionRow.learner_id, learner.evaluation_since.is_not(None))
+        .correlate(ExecutionRow)
+        .exists(),
+    )
+
+
+def _common(db: Session, table: Any, window: ColumnElement[bool]) -> dict[str, Any]:
     cost = table.cost_micro_eur
-    window = table.created_at >= since
     total = db.execute(select(*_measures(cost)).where(window)).one()
     day = cast(table.created_at, Date).label("day")
     by_day = db.execute(
@@ -89,9 +111,13 @@ class CostReport:
     def _platform(self, since: datetime) -> dict[str, Any]:
         table = ExecutionRow
         cost = table.cost_micro_eur
-        window = table.created_at >= since
+        evaluation = _evaluation_call()
+        window = (table.created_at >= since) & ~evaluation
         with Session(self.platform_engine) as db:
-            result = _common(db, table, since)
+            result = _common(db, table, window)
+            excluded = db.execute(
+                select(*_measures(cost)).where(table.created_at >= since, evaluation)
+            ).one()
             by_learner = db.execute(
                 select(table.learner_id, LearnerAccountRow.email, *_measures(cost))
                 .outerjoin(LearnerAccountRow, LearnerAccountRow.learner_id == table.learner_id)
@@ -134,6 +160,7 @@ class CostReport:
                 else None
             )
         result["median_learner_micro_eur"] = median
+        result["evaluation_excluded"] = _group(excluded, ())
         result["by_learner"] = learners
         result["by_kind"] = [_group(row, ("kind",)) for row in by_kind]
         result["recent_sessions"] = [
@@ -147,4 +174,4 @@ class CostReport:
 
     def _content(self, since: datetime) -> dict[str, Any]:
         with Session(self.content_engine) as db:
-            return _common(db, AiRunRow, since)
+            return _common(db, AiRunRow, AiRunRow.created_at >= since)

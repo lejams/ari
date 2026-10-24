@@ -13,6 +13,7 @@ from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.persistence.content.accounts import SqlAccountStore
 from ari.infrastructure.persistence.costs import CostReport
 from ari.infrastructure.persistence.platform.engine import create_platform_engine
+from ari.infrastructure.persistence.platform.evaluation_accounts import EvaluationAccounts
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +24,7 @@ class Backoffice:
     accounts: SqlAccountStore
     registry: RegistryBridge  # The platform registry, reached with the platform credentials.
     costs: CostReport  # Recorded call costs of both databases, for the owner.
+    evaluation_accounts: EvaluationAccounts  # Learners marked by an administrator (CLI only).
 
 
 def build_backoffice(settings: Settings, *, llm: LLMProvider | None = None) -> Backoffice:
@@ -43,4 +45,5 @@ def build_backoffice(settings: Settings, *, llm: LLMProvider | None = None) -> B
         accounts=accounts,
         registry=registry,
         costs=costs,
+        evaluation_accounts=EvaluationAccounts(platform_engine),
     )

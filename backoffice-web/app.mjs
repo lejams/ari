@@ -293,6 +293,9 @@ async function showCosts() {
   const reasons = Object.entries(learners.unknown_reasons).concat(Object.entries(content.unknown_reasons));
   $('costs-unknown').textContent = reasons.length ? `Coûts inconnus : ${reasons.map(([reason, count]) => `${unknownLabel(reason)} (${count})`).join(' · ')}.` : '';
   $('costs-unknown').hidden = !reasons.length;
+  const evaluation = learners.evaluation_excluded;
+  $('costs-evaluation').textContent = evaluation && evaluation.calls ? `Comptes d'évaluation, exclus des chiffres de cette page : ${evaluation.calls} appel(s), ${costCell(evaluation)}.` : '';
+  $('costs-evaluation').hidden = !(evaluation && evaluation.calls);
   table($('costs-learners'), ['Apprenant', 'Appels', 'Coût', 'Écart à la médiane'], learners.by_learner.map(g => [g.email || g.learner_id || 'non attribué', String(g.calls), costCell(g), g.ratio_to_median === null || g.ratio_to_median === undefined ? '—' : `× ${g.ratio_to_median.toLocaleString('fr-FR')}`]));
   table($('costs-operations'), ['Opération', 'Modèle', 'Appels', 'Coût'], learners.by_operation.map(g => [g.operation, g.model, String(g.calls), costCell(g)]));
   table($('costs-sessions'), ['Dernier appel', 'Session', 'Cas', 'Mode', 'Appels', 'Coût'], learners.recent_sessions.map(g => [formatDate(g.last_call_at), g.session_id.slice(0, 8), g.case_id, ({training: 'Entraînement', exam: 'Examen'})[g.learning_mode] || '—', String(g.calls), costCell(g)]));
