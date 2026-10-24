@@ -90,10 +90,11 @@ et l'accueil propose ensuite un exercice texte plutôt qu'une consultation (M3, 
 - **Capture.** [02-placement-resultat.jpg](ux-app-audit/02-placement-resultat.jpg)
 - **Correction proposée.** Ajouter sur l'intro du test un bouton secondaire « Faire le test plus tard » et,
   sur le résultat, un appel à l'action vers la prochaine étape du programme. Ajout seul, rien n'est
-  retiré. **À trancher par le propriétaire** : faut-il qu'un nouveau compte fasse une consultation avant le
-  test, et la phase « Prérequis » doit-elle proposer une consultation dès la première semaine ? (règles du
-  programme, action 9).
-- **Effort.** S pour les boutons, M si l'ordre du parcours change.
+  retiré.
+- **Décision du propriétaire (24 octobre 2026).** L'ordre du parcours ne change pas (test d'abord, règles
+  du programme inchangées) ; on ajoute « plus tard » sur l'intro du test et l'appel à l'action vers la
+  prochaine étape sur le résultat. Le test avec les médecins dira si l'ordre doit changer.
+- **Effort.** S.
 
 ### M4. Débordement horizontal sur mobile
 - **Écrans.** Consultation vocale (`voice.html`, 35 px) et Progression (296 px), à 390 px de large.
@@ -214,12 +215,12 @@ et l'accueil propose ensuite un exercice texte plutôt qu'une consultation (M3, 
 
 | Chantier | Constats | Taille | Remarques |
 |---|---|---|---|
-| A. Accueil et programme justes après l'onboarding | M1, M2, m10 | M | touche `program.py` (nouvelle version des règles) et `practice-ui.mjs` |
+| A. Accueil et programme justes après l'onboarding | M1, M2, M3, m10 | M | touche `program.py` (nouvelle version des règles) et `practice-ui.mjs` |
 | B. Mobile et accessibilité | M4, M8, M9, m1, m2 + contrôle axe et débordement dans l'e2e | S à M | sans changement de comportement visible |
 | C. Messages et états d'erreur | M5, M6, M10, m5, m8 | M | M6 peut demander un petit point d'API en lecture |
 | D. Textes et clarté | M7, M11, m3, m4, m6, m9 | S à M | libellés de mode à confirmer par le propriétaire |
 
-Hors chantier, en attente de décision : M3 (ordre du parcours, règles du programme) et m7 (identité
+Hors chantier, en attente de décision : m7 (identité
 visuelle).
 
 L'étape 4 du plan (e2e de tous les parcours en mode fake, captures mobile et ordinateur, en CI) se fait
