@@ -36,7 +36,7 @@ function installDom(hash) {
   globalThis.document = {
     body: new Element("body"),
     getElementById: id => nodes.get(id) ?? null,
-    querySelector: selector => (selector.includes("[name=source]") ? radios.source : selector.includes("[name=mode]") ? radios.mode : null),
+    querySelector: selector => (selector.includes("[name=source]") ? radios.source : selector.includes("[name=mode]") ? radios.mode : selector.includes("[name=placement-option]") ? { value: "0" } : null),
     querySelectorAll: () => [],
     createElement: tag => new Element("", tag.toUpperCase()),
     createTextNode: text => ({ textContent: text }),
@@ -134,5 +134,37 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   assert.equal(nodes.get("case-land").value, "Bayern", "the Land filter defaults to the profile's Land");
   assert.equal(nodes.get("voice-cases").children.length, 1, "the Bayern case passes the Land filter");
   assert.match(nodes.get("land-summary").textContent, /Bayern : 1 cas publié, 0 déjà travaillé \(0 %\)/);
+}
+{
+  // The last answer ends the test: the profile and the programme are read again at once, so
+  // home shows the new estimate without a reload and the result offers the next step.
+  const { nodes, calls } = await load("#placement");
+  assert.equal(nodes.get("placement-later").hidden, false, "a profile without an estimate may take the test later");
+  const item = { id: "q1", kind: "mcq", stem: "?", options: ["a", "b"] };
+  const active = { id: "a1", status: "active", phase: "mcq", language: "de-DE", progress: { mcq_answered: 0, mcq_max: 8 }, current_item: item };
+  const result = { band: "A2", vocab_grammar_level: "A2", listening_level: "A2", speaking_level: null, speaking_counted: false, mcq_answered: 8, listening_answered: 4, speaking_answered: 0 };
+  const completed = { ...active, status: "completed", phase: "completed", current_item: null, result, speaking_feedback: [] };
+  const fach = { id: "fachbegriffe-5", day_offset: 5, kind: "fachbegriffe", minutes: 10, state: "today", rationale: "r", recommended: { kind: "practice", title: "Organe" } };
+  Object.assign(responses, { "/api/health": { provider_mode: "fake" }, "/api/placement/attempts": active, "/api/placement/attempts/a1/answers": completed });
+  nodes.get("placement-start").onclick();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  responses["/api/profile"] = { ...profile, details: { ...profile.details, estimated_level: "A2", estimated_at: "2026-09-19T10:00:00Z" } };
+  responses["/api/program"] = { ...program, week: { ...program.week, next: fach } };
+  nodes.get("placement-choice-form").onsubmit({ preventDefault() {} });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(nodes.get("error").hidden, true, nodes.get("error-text").textContent);
+  const after = calls.slice(calls.indexOf("/api/placement/attempts/a1/answers"));
+  assert.ok(after.includes("/api/profile") && after.includes("/api/program"), `profile and programme read again: ${after}`);
+  assert.equal(nodes.get("placement-result").hidden, false);
+  assert.match(nodes.get("placement-next").children[0].textContent, /Prochaine étape : Fachbegriffe · Organe/);
+  assert.equal(nodes.get("placement-home").classList.contains("primary"), false, "one primary action on the result");
+}
+{
+  // Declared B1, estimated A2: home says which level the programme follows.
+  const { nodes } = await load("#home");
+  assert.match(nodes.get("profile-goal").textContent, /niveau estimé A2 le .*pas le niveau B1 que vous avez déclaré/);
+  assert.match(nodes.get("local-profile-summary").textContent, /niveau déclaré B1 \(auto-évaluation\)/);
+  assert.equal(nodes.get("error").hidden, true);
+  responses["/api/profile"] = profile; responses["/api/program"] = program;
 }
 console.log("Practice DOM: every route renders without a caught error; Carnet, Progression and home show their data");

@@ -299,9 +299,11 @@ async function home() {
   await loadCatalog(); historyItems = (await client.api('/api/history')).items;
   const details = client.profile.details || {};
   const estimated = details.estimated_level ? `niveau estimé ${details.estimated_level} le ${new Date(details.estimated_at).toLocaleDateString('fr-FR')}` : 'niveau non mesuré';
-  $('profile-goal').textContent = `Objectif personnel ${client.profile.goal.target_cefr} · ${estimated}.`;
+  // The programme follows the estimated level when there is one: say so when the declared one differs.
+  const differs = details.estimated_level && details.declared_level && details.declared_level !== details.estimated_level;
+  $('profile-goal').textContent = `Objectif personnel ${client.profile.goal.target_cefr} · ${estimated}.` + (differs ? ` Le programme suit ce niveau estimé par le test, pas le niveau ${details.declared_level} que vous avez déclaré.` : '');
   $('goal-target').value = client.profile.goal.target_cefr;
-  $('local-profile-summary').textContent = [details.land, details.minutes_per_day ? `${details.minutes_per_day} min/jour` : '', details.declared_level ? `niveau ${details.declared_level} ${details.level_source === 'certificate' ? 'certifié (déclaré)' : 'auto-évalué'}` : '', details.exam_date ? `examen le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}` : ''].filter(Boolean).join(' · ') || 'Renseignez vos préférences pour calibrer votre pratique.';
+  $('local-profile-summary').textContent = [details.land, details.minutes_per_day ? `${details.minutes_per_day} min/jour` : '', details.declared_level ? `niveau déclaré ${details.declared_level} (${details.level_source === 'certificate' ? 'certificat' : 'auto-évaluation'})` : '', details.exam_date ? `examen le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}` : ''].filter(Boolean).join(' · ') || 'Renseignez vos préférences pour calibrer votre pratique.';
   $('placement-cta').textContent = details.estimated_level ? 'Refaire le test de niveau' : 'Passer le test de niveau';
   const program = await client.api('/api/program');
   renderHero(program);
@@ -544,6 +546,7 @@ async function showPlacement() {
   const latest = overview.latest;
   $('placement-start').hidden = !overview.available;
   $('placement-resume').hidden = !(latest && latest.status === 'active');
+  $('placement-later').hidden = Boolean(client.profile?.details?.estimated_level);
   $('placement-status').textContent = !overview.available ? 'Le test sera disponible dès qu’un jeu de questions aura été relu et publié.'
     : latest?.status === 'completed' ? `Dernière estimation : ${latest.result.band} (${new Date(latest.ended_at).toLocaleDateString('fr-FR')}). Vous pouvez refaire le test.`
     : latest?.status === 'active' ? `Un test est en cours (${PHASE_LABELS[latest.phase]}).`
@@ -554,7 +557,19 @@ async function showPlacement() {
 async function startPlacement(resume = false) {
   const health = await client.api('/api/health'); providerMode = health.provider_mode;
   placementAttempt = resume && placementAttempt ? await placement.get(placementAttempt.id) : await placement.start();
-  renderPlacement(placementAttempt);
+  await placementStep(placementAttempt);
+}
+// Every answer may end the attempt: the profile then carries the new estimate, so home and the
+// programme are read again before the result offers the next step.
+async function placementStep(attempt) {
+  renderPlacement(attempt);
+  if (attempt.status !== 'completed') return;
+  await client.restoreProfile();
+  let next = null;
+  try { next = (await client.api('/api/program')).week.next; } catch { next = null; }
+  if (next?.kind === 'placement') next = null;
+  $('placement-next').replaceChildren(...(next ? [actionButton(`Prochaine étape : ${slotTitle(next)} →`, () => runSlot(next), true)] : []));
+  $('placement-home').classList.toggle('primary', !next);
 }
 function renderPlacement(attempt) {
   placementAttempt = attempt; placementListens = 0; placementBusyReset();
@@ -642,11 +657,11 @@ $('warmup-start').onclick=()=>perform(startSelected);
 $('placement-start').onclick=()=>perform(()=>startPlacement(false));
 $('placement-resume').onclick=()=>perform(()=>startPlacement(true));
 $('placement-again').onclick=()=>perform(()=>startPlacement(false));
-$('placement-choice-form').onsubmit=event=>{event.preventDefault();const chosen=document.querySelector('[name=placement-option]:checked');if(!chosen){$('notice').textContent='Choisissez une réponse.';return;}const attempt=placementAttempt;perform(async()=>renderPlacement(await placement.answer(attempt,attempt.current_item.id,Number(chosen.value))));};
+$('placement-choice-form').onsubmit=event=>{event.preventDefault();const chosen=document.querySelector('[name=placement-option]:checked');if(!chosen){$('notice').textContent='Choisissez une réponse.';return;}const attempt=placementAttempt;perform(async()=>placementStep(await placement.answer(attempt,attempt.current_item.id,Number(chosen.value))));};
 $('placement-record').onclick=()=>perform(toggleRecording);
-$('placement-send').onclick=()=>{const attempt=placementAttempt,audio=recordedAudio;perform(async()=>renderPlacement(await placement.speak(attempt,attempt.current_item.id,{audio})));};
-$('placement-text-form').onsubmit=event=>{event.preventDefault();const attempt=placementAttempt,text=$('placement-text').value.trim();if(!text)return;perform(async()=>{$('placement-text').value='';renderPlacement(await placement.speak(attempt,attempt.current_item.id,{text}));});};
-$('placement-quit').onclick=()=>{const attempt=placementAttempt;perform(async()=>{await client.restoreProfile();renderPlacement(await placement.finish(attempt));await client.restoreProfile();});};
+$('placement-send').onclick=()=>{const attempt=placementAttempt,audio=recordedAudio;perform(async()=>placementStep(await placement.speak(attempt,attempt.current_item.id,{audio})));};
+$('placement-text-form').onsubmit=event=>{event.preventDefault();const attempt=placementAttempt,text=$('placement-text').value.trim();if(!text)return;perform(async()=>{$('placement-text').value='';await placementStep(await placement.speak(attempt,attempt.current_item.id,{text}));});};
+$('placement-quit').onclick=()=>{const attempt=placementAttempt;perform(async()=>placementStep(await placement.finish(attempt)));};
 for(const tab of document.querySelectorAll('.tab'))tab.onclick=()=>{vocabZone=tab.dataset.zone;renderVocabList();};
 $('vocab-search').oninput=renderVocabList;$('vocab-source').onchange=renderVocabList;
 $('vocab-cadence-form').onsubmit=event=>{event.preventDefault();const days=Number($('vocab-cadence').value);perform(async()=>{await client.updateProfile({maintenance_cadence_days:days});await showVocab();});};

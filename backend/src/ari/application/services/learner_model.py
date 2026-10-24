@@ -60,6 +60,8 @@ class LearnerModel:
     lexicon_acquired: int = 0
     lexicon_maintenance_due: int = 0
     land: str | None = None  # The Land the learner prepares for; recommendations favour it.
+    # The day the profile was created: the programme plans nothing before it.
+    started_on: date | None = None
 
     @property
     def level_reference(self) -> str | None:
@@ -178,6 +180,7 @@ class LearnerModelService:
                 details.estimated_level.value if details.estimated_level else None
             ),
             estimated_at=details.estimated_at,
+            started_on=learner.created_at.date(),
             exam_date=details.exam_date,
             weeks_left=weeks_left,
             minutes_per_day=details.minutes_per_day,

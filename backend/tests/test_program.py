@@ -142,8 +142,70 @@ def test_slot_states_and_done_matching(published_container: Container) -> None:
     ]
     voice = [s for s in week["slots"] if s["kind"] == "voice_training"]
     assert [s["state"] for s in voice] == ["done", "todo"]
-    assert week["next"]["kind"] == "lexicon_review" and week["next"]["state"] == "missed"
-    assert week["version"] == PROGRAM_RULES_VERSION
+    # Today's slot comes before Tuesday's missed review.
+    assert week["next"]["kind"] == "lexicon_review" and week["next"]["state"] == "today"
+    assert week["version"] == PROGRAM_RULES_VERSION == "program-rules-v3"
+
+    # A missed slot is still offered once nothing is left today or later.
+    sunday = TODAY + timedelta(days=3)
+    late = plan_week(
+        model(declared_level="B1", lexicon_total=0),
+        cases,
+        (),
+        sunday,
+        completed={"voice_training": [NOW]},
+    )
+    assert [s["state"] for s in late["slots"]] == ["done", "missed"]
+    assert late["next"]["kind"] == "voice_training" and late["next"]["state"] == "missed"
+
+
+def test_a_week_joined_midway_starts_on_the_profile_day(published_container: Container) -> None:
+    cases = published_container.cases.list()
+    practice = (synthetic_practice("fachbegriffe"),)
+    saturday = TODAY + timedelta(days=2)
+
+    week = plan_week(
+        model(declared_level="A2", started_on=saturday), cases, practice, saturday, completed={}
+    )
+    assert all(s["date"] >= saturday.isoformat() for s in week["slots"])
+    assert not any(s["state"] == "missed" for s in week["slots"])
+    assert week["budget_minutes"] == 2 * 30
+    assert week["planned_minutes"] <= week["budget_minutes"]
+    # Fachbegriffe fell on Monday, Wednesday and Friday: one occurrence moves to Saturday.
+    fach = [s for s in week["slots"] if s["kind"] == "fachbegriffe"]
+    assert [(s["date"], s["id"], s["state"]) for s in fach] == [
+        (saturday.isoformat(), "fachbegriffe-5", "today")
+    ]
+    assert [s["date"] for s in week["slots"] if s["kind"] == "lexicon_review"] == [
+        saturday.isoformat(),
+        (saturday + timedelta(days=1)).isoformat(),
+    ]
+    assert week["next"]["state"] == "today"
+
+    # A new learner without a level takes the placement test on their first day.
+    positioning = plan_week(
+        model(declared_level=None, started_on=saturday), cases, practice, saturday, completed={}
+    )
+    placement = next(s for s in positioning["slots"] if s["kind"] == "placement")
+    assert placement["date"] == saturday.isoformat() and positioning["next"] == placement
+
+    # Days after the profile day that were not done stay missed; earlier weeks are untouched.
+    wednesday = TODAY - timedelta(days=1)
+    joined = plan_week(
+        model(declared_level="B1", started_on=wednesday), cases, practice, TODAY, completed={}
+    )
+    assert {s["date"] for s in joined["slots"]} >= {wednesday.isoformat(), TODAY.isoformat()}
+    assert all(s["date"] >= wednesday.isoformat() for s in joined["slots"])
+    assert any(s["state"] == "missed" for s in joined["slots"])
+    assert joined["budget_minutes"] == 5 * 30
+    earlier = plan_week(
+        model(declared_level="B1", started_on=TODAY - timedelta(days=30)),
+        cases,
+        practice,
+        TODAY,
+        completed={},
+    )
+    assert earlier == plan_week(model(declared_level="B1"), cases, practice, TODAY, completed={})
 
 
 def test_recommendation_prefers_due_words_weak_sections_and_level(
@@ -188,6 +250,9 @@ def test_program_api_reflects_profile_lexicon_and_activity(database_url: str) ->
         client.post("/api/learners", json={"target_cefr": "C1"})
         first = client.get("/api/program").json()
         assert first["week"]["phase"] == "positionnement"
+        # The profile was created today: nothing earlier this week is planned or missed.
+        assert all(s["date"] >= first["week"]["today"] for s in first["week"]["slots"])
+        assert first["week"]["next"]["kind"] == "placement"
         assert first["model"]["level"]["reference"] is None
 
         me = client.get("/api/profile").json()
