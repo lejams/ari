@@ -1,0 +1,82 @@
+name: Patient voice on fixed sentences
+# Manual, billed: ari.evals `voice-snippets` (backend/src/ari/evals/pronunciation/) speaks fixed
+# German patient sentences with the ElevenLabs voice of each persona, or with candidate voices,
+# transcribes them with the STT of production (or the one set below) and keeps the audio for a
+# blind listening test.
+# Invented sentences only. See docs/EVALS.md, section 4bis.
+on:
+  workflow_dispatch:
+    inputs:
+      voices:
+        description: "Candidate voices, space separated NAME=VOICE_ID (empty: the personas' voices)"
+        required: false
+        default: ""
+        type: string
+      personas:
+        description: "With candidate voices, also test the personas' voices"
+        required: false
+        default: false
+        type: boolean
+      repeat:
+        description: "Times each sentence is spoken per voice"
+        required: true
+        default: "1"
+        type: choice
+        options: ["1", "2", "3"]
+permissions: {contents: read}
+jobs:
+  snippets:
+    name: Speak, transcribe, score
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: evals
+    concurrency: {group: voice-snippets, cancel-in-progress: false}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.lock
+      - name: Install locked Python dependencies
+        run: |
+          python -m venv .venv
+          make install-locked
+      - name: Speak the sentences
+        env:
+          ARI_ELEVENLABS_API_KEY: "${{ secrets.ARI_ELEVENLABS_API_KEY }}"
+          ARI_STT_API_KEY: "${{ secrets.ARI_STT_API_KEY }}"
+          # The persona voices as in production (JSON, optional): an environment variable.
+          ARI_ELEVENLABS_EXAM_PERSONAS: "${{ vars.ARI_ELEVENLABS_EXAM_PERSONAS }}"
+          # Another transcription service than production's Groq (optional), e.g. OpenAI:
+          # ARI_STT_BASE_URL=https://api.openai.com/v1 and ARI_STT_MODEL=whisper-1. The report
+          # names the service and model used.
+          STT_BASE_URL: "${{ vars.ARI_STT_BASE_URL }}"
+          STT_MODEL: "${{ vars.ARI_STT_MODEL }}"
+          VOICES: "${{ inputs.voices }}"
+          PERSONAS: "${{ inputs.personas }}"
+          REPEAT: "${{ inputs.repeat }}"
+        run: |
+          set -euo pipefail
+          set -f  # a voice is never a glob
+          test -n "$ARI_ELEVENLABS_API_KEY" || { echo "secret ARI_ELEVENLABS_API_KEY missing in the evals environment" >&2; exit 1; }
+          test -n "$ARI_STT_API_KEY" || { echo "secret ARI_STT_API_KEY missing in the evals environment" >&2; exit 1; }
+          if [ -n "$STT_BASE_URL" ]; then export ARI_STT_BASE_URL="$STT_BASE_URL"; fi
+          if [ -n "$STT_MODEL" ]; then export ARI_STT_MODEL="$STT_MODEL"; fi
+          args=(pronunciation --live --repeat "$REPEAT" --out-dir voice-snippets)
+          for voice in $VOICES; do args+=(--voice "$voice"); done
+          if [ "$PERSONAS" = "true" ]; then args+=(--personas); fi
+          PYTHONPATH=backend/src .venv/bin/python -m ari.evals "${args[@]}"
+      - name: Publish the summary
+        if: always()
+        run: |
+          test -f voice-snippets/report.json || exit 0
+          { echo '### Patient voice on fixed sentences'; echo
+            jq -r '"Transcription: \(.stt_provider) \(.stt_model); cost \(.cost_micro_eur // "unknown") micro-EUR"' voice-snippets/report.json; echo
+            jq -r '.voices[] | "- \(.label) (`\(.voice_id)`): \(.sentences | to_entries | map("\(.key) \(.value)") | join(", ")); critical terms heard \(.critical_term_recall); first audio P50/P95 \(.first_audio_p50_ms)/\(.first_audio_p95_ms) ms"' voice-snippets/report.json
+            echo; cat voice-snippets/a-verifier.md
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: voice-snippets, path: voice-snippets, if-no-files-found: ignore, retention-days: 30}

@@ -1,0 +1,33 @@
+{"id": "brust-opening", "category": "accueil", "source": "patient-leakage@1:SYN-BRUST/opening", "text": "Guten Tag, ich habe starke Schmerzen in der Brust.", "critical": [["schmerzen in der brust"]]}
+{"id": "kopf-opening", "category": "accueil", "source": "patient-leakage@1:SYN-KOPF/opening", "text": "Grüß Gott. Ich habe seit Tagen furchtbare Kopfschmerzen.", "critical": [["kopfschmerzen"]]}
+{"id": "atem-opening", "category": "accueil", "source": "patient-leakage@1:SYN-ATEM/opening", "text": "Guten Morgen, Herr Doktor. Ich bekomme schlecht Luft.", "critical": [["schlecht luft"]]}
+{"id": "unknown", "category": "court", "source": "patient-leakage@1:unknown_response", "text": "Das weiß ich leider nicht.", "critical": []}
+{"id": "out-of-scope", "category": "court", "source": "patient-leakage@1:out_of_scope_response", "text": "Entschuldigung, das verstehe ich nicht. Es geht mir nicht gut.", "critical": []}
+{"id": "short-yes", "category": "court", "source": "spike 3a", "text": "Ja.", "critical": []}
+{"id": "brust-identity", "category": "chiffres", "source": "patient-leakage@1:SYN-BRUST/identity", "text": "Ich heiße Klaus Berger und bin 58 Jahre alt.", "critical": [["58"]]}
+{"id": "brust-character", "category": "chiffres", "source": "patient-leakage@1:SYN-BRUST/character", "text": "Es drückt wie ein schwerer Stein, ich würde sagen acht von zehn.", "critical": [["8 von 10"]]}
+{"id": "bauch-identity", "category": "chiffres", "source": "patient-leakage@1:SYN-BAUCH/identity", "text": "Ich bin Sabine Keller, vierunddreißig Jahre alt.", "critical": [["34"]]}
+{"id": "bauch-fever", "category": "chiffres", "source": "patient-leakage@1:SYN-BAUCH/fever", "text": "Heute Morgen hatte ich 38,4 Grad Fieber.", "critical": [["38,4"]]}
+{"id": "atem-identity", "category": "chiffres", "source": "patient-leakage@1:SYN-ATEM/identity", "text": "Mein Name ist Mehmet Yilmaz, ich bin 67.", "critical": [["67"]]}
+{"id": "fever-two", "category": "chiffres", "source": "spike 3a", "text": "Gestern hatte ich 38,5 Grad Fieber, heute Morgen noch 37,9.", "critical": [["38,5"], ["37,9"]]}
+{"id": "blood-pressure", "category": "chiffres", "source": "spike 3a", "text": "Mein Blutdruck war neulich 150 zu 95, und der Puls lag bei 102.", "critical": [["150 zu 95", "150 95"], ["102"]]}
+{"id": "body", "category": "chiffres", "source": "spike 3a", "text": "Ich bin 54 Jahre alt, wiege 82 Kilo und bin 1,76 Meter groß.", "critical": [["54"], ["82"], ["1,76", "1 76", "eins sechsundsiebzig"]]}
+{"id": "date", "category": "chiffres", "source": "spike 3a", "text": "Das hat am 14. März angefangen, also vor ungefähr zwei Wochen.", "critical": [["14 märz", "vierzehnten märz"]]}
+{"id": "brust-medication", "category": "medicaments", "source": "patient-leakage@1:SYN-BRUST/medication", "text": "Ich nehme jeden Morgen Ramipril, fünf Milligramm.", "critical": [["ramipril"], ["5 milligramm"]]}
+{"id": "bauch-medication", "category": "medicaments", "source": "patient-leakage@1:SYN-BAUCH/medication", "text": "Bei Bedarf nehme ich mein Salbutamol-Spray.", "critical": [["salbutamolspray", "salbutamol"]]}
+{"id": "atem-medication", "category": "medicaments", "source": "patient-leakage@1:SYN-ATEM/medication", "text": "Ich inhaliere einmal am Tag Tiotropium.", "critical": [["tiotropium"]]}
+{"id": "kopf-medication", "category": "medicaments", "source": "patient-leakage@1:SYN-KOPF/medication", "text": "Wenn es schlimm ist, nehme ich Ibuprofen 400.", "critical": [["ibuprofen 400"]]}
+{"id": "two-drugs", "category": "medicaments", "source": "spike 3a", "text": "Ich nehme jeden Morgen Metoprolol 50 Milligramm und abends Ramipril 5 Milligramm.", "critical": [["metoprolol 50 milligramm"], ["ramipril 5 milligramm"]]}
+{"id": "brust-allergy", "category": "medicaments", "source": "patient-leakage@1:SYN-BRUST/allergy", "text": "Gegen Penicillin bin ich allergisch, da bekomme ich Ausschlag.", "critical": [["penicillin"]]}
+{"id": "atem-history", "category": "fachbegriffe", "source": "patient-leakage@1:SYN-ATEM/history", "text": "Ich habe seit acht Jahren COPD.", "critical": [["8 jahren"], ["copd"]]}
+{"id": "kopf-history", "category": "fachbegriffe", "source": "patient-leakage@1:SYN-KOPF/history", "text": "Migräne habe ich schon seit meiner Jugend.", "critical": [["migräne"]]}
+{"id": "hypertonie", "category": "fachbegriffe", "source": "spike 3a", "text": "Mein Hausarzt hat gesagt, ich hätte eine Hypertonie und vielleicht eine Herzinsuffizienz.", "critical": [["hypertonie"], ["herzinsuffizienz"]]}
+{"id": "appendektomie", "category": "fachbegriffe", "source": "spike 3a", "text": "Vor zwei Jahren hatte ich eine Appendektomie, also eine Blinddarmoperation.", "critical": [["appendektomie"], ["blinddarmoperation"]]}
+{"id": "ekg", "category": "fachbegriffe", "source": "spike 3a", "text": "Im Krankenhaus haben sie ein EKG gemacht und mir Blut abgenommen.", "critical": [["ekg"]]}
+{"id": "family", "category": "fachbegriffe", "source": "spike 3a", "text": "Meine Mutter hatte einen Myokardinfarkt, und mein Vater hat Diabetes mellitus.", "critical": [["myokardinfarkt"], ["diabetes mellitus"]]}
+{"id": "brust-radiation", "category": "symptomes", "source": "patient-leakage@1:SYN-BRUST/radiation", "text": "Der Schmerz zieht in den linken Arm.", "critical": [["linken arm"]]}
+{"id": "bauch-localisation", "category": "symptomes", "source": "patient-leakage@1:SYN-BAUCH/localisation", "text": "Jetzt tut es vor allem rechts unten weh.", "critical": [["rechts unten"]]}
+{"id": "atem-cough", "category": "symptomes", "source": "patient-leakage@1:SYN-ATEM/cough", "text": "Ich huste viel, und der Schleim ist gelb.", "critical": [["schleim ist gelb"]]}
+{"id": "atem-smoking", "category": "symptomes", "source": "patient-leakage@1:SYN-ATEM/smoking", "text": "Ich habe vierzig Jahre geraucht und vor fünf Jahren aufgehört.", "critical": [["40 jahre"], ["5 jahren"]]}
+{"id": "anxious", "category": "emotion", "source": "spike 3a", "text": "Entschuldigung, ich bin etwas nervös. Mein Vater ist letztes Jahr plötzlich gestorben.", "critical": []}
+{"id": "long", "category": "long", "source": "spike 3a", "text": "Also, es fing eigentlich ganz harmlos an, ein leichtes Ziehen in der Brust beim Spazierengehen, aber in der letzten Nacht wurde es so stark, dass ich nicht mehr schlafen konnte, und deshalb bin ich heute hier.", "critical": [["ziehen in der brust"]]}

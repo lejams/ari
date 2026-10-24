@@ -359,3 +359,17 @@ def test_transfer_helper_cleans_ephemeral_registry_auth_after_release_failure(
     )
     assert result.returncode != 0
     assert not Path(release_config.read_text(encoding="utf-8")).exists()
+
+
+def test_voice_snippets_are_manual_main_only_with_scoped_keys() -> None:
+    workflow = load_workflow(".github/workflows/voice-snippets.yml")
+    assert set(workflow["on"]) == {"workflow_dispatch"}
+    job = workflow["jobs"]["snippets"]
+    assert "refs/heads/main" in job["if"] and job["environment"] == "evals"
+    run_step = next(s for s in job["steps"] if s.get("name") == "Speak the sentences")
+    assert run_step["env"]["ARI_ELEVENLABS_API_KEY"] == "${{ secrets.ARI_ELEVENLABS_API_KEY }}"
+    assert run_step["env"]["ARI_STT_API_KEY"] == "${{ secrets.ARI_STT_API_KEY }}"
+    # Inputs reach the shell through the environment, never spliced into the script.
+    assert "${{" not in run_step["run"]
+    assert "pronunciation --live" in run_step["run"]
+    assert "voice-snippets" in str(job["steps"][-1])
