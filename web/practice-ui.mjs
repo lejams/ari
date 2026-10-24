@@ -359,8 +359,8 @@ async function showRun(run) {
 // Content and rubric versions stay available, folded away from the learner's reading path.
 function technicalDetails(content) {
   const details = node('details', undefined, 'technical'); details.append(node('summary', 'Détails techniques'));
-  const ids = [content.scenario_id && `contenu ${content.scenario_id}@${content.scenario_version}`, content.rubric_id && `rubrique ${content.rubric_id}@${content.rubric_version}`].filter(Boolean);
-  details.append(node('p', ids.length ? ids.join(' · ') : 'Aucune version enregistrée.', 'help'));
+  const ids = [content.scenario_id && `Contenu ${content.scenario_id}@${content.scenario_version}`, content.rubric_id && `rubrique ${content.rubric_id}@${content.rubric_version}`].filter(Boolean);
+  details.append(node('p', ids.length ? ids.join(', ') : 'Aucune version enregistrée.', 'help'));
   return details;
 }
 async function openHistoryItem(item) { if(item.kind==='voice') location.href=`/voice.html?session=${encodeURIComponent(item.id)}`; else await showRun(await client.getRun(item.id)); }

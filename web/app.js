@@ -1025,7 +1025,7 @@ function showFeedback(session) {
   if (!evaluation) return;
   const comparable = COMPARABLE_EVALUATIONS.has(evaluation.schema_version);
   $("score").textContent = "Par dimension";
-  $("score-label").textContent = "analyse automatique provisoire · pas de score global ni de niveau certifié";
+  $("score-label").textContent = "analyse automatique provisoire, sans score global ni niveau certifié";
   $("feedback-meta").textContent = [state.case?.title, MODE_LABELS[session.learning_mode || "unknown"], plural(session.turns.length, "tour")].filter(Boolean).join(" · ");
   $("summary").textContent = evaluation.summary;
   renderNextActions(evaluation.next_actions || []);

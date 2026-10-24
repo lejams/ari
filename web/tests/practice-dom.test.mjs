@@ -144,7 +144,7 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   const group = (await load("#progress")).nodes.get("progress-list").children[0];
   assert.equal(group.children[0].textContent, "Bauchschmerzen · Examen");
   assert.equal(group.children[1].tagName, "DETAILS");
-  assert.match(group.children[1].children[1].textContent, /contenu scn@4 · rubrique rub@1/);
+  assert.match(group.children[1].children[1].textContent, /Contenu scn@4, rubrique rub@1/);
   responses["/api/history"] = { items: [] }; responses["/api/progression"] = progression;
 }
 {
