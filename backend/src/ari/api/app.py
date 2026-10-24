@@ -202,6 +202,18 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     async def current_profile(request: Request) -> Any:
         return _payload(services.repository.get_learner(request.state.learner_id))
 
+    @app.get("/api/usage/exams")
+    async def exam_usage(request: Request) -> dict[str, object]:
+        allowance = services.usage_guard.exam_allowance(request.state.learner_id)
+        return {
+            "used": allowance.used,
+            "quota": allowance.quota,
+            "remaining": None
+            if allowance.quota is None
+            else max(allowance.quota - allowance.used, 0),
+            "renews_on": allowance.renews_on.isoformat(),
+        }
+
     @app.get("/api/learners/{learner_id}/goal")
     async def get_goal(learner_id: str) -> Any:
         return _payload(services.repository.get_learner(learner_id).goal)

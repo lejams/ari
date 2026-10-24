@@ -88,7 +88,7 @@ const casesSummary = { learner_land: "Bayern", laender: [{ land: "Bayern", cases
 const responses = {
   "/api/profile": profile, "/api/program": program, "/api/exercises": { items: [] }, "/api/cases": [voiceCase],
   "/api/reference/laender": laender, "/api/cases/summary": casesSummary,
-  "/api/history": { items: [] }, "/api/lexicon": lexicon, "/api/progression": progression, "/api/placement": placement,
+  "/api/history": { items: [] }, "/api/lexicon": lexicon, "/api/usage/exams": { used: 1, quota: 2, remaining: 1, renews_on: "2026-11-01" }, "/api/progression": progression, "/api/placement": placement,
 };
 
 async function load(hash) {
@@ -104,7 +104,7 @@ async function load(hash) {
   return { nodes, calls };
 }
 
-for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#history"]) {
+for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#history", "#exam"]) {
   const { nodes } = await load(hash);
   assert.equal(nodes.get("error").hidden, true, `${hash}: ${nodes.get("error-text").textContent}`);
   const section = nodes.get(hash.slice(1));
@@ -134,5 +134,27 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   assert.equal(nodes.get("case-land").value, "Bayern", "the Land filter defaults to the profile's Land");
   assert.equal(nodes.get("voice-cases").children.length, 1, "the Bayern case passes the Land filter");
   assert.match(nodes.get("land-summary").textContent, /Bayern : 1 cas publié, 0 déjà travaillé \(0 %\)/);
+}
+{
+  const { nodes } = await load("#exam");
+  assert.match(nodes.get("exam-usage").textContent, /Consultations en Examen ce mois-ci : 1 sur 2 · renouvellement le 01\/11\/2026/);
+  assert.equal(nodes.get("exam-quota").hidden, true);
+  assert.equal(nodes.get("exam-cases").children[0].children.at(-1).textContent, "Commencer en Examen →");
+}
+{
+  responses["/api/usage/exams"] = { used: 2, quota: 2, remaining: 0, renews_on: "2026-11-01" };
+  const { nodes } = await load("#exam");
+  assert.equal(nodes.get("error").hidden, true, nodes.get("error-text").textContent);
+  assert.equal(nodes.get("exam-quota").hidden, false, "a spent quota is said before any start");
+  assert.match(nodes.get("exam-quota").children[1].textContent, /01\/11\/2026/);
+  assert.equal(nodes.get("exam-cases").children[0].children.at(-1).textContent, "Faire ce cas en Entraînement →");
+  responses["/api/usage/exams"] = { used: 0, quota: null, remaining: null, renews_on: "2026-11-01" };
+  const evaluation = await load("#exam");
+  assert.equal(evaluation.nodes.get("exam-usage").hidden, true, "an account without quota shows no count");
+}
+{
+  const { nodes } = await load("#history");
+  const empty = nodes.get("history-list").children[0];
+  assert.equal(empty.children[1].textContent, "Explorer la bibliothèque →", "an empty history leads somewhere");
 }
 console.log("Practice DOM: every route renders without a caught error; Carnet, Progression and home show their data");

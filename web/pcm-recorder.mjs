@@ -5,18 +5,24 @@ export class PcmRecorder {
     this.workletUrl = workletUrl; this.chunks = []; this.context = null; this.stream = null; this.worklet = null; this.source = null;
   }
   get seconds() { return this.chunks.reduce((total, chunk) => total + chunk.byteLength, 0) / (24000 * 2); }
+  // A failed start releases what it already acquired: no live microphone, no open context.
   async start() {
     this.chunks = [];
-    this.context = new AudioContext({ latencyHint: "interactive" });
-    if (this.context.state === "suspended") await this.context.resume();
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-    await this.context.audioWorklet.addModule(this.workletUrl);
-    this.source = this.context.createMediaStreamSource(this.stream);
-    this.worklet = new AudioWorkletNode(this.context, "pcm-capture");
-    this.worklet.port.onmessage = ({ data }) => { this.chunks.push(new Uint8Array(data)); };
-    const mute = this.context.createGain();
-    mute.gain.value = 0;
-    this.source.connect(this.worklet).connect(mute).connect(this.context.destination);
+    try {
+      this.context = new AudioContext({ latencyHint: "interactive" });
+      if (this.context.state === "suspended") await this.context.resume();
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      await this.context.audioWorklet.addModule(this.workletUrl);
+      this.source = this.context.createMediaStreamSource(this.stream);
+      this.worklet = new AudioWorkletNode(this.context, "pcm-capture");
+      this.worklet.port.onmessage = ({ data }) => { this.chunks.push(new Uint8Array(data)); };
+      const mute = this.context.createGain();
+      mute.gain.value = 0;
+      this.source.connect(this.worklet).connect(mute).connect(this.context.destination);
+    } catch (error) {
+      await this.stop().catch(() => {});
+      throw error;
+    }
   }
   async stop() {
     this.stream?.getTracks().forEach((track) => track.stop());

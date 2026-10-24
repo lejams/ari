@@ -51,4 +51,8 @@ const aliceKey = JSON.parse(calls.at(-1).options.body).request_id;
 client.profile = {id: "bob"};
 await assert.rejects(() => client.start(content, "exam"));
 assert.notEqual(JSON.parse(calls.at(-1).options.body).request_id, aliceKey);
+// Offline or slow: the learner reads French, never the browser's "Failed to fetch".
+await assert.rejects(() => client.start(content, "exam"), /^Error: Connexion impossible : vérifiez votre réseau\.$/);
+const slow = new PracticeClient(async () => { throw new DOMException("signal timed out", "TimeoutError"); }, storage);
+await assert.rejects(() => slow.api("/api/profile"), /Le serveur ne répond pas/);
 console.log("Practice client: retry, reload, identity, no-data and errors passed");

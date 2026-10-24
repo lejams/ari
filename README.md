@@ -235,6 +235,8 @@ a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connect
   promoted by that session) and `evaluation.code_switches`.
 - `GET /api/history`, `GET /api/progression`, `GET /api/program` (learner model and
   this week's slots)
+- `GET /api/usage/exams` (read only: exam sessions begun this month, `quota` null for an
+  evaluation account, `remaining`, `renews_on`)
 
 ## Quality checks
 
