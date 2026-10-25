@@ -121,7 +121,7 @@ async def test_a_sentence_streams_pcm_and_records_a_costed_execution(
     assert fake.headers == ["test-key"]
     assert "model_id=eleven_v4_turbo" in fake.queries[0] and "test-key" not in fake.queries[0]
     assert "output_format=pcm_24000" in fake.queries[0]
-    assert fake.registrations == [[{"voice_id": "voice-anna"}]]
+    assert fake.registrations == [["voice-anna"]]
 
 
 async def test_a_connection_is_reused_for_the_next_sentence(
@@ -185,7 +185,7 @@ async def test_without_a_final_frame_silence_ends_the_sentence_and_the_connectio
     assert fake.connections == 2
 
 
-@pytest.mark.parametrize("final_key", ["isFinal", "is_final", "final"])
+@pytest.mark.parametrize("final_key", ["isFinal", "is_final", "is_final_audio_for_turn", "final"])
 async def test_every_documented_final_key_ends_a_sentence(
     dialogue: tuple[FakeDialogue, str], final_key: str
 ) -> None:
@@ -218,10 +218,19 @@ async def test_a_listener_who_stops_early_never_leaves_audio_for_the_next_senten
     assert fake.connections == 2
 
 
-async def test_voice_registration_by_bare_id(dialogue: tuple[FakeDialogue, str]) -> None:
+async def test_voices_are_registered_by_id_by_default(dialogue: tuple[FakeDialogue, str]) -> None:
+    # The live service refuses objects: "voices.0: Input should be a valid string" (1007).
     fake, url = dialogue
-    await speak(provider(url, voice_registration="ids"), "Ja.")
+    await speak(provider(url), "Ja.")
     assert fake.registrations == [["voice-anna"]]
+
+
+async def test_voice_registration_as_objects_stays_available(
+    dialogue: tuple[FakeDialogue, str],
+) -> None:
+    fake, url = dialogue
+    await speak(provider(url, voice_registration="objects"), "Ja.")
+    assert fake.registrations == [[{"voice_id": "voice-anna"}]]
 
 
 async def test_a_silent_service_times_out_without_retrying() -> None:

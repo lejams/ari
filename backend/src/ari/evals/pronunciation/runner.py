@@ -26,6 +26,7 @@ import math
 import random
 import shutil
 import time
+from collections import Counter
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -443,6 +444,10 @@ def summary_text(report: PronunciationReport, out_dir: Path) -> str:
             f"entendus {_fmt(voice.critical_term_recall)}, premier audio P50/P95 "
             f"{voice.first_audio_p50_ms}/{voice.first_audio_p95_ms} ms"
         )
+        # Why sentences failed, in the log itself: a run that fails everywhere says why.
+        errors = Counter(r.error for r in report.results if r.voice == voice.label and r.error)
+        for error, count in errors.most_common():
+            lines.append(f"    {count} x {error}")
     lines.append(f"Résultats : {out_dir}")
     return "\n".join(lines)
 
