@@ -253,16 +253,38 @@ function renderHero(program) {
   const today = week.slots.filter(slot => slot.state === 'today' || (slot.state === 'done' && slot.date === week.today));
   const minutesToday = today.reduce((total, slot) => total + slot.minutes, 0);
   const context = [`${PHASE_LABELS_FR[week.phase] || week.phase}`, `niveau ${model.level.reference || 'non estimé'}`, minutesToday ? `${minutesToday} min prévues aujourd’hui` : 'rien de prévu aujourd’hui'].join(' · ');
-  $('recommendation').replaceChildren(node('p', 'Votre prochaine étape', 'eyebrow'));
-  if (next) {
-    $('recommendation').append(node('h1', slotTitle(next)), node('p', context, 'hero-context'));
-    $('recommendation').append(actionButton(slotButtonLabel(next), () => runSlot(next), true));
-    const why = node('details', undefined, 'hero-why'); why.append(node('summary', 'Pourquoi cette proposition ?'), node('p', next.rationale));
-    $('recommendation').append(why);
-  } else {
-    $('recommendation').append(node('h1', 'Semaine accomplie.'), node('p', context, 'hero-context'), node('p', 'Tous les créneaux prévus sont faits. Le programme se recalcule lundi, ou dès que votre carnet ou votre profil change.'));
-    $('recommendation').append(actionButton('Explorer la bibliothèque →', showCases));
+  // Text, then the patient's quote when there is one, then the actions: on a phone the learner reads
+  // the patient's sentence before the button; on a wide screen the quote sits beside both.
+  const text = node('div', undefined, 'hero-text'), actions = node('div', undefined, 'hero-actions');
+  text.append(node('p', 'Votre prochaine étape', 'eyebrow'));
+  $('recommendation').replaceChildren(text);
+  if (!next) {
+    text.append(node('h1', 'Semaine accomplie.'), node('p', context, 'hero-context'), node('p', 'Tous les créneaux prévus sont faits. Le programme se recalcule lundi, ou dès que votre carnet ou votre profil change.'));
+    actions.append(actionButton('Explorer la bibliothèque →', showCases));
+    $('recommendation').append(actions);
+    return;
   }
+  // A training consultation opens on its patient: the first sentence, quoted, and one button to answer it.
+  // An exam shows no such help, as in the session itself.
+  const rec = next.recommended;
+  const voiceCase = next.kind === 'voice_training' && rec?.kind === 'voice' ? voiceCases.find(c => c.id === rec.id && c.version === rec.version) : null;
+  if (voiceCase?.opening_statement) {
+    const minutes = voiceCase.educational_target?.duration_minutes;
+    text.append(node('h1', next.date === week.today ? 'Votre consultation du jour' : 'Votre prochaine consultation'), node('p', `${voiceCase.title}.${minutes ? ` Environ ${minutes} minutes.` : ''}`, 'hero-context'), node('p', context, 'help'));
+    const quote = node('figure', undefined, 'hero-quote'), said = node('blockquote', `« ${voiceCase.opening_statement} »`);
+    said.lang = (voiceCase.language || 'de').split('-')[0];
+    quote.append(said, node('figcaption', 'La première phrase de votre patient. Il attend vos questions.'));
+    $('recommendation').classList.add('with-quote');
+    $('recommendation').append(quote);
+    actions.append(actionButton('Commencer la consultation', () => runSlot(next), true));
+  } else {
+    $('recommendation').classList.remove('with-quote');
+    text.append(node('h1', slotTitle(next)), node('p', context, 'hero-context'));
+    actions.append(actionButton(slotButtonLabel(next), () => runSlot(next), true));
+  }
+  const why = node('details', undefined, 'hero-why'); why.append(node('summary', 'Pourquoi cette proposition ?'), node('p', next.rationale));
+  actions.append(why);
+  $('recommendation').append(actions);
 }
 function renderWeekDay(offset) {
   weekSelectedOffset = offset;
@@ -417,7 +439,12 @@ function renderHeatmap(structure) {
     tr.append(node('th', `${new Date(row.date).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}${row.order_respected ? '' : ' ·'}`));
     for (const column of structure.columns) {
       const ratio = row.cells[column.id];
-      const td = node('td', ratio === null || ratio === undefined ? '' : ratio === 1 ? '✓' : ratio === 0 ? '—' : '◐');
+      // The glyph is for the eye; a screen reader hears the word (complète, partielle, absente).
+      const td = node('td');
+      if (ratio !== null && ratio !== undefined) {
+        const glyph = node('span', ratio === 1 ? '✓' : ratio === 0 ? '—' : '◐'); glyph.setAttribute('aria-hidden', 'true');
+        td.append(glyph, node('span', ratio === 1 ? 'complète' : ratio === 0 ? 'absente' : 'partielle', 'sr-only'));
+      }
       td.dataset.heat = ratio === null || ratio === undefined ? 'none' : String(Math.round(ratio * 4));
       td.title = `${column.label} : ${percent(ratio)}`;
       tr.append(td);
@@ -703,7 +730,8 @@ $('review-reveal').onclick=()=>{if(reviewEntry)revealReview('');};
 $('vocab-add-form').onsubmit=event=>{event.preventDefault();if(!validateFields([$('add-lemma')]))return;const lemma=$('add-lemma').value,translation=$('add-translation').value,example=$('add-example').value;perform(async()=>{await lexicon.add(lemma,translation,example);$('vocab-add-form').reset();await showVocab();});};
 $('answer-form').onsubmit=event=>{event.preventDefault();const run=currentRun,text=$('answer').value;perform(async()=>showRun(await client.answer(run,text)));};
 for(const action of ['pause','resume','finish'])$(action).onclick=()=>{const run=currentRun;perform(async()=>showRun(await client.action(run,action)));};
-for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>perform(()=>navigate(button.dataset.view));
+// Navigation entries are links (a real href, aria-current): the click routes in place of following them.
+for(const button of document.querySelectorAll('[data-view]'))button.onclick=event=>{event.preventDefault();perform(()=>navigate(button.dataset.view));};
 window.addEventListener('hashchange',()=>perform(route));
 window.addEventListener('resize',()=>{if(!$('progress').hidden){const selected=$('daytrack').querySelector('[aria-pressed=true]');selected?.scrollIntoView({block:'nearest',inline:'nearest'});}});
 window.addEventListener('focus',()=>{const today=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});if($('today-label').textContent!==today){$('today-label').textContent=today;if(!$('progress').hidden)renderCalendar();}});
