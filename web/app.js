@@ -1,6 +1,7 @@
 import { PcmPlaybackTracker } from "./audio-delivery.mjs";
 import { allowsInCallHelp, voiceLaunchIntent } from "./voice-presentation.mjs";
 import { examReportView } from "./exam-report.mjs";
+import { guardedFetch, microphoneErrorMessage } from "./errors.mjs";
 
 const launchIntent = voiceLaunchIntent(location.search, localStorage.getItem("ari.current_session_id"));
 
@@ -38,6 +39,8 @@ const state = {
   examActive: false,
   deferredTurns: [],
   openMic: false,
+  examUsage: null,
+  quotaBlocked: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -66,7 +69,7 @@ function applySessionVoice(session) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await guardedFetch(fetch, path, {
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     signal: AbortSignal.timeout(20000),
@@ -77,7 +80,7 @@ async function api(path, options = {}) {
     // A paused service (503) or a proxy error page (401/502) may not be JSON; fall back to
     // the status code rather than surfacing a JSON parse error to the learner.
     const body = await response.json().catch(() => ({}));
-    const error = new Error(body.detail || `HTTP ${response.status}`);
+    const error = new Error(typeof body.detail === "string" ? body.detail : `Requête refusée (${response.status}).`);
     error.status = response.status;
     throw error;
   }
@@ -109,11 +112,15 @@ function setExamPresentation(active) {
 }
 
 function syncLearningModeButtons() {
+  const locked = Boolean(state.sessionId || state.requestedLearningMode);
   document.querySelectorAll("[data-learning-mode]").forEach((button) => {
     const selected = button.dataset.learningMode === state.learningMode;
     button.setAttribute("aria-pressed", String(selected));
-    button.disabled = Boolean(state.sessionId);
+    button.disabled = locked;
+    // Once the mode is fixed (chosen in the library, or a session exists), only that mode shows.
+    button.classList.toggle("hidden", locked && !selected);
   });
+  $("mode-change").classList.toggle("hidden", !(state.requestedLearningMode && !state.sessionId));
   $("debug-form").classList.toggle("hidden", state.providerMode !== "fake" || !state.case);
 }
 
@@ -140,7 +147,7 @@ function clearTranscript() {
   if (state.examActive) return;
   const empty = document.createElement("div");
   empty.className = "empty";
-  empty.textContent = "Le transcript apparaîtra ici pendant la conversation.";
+  empty.textContent = "La transcription apparaîtra ici pendant la conversation.";
   $("transcript").append(empty);
   setPartial("");
   state.lastPatientTurnNode = null;
@@ -203,7 +210,7 @@ function renderCase(selectedCase) {
   $("case-goal").textContent = "Entraînement · niveau non mesuré";
   $("simulation-eyebrow").textContent = `Simulation clinique en ${french}`;
   $("simulation-intro").textContent =
-    "Parlez naturellement. À la fin, vous recevez un feedback FSP bref, mesurable et relié à votre transcript.";
+    "Parlez naturellement. À la fin, vous recevez un feedback FSP bref, mesurable et relié à la transcription.";
   $("debug-input").placeholder = `Mode fake : simuler une phrase en ${french}`;
   const caseValue = caseKey(selectedCase);
   if ($("case-select").value !== caseValue) $("case-select").value = caseValue;
@@ -220,6 +227,8 @@ function showCallActions({ canStart, canEnd, canRetry, canCreateNew }) {
   const knownCase = state.cases.some((item) => item.id === state.case?.id && item.version === state.case?.version);
   $("retry-case").classList.toggle("hidden", !(canCreateNew && knownCase && ["training", "exam"].includes(state.learningMode)));
   if (canStart || canRetry || canCreateNew) $("talk").classList.add("hidden");
+  // canCreateNew means the session is over and its feedback is on screen.
+  $("back-link").textContent = canCreateNew ? "Retour à l’accueil" : "Quitter la session";
 }
 
 async function restoreSession() {
@@ -260,7 +269,7 @@ async function restoreSession() {
       showCallActions({ canStart: false, canEnd: false, canRetry: true, canCreateNew: false });
       setStatus(
         session.status === "analysis_failed"
-          ? "Analyse échouée — le transcript est sauvegardé"
+          ? "Analyse échouée — la transcription est sauvegardée"
           : "Analyse interrompue — vous pouvez la relancer",
       );
     } else if (session.status === "completed") {
@@ -282,6 +291,27 @@ async function restoreSession() {
     setStatus("Récupération temporairement impossible — rechargez la page pour réessayer");
     return true;
   }
+}
+
+// Before a new exam starts, say when the month's quota is spent instead of letting the learner
+// discover it on "Commencer". The server still refuses the start on its own.
+async function refreshExamUsage() {
+  try { state.examUsage = await api("/api/usage/exams"); } catch (_) { state.examUsage = null; }
+  applyExamQuota();
+}
+
+function applyExamQuota() {
+  const usage = state.examUsage;
+  const blocked = !state.sessionId && state.learningMode === "exam" && usage?.quota != null && usage.remaining <= 0;
+  if (blocked) {
+    const renews = new Date(`${usage.renews_on}T00:00:00`).toLocaleDateString("fr-FR");
+    $("exam-quota").textContent = `Vous avez utilisé vos ${usage.quota} consultations en Examen de ce mois. Elles se renouvellent le ${renews}. Passez en mode Entraînement pour faire ce cas maintenant.`;
+    $("start").disabled = true;
+  } else if (state.quotaBlocked) {
+    $("start").disabled = false;
+  }
+  $("exam-quota").classList.toggle("hidden", !blocked);
+  state.quotaBlocked = blocked;
 }
 
 async function initialize() {
@@ -314,6 +344,7 @@ async function initialize() {
 
   if (state.providerMode === "fake" && defaultCase) $("debug-form").classList.remove("hidden");
   const restored = await restoreSession();
+  if (!restored && defaultCase) await refreshExamUsage();
   if (!restored && !defaultCase) {
     $("case-title").textContent = "Aucun scénario vocal approuvé";
     $("case-summary").textContent = "Les brouillons ne sont pas disponibles à l’entraînement. Revenez à l’accueil pour les phases disponibles.";
@@ -334,9 +365,14 @@ async function ensureAudioContext() {
 
 async function openMicrophone() {
   await ensureAudioContext();
-  state.stream = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-  });
+  try {
+    state.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+  } catch (error) {
+    // The call is reset by the caller; the start button stays available for another try.
+    throw new Error(microphoneErrorMessage(error, $("start").textContent), { cause: error });
+  }
   await state.audioContext.audioWorklet.addModule("/pcm-worklet.js");
   state.source = state.audioContext.createMediaStreamSource(state.stream);
   state.worklet = new AudioWorkletNode(state.audioContext, "pcm-capture");
@@ -657,6 +693,7 @@ async function startCall() {
       $("start").disabled = false;
       $("case-select").disabled = false;
     }
+    if (error.status === 402) await refreshExamUsage(); // The quota ran out since the page loaded.
   }
 }
 
@@ -702,7 +739,7 @@ async function endCall() {
       setExamPresentation(false);
       renderPersistedTranscript(saved.turns);
       showCallActions({ canStart: false, canEnd: false, canRetry: true, canCreateNew: false });
-      setStatus("Analyse échouée — le transcript est sauvegardé");
+      setStatus("Analyse échouée — la transcription est sauvegardée");
     } else if (saved?.status === "completed") {
       setExamPresentation(false);
       renderPersistedTranscript(saved.turns);
@@ -725,7 +762,7 @@ async function endCall() {
       });
       setStatus(
         state.persistedTurns === 0
-          ? "Aucun transcript final reçu — reprenez l’appel pour continuer"
+          ? "Aucune transcription finale reçue — reprenez l’appel pour continuer"
           : `Finalisation incomplète : ${error.message} — vous pouvez reprendre`,
       );
     }
@@ -761,6 +798,7 @@ function resetForNewSession(mode, selectedCase) {
   state.completedTurns = 0;
   state.ending = false;
   state.learningMode = mode;
+  state.requestedLearningMode = null;
   setExamPresentation(false);
   $("learning-mode").value = mode;
   syncLearningModeButtons();
@@ -771,7 +809,9 @@ function resetForNewSession(mode, selectedCase) {
   renderCase(selectedCase);
   $("start").textContent = "Commencer l’appel";
   showCallActions({ canStart: true, canEnd: false, canRetry: false, canCreateNew: false });
+  state.quotaBlocked = false;
   setStatus("Prêt");
+  refreshExamUsage();
 }
 
 function newSession() {
@@ -805,7 +845,7 @@ const EMPATHY_LABELS = {
   acknowledged: "Réaction adaptée", partial: "Réaction minimale", ignored: "Pas de réaction",
   not_reached: "Révélé en fin de session, sans réponse", not_triggered: "Le patient ne l’a pas révélé",
 };
-const MODE_LABELS = { training: "Training", exam: "Examen", unknown: "Historique" };
+const MODE_LABELS = { training: "Entraînement", exam: "Examen", unknown: "Historique" };
 const TILE_STATES = { ok: "✓", warn: "◐", bad: "✗", none: "—" };
 const plural = (count, singular, pluralForm = `${singular}s`) => `${count} ${count > 1 ? pluralForm : singular}`;
 const formatScore = (value) => (Number.isInteger(value) ? String(value) : value.toFixed(1).replace(".", ","));
@@ -1017,8 +1057,8 @@ function showFeedback(session) {
   const evaluation = session.evaluation;
   if (!evaluation) return;
   const comparable = COMPARABLE_EVALUATIONS.has(evaluation.schema_version);
-  $("score").textContent = "Provisoire";
-  $("score-label").textContent = "analyse automatisée · aucun score global ni niveau certifié";
+  $("score").textContent = "Par dimension";
+  $("score-label").textContent = "analyse automatique provisoire, sans score global ni niveau certifié";
   $("feedback-meta").textContent = [state.case?.title, MODE_LABELS[session.learning_mode || "unknown"], plural(session.turns.length, "tour")].filter(Boolean).join(" · ");
   $("summary").textContent = evaluation.summary;
   renderNextActions(evaluation.next_actions || []);
@@ -1073,7 +1113,6 @@ for (const tile of document.querySelectorAll("[data-open]")) {
     details.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 }
-$("feedback-retry").addEventListener("click", retryCase);
 
 $("case-select").addEventListener("change", (event) => {
   const selected = state.cases.find(
@@ -1088,7 +1127,13 @@ document.querySelectorAll("[data-learning-mode]").forEach((button) => {
     $("learning-mode").value = state.learningMode;
     syncLearningModeButtons();
     setExamPresentation(state.learningMode === "exam");
+    applyExamQuota();
   });
+});
+$("mode-change").addEventListener("click", () => {
+  if (state.sessionId) return;
+  state.requestedLearningMode = null;
+  syncLearningModeButtons();
 });
 $("subtitles-toggle").addEventListener("click", () => {
   if (!allowsInCallHelp(state.learningMode)) return;

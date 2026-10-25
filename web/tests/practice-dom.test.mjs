@@ -36,7 +36,7 @@ function installDom(hash) {
   globalThis.document = {
     body: new Element("body"),
     getElementById: id => nodes.get(id) ?? null,
-    querySelector: selector => (selector.includes("[name=source]") ? radios.source : selector.includes("[name=mode]") ? radios.mode : null),
+    querySelector: selector => (selector.includes("[name=source]") ? radios.source : selector.includes("[name=mode]") ? radios.mode : selector.includes("[name=placement-option]") ? { value: "0" } : null),
     querySelectorAll: () => [],
     createElement: tag => new Element("", tag.toUpperCase()),
     createTextNode: text => ({ textContent: text }),
@@ -88,7 +88,7 @@ const casesSummary = { learner_land: "Bayern", laender: [{ land: "Bayern", cases
 const responses = {
   "/api/profile": profile, "/api/program": program, "/api/exercises": { items: [] }, "/api/cases": [voiceCase],
   "/api/reference/laender": laender, "/api/cases/summary": casesSummary,
-  "/api/history": { items: [] }, "/api/lexicon": lexicon, "/api/progression": progression, "/api/placement": placement,
+  "/api/history": { items: [] }, "/api/lexicon": lexicon, "/api/usage/exams": { used: 1, quota: 2, remaining: 1, renews_on: "2026-11-01" }, "/api/progression": progression, "/api/placement": placement,
 };
 
 async function load(hash) {
@@ -97,14 +97,14 @@ async function load(hash) {
   globalThis.fetch = async path => {
     calls.push(String(path));
     const body = responses[String(path)];
-    return { ok: body !== undefined, status: body === undefined ? 404 : 200, json: async () => body };
+    return { ok: body !== undefined, status: body === undefined ? 404 : 200, json: async () => body ?? {} };
   };
   await import(`${moduleUrl}?dom-test=${encodeURIComponent(hash)}-${Math.random()}`);
   await new Promise(resolve => setTimeout(resolve, 20));
   return { nodes, calls };
 }
 
-for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#history"]) {
+for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#history", "#exam"]) {
   const { nodes } = await load(hash);
   assert.equal(nodes.get("error").hidden, true, `${hash}: ${nodes.get("error-text").textContent}`);
   const section = nodes.get(hash.slice(1));
@@ -142,5 +142,86 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   assert.equal(nodes.get("case-land").value, "Bayern", "the Land filter defaults to the profile's Land");
   assert.equal(nodes.get("voice-cases").children.length, 1, "the Bayern case passes the Land filter");
   assert.match(nodes.get("land-summary").textContent, /Bayern : 1 cas publié, 0 déjà travaillé \(0 %\)/);
+}
+{
+  const { nodes } = await load("#exam");
+  assert.match(nodes.get("exam-usage").textContent, /Consultations en Examen ce mois-ci : 1 sur 2 · renouvellement le 01\/11\/2026/);
+  assert.equal(nodes.get("exam-quota").hidden, true);
+  assert.equal(nodes.get("exam-cases").children[0].children.at(-1).textContent, "Commencer en Examen →");
+}
+{
+  responses["/api/usage/exams"] = { used: 2, quota: 2, remaining: 0, renews_on: "2026-11-01" };
+  const { nodes } = await load("#exam");
+  assert.equal(nodes.get("error").hidden, true, nodes.get("error-text").textContent);
+  assert.equal(nodes.get("exam-quota").hidden, false, "a spent quota is said before any start");
+  assert.match(nodes.get("exam-quota").children[1].textContent, /01\/11\/2026/);
+  assert.equal(nodes.get("exam-cases").children[0].children.at(-1).textContent, "Faire ce cas en Entraînement →");
+  responses["/api/usage/exams"] = { used: 0, quota: null, remaining: null, renews_on: "2026-11-01" };
+  const evaluation = await load("#exam");
+  assert.equal(evaluation.nodes.get("exam-usage").hidden, true, "an account without quota shows no count");
+}
+{
+  const { nodes } = await load("#history");
+  const empty = nodes.get("history-list").children[0];
+  assert.equal(empty.children[1].textContent, "Explorer la bibliothèque →", "an empty history leads somewhere");
+}
+{
+  // The last answer ends the test: the profile and the programme are read again at once, so
+  // home shows the new estimate without a reload and the result offers the next step.
+  const { nodes, calls } = await load("#placement");
+  assert.equal(nodes.get("placement-later").hidden, false, "a profile without an estimate may take the test later");
+  const item = { id: "q1", kind: "mcq", stem: "?", options: ["a", "b"] };
+  const active = { id: "a1", status: "active", phase: "mcq", language: "de-DE", progress: { mcq_answered: 0, mcq_max: 8 }, current_item: item };
+  const result = { band: "A2", vocab_grammar_level: "A2", listening_level: "A2", speaking_level: null, speaking_counted: false, mcq_answered: 8, listening_answered: 4, speaking_answered: 0 };
+  const completed = { ...active, status: "completed", phase: "completed", current_item: null, result, speaking_feedback: [] };
+  const fach = { id: "fachbegriffe-5", day_offset: 5, kind: "fachbegriffe", minutes: 10, state: "today", rationale: "r", recommended: { kind: "practice", title: "Organe" } };
+  Object.assign(responses, { "/api/health": { provider_mode: "fake" }, "/api/placement/attempts": active, "/api/placement/attempts/a1/answers": completed });
+  nodes.get("placement-start").onclick();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  responses["/api/profile"] = { ...profile, details: { ...profile.details, estimated_level: "A2", estimated_at: "2026-09-19T10:00:00Z" } };
+  responses["/api/program"] = { ...program, week: { ...program.week, next: fach } };
+  nodes.get("placement-choice-form").onsubmit({ preventDefault() {} });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(nodes.get("error").hidden, true, nodes.get("error-text").textContent);
+  const after = calls.slice(calls.indexOf("/api/placement/attempts/a1/answers"));
+  assert.ok(after.includes("/api/profile") && after.includes("/api/program"), `profile and programme read again: ${after}`);
+  assert.equal(nodes.get("placement-result").hidden, false);
+  assert.match(nodes.get("placement-next").children[0].textContent, /Prochaine étape : Fachbegriffe · Organe/);
+  assert.equal(nodes.get("placement-home").classList.contains("primary"), false, "one primary action on the result");
+}
+{
+  // Declared B1, estimated A2, joined on Wednesday: home names both levels and greys the days before.
+  responses["/api/program"] = { ...program, week: { ...program.week, starts_on: "2026-09-16" } };
+  const { nodes } = await load("#home");
+  assert.match(nodes.get("profile-goal").textContent, /niveau estimé A2, déclaré B1 \(test du 19 septembre\)\. L’estimation sert à calibrer/);
+  const pills = nodes.get("week-days").children.map(item => item.children[0]);
+  assert.deepEqual(pills.map(p => p.dataset.state).slice(0, 3), ["before", "before", "rest"]);
+  assert.equal(pills[0].children[1].textContent, "avant");
+  assert.equal(nodes.get("week-joined").hidden, false);
+  assert.match(nodes.get("local-profile-summary").textContent, /niveau déclaré B1 \(auto-évaluation\)/);
+  assert.equal(nodes.get("error").hidden, true);
+  responses["/api/profile"] = profile; responses["/api/program"] = program;
+}
+{
+  // Learners read the case title and French mode names; versions sit in a folded "Détails techniques".
+  responses["/api/history"] = { items: [{ id: "v1", kind: "voice", mode: "training", status: "completed", created_at: "2026-09-17T00:00:00Z", ended_at: null, content: { title: "Bauchschmerzen", phase: "arzt_patient" }, feedback_state: "provisional", has_feedback: true }] };
+  responses["/api/progression"] = { ...progression, groups: [{ kind: "voice", mode: "exam", content: { title: "Bauchschmerzen", phase: "arzt_patient", scenario_id: "scn", scenario_version: "4", rubric_id: "rub", rubric_version: "1" }, points: [] }] };
+  const history = (await load("#history")).nodes.get("history-list").children[0];
+  assert.match(history.children[1].textContent, /Entraînement/);
+  const group = (await load("#progress")).nodes.get("progress-list").children[0];
+  assert.equal(group.children[0].textContent, "Bauchschmerzen · Examen");
+  assert.equal(group.children[1].tagName, "DETAILS");
+  assert.match(group.children[1].children[1].textContent, /Contenu scn@4, rubrique rub@1/);
+  responses["/api/history"] = { items: [] }; responses["/api/progression"] = progression;
+}
+{
+  // Before a profile exists the navigation is hidden: it would only lead back to onboarding.
+  delete responses["/api/profile"];
+  const { nodes } = await load("#home");
+  assert.equal(nodes.get("onboarding").hidden, false);
+  assert.equal(document.body.classList.contains("onboarding-active"), true);
+  responses["/api/profile"] = profile;
+  await load("#home");
+  assert.equal(document.body.classList.contains("onboarding-active"), false);
 }
 console.log("Practice DOM: every route renders without a caught error; Carnet, Progression and home show their data");

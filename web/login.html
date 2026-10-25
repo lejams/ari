@@ -53,6 +53,8 @@
   .primary:disabled{opacity:.6;cursor:progress}
   .links{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px;font-size:14px}
   .linkish{border:0;background:none;padding:0;color:var(--violet);font-weight:700;font-size:14px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+  .field-error{margin-top:-10px;font-size:14px;color:var(--bad)}
+  input[aria-invalid="true"]{border-color:var(--bad)}
   .status{margin-top:18px;padding:12px 14px;border-radius:10px;font-size:15px;color:var(--ink)}
   .status.good{background:var(--good-bg)}
   .status.bad{background:var(--bad-bg)}
@@ -73,7 +75,7 @@
 
     <section id="view-login" role="tabpanel" aria-labelledby="tab-login">
       <h1>Bon retour sur ARI</h1>
-      <form id="login-form">
+      <form id="login-form" novalidate>
         <label>Adresse e-mail<input type="email" name="email" autocomplete="email" required></label>
         <label>Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
         <button class="primary" type="submit">Se connecter</button>
@@ -84,7 +86,7 @@
     <section id="view-signup" role="tabpanel" aria-labelledby="tab-signup" hidden>
       <h1>Créez votre compte</h1>
       <p class="who">Indiquez votre adresse : vous y recevrez un lien pour choisir votre mot de passe.</p>
-      <form id="signup-form">
+      <form id="signup-form" novalidate>
         <label>Adresse e-mail<input type="email" name="email" autocomplete="email" required></label>
         <button class="primary" type="submit">Recevoir mon lien</button>
       </form>
@@ -93,7 +95,7 @@
     <section id="view-forgot" hidden>
       <h1>Recevoir un nouveau lien</h1>
       <p class="who">Un lien pour choisir un mot de passe vous sera envoyé, que ce soit pour activer votre compte ou le réinitialiser.</p>
-      <form id="forgot-form">
+      <form id="forgot-form" novalidate>
         <label>Adresse e-mail<input type="email" name="email" autocomplete="email" required></label>
         <button class="primary" type="submit">Recevoir un lien</button>
       </form>
@@ -103,7 +105,7 @@
     <section id="view-password" hidden>
       <h1 id="password-title">Choisissez votre mot de passe</h1>
       <p class="who">Compte : <strong id="password-email"></strong></p>
-      <form id="password-form">
+      <form id="password-form" novalidate>
         <label>Mot de passe<input type="password" name="password" autocomplete="new-password" minlength="12" maxlength="256" required aria-describedby="password-hint"><span class="hint" id="password-hint">Au moins 12 caractères. Une phrase facile à retenir fait très bien l’affaire.</span></label>
         <label>Confirmation<input type="password" name="confirm" autocomplete="new-password" minlength="12" maxlength="256" required></label>
         <button class="primary" type="submit">Enregistrer et continuer</button>
@@ -113,8 +115,8 @@
     <p class="status" id="status" role="status" aria-live="polite"></p>
   </div>
 </main>
-<script>
-'use strict';
+<script type="module">
+import {clearFieldErrorOnInput, guardedFetch, showFieldError, validateFields} from '/errors.mjs';
 const byId = id => document.getElementById(id);
 try { if (localStorage.getItem('ari-theme') === 'dark') document.body.classList.add('ari-dark'); } catch (e) {}
 
@@ -137,7 +139,7 @@ function say(text, kind){
   el.textContent = text;
 }
 async function call(path, body){
-  const response = await fetch(path, {method: 'POST', credentials: 'same-origin', cache: 'no-store',
+  const response = await guardedFetch(fetch, path, {method: 'POST', credentials: 'same-origin', cache: 'no-store',
     headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -147,8 +149,12 @@ async function call(path, body){
   return payload;
 }
 function submitting(form, run){
+  const fields = [...form.querySelectorAll('input')];
+  fields.forEach(clearFieldErrorOnInput);
   form.addEventListener('submit', async event => {
     event.preventDefault();
+    say('');
+    if (!validateFields(fields)) return;
     const button = form.querySelector('button[type="submit"]');
     button.disabled = true;
     try { await run(new FormData(form)); }
@@ -184,7 +190,12 @@ submitting(byId('forgot-form'), async data => {
 
 let token = null;
 submitting(byId('password-form'), async data => {
-  if (data.get('password') !== data.get('confirm')) throw new Error('Les deux mots de passe ne correspondent pas.');
+  const confirm = byId('password-form').elements.confirm;
+  if (data.get('password') !== data.get('confirm')) {
+    showFieldError(confirm, 'Les deux mots de passe ne correspondent pas.');
+    confirm.focus();
+    return;
+  }
   await call('/api/auth/password', {token, password: data.get('password')});
   location.replace('/app');
 });
@@ -202,7 +213,7 @@ async function start(){
       show('password');
     } catch (error) {
       show('forgot');
-      say(`${error.message}. Demandez un nouveau lien ci-dessous.`, 'bad');
+      say(`${error.message.replace(/\.$/, '')}. Demandez un nouveau lien ci-dessous.`, 'bad');
     }
     return;
   }
@@ -211,6 +222,11 @@ async function start(){
   if (location.hash === '#inscription') show('signup');
 }
 start();
+// A link opened in a tab already on /connexion only changes the fragment.
+window.addEventListener('hashchange', () => {
+  if (/^#jeton=/.test(location.hash)) start();
+  else if (location.hash === '#inscription') show('signup');
+});
 </script>
 </body>
 </html>

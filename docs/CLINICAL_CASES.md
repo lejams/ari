@@ -133,7 +133,7 @@ niveaux mesurés ; l'oral n'est compté que si sa confiance atteint 0,6. Il est 
 le profil comme `estimated_level`, avec la date et l'identifiant de la tentative. Ce
 n'est ni un certificat ni le niveau requis pour l'inscription à la FSP.
 
-### Programme hebdomadaire (`program-rules-v2`)
+### Programme hebdomadaire (`program-rules-v3`)
 
 Le programme n'est pas du contenu et n'est jamais stocké : il est recalculé à chaque
 lecture à partir du modèle apprenant (`learner-model-v1`, signaux déterministes
@@ -144,6 +144,10 @@ uniquement). Le scénario influence la recommandation par trois champs déjà re
 seulement moins souvent. Depuis `program-rules-v2`, un cas dont `location.land` est le Land
 du profil de l'apprenant reçoit un point de plus ; le catalogue s'ouvre filtré sur ce Land et
 `GET /api/cases/summary` compte les cas publiés par Land et la part déjà travaillée.
+Depuis `program-rules-v3` (action 13), une semaine commencée en cours de route part du jour de
+création du profil : les jours précédents n'ont ni créneau ni budget, un type de créneau dont
+tous les jours tombaient avant est reporté une fois sur ce premier jour, et la prochaine étape
+préfère un créneau du jour ou à venir à un créneau manqué.
 
 ### Progression par axes (`progress-axes-v1`)
 

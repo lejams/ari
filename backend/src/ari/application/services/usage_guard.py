@@ -9,7 +9,8 @@ every other learner keeps it.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import date, datetime
 
 from ari.application.ports.usage import UsageLedger
 from ari.domain.errors import QuotaExceededError, UsageCeilingError
@@ -25,6 +26,19 @@ def month_bounds(now: datetime) -> tuple[datetime, datetime]:
         else start.replace(month=start.month + 1)
     )
     return start, end
+
+
+@dataclass(frozen=True)
+class ExamAllowance:
+    """Exam sessions begun this month against the offer's quota; `quota` is None without one."""
+
+    used: int
+    quota: int | None
+    renews_on: date
+
+    @property
+    def exhausted(self) -> bool:
+        return self.quota is not None and self.used >= self.quota
 
 
 class UsageGuard:
@@ -48,15 +62,21 @@ class UsageGuard:
         self.check_new_activity(learner_id)
         if learning_mode is not LearningMode.EXAM:
             return
-        if self._ledger.is_evaluation_account(learner_id):
-            return
-        start, end = month_bounds(self._clock())
-        used = self._ledger.exam_sessions_started(learner_id, start, end)
-        if used >= self._exam_quota:
+        allowance = self.exam_allowance(learner_id)
+        if allowance.exhausted:
             raise QuotaExceededError(
-                f"Quota d'examens du mois atteint ({used}/{self._exam_quota}). "
-                f"Il se renouvelle le {end:%d/%m/%Y}. L'entraînement reste disponible."
+                f"Quota d'examens du mois atteint ({allowance.used}/{allowance.quota}). "
+                f"Il se renouvelle le {allowance.renews_on:%d/%m/%Y}. "
+                "L'entraînement reste disponible."
             )
+
+    def exam_allowance(self, learner_id: str) -> ExamAllowance:
+        """Read only: what the exam page shows before the learner starts one."""
+        start, end = month_bounds(self._clock())
+        if self._ledger.is_evaluation_account(learner_id):
+            return ExamAllowance(0, None, end.date())
+        used = self._ledger.exam_sessions_started(learner_id, start, end)
+        return ExamAllowance(used, self._exam_quota, end.date())
 
     def check_new_activity(self, learner_id: str) -> None:
         """Before any new activity that calls a model; only the optional breaker applies."""

@@ -26,7 +26,7 @@ de production viennent de l'environnement (`ARI_*`) et peuvent différer.
 | Fonction | Méthode | Version | Stocké ? |
 |---|---|---|---|
 | Modèle de l'apprenant | Comptages déterministes sur les 5 dernières sessions | `learner-model-v1` | Non, recalculé à chaque lecture |
-| Programme hebdomadaire | Règles (phases, créneaux, budget temps, score de recommandation) | `program-rules-v2` | Non |
+| Programme hebdomadaire | Règles (phases, créneaux, budget temps, score de recommandation) | `program-rules-v3` | Non |
 | Progression par axes | Déterministe, aucun score global | `progress-axes-v1` | Non |
 | Métriques de session | Déterministe | `session-metrics-v1` | Oui |
 | Évaluation des sorties IA (`ari.evals`) | Suites rejouées sur les services réels (patient d'entraînement et d'examen, évaluateur, chaîne vocale complète avec apprenant simulé), scorers déterministes, seuils `gates.yaml`, classement par coût | `evals-report-v1`, `gates-v3` | Rapports JSON hors base (`var/evals/`) ; voir `docs/EVALS.md` |
@@ -50,7 +50,7 @@ d'incertitude (plan, actions 6 à 9).
 | Prompts apprenant (`backend/src/ari/prompts/`) | `patient-v3`, `patient-realtime-v1`, `evaluation-v6`, `fact-attribution-v1`, `placement-speaking-v1`. `patient_v2.txt` et `evaluation_v2.txt` sont présents mais non chargés |
 | Prompts contenu (`backend/src/ari/prompts/content/`) | `segmentation-v1`, `protocol-extraction-v2`, `bundle-draft-v1`. `protocol_extraction_v1.txt` est présent mais non chargé |
 | Schémas | `ari-clinical-bundle-v1`, `clinical-case-v3`, `practice-spec-v1`, `ari-placement-bundle-v1`, `placement-set-v1`, `fsp-protocol-v1`, `session-evaluation-v4` (lecture v2 et v3 conservée) |
-| Scorers et règles | `assessment-weighted-v1`, `practice-exact-answer-v1`, `practice-feedback-v1`, `anamnesis-sections-v1`, `next-actions-v1`, `srs-sm2-v1`, `placement-staircase-v1`, `learner-model-v1`, `program-rules-v2`, `progress-axes-v1`, `session-metrics-v1` |
+| Scorers et règles | `assessment-weighted-v1`, `practice-exact-answer-v1`, `practice-feedback-v1`, `anamnesis-sections-v1`, `next-actions-v1`, `srs-sm2-v1`, `placement-staircase-v1`, `learner-model-v1`, `program-rules-v3`, `progress-axes-v1`, `session-metrics-v1` |
 | Rubriques | `fsp-anamnesis@1`, `fsp-arzt-arzt@1`, `fsp-fachbegriffe@1` (générées par `content/services/rubrics.py`) |
 | Piles vocales | `pipeline_economy` v1 (entraînement), `realtime_exam` v1 (examen), `chain_exam` v1 (examen en chaîne) |
 

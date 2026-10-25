@@ -1,8 +1,9 @@
-import {PracticeClient, phaseLabel, stateLabel, dimensionText} from './practice-client.mjs';
+import {PracticeClient, phaseLabel, stateLabel, dimensionText, modeLabel} from './practice-client.mjs';
 import {LexiconClient, RATINGS, lexiconStateLabel, ratingLabel, sourceLabel} from './lexicon-client.mjs';
 import {PlacementClient, LEVEL_LABELS, PHASE_LABELS, describeResult} from './placement-client.mjs';
 import {PcmRecorder} from './pcm-recorder.mjs';
 import {completedDayKeys, lastLocalDays, localDayKey, scrollDelta} from './calendar.mjs';
+import {clearFieldErrorOnInput, microphoneErrorMessage, validateFields} from './errors.mjs';
 
 const client = new PracticeClient();
 const lexicon = new LexiconClient((path, options) => client.api(path, options));
@@ -103,6 +104,8 @@ function restoreDraft() {
 }
 function view(name, changeHash = true) {
   for (const id of views) $(id).hidden = id !== name;
+  // No profile yet: the navigation would only lead back to onboarding.
+  document.body.classList.toggle('onboarding-active', name === 'onboarding' && !client.profile);
   document.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-current', button.dataset.view === name ? 'page' : 'false'));
   if (name !== 'exercise') document.body.classList.remove('exam-active');
   if (changeHash && !['onboarding', 'exercise'].includes(name)) history.replaceState(null, '', '#' + name);
@@ -149,14 +152,16 @@ async function startSelected() {
     location.href = `/voice.html?case=${encodeURIComponent(item.id)}&mode=${mode}`;
   } else await showRun(await client.start(item, mode));
 }
-function caseCard(item, kind, mode) {
+// `examBlocked`: the monthly voice exam quota is spent, so the card offers the case in Training.
+function caseCard(item, kind, mode, examBlocked = false) {
   const card = node('article', undefined, 'card case-card');
   const synthetic = item.provenance === 'synthetic_demo';
   card.append(node('span', synthetic ? 'Démo synthétique · non validée' : kind === 'voice' ? 'Consultation vocale disponible' : `Exercice publié · ${phaseLabel(item.phase)}`, 'badge'));
   const title = node('h2', item.title); title.lang = 'de'; card.append(title);
   card.append(node('p', item.public_summary || item.summary || '', 'muted'));
   if (item.limitation) card.append(node('p', item.limitation, 'help'));
-  card.append(actionButton(mode === 'exam' ? 'Commencer en Examen →' : 'Préparer cette session →', () => prepare(item, kind, mode)));
+  if (mode === 'exam' && examBlocked) card.append(actionButton('Faire ce cas en Entraînement →', () => prepare(item, kind, 'training')));
+  else card.append(actionButton(mode === 'exam' ? 'Commencer en Examen →' : 'Préparer cette session →', () => prepare(item, kind, mode)));
   return card;
 }
 function renderCatalog() {
@@ -215,7 +220,7 @@ function renderCalendar() {
 }
 
 // ----- weekly programme -----------------------------------------------------------------
-const SLOT_LABELS = {lexicon_review: 'Réviser mon carnet', lexicon_maintenance: 'Entretien du carnet', fachbegriffe: 'Fachbegriffe', arzt_arzt: 'Arzt–Arzt', voice_training: 'Consultation · Training', voice_exam: 'Consultation · Examen', placement: 'Test de niveau'};
+const SLOT_LABELS = {lexicon_review: 'Réviser mon carnet', lexicon_maintenance: 'Entretien du carnet', fachbegriffe: 'Fachbegriffe', arzt_arzt: 'Arzt–Arzt', voice_training: 'Consultation · Entraînement', voice_exam: 'Consultation · Examen', placement: 'Test de niveau'};
 const SLOT_STATES = {done: '✓', today: '○', todo: '·', missed: '—'};
 const PHASE_LABELS_FR = {positionnement: 'Positionnement', prerequis: 'Prérequis', fondations: 'Fondations', anamnese: 'Anamnèse', examen: 'Examen'};
 function slotTitle(slot) {
@@ -282,14 +287,16 @@ function renderWeek(program) {
   $('week-budget').textContent = `${week.planned_minutes} / ${week.budget_minutes} min`;
   $('week-message').textContent = week.message;
   $('week-limitations').textContent = week.limitations;
-  const todayOffset = Math.max(0, Math.round((new Date(week.today + 'T00:00:00') - new Date(week.week_start + 'T00:00:00')) / 86400000));
+  const offsetOf = day => Math.max(0, Math.round((new Date(day + 'T00:00:00') - new Date(week.week_start + 'T00:00:00')) / 86400000));
+  const todayOffset = offsetOf(week.today), startOffset = week.starts_on ? offsetOf(week.starts_on) : 0;
+  $('week-joined').hidden = !startOffset;
   // A toggle button cannot carry role="listitem" (axe aria-allowed-attr): each one sits in a list item.
   weekPills = DAY_LETTERS.map((letter, offset) => {
     const slots = week.slots.filter(slot => slot.day_offset === offset);
-    const state = !slots.length ? 'rest' : slots.every(slot => slot.state === 'done') ? 'done' : slots.some(slot => slot.state === 'missed') ? 'missed' : offset === todayOffset ? 'today' : 'todo';
+    const state = offset < startOffset ? 'before' : !slots.length ? 'rest' : slots.every(slot => slot.state === 'done') ? 'done' : slots.some(slot => slot.state === 'missed') ? 'missed' : offset === todayOffset ? 'today' : 'todo';
     const pill = node('button', undefined, 'week-pill'); pill.type = 'button'; pill.dataset.state = state;
-    pill.append(node('span', letter, 'week-pill-day'), node('span', slots.length ? String(slots.length) : '·', 'week-pill-count'));
-    pill.title = slots.map(slot => SLOT_LABELS[slot.kind]).join(', ') || 'repos';
+    pill.append(node('span', letter, 'week-pill-day'), node('span', state === 'before' ? 'avant' : slots.length ? String(slots.length) : '·', 'week-pill-count'));
+    pill.title = state === 'before' ? 'avant votre inscription' : slots.map(slot => SLOT_LABELS[slot.kind]).join(', ') || 'repos';
     pill.addEventListener('click', () => renderWeekDay(offset));
     return pill;
   });
@@ -300,10 +307,11 @@ async function home() {
   if (!client.profile) { restoreDraft(); view('onboarding', false); return; }
   await loadCatalog(); historyItems = (await client.api('/api/history')).items;
   const details = client.profile.details || {};
-  const estimated = details.estimated_level ? `niveau estimé ${details.estimated_level} le ${new Date(details.estimated_at).toLocaleDateString('fr-FR')}` : 'niveau non mesuré';
-  $('profile-goal').textContent = `Objectif personnel ${client.profile.goal.target_cefr} · ${estimated}.`;
+  // Estimated first, then declared: the programme and the cases follow the estimate when there is one.
+  const estimated = details.estimated_level ? `niveau estimé ${details.estimated_level}${details.declared_level ? `, déclaré ${details.declared_level}` : ''} (test du ${new Date(details.estimated_at).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long'})})` : 'niveau non mesuré';
+  $('profile-goal').textContent = `Objectif personnel ${client.profile.goal.target_cefr} · ${estimated}.` + (details.estimated_level ? ' L’estimation sert à calibrer le programme et les cas, ce n’est pas un certificat.' : '');
   $('goal-target').value = client.profile.goal.target_cefr;
-  $('local-profile-summary').textContent = [details.land, details.minutes_per_day ? `${details.minutes_per_day} min/jour` : '', details.declared_level ? `niveau ${details.declared_level} ${details.level_source === 'certificate' ? 'certifié (déclaré)' : 'auto-évalué'}` : '', details.exam_date ? `examen le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}` : ''].filter(Boolean).join(' · ') || 'Renseignez vos préférences pour calibrer votre pratique.';
+  $('local-profile-summary').textContent = [details.land, details.minutes_per_day ? `${details.minutes_per_day} min/jour` : '', details.declared_level ? `niveau déclaré ${details.declared_level} (${details.level_source === 'certificate' ? 'certificat' : 'auto-évaluation'})` : '', details.exam_date ? `examen le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}` : ''].filter(Boolean).join(' · ') || 'Renseignez vos préférences pour calibrer votre pratique.';
   $('placement-cta').textContent = details.estimated_level ? 'Refaire le test de niveau' : 'Passer le test de niveau';
   const program = await client.api('/api/program');
   renderHero(program);
@@ -317,9 +325,24 @@ async function showCases() {
   renderCatalog(); view('cases');
   try { renderLandSummary(await client.api('/api/cases/summary')); } catch { $('land-summary').textContent = ''; }
 }
+// The monthly quota of voice exams (written exercises have none), shown before any start.
+function renderExamUsage(usage) {
+  $('exam-usage').hidden = !usage || usage.quota === null;
+  $('exam-quota').hidden = true;
+  if (!usage || usage.quota === null) return false;
+  const renews = new Date(`${usage.renews_on}T00:00:00`).toLocaleDateString('fr-FR');
+  $('exam-usage').textContent = `Consultations en Examen ce mois-ci : ${usage.used} sur ${usage.quota} · renouvellement le ${renews}.`;
+  if (usage.remaining > 0) return false;
+  $('exam-quota').replaceChildren(node('strong', `Vous avez utilisé vos ${usage.quota} consultations en Examen de ce mois.`), node('p', `Elles se renouvellent le ${renews}. Les consultations restent disponibles en Entraînement, et les exercices écrits en Examen.`));
+  $('exam-quota').hidden = false;
+  return true;
+}
 async function showExam() {
   await loadCatalog();
-  $('exam-cases').replaceChildren(...voiceCases.map(item => caseCard(item,'voice','exam')), ...catalog.map(item => caseCard(item,'practice','exam')));
+  let usage = null;
+  try { usage = await client.api('/api/usage/exams'); } catch { usage = null; } // The server still enforces the quota.
+  const blocked = renderExamUsage(usage);
+  $('exam-cases').replaceChildren(...voiceCases.map(item => caseCard(item,'voice','exam',blocked)), ...catalog.map(item => caseCard(item,'practice','exam')));
   if (!$('exam-cases').children.length) $('exam-cases').append(node('p','Aucun scénario approuvé ou exercice disponible pour le mode Examen.','availability'));
   view('exam');
 }
@@ -337,7 +360,7 @@ async function showRun(run) {
   const examActive = run.mode === 'exam' && run.status !== 'completed';
   document.body.classList.toggle('exam-active', examActive);
   $('exercise-title').textContent = run.content.title;
-  $('exercise-meta').textContent = `${phaseLabel(run.content.phase)} · ${run.mode === 'exam' ? 'Examen' : 'Training'} · ${stateLabel(run.status)}`;
+  $('exercise-meta').textContent = `${phaseLabel(run.content.phase)} · ${modeLabel(run.mode)} · ${stateLabel(run.status)}`;
   $('exercise-warning').textContent = (run.content.provenance === 'synthetic_demo' ? 'Démo synthétique non validée. ' : '') + run.content.limitation;
   $('exercise-context').hidden = !run.context.length; $('exercise-context').replaceChildren();
   for (const fact of run.context) { const line=node('p',fact.text_de); line.lang='de'; $('exercise-context').append(line); if(fact.polarity==='unknown') $('exercise-context').append(node('p','Information inconnue : ne pas déduire une absence.','help')); }
@@ -349,18 +372,25 @@ async function showRun(run) {
   $('question').textContent=run.current_question?.prompt_de || '';
   $('coaching').hidden=run.mode!=='training'; $('coaching').textContent=run.mode==='training' ? run.current_question?.coaching_fr || '' : '';
   $('training-feedback').replaceChildren(); $('training-feedback').hidden=run.mode!=='training'||!run.training_feedback;
-  if(run.mode==='training'&&run.training_feedback) $('training-feedback').append(node('h2','Retour Training'),feedbackItem(run.training_feedback));
+  if(run.mode==='training'&&run.training_feedback) $('training-feedback').append(node('h2','Retour d’entraînement'),feedbackItem(run.training_feedback));
   for(const action of ['pause','resume','finish']) $(action).hidden=action==='pause'?run.status!=='active':action==='resume'?run.status!=='paused':run.status==='completed';
   $('finish-note').textContent=run.status==='completed'?'Cette tentative est terminée et ne peut plus être modifiée.':run.answers.length<run.question_count?'Vous pouvez terminer maintenant : les questions sans réponse restent non évaluées.':'Toutes les réponses sont enregistrées. Terminez pour recevoir votre feedback.';
   $('feedback').replaceChildren();
-  if(run.feedback){const hero=node('article',undefined,'card');hero.append(node('p','Votre prochaine étape','eyebrow'),node('h2',`Votre feedback · ${stateLabel(run.feedback.state)}`),node('p',run.feedback.next_step));$('feedback').append(hero,node('p',run.feedback.limitations,'availability'),node('p',`${run.content.scenario_id}@${run.content.scenario_version} · rubrique ${run.content.rubric_id}@${run.content.rubric_version}`,'help'));for(const dimension of run.feedback.dimensions)$('feedback').append(node('p',dimensionText(dimension)));for(const item of run.feedback.items)$('feedback').append(feedbackItem(item));const actions=node('div',undefined,'feedback-actions');actions.append(actionButton('Voir ma progression',showProgress,true),actionButton('Choisir une autre session',showCases));$('feedback').append(actions);}
+  if(run.feedback){const hero=node('article',undefined,'card');hero.append(node('p','Votre prochaine étape','eyebrow'),node('h2',`Votre feedback · ${stateLabel(run.feedback.state)}`),node('p',run.feedback.next_step));$('feedback').append(hero,node('p',run.feedback.limitations,'availability'),technicalDetails(run.content));for(const dimension of run.feedback.dimensions)$('feedback').append(node('p',dimensionText(dimension)));for(const item of run.feedback.items)$('feedback').append(feedbackItem(item));const actions=node('div',undefined,'feedback-actions');actions.append(actionButton('Voir ma progression',showProgress,true),actionButton('Choisir une autre session',showCases));$('feedback').append(actions);}
   view('exercise',false);
+}
+// Content and rubric versions stay available, folded away from the learner's reading path.
+function technicalDetails(content) {
+  const details = node('details', undefined, 'technical'); details.append(node('summary', 'Détails techniques'));
+  const ids = [content.scenario_id && `Contenu ${content.scenario_id}@${content.scenario_version}`, content.rubric_id && `rubrique ${content.rubric_id}@${content.rubric_version}`].filter(Boolean);
+  details.append(node('p', ids.length ? ids.join(', ') : 'Aucune version enregistrée.', 'help'));
+  return details;
 }
 async function openHistoryItem(item) { if(item.kind==='voice') location.href=`/voice.html?session=${encodeURIComponent(item.id)}`; else await showRun(await client.getRun(item.id)); }
 async function showHistory() {
   historyItems=(await client.api('/api/history')).items; $('history-list').replaceChildren();
-  if(!historyItems.length)$('history-list').append(node('p','Pas encore de session enregistrée. Choisissez un exercice pour commencer.','availability'));
-  for(const item of historyItems){const card=node('article',undefined,'card');card.append(node('h2',item.content.title),node('p',`${phaseLabel(item.content.phase)} · ${item.mode} · ${stateLabel(item.status)} · ${formatDate(item.ended_at||item.created_at)}`),node('p',`Feedback : ${stateLabel(item.feedback_state)}`,'help'),actionButton(item.has_feedback?'Voir le feedback':'Reprendre cette session',()=>openHistoryItem(item)));$('history-list').append(card);}view('history');
+  if(!historyItems.length){const empty=node('div',undefined,'availability');empty.append(node('p','Pas encore de session enregistrée. Choisissez un exercice pour commencer.'),actionButton('Explorer la bibliothèque →',showCases,true));$('history-list').append(empty);}
+  for(const item of historyItems){const card=node('article',undefined,'card');card.append(node('h2',item.content.title),node('p',`${phaseLabel(item.content.phase)} · ${modeLabel(item.mode)} · ${stateLabel(item.status)} · ${formatDate(item.ended_at||item.created_at)}`),node('p',`Feedback : ${stateLabel(item.feedback_state)}`,'help'),actionButton(item.has_feedback?'Voir le feedback':'Reprendre cette session',()=>openHistoryItem(item)));$('history-list').append(card);}view('history');
 }
 const ERROR_LABELS = {gender: 'Genre', case: 'Cas et déclinaison', verb_form: 'Forme verbale', word_order: 'Ordre des mots', word_choice: 'Choix du mot', register: 'Registre', other: 'Autre'};
 const VERDICT_LABELS = {acknowledged: 'Réaction adaptée', partial: 'Réaction minimale', ignored: 'Pas de réaction'};
@@ -443,7 +473,7 @@ async function showProgress() {
   $('progress-note').textContent=progress.axes.limitations;$('progress-series-note').textContent=progress.limitations;renderAxes(progress.axes);$('progress-list').replaceChildren();
   if(!progress.groups.length)$('progress-list').append(node('p','Pas de données comparables : terminez un exercice pour retrouver ses dimensions.','availability'));
   for(const excluded of progress.excluded||[])$('progress-list').append(node('p',`${excluded.reason} · session ${excluded.run_id}. Le feedback reste disponible dans l’historique.`,'help'));
-  for(const group of progress.groups){const card=node('article',undefined,'card');card.append(node('h2',`${group.content.title} · ${group.mode}`),node('p',`Contenu ${group.content.scenario_id}@${group.content.scenario_version} · rubrique ${group.content.rubric_id}@${group.content.rubric_version}`,'help'));for(const point of group.points){card.append(node('h3',formatDate(point.created_at)));for(const dimension of point.dimensions)card.append(node('p',dimensionText(dimension)));card.append(actionButton('Voir les preuves',()=>openHistoryItem({id:point.run_id,kind:group.kind})));}$('progress-list').append(card);}view('progress');
+  for(const group of progress.groups){const card=node('article',undefined,'card');card.append(node('h2',`${group.content.title} · ${modeLabel(group.mode)}`),technicalDetails(group.content));for(const point of group.points){card.append(node('h3',formatDate(point.created_at)));for(const dimension of point.dimensions)card.append(node('p',dimensionText(dimension)));card.append(actionButton('Voir les preuves',()=>openHistoryItem({id:point.run_id,kind:group.kind})));}$('progress-list').append(card);}view('progress');
 }
 function renderReviewCard() {
   reviewEntry = reviewQueue[0] || null;
@@ -546,6 +576,7 @@ async function showPlacement() {
   const latest = overview.latest;
   $('placement-start').hidden = !overview.available;
   $('placement-resume').hidden = !(latest && latest.status === 'active');
+  $('placement-later').hidden = Boolean(client.profile?.details?.estimated_level);
   $('placement-status').textContent = !overview.available ? 'Le test sera disponible dès qu’un jeu de questions aura été relu et publié.'
     : latest?.status === 'completed' ? `Dernière estimation : ${latest.result.band} (${new Date(latest.ended_at).toLocaleDateString('fr-FR')}). Vous pouvez refaire le test.`
     : latest?.status === 'active' ? `Un test est en cours (${PHASE_LABELS[latest.phase]}).`
@@ -556,7 +587,19 @@ async function showPlacement() {
 async function startPlacement(resume = false) {
   const health = await client.api('/api/health'); providerMode = health.provider_mode;
   placementAttempt = resume && placementAttempt ? await placement.get(placementAttempt.id) : await placement.start();
-  renderPlacement(placementAttempt);
+  await placementStep(placementAttempt);
+}
+// Every answer may end the attempt: the profile then carries the new estimate, so home and the
+// programme are read again before the result offers the next step.
+async function placementStep(attempt) {
+  renderPlacement(attempt);
+  if (attempt.status !== 'completed') return;
+  await client.restoreProfile();
+  let next = null;
+  try { next = (await client.api('/api/program')).week.next; } catch { next = null; }
+  if (next?.kind === 'placement') next = null;
+  $('placement-next').replaceChildren(...(next ? [actionButton(`Prochaine étape : ${slotTitle(next)} →`, () => runSlot(next), true)] : []));
+  $('placement-home').classList.toggle('primary', !next);
 }
 function renderPlacement(attempt) {
   placementAttempt = attempt; placementListens = 0; placementBusyReset();
@@ -599,7 +642,8 @@ function renderPlacement(attempt) {
 function renderPlacementResult(attempt) {
   $('placement-run').hidden = true; $('placement-result').hidden = false;
   const result = attempt.result;
-  $('placement-band').textContent = `${result.band} · ${LEVEL_LABELS[result.band] || ''}`;
+  $('placement-band').textContent = `Niveau estimé : ${result.band}`;
+  $('placement-band-label').textContent = LEVEL_LABELS[result.band] ? `Repère CECRL : ${LEVEL_LABELS[result.band]}.` : '';
   $('placement-detail').textContent = describeResult(result) + ` · ${result.mcq_answered} questions, ${result.listening_answered} écoutes, ${result.speaking_answered} prises de parole.`;
   $('placement-speaking-feedback').replaceChildren(...attempt.speaking_feedback.map(item => {
     const card = node('article', undefined, 'card'); card.append(node('h3', `Expression orale · ${item.estimated_level} (confiance ${Math.round(item.confidence * 100)} %)`));
@@ -611,7 +655,8 @@ function renderPlacementResult(attempt) {
 async function toggleRecording() {
   if (!recorder) {
     recorder = new PcmRecorder(); recordedAudio = null; $('placement-send').disabled = true;
-    await recorder.start();
+    try { await recorder.start(); }
+    catch (error) { recorder = null; throw new Error(microphoneErrorMessage(error, 'Enregistrer'), {cause: error}); }
     const started = Date.now();
     $('placement-record').textContent = 'Arrêter';
     recordTimer = setInterval(() => { $('placement-record-status').textContent = `Enregistrement… ${Math.floor((Date.now() - started) / 1000)} s`; }, 500);
@@ -631,11 +676,12 @@ async function navigate(name) {
 }
 async function route() { const match=location.hash.match(/^#practice\/([A-Za-z0-9_.-]+)$/);if(client.profile&&match)return showRun(await client.getRun(match[1]));return navigate(location.hash.slice(1)||'home'); }
 $('retry').onclick=()=>retryAction&&perform(retryAction);
-$('next-profile').onclick=()=>{if($('draft-land').reportValidity()&&$('draft-date').reportValidity()){onboardingStep(2,true);writeDraft();}};
+for(const id of ['draft-land','draft-date','draft-specialty','add-lemma'])clearFieldErrorOnInput($(id));
+$('next-profile').onclick=()=>{if(validateFields([$('draft-land'),$('draft-date')])){onboardingStep(2,true);writeDraft();}};
 $('back-project').onclick=()=>{onboardingStep(1,true);writeDraft();};
 $('profile-form').addEventListener('input',()=>{sourceState();writeDraft();});
 $('profile-form').addEventListener('change',()=>{sourceState();writeDraft();});
-$('profile-form').onsubmit=event=>{event.preventDefault();if($('person-step').hidden)return;if(!$('draft-land').value){onboardingStep(1);$('draft-land').reportValidity();return;}if(!$('draft-specialty').reportValidity())return;const draft=writeDraft();const details=profileDetails();perform(async()=>{const created=!client.profile;if(!client.profile){await client.restoreProfile();if(!client.profile)await client.createProfile($('target').value,details);try{localStorage.setItem(localKey(),JSON.stringify(draft));localStorage.removeItem('ari:onboarding:v3:anonymous');}catch{}}if(!created||client.profile.details?.declared_level!==details.declared_level){await client.updateProfile(details);}if(client.profile.goal.target_cefr!==$('target').value){await client.api(`/api/learners/${encodeURIComponent(client.profile.id)}/goal`,{method:'PATCH',body:JSON.stringify({target_cefr:$('target').value})});await client.restoreProfile();}if(created&&!client.profile.details?.estimated_level){await showPlacement();return;}await home();});};
+$('profile-form').onsubmit=event=>{event.preventDefault();if($('person-step').hidden)return;if(!$('draft-land').value){onboardingStep(1);validateFields([$('draft-land')]);return;}if(!validateFields([$('draft-specialty')]))return;const draft=writeDraft();const details=profileDetails();perform(async()=>{const created=!client.profile;if(!client.profile){await client.restoreProfile();if(!client.profile)await client.createProfile($('target').value,details);try{localStorage.setItem(localKey(),JSON.stringify(draft));localStorage.removeItem('ari:onboarding:v3:anonymous');}catch{}}if(!created||client.profile.details?.declared_level!==details.declared_level){await client.updateProfile(details);}if(client.profile.goal.target_cefr!==$('target').value){await client.api(`/api/learners/${encodeURIComponent(client.profile.id)}/goal`,{method:'PATCH',body:JSON.stringify({target_cefr:$('target').value})});await client.restoreProfile();}if(created&&!client.profile.details?.estimated_level){await showPlacement();return;}await home();});};
 $('goal-form').onsubmit=event=>{event.preventDefault();perform(async()=>{await client.api(`/api/learners/${encodeURIComponent(client.profile.id)}/goal`,{method:'PATCH',body:JSON.stringify({target_cefr:$('goal-target').value})});await client.restoreProfile();await home();});};
 $('edit-profile').onclick=()=>{restoreDraft();history.replaceState(null,'','#onboarding');view('onboarding',false);};
 $('logout').onclick=()=>perform(async()=>{await client.api('/api/auth/logout',{method:'POST'});location.assign('/');});
@@ -644,17 +690,17 @@ $('warmup-start').onclick=()=>perform(startSelected);
 $('placement-start').onclick=()=>perform(()=>startPlacement(false));
 $('placement-resume').onclick=()=>perform(()=>startPlacement(true));
 $('placement-again').onclick=()=>perform(()=>startPlacement(false));
-$('placement-choice-form').onsubmit=event=>{event.preventDefault();const chosen=document.querySelector('[name=placement-option]:checked');if(!chosen){$('notice').textContent='Choisissez une réponse.';return;}const attempt=placementAttempt;perform(async()=>renderPlacement(await placement.answer(attempt,attempt.current_item.id,Number(chosen.value))));};
+$('placement-choice-form').onsubmit=event=>{event.preventDefault();const chosen=document.querySelector('[name=placement-option]:checked');if(!chosen){$('notice').textContent='Choisissez une réponse.';return;}const attempt=placementAttempt;perform(async()=>placementStep(await placement.answer(attempt,attempt.current_item.id,Number(chosen.value))));};
 $('placement-record').onclick=()=>perform(toggleRecording);
-$('placement-send').onclick=()=>{const attempt=placementAttempt,audio=recordedAudio;perform(async()=>renderPlacement(await placement.speak(attempt,attempt.current_item.id,{audio})));};
-$('placement-text-form').onsubmit=event=>{event.preventDefault();const attempt=placementAttempt,text=$('placement-text').value.trim();if(!text)return;perform(async()=>{$('placement-text').value='';renderPlacement(await placement.speak(attempt,attempt.current_item.id,{text}));});};
-$('placement-quit').onclick=()=>{const attempt=placementAttempt;perform(async()=>{await client.restoreProfile();renderPlacement(await placement.finish(attempt));await client.restoreProfile();});};
+$('placement-send').onclick=()=>{const attempt=placementAttempt,audio=recordedAudio;perform(async()=>placementStep(await placement.speak(attempt,attempt.current_item.id,{audio})));};
+$('placement-text-form').onsubmit=event=>{event.preventDefault();const attempt=placementAttempt,text=$('placement-text').value.trim();if(!text)return;perform(async()=>{$('placement-text').value='';await placementStep(await placement.speak(attempt,attempt.current_item.id,{text}));});};
+$('placement-quit').onclick=()=>{const attempt=placementAttempt;perform(async()=>placementStep(await placement.finish(attempt)));};
 for(const tab of document.querySelectorAll('.tab'))tab.onclick=()=>{vocabZone=tab.dataset.zone;renderVocabList();};
 $('vocab-search').oninput=renderVocabList;$('vocab-source').onchange=renderVocabList;
 $('vocab-cadence-form').onsubmit=event=>{event.preventDefault();const days=Number($('vocab-cadence').value);perform(async()=>{await client.updateProfile({maintenance_cadence_days:days});await showVocab();});};
 $('review-form').onsubmit=event=>{event.preventDefault();if(reviewEntry)revealReview($('review-input').value);};
 $('review-reveal').onclick=()=>{if(reviewEntry)revealReview('');};
-$('vocab-add-form').onsubmit=event=>{event.preventDefault();if(!$('add-lemma').reportValidity())return;const lemma=$('add-lemma').value,translation=$('add-translation').value,example=$('add-example').value;perform(async()=>{await lexicon.add(lemma,translation,example);$('vocab-add-form').reset();await showVocab();});};
+$('vocab-add-form').onsubmit=event=>{event.preventDefault();if(!validateFields([$('add-lemma')]))return;const lemma=$('add-lemma').value,translation=$('add-translation').value,example=$('add-example').value;perform(async()=>{await lexicon.add(lemma,translation,example);$('vocab-add-form').reset();await showVocab();});};
 $('answer-form').onsubmit=event=>{event.preventDefault();const run=currentRun,text=$('answer').value;perform(async()=>showRun(await client.answer(run,text)));};
 for(const action of ['pause','resume','finish'])$(action).onclick=()=>{const run=currentRun;perform(async()=>showRun(await client.action(run,action)));};
 for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>perform(()=>navigate(button.dataset.view));

@@ -20,7 +20,7 @@ from test_execution_costs import _execution
 
 from ari.api.app import create_app
 from ari.application.ports.usage import MonthCost
-from ari.application.services.usage_guard import UsageGuard, month_bounds
+from ari.application.services.usage_guard import ExamAllowance, UsageGuard, month_bounds
 from ari.config import Settings
 from ari.container import Container, build_container
 from ari.domain.errors import QuotaExceededError, UsageCeilingError
@@ -70,6 +70,21 @@ def test_the_third_exam_of_the_month_is_refused_with_its_reset_date() -> None:
         guard(ledger).check_session_start("learner", LearningMode.EXAM)
     assert ledger.windows == [month_bounds(NOW)]
     guard(FakeLedger(exams=1)).check_session_start("learner", LearningMode.EXAM)
+
+
+def test_the_exam_allowance_reads_the_quota_without_refusing_anything() -> None:
+    assert guard(FakeLedger(exams=1)).exam_allowance("learner") == ExamAllowance(
+        1, 2, datetime(2026, 11, 1).date()
+    )
+    spent = guard(FakeLedger(exams=2)).exam_allowance("learner")
+    assert spent.exhausted and spent.renews_on.isoformat() == "2026-11-01"
+
+    class EvaluationLedger(FakeLedger):
+        def is_evaluation_account(self, learner_id: str) -> bool:
+            return True
+
+    unlimited = guard(EvaluationLedger(exams=9)).exam_allowance("learner")
+    assert unlimited.quota is None and not unlimited.exhausted
 
 
 def test_training_and_unmeasured_modes_are_never_limited_by_the_quota() -> None:
@@ -159,17 +174,26 @@ def test_exam_quota_counts_calls_that_began_and_never_blocks_training(
     container = make_container(exam_sessions_per_month=1)
     with TestClient(create_app(container)) as client:
         learner_id = learner(client)
+        assert client.get("/api/usage/exams").json()["remaining"] == 1
         first = new_session(client, learner_id, "exam")
         assert first.status_code == 201
         # Creating is free: nothing has been spent until the call begins.
         assert new_session(client, learner_id, "exam").status_code == 201
         play_and_end(client, first.json()["id"])
 
+        usage = client.get("/api/usage/exams").json()
+        assert usage == {"used": 1, "quota": 1, "remaining": 0, "renews_on": usage["renews_on"]}
+        assert usage["renews_on"].endswith("-01")
         over = new_session(client, learner_id, "exam")
         assert over.status_code == 402
         assert "se renouvelle le 01/" in over.json()["detail"]
         training = new_session(client, learner_id, "training")
         assert training.status_code == 201
+
+
+def test_the_exam_usage_needs_a_signed_in_learner(make_container: Any) -> None:
+    with TestClient(create_app(make_container())) as client:
+        assert client.get("/api/usage/exams").status_code == 401
 
 
 def test_a_session_created_before_the_quota_ran_out_is_refused_when_it_opens(

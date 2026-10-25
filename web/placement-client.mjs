@@ -1,6 +1,7 @@
 // Placement test client. Start and every answer carry an idempotency key persisted per
 // profile, attempt and item, so a lost response or a reload never counts an answer twice.
-export const LEVEL_LABELS = { A1: "A1 · découverte", A2: "A2 · survie", B1: "B1 · seuil", B2: "B2 · indépendant", C1: "C1 · autonome", C2: "C2 · maîtrise" };
+// CECRL bands in plain words, without repeating the level code.
+export const LEVEL_LABELS = { A1: "niveau élémentaire, découverte de la langue", A2: "niveau élémentaire, échanges simples du quotidien", B1: "niveau indépendant, seuil", B2: "niveau indépendant, avancé", C1: "niveau expérimenté, autonomie", C2: "niveau expérimenté, maîtrise" };
 export const PHASE_LABELS = { mcq: "Vocabulaire et grammaire", listening: "Compréhension orale", speaking: "Expression orale", completed: "Terminé" };
 
 export class PlacementClient {

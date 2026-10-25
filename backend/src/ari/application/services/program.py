@@ -1,15 +1,19 @@
-"""Weekly programme, program-rules-v2: a policy recomputed on every read, never a stored plan.
+"""Weekly programme, program-rules-v3: a policy recomputed on every read, never a stored plan.
 
 The week runs Monday to Sunday. Slots are derived from the learner model; volume is
 bounded by the declared minutes per day; recommendations score published content by
 overlap with due lexicon words, weak anamnesis sections, recency and, since v2, the Land
 the learner prepares for. Done slots are matched greedily against what was actually
 completed since Monday.
+
+Since v3, a week the learner joined midway starts on the day the profile was created:
+earlier days hold no slot and no budget, a slot kind whose every day fell before it is
+moved to that first day, and `next` prefers today or a later day over a missed slot.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -20,7 +24,7 @@ from ari.domain.placement import LEVELS, level_index
 from ari.domain.practice import PracticeContent
 from ari.domain.text import normalize_answer
 
-PROGRAM_RULES_VERSION = "program-rules-v2"
+PROGRAM_RULES_VERSION = "program-rules-v3"
 EXAM_PHASE_WEEKS = 8
 RECENCY_DAYS = 14
 
@@ -262,7 +266,20 @@ def plan_week(
                 _practice_ref(arzt),
             )
 
-    budget = model.minutes_per_day * 7
+    # A week joined midway starts on the profile's first day: nothing before it is missed.
+    first_day = 0
+    if model.started_on is not None:
+        first_day = min(max(0, (model.started_on - start).days), (today - start).days)
+    if first_day:
+        before = [s for s in slots if s.day_offset < first_day]
+        slots = [s for s in slots if s.day_offset >= first_day]
+        kinds = {s.kind for s in slots}
+        for slot in before:
+            if slot.kind not in kinds:  # keep one occurrence of a kind the week would lose
+                kinds.add(slot.kind)
+                slots.append(replace(slot, id=f"{slot.kind}-{first_day}", day_offset=first_day))
+
+    budget = model.minutes_per_day * (7 - first_day)
     kept = sorted(slots, key=lambda s: (s.priority, s.day_offset))
     total = sum(s.minutes for s in kept)
     trimmed: list[str] = []
@@ -305,12 +322,16 @@ def plan_week(
                 "recommended": slot.recommended,
             }
         )
-    open_slots = [s for s in rendered if s["state"] in {"today", "todo", "missed"}]
+    # Today or a later day comes first; a missed slot is offered only once nothing else is open.
+    open_slots = [s for s in rendered if s["state"] in {"today", "todo"}] + [
+        s for s in rendered if s["state"] == "missed"
+    ]
     return {
         "version": PROGRAM_RULES_VERSION,
         "phase": phase,
         "message": PHASE_MESSAGES[phase],
         "week_start": start.isoformat(),
+        "starts_on": (start + timedelta(days=first_day)).isoformat(),
         "today": today.isoformat(),
         "budget_minutes": budget,
         "planned_minutes": total,

@@ -38,7 +38,13 @@ async function signIn(page, account) {
 }
 
 async function onboard(page, official = false) {
-  await page.locator("#profile-form").getByLabel("Land", {exact:true}).selectOption("Bayern");
+  // A missing Land is said in French under the field, not in the browser's own bubble.
+  await page.getByRole("button", {name:"Continuer →", exact:true}).click();
+  assert.equal(await page.locator("#draft-land-error").innerText(), "Choisissez une option dans la liste.");
+  assert.equal(await page.evaluate(() => document.activeElement.id), "draft-land");
+  assert.equal(await page.locator("#draft-land").getAttribute("aria-invalid"), "true");
+  await page.locator("#profile-form").getByRole("combobox", {name:"Land", exact:true}).selectOption("Bayern");
+  assert.equal(await page.locator("#draft-land-error").count(), 0, "a valid choice clears the message");
   await page.getByRole("button", {name:"Continuer →", exact:true}).click();
   await page.getByLabel("Spécialité visée").fill("Médecine interne");
   if (official) {
@@ -51,10 +57,55 @@ async function onboard(page, official = false) {
   // A new profile without an estimate lands on the placement test; the learner may skip it.
   await page.locator("#placement:not([hidden])").waitFor();
   assert.match(await page.locator("#placement-status").innerText(), /Niveau de départ/);
-  await page.goto(base + "/app#home");
+  await page.getByRole("button", {name:"Faire le test plus tard", exact:true}).click();
   await page.locator("#home:not([hidden])").waitFor();
+  // The profile was created today: no earlier day of this week counts as missed.
+  assert.equal(await page.locator("#week-days .week-pill[data-state=missed]").count(), 0);
+}
+async function completePlacement(page) {
+  await page.locator("#placement-cta").click();
+  await page.getByRole("button", {name:"Commencer le test →", exact:true}).click();
+  const choice = page.locator("#placement-choice-form:visible"), text = page.locator("#placement-text-form:visible");
+  const result = page.locator("#placement-result:visible");
+  for (let step = 0; step < 40; step += 1) {
+    await choice.or(text).or(result).first().waitFor();
+    if (await result.isVisible()) break;
+    const before = await page.locator("#placement-progress").innerText();
+    if (await choice.isVisible()) {
+      await page.locator("#placement-options input[type=radio]").first().check();
+      await choice.getByRole("button", {name:"Valider", exact:true}).click();
+    } else {
+      await page.getByLabel("Mode fake : écrivez votre réponse").fill("Ich habe seit drei Tagen Bauchschmerzen.");
+      await text.getByRole("button", {name:"Envoyer", exact:true}).click();
+    }
+    await page.waitForFunction(previous => document.querySelector("#placement-progress").innerText !== previous
+      || !document.querySelector("#placement-result").hidden, before);
+  }
+  // The result offers the programme's next step, and home shows the estimate without a reload.
+  await page.locator("#placement-next button").waitFor();
+  assert.match(await page.locator("#placement-next button").innerText(), /^Prochaine étape : /);
+  await page.getByRole("button", {name:"Retour à l’accueil", exact:true}).click();
+  await page.locator("#home:not([hidden])").waitFor();
+  assert.match(await page.locator("#profile-goal").innerText(), /niveau estimé [ABC][12], déclaré B2 \(test du /);
+  assert.equal(await page.locator("#placement-cta").innerText(), "Refaire le test de niveau");
 }
 try {
+  {
+    // Sign-in page: French field messages, and an activation link opened in a tab already there.
+    const signInPage = await (await browser.newContext()).newPage();
+    signInPage.on("pageerror", error => errors.push(error.message));
+    await signInPage.goto(base + "/connexion");
+    await signInPage.getByRole("tab", {name: "Créer un compte"}).click();
+    await signInPage.getByRole("button", {name: "Recevoir mon lien", exact: true}).click();
+    assert.equal(await signInPage.locator("#signup-form-email-error").innerText(), "Ce champ est obligatoire.");
+    await signInPage.locator("#signup-form input[name=email]").fill("pas-une-adresse");
+    await signInPage.getByRole("button", {name: "Recevoir mon lien", exact: true}).click();
+    assert.match(await signInPage.locator("#signup-form-email-error").innerText(), /adresse e-mail valide/);
+    await signInPage.evaluate(() => { location.hash = "#jeton=lien-perime"; });
+    await signInPage.locator("#view-forgot:not([hidden])").waitFor();
+    assert.match(await signInPage.locator("#status").innerText(), /Demandez un nouveau lien/);
+    await signInPage.context().close();
+  }
   const context = await browser.newContext();
   const page = await context.newPage();
   page.on("pageerror", error => errors.push(error.message));
@@ -66,6 +117,18 @@ try {
   assert.match(await page.locator("#week-phase").innerText(), /Anamnèse · niveau B2/);
   assert.equal(await page.locator("#week-days .week-pill").count(), 7, "the week strip has seven days");
   assert.match(await page.locator("#recommendation h1").innerText(), /./, "the hero names the next step");
+  // Offline, the learner reads French, then retries once the network is back.
+  await context.setOffline(true);
+  await page.getByRole("button", {name: "Carnet", exact: true}).first().click();
+  await page.locator("#error:visible").waitFor();
+  assert.match(await page.locator("#error-text").innerText(), /^Connexion impossible : vérifiez votre réseau\./);
+  await context.setOffline(false);
+  await page.getByRole("button", {name: "Réessayer", exact: true}).click();
+  await page.locator("#vocab:not([hidden])").waitFor();
+  // The exam page shows the month's count before any start.
+  await page.goto(base + "/app#exam");
+  await page.locator("#exam:not([hidden])").waitFor();
+  assert.match(await page.locator("#exam-usage").innerText(), /Consultations en Examen ce mois-ci : 0 sur 2/);
   await page.goto(base + "/app#cases");
   // The catalogue opens on the learner's Land (Bayern, from onboarding) and counts its cases.
   await page.getByText(/Bayern : 1 cas publié/).waitFor();
@@ -106,12 +169,12 @@ try {
   assert.match(await page.locator("#progress-list").innerText(), /Lexique : 5.00/);
   await page.getByRole("button", {name: "Historique", exact: true}).click();
   await page.locator("#history:not([hidden])").waitFor();
-  assert.match(await page.locator("#history-list").innerText(), /exam/);
+  assert.match(await page.locator("#history-list").innerText(), /Examen/);
   assert.equal(await page.locator("#history-list article").count(), 1);
   await page.getByRole("button", {name: "Voir le feedback", exact: true}).click();
   await page.getByRole("heading", {name: "Votre feedback · Évalué selon cette méthode"}).waitFor();
   await page.getByRole("button", {name: "Choisir une autre session"}).click();
-  await page.getByRole("radio", {name: /Training/}).check();
+  await page.getByRole("radio", {name: /Entraînement/}).check();
   await page.locator("#catalog article").filter({hasText: "Arzt–Arzt"}).getByRole("button", {name: "Préparer cette session →"}).click();
   await page.getByRole("button", {name:"Commencer la session →", exact:true}).click();
   await page.locator("#coaching:visible").waitFor();
@@ -132,10 +195,13 @@ try {
   await signIn(other, accounts[1]);
   await other.getByRole("heading", {name:"Quel est votre objectif ?",exact:true}).waitFor();
   await onboard(other, true);
+  await completePlacement(other);
   await other.goto(privateRunUrl);
   await other.locator("#error:visible").waitFor();
   await other.getByRole("button", {name: "Historique", exact: true}).click();
   await other.getByText("Pas encore de session enregistrée.", {exact: false}).waitFor();
+  await other.getByRole("button", {name: "Explorer la bibliothèque →", exact: true}).click();
+  await other.locator("#cases:not([hidden])").waitFor();
   // A training voice consultation in fake mode: one typed sentence, then the feedback.
   await page.goto(base + "/app#cases");
   await page.locator("#voice-cases article").getByRole("button", {name: "Préparer cette session →"}).click();

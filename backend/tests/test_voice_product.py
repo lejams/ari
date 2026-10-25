@@ -11,7 +11,7 @@ from test_clinical_registry import approve
 
 from ari.api.app import create_app
 from ari.application.services.assessment import weighted_assessment
-from ari.application.services.progression import voice_progression
+from ari.application.services.progression import voice_history, voice_progression
 from ari.container import Container
 from ari.domain.models import (
     AudioDeliveryStatus,
@@ -114,6 +114,21 @@ def test_voice_progression_uses_weighted_evidence_and_separates_modes(
     assert dimension["score"] == 1.25  # 1/4 criterion weight, not 1/2 facts.
     assert dimension["evidence_turn_sequences"] == [1]
     assert dimension["state"] == "provisional"
+    # Same weights as the stored line, in plain words for the learner.
+    stored = criteria[0]["feedback"]
+    assert stored.startswith("Évaluation pondérée")
+    earned, total = stored.split(": ")[1].split(" ")[0].split("/")
+    assert dimension["feedback"] == (
+        f"Éléments attendus : {earned} point{'s' if float(earned) > 1 else ''} sur {total}"
+    )
+    # History shows the case title, never the id and version.
+    titles = [
+        item["content"]["title"]
+        for item in voice_history(
+            (session, replace(session, id="gone", case_id="WITHDRAWN")), practice_container.cases
+        )
+    ]
+    assert titles == [case.title, "Consultation vocale"]
     legacy = replace(
         session, evaluation=replace(evaluation, schema_version="session-evaluation-v1")
     )
