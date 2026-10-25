@@ -262,7 +262,9 @@ def test_program_api_reflects_profile_lexicon_and_activity(database_url: str) ->
             f"/api/learners/{me['id']}/profile",
             json={
                 "declared_level": "B1",
-                "minutes_per_day": 45,
+                # The profile was created today, so the week holds only the days left: on a
+                # Sunday every kind moves to that one day, and 45 min would trim Fachbegriffe.
+                "minutes_per_day": 120,
                 "exam_date": (TODAY + timedelta(weeks=20)).isoformat(),
             },
         )
