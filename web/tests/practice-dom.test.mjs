@@ -127,6 +127,14 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   const { nodes } = await load("#home");
   assert.match(nodes.get("recommendation").children[1].textContent, /Réviser mon carnet/);
   assert.equal(nodes.get("week-days").children.length, 7);
+  // Each day toggle sits in a list item; a button with role="listitem" cannot carry aria-pressed.
+  for (const item of nodes.get("week-days").children) {
+    assert.equal(item.getAttribute("role"), "listitem");
+    const [pill] = item.children;
+    assert.equal(pill.tagName, "BUTTON");
+    assert.equal(pill.getAttribute("role"), null);
+    assert.match(pill.getAttribute("aria-pressed"), /^(true|false)$/);
+  }
 }
 {
   const { nodes } = await load("#cases");
