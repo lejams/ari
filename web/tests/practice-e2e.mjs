@@ -169,12 +169,12 @@ try {
   assert.match(await page.locator("#progress-list").innerText(), /Lexique : 5.00/);
   await page.getByRole("button", {name: "Historique", exact: true}).click();
   await page.locator("#history:not([hidden])").waitFor();
-  assert.match(await page.locator("#history-list").innerText(), /exam/);
+  assert.match(await page.locator("#history-list").innerText(), /Examen/);
   assert.equal(await page.locator("#history-list article").count(), 1);
   await page.getByRole("button", {name: "Voir le feedback", exact: true}).click();
   await page.getByRole("heading", {name: "Votre feedback · Évalué selon cette méthode"}).waitFor();
   await page.getByRole("button", {name: "Choisir une autre session"}).click();
-  await page.getByRole("radio", {name: /Training/}).check();
+  await page.getByRole("radio", {name: /Entraînement/}).check();
   await page.locator("#catalog article").filter({hasText: "Arzt–Arzt"}).getByRole("button", {name: "Préparer cette session →"}).click();
   await page.getByRole("button", {name:"Commencer la session →", exact:true}).click();
   await page.locator("#coaching:visible").waitFor();

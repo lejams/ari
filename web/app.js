@@ -112,11 +112,15 @@ function setExamPresentation(active) {
 }
 
 function syncLearningModeButtons() {
+  const locked = Boolean(state.sessionId || state.requestedLearningMode);
   document.querySelectorAll("[data-learning-mode]").forEach((button) => {
     const selected = button.dataset.learningMode === state.learningMode;
     button.setAttribute("aria-pressed", String(selected));
-    button.disabled = Boolean(state.sessionId);
+    button.disabled = locked;
+    // Once the mode is fixed (chosen in the library, or a session exists), only that mode shows.
+    button.classList.toggle("hidden", locked && !selected);
   });
+  $("mode-change").classList.toggle("hidden", !(state.requestedLearningMode && !state.sessionId));
   $("debug-form").classList.toggle("hidden", state.providerMode !== "fake" || !state.case);
 }
 
@@ -143,7 +147,7 @@ function clearTranscript() {
   if (state.examActive) return;
   const empty = document.createElement("div");
   empty.className = "empty";
-  empty.textContent = "Le transcript apparaîtra ici pendant la conversation.";
+  empty.textContent = "La transcription apparaîtra ici pendant la conversation.";
   $("transcript").append(empty);
   setPartial("");
   state.lastPatientTurnNode = null;
@@ -206,7 +210,7 @@ function renderCase(selectedCase) {
   $("case-goal").textContent = "Entraînement · niveau non mesuré";
   $("simulation-eyebrow").textContent = `Simulation clinique en ${french}`;
   $("simulation-intro").textContent =
-    "Parlez naturellement. À la fin, vous recevez un feedback FSP bref, mesurable et relié à votre transcript.";
+    "Parlez naturellement. À la fin, vous recevez un feedback FSP bref, mesurable et relié à la transcription.";
   $("debug-input").placeholder = `Mode fake : simuler une phrase en ${french}`;
   const caseValue = caseKey(selectedCase);
   if ($("case-select").value !== caseValue) $("case-select").value = caseValue;
@@ -223,6 +227,8 @@ function showCallActions({ canStart, canEnd, canRetry, canCreateNew }) {
   const knownCase = state.cases.some((item) => item.id === state.case?.id && item.version === state.case?.version);
   $("retry-case").classList.toggle("hidden", !(canCreateNew && knownCase && ["training", "exam"].includes(state.learningMode)));
   if (canStart || canRetry || canCreateNew) $("talk").classList.add("hidden");
+  // canCreateNew means the session is over and its feedback is on screen.
+  $("back-link").textContent = canCreateNew ? "Retour à l’accueil" : "Quitter la session";
 }
 
 async function restoreSession() {
@@ -263,7 +269,7 @@ async function restoreSession() {
       showCallActions({ canStart: false, canEnd: false, canRetry: true, canCreateNew: false });
       setStatus(
         session.status === "analysis_failed"
-          ? "Analyse échouée — le transcript est sauvegardé"
+          ? "Analyse échouée — la transcription est sauvegardée"
           : "Analyse interrompue — vous pouvez la relancer",
       );
     } else if (session.status === "completed") {
@@ -733,7 +739,7 @@ async function endCall() {
       setExamPresentation(false);
       renderPersistedTranscript(saved.turns);
       showCallActions({ canStart: false, canEnd: false, canRetry: true, canCreateNew: false });
-      setStatus("Analyse échouée — le transcript est sauvegardé");
+      setStatus("Analyse échouée — la transcription est sauvegardée");
     } else if (saved?.status === "completed") {
       setExamPresentation(false);
       renderPersistedTranscript(saved.turns);
@@ -756,7 +762,7 @@ async function endCall() {
       });
       setStatus(
         state.persistedTurns === 0
-          ? "Aucun transcript final reçu — reprenez l’appel pour continuer"
+          ? "Aucune transcription finale reçue — reprenez l’appel pour continuer"
           : `Finalisation incomplète : ${error.message} — vous pouvez reprendre`,
       );
     }
@@ -792,6 +798,7 @@ function resetForNewSession(mode, selectedCase) {
   state.completedTurns = 0;
   state.ending = false;
   state.learningMode = mode;
+  state.requestedLearningMode = null;
   setExamPresentation(false);
   $("learning-mode").value = mode;
   syncLearningModeButtons();
@@ -838,7 +845,7 @@ const EMPATHY_LABELS = {
   acknowledged: "Réaction adaptée", partial: "Réaction minimale", ignored: "Pas de réaction",
   not_reached: "Révélé en fin de session, sans réponse", not_triggered: "Le patient ne l’a pas révélé",
 };
-const MODE_LABELS = { training: "Training", exam: "Examen", unknown: "Historique" };
+const MODE_LABELS = { training: "Entraînement", exam: "Examen", unknown: "Historique" };
 const TILE_STATES = { ok: "✓", warn: "◐", bad: "✗", none: "—" };
 const plural = (count, singular, pluralForm = `${singular}s`) => `${count} ${count > 1 ? pluralForm : singular}`;
 const formatScore = (value) => (Number.isInteger(value) ? String(value) : value.toFixed(1).replace(".", ","));
@@ -1050,8 +1057,8 @@ function showFeedback(session) {
   const evaluation = session.evaluation;
   if (!evaluation) return;
   const comparable = COMPARABLE_EVALUATIONS.has(evaluation.schema_version);
-  $("score").textContent = "Provisoire";
-  $("score-label").textContent = "analyse automatisée · aucun score global ni niveau certifié";
+  $("score").textContent = "Par dimension";
+  $("score-label").textContent = "analyse automatique provisoire, sans score global ni niveau certifié";
   $("feedback-meta").textContent = [state.case?.title, MODE_LABELS[session.learning_mode || "unknown"], plural(session.turns.length, "tour")].filter(Boolean).join(" · ");
   $("summary").textContent = evaluation.summary;
   renderNextActions(evaluation.next_actions || []);
@@ -1106,7 +1113,6 @@ for (const tile of document.querySelectorAll("[data-open]")) {
     details.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 }
-$("feedback-retry").addEventListener("click", retryCase);
 
 $("case-select").addEventListener("change", (event) => {
   const selected = state.cases.find(
@@ -1123,6 +1129,11 @@ document.querySelectorAll("[data-learning-mode]").forEach((button) => {
     setExamPresentation(state.learningMode === "exam");
     applyExamQuota();
   });
+});
+$("mode-change").addEventListener("click", () => {
+  if (state.sessionId) return;
+  state.requestedLearningMode = null;
+  syncLearningModeButtons();
 });
 $("subtitles-toggle").addEventListener("click", () => {
   if (!allowsInCallHelp(state.learningMode)) return;
