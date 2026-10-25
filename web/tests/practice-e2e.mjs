@@ -209,8 +209,15 @@ try {
   await other.getByText("Pas encore de session enregistrée.", {exact: false}).waitFor();
   await other.getByRole("button", {name: "Explorer la bibliothèque →", exact: true}).click();
   await other.locator("#cases:not([hidden])").waitFor();
+  // The exam presentation (dark theme, chosen mode shown) stays legible before the call starts.
+  // Opening the page starts nothing: the exam only begins on "Commencer la consultation".
+  const examCase = (await (await page.request.get(base + "/api/cases")).json())[0];
+  await page.goto(`${base}/voice.html?case=${encodeURIComponent(examCase.id)}&mode=exam`);
+  await page.locator("body.exam-active").waitFor();
+  await assertAccessible(page, "voice page in exam mode");
   // A training voice consultation in fake mode: one typed sentence, then the feedback.
   await page.goto(base + "/app#cases");
+  await page.getByRole("radio", {name: /Entraînement/}).check();
   await page.locator("#voice-cases article").getByRole("button", {name: "Préparer cette session →"}).click();
   await page.getByRole("button", {name: "Commencer la session →", exact: true}).click();
   await page.waitForURL(/\/voice\.html/);

@@ -79,7 +79,8 @@ a:hover{color:var(--accent-strong)}
 .pronunciation{color:var(--muted);font-size:14px;margin:18px 0}
 .feedback-actions{display:flex;gap:18px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:18px;font-size:14px}
 .feedback-actions a{display:inline-flex;align-items:center;min-height:44px}
-body.exam-active{--bg:#111e30;--surface:#18283d;--ink:#edf2f8;--muted:#aebbd0;--line:#314056;--accent:#c2cdf4;--soft:#263751;background:var(--bg)}
+body.exam-active{--bg:#111e30;--surface:#18283d;--ink:#edf2f8;--muted:#aebbd0;--faint:#aebbd0;--line:#314056;--line-strong:#3f5577;--accent:#c2cdf4;--accent-strong:#dbe3ff;--soft:#263751;background:var(--bg)}
+body.exam-active .mode-switch button[aria-pressed=true]{color:#172b45}
 body.exam-active .consultation{box-shadow:none}
 body.exam-active .patient-avatar{background:#24364d;color:#bdc9ef;box-shadow:0 0 0 11px #1c2b40}
 body.exam-active .primary,body.exam-active .talk-button{color:#172b45}
