@@ -81,11 +81,14 @@ evals-fake:
 	PYTHONPATH=backend/src $(PYTHON) -m ari.evals pronunciation --seed 0 --out-dir var/evals/fake/voice-snippets
 
 test-web:
+	$(NODE) --check web/errors.mjs
+	$(NODE) web/tests/errors.test.mjs
 	$(NODE) --check web/practice-client.mjs
 	$(NODE) --check web/practice-ui.mjs
 	$(NODE) --check web/lexicon-client.mjs
 	$(NODE) --check web/placement-client.mjs
 	$(NODE) --check web/pcm-recorder.mjs
+	$(NODE) web/tests/pcm-recorder.test.mjs
 	$(NODE) web/tests/practice-client.test.mjs
 	$(NODE) web/tests/lexicon-client.test.mjs
 	$(NODE) web/tests/placement-client.test.mjs
