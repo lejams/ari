@@ -264,9 +264,7 @@ class FakeLLMProvider:
     @staticmethod
     def _evaluation(payload: dict[str, object]) -> dict[str, object]:
         transcript = cast(list[dict[str, object]], payload["transcript"])
-        rubric = cast(list[dict[str, object]], payload["rubric"])
         turns = [int(str(item["turn"])) for item in transcript]
-        score = min(5, max(1, len(turns)))
         doctor_by_turn = {
             int(str(item["turn"])): str(item.get("doctor", "")) for item in transcript
         }
@@ -329,15 +327,6 @@ class FakeLLMProvider:
                 for turn in turns
                 if doctor_by_turn.get(turn, "").casefold().startswith("wo haben")
             ][:6],
-            "criteria": [
-                {
-                    "criterion_id": str(item["id"]),
-                    "score": score,
-                    "evidence_turn_sequences": turns[-2:] or [1],
-                    "feedback": "Continuez à poser des questions ciblées et à reformuler.",
-                }
-                for item in rubric
-            ],
             "vocabulary_candidates": [
                 {
                     "lemma": "ausstrahlen",

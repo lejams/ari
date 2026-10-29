@@ -95,7 +95,7 @@ def config(
             "routes": {"patient": route, "evaluation": route} if model else {},
             "prompts": {
                 "patient": "patient-exam-v1" if engine == "exam" else "patient-v3",
-                "evaluation": "evaluation-v6",
+                "evaluation": "evaluation-v7",
             },
             "patient_engine": engine,
         }
