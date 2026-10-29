@@ -94,6 +94,9 @@ jobs:
           SSH_PRIVATE_KEY: "${{ secrets.SSH_PRIVATE_KEY }}"
           GHCR_USERNAME: "${{ github.actor }}"
           GHCR_TOKEN: "${{ github.token }}"
+          ARI_SYNC_PROVIDER_SECRETS: "1"
+          ARI_OPENAI_API_KEY: "${{ secrets.ARI_OPENAI_API_KEY }}"
+          ARI_STT_API_KEY: "${{ secrets.ARI_STT_API_KEY }}"
         run: deploy/transfer-release.sh production staged-release "${{ steps.candidate.outputs.image }}" "${{ steps.candidate.outputs.sha }}"
       - name: Publish deployed release metadata
         env:
@@ -109,3 +112,4 @@ jobs:
       # gate is required again).
       - uses: actions/upload-artifact@v4
         with: {name: production-release, path: production-release.json, if-no-files-found: error, retention-days: 90}
+

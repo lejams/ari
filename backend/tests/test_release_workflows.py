@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,6 +28,7 @@ def test_ci_keeps_quality_and_uses_immutable_staging_flow() -> None:
     bundle_steps = str(jobs["bundle"]["steps"])
     assert "deploy/backup.sh" in bundle_steps
     assert "deploy/release.sh" in bundle_steps
+    assert "deploy/provider_secrets.py" in bundle_steps
     assert "deploy/postgres/init" in bundle_steps
     assert jobs["staging"]["environment"] == "staging"
     assert jobs["staging"]["permissions"]["packages"] == "read"
@@ -51,6 +54,9 @@ def test_promotion_is_manual_main_only_and_validates_staging_proof() -> None:
     )
     assert transfer["env"]["GHCR_USERNAME"] == "${{ github.actor }}"
     assert transfer["env"]["GHCR_TOKEN"] == "${{ github.token }}"
+    assert transfer["env"]["ARI_SYNC_PROVIDER_SECRETS"] == "1"
+    assert transfer["env"]["ARI_OPENAI_API_KEY"] == "${{ secrets.ARI_OPENAI_API_KEY }}"
+    assert transfer["env"]["ARI_STT_API_KEY"] == "${{ secrets.ARI_STT_API_KEY }}"
     assert "refs/heads/main" in production["if"]
     steps = str(production["steps"])
     assert "actions/runs/$RUN_ID" in steps
@@ -220,6 +226,47 @@ def test_transfer_helper_rejects_incomplete_or_invalid_registry_auth_before_ssh(
         assert not attempted_ssh.exists()
 
 
+@pytest.mark.parametrize(
+    ("environment", "sync_value", "openai_key", "stt_key", "message"),
+    [
+        ("production", "1", "", "stt-token", "ARI_OPENAI_API_KEY"),
+        ("production", "1", "openai-token", "", "ARI_STT_API_KEY"),
+        ("staging", "1", "openai-token", "stt-token", "production-only"),
+    ],
+)
+def test_transfer_rejects_invalid_or_staging_secret_sync_before_ssh(
+    tmp_path: Path, environment: str, sync_value: str, openai_key: str, stt_key: str, message: str
+) -> None:
+    sha = "a" * 40
+    image = "ghcr.io/lejams/ari@sha256:" + "b" * 64
+    bundle = tmp_path / "bundle"
+    (bundle / "deploy").mkdir(parents=True)
+    shutil.copy(ROOT / "deploy" / "provider_secrets.py", bundle / "deploy" / "provider_secrets.py")
+    (bundle / "release.json").write_text(f'{{"sha":"{sha}","image":"{image}"}}', encoding="utf-8")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    attempted = tmp_path / "ssh-attempted"
+    (fake_bin / "ssh").write_text(
+        "#!/usr/bin/env bash\ntouch \"$SSH_ATTEMPTED\"\n", encoding="utf-8"
+    )
+    (fake_bin / "ssh").chmod(0o755)
+    result = subprocess.run(
+        [str(ROOT / "deploy" / "transfer-release.sh"), environment, str(bundle), image, sha],
+        env=os.environ | {
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "SSH_ATTEMPTED": str(attempted),
+            "DEPLOY_HOST": "release.example", "DEPLOY_USER": "ari", "DEPLOY_PATH": "/opt/ari",
+            "SSH_KNOWN_HOSTS": "release.example ssh-ed25519 AAAA", "SSH_PRIVATE_KEY": "private-key",
+            "ARI_SYNC_PROVIDER_SECRETS": sync_value, "ARI_OPENAI_API_KEY": openai_key,
+            "ARI_STT_API_KEY": stt_key,
+        },
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode != 0
+    assert message in result.stderr
+    assert not attempted.exists()
+
+
 def test_transfer_helper_uses_ephemeral_registry_auth_and_removes_it(tmp_path: Path) -> None:
     sha = "a" * 40
     image = "ghcr.io/lejams/ari@sha256:" + "b" * 64
@@ -373,3 +420,4 @@ def test_voice_snippets_are_manual_main_only_with_scoped_keys() -> None:
     assert "${{" not in run_step["run"]
     assert "pronunciation --live" in run_step["run"]
     assert "voice-snippets" in str(job["steps"][-1])
+

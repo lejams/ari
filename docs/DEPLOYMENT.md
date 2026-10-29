@@ -205,6 +205,27 @@ après fusion de la PR, mettre à jour le checkout `/opt/ari` avec `git pull --f
 scripts manuels `deploy.sh`, `restore.sh` et `lock.sh` utilisent eux aussi ce verrou. Cette mise à
 jour des fichiers ne redémarre pas les conteneurs; la promotion reste une étape distincte.
 
+### Clés des providers en production
+
+Les clés des providers de production se gèrent dans GitHub : **Settings > Environments >
+production > Environment secrets**. Créer exactement ces deux secrets, sans documenter ni copier
+leurs valeurs ici : `ARI_OPENAI_API_KEY` et `ARI_STT_API_KEY`. La seconde clé doit être celle du
+provider STT actuellement configuré (par exemple Groq), et non nécessairement une clé OpenAI.
+Cette synchronisation ne modifie ni endpoint, ni modèle, ni `ARI_PROVIDER_MODE` : ces réglages
+restent dans `/opt/ari/.env`.
+
+Après fusion de ce changement, lancer d'abord un nouveau run CI sur `main` afin de produire un
+bundle récent contenant le helper de synchronisation. Puis lancer **Actions > Promote staged
+release**, avec l'identifiant de ce run CI. La promotion vérifie les deux secrets avant toute
+connexion SSH et les transmet uniquement par l'entrée standard chiffrée; ils ne sont ni ajoutés au
+bundle, ni aux arguments de commande, ni aux logs. Sous le même verrou de déploiement, le VPS
+remplace atomiquement uniquement ces deux entrées de `.env` (mode `600`), après les prévols et la
+sauvegarde, avant l'arrêt des services. Staging ne reçoit jamais ces clés.
+
+Pour une rotation, modifier les deux secrets GitHub si nécessaire puis refaire une promotion d'un
+nouveau run CI/staging réussi; modifier GitHub seul ne change pas le VPS. Un ancien bundle ne peut
+pas synchroniser les clés : générer un nouveau run CI après la fusion.
+
 Staging utilise son propre projet et ses propres volumes, sans Caddy :
 
 ```sh
@@ -275,3 +296,4 @@ Déployer quand le relecteur confirme qu'aucun apprenant n'est connecté. À rev
 
 Repo : github.com/lejams/ari. Documentation liée : `docs/BACKOFFICE.md`, `docs/CONTENT_PIPELINE.md`,
 `docs/MIGRATIONS.md`, `docker-compose.yml`, `deploy/Caddyfile`, `deploy/env.example`.
+

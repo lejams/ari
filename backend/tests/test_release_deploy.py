@@ -11,6 +11,7 @@ import os
 import shutil
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -25,7 +26,9 @@ def release_bundle(tmp_path: Path) -> Path:
     bundle = tmp_path / "bundle"
     (bundle / "deploy").mkdir(parents=True)
     shutil.copy(ROOT / "docker-compose.yml", bundle / "docker-compose.yml")
-    for name in ("release.sh", "staging.compose.yml", "backup.sh", "lock.sh"):
+    for name in (
+        "release.sh", "staging.compose.yml", "backup.sh", "lock.sh", "provider_secrets.py"
+    ):
         target = bundle / "deploy" / name
         shutil.copy(ROOT / "deploy" / name, target)
         target.chmod(target.stat().st_mode | stat.S_IXUSR)
@@ -262,6 +265,131 @@ def test_lock_failure_stops_before_docker_compose(
     assert log.read_text().splitlines() == ["flock -n 9"]
 
 
+def test_provider_secrets_are_installed_under_the_deploy_lock_before_activation(
+    release_bundle: Path, environment_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir, log = fake_docker(tmp_path)
+    monkeypatch.setenv("DOCKER_LOG", str(log))
+    activation_env = tmp_path / "activation.env"
+    monkeypatch.setenv("PROVIDER_ENV", str(environment_dir / ".env"))
+    monkeypatch.setenv("ACTIVATION_ENV", str(activation_env))
+    docker = bin_dir / "docker"
+    docker.write_text(docker.read_text().replace(
+        "set -eu\n",
+        'set -eu\nif [[ "$*" == *--no-deps* ]]; then '
+        'cp "$PROVIDER_ENV" "$ACTIVATION_ENV"; fi\n',
+        1,
+    ))
+    (release_bundle / "staging-success.json").write_text(json.dumps({"sha": SHA, "image": IMAGE}))
+    backup = release_bundle / "deploy" / "backup.sh"
+    backup.write_text("#!/usr/bin/env bash\ncat >/dev/null\n")
+    backup.chmod(0o755)
+    payload = json.dumps({"ARI_OPENAI_API_KEY": "openai-key", "ARI_STT_API_KEY": "groq-key"})
+    result = subprocess.run(
+        [
+            str(release_bundle / "deploy" / "release.sh"),
+            "production", str(environment_dir), IMAGE, SHA, "--provider-secrets-stdin",
+        ],
+        input=payload,
+        text=True,
+        capture_output=True,
+        env=os.environ | {"PATH": f"{bin_dir}:{os.environ['PATH']}"},
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    contents = (environment_dir / ".env").read_text()
+    assert "ARI_OPENAI_API_KEY=openai-key" in contents
+    assert "ARI_STT_API_KEY=groq-key" in contents
+    assert activation_env.read_text() == contents
+    assert " up -d --no-build --no-deps" in log.read_text()
+
+
+def test_provider_secret_payload_is_not_applied_when_lock_is_busy(
+    release_bundle: Path, environment_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir, _ = fake_docker(tmp_path)
+    monkeypatch.setenv("FAIL_FLOCK", "1")
+    before = (environment_dir / ".env").read_text()
+    result = subprocess.run(
+        [
+            str(release_bundle / "deploy" / "release.sh"),
+            "production", str(environment_dir), IMAGE, SHA, "--provider-secrets-stdin",
+        ],
+        input=json.dumps({"ARI_OPENAI_API_KEY": "one", "ARI_STT_API_KEY": "two"}),
+        text=True,
+        capture_output=True,
+        env=os.environ | {"PATH": f"{bin_dir}:{os.environ['PATH']}"},
+        check=False,
+    )
+    assert result.returncode != 0
+    assert (environment_dir / ".env").read_text() == before
+
+
+def test_provider_secret_helper_replaces_only_secret_lines_atomically(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "OTHER=value\nARI_OPENAI_API_KEY=old\nARI_STT_API_KEY=old\n"
+        " export ARI_STT_API_KEY = duplicate\n  ARI_OPENAI_API_KEY = duplicate\n"
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "deploy" / "provider_secrets.py"),
+            "--install-stdin",
+            str(env_file),
+        ],
+        input=json.dumps({"ARI_OPENAI_API_KEY": "new-openai", "ARI_STT_API_KEY": "new+/stt=="}),
+        text=True, capture_output=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert env_file.read_text() == (
+        "OTHER=value\nARI_OPENAI_API_KEY=new-openai\nARI_STT_API_KEY=new+/stt==\n"
+    )
+    assert stat.S_IMODE(env_file.stat().st_mode) == 0o600
+
+
+@pytest.mark.parametrize("stale_proof", [False, True])
+def test_provider_sync_invalid_proof_preserves_environment(
+    release_bundle: Path, environment_dir: Path, tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch, stale_proof: bool,
+) -> None:
+    bin_dir, log = fake_docker(tmp_path)
+    monkeypatch.setenv("DOCKER_LOG", str(log))
+    if stale_proof:
+        (release_bundle / "staging-success.json").write_text(
+            json.dumps({"sha": "c" * 40, "image": IMAGE})
+        )
+    before = (environment_dir / ".env").read_bytes()
+    result = subprocess.run(
+        [str(release_bundle / "deploy/release.sh"), "production", str(environment_dir),
+         IMAGE, SHA, "--provider-secrets-stdin"],
+        input=json.dumps({"ARI_OPENAI_API_KEY": "new-openai", "ARI_STT_API_KEY": "new-stt"}),
+        env=os.environ | {"PATH": f"{bin_dir}:{os.environ['PATH']}"},
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode != 0
+    assert (environment_dir / ".env").read_bytes() == before
+    assert log.read_text().splitlines() == ["flock -n 9"]
+
+
+def test_provider_secret_helper_rejects_malicious_newlines_without_mutating(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("OTHER=value\n")
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "deploy" / "provider_secrets.py"),
+            "--install-stdin",
+            str(env_file),
+        ],
+        input=json.dumps({"ARI_OPENAI_API_KEY": "safe\nINJECTED=yes", "ARI_STT_API_KEY": "ok"}),
+        text=True, capture_output=True, check=False,
+    )
+    assert result.returncode != 0
+    assert "INJECTED=yes" not in result.stderr
+    assert env_file.read_text() == "OTHER=value\n"
+
+
 def test_legacy_deploy_and_live_restore_share_the_root_lock() -> None:
     deploy = (ROOT / "deploy" / "deploy.sh").read_text()
     restore = (ROOT / "deploy" / "restore.sh").read_text()
@@ -282,3 +410,4 @@ def test_old_compose_refuses_staging_before_container_changes(
     assert result.returncode != 0
     assert ">= 2.24.4" in result.stderr
     assert log.read_text().splitlines() == ["flock -n 9", "compose version --short"]
+

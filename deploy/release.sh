@@ -2,13 +2,19 @@
 # Deploy one immutable CI image from an extracted release bundle.  This deliberately has no
 # git/build/down/reset path: the image argument is the exact artifact promoted by CI.
 #
-#   deploy/release.sh <staging|production> <absolute-environment-dir> <image@sha256:...> <commit-sha>
+#   deploy/release.sh <staging|production> <absolute-environment-dir> <image@sha256:...> <commit-sha> [--provider-secrets-stdin]
 set -Eeuo pipefail
 
-usage() { echo "usage: $0 <staging|production> <environment-dir> <image-ref> <commit-sha>" >&2; exit 2; }
-[ "$#" -eq 4 ] || usage
+usage() { echo "usage: $0 <staging|production> <environment-dir> <image-ref> <commit-sha> [--provider-secrets-stdin]" >&2; exit 2; }
+[[ "$#" -eq 4 || "$#" -eq 5 ]] || usage
 target="$1" env_dir="$2" image_ref="$3" commit_sha="$4"
+sync_provider_secrets=false
+if [ "$#" -eq 5 ]; then
+  [ "$5" = --provider-secrets-stdin ] || usage
+  sync_provider_secrets=true
+fi
 case "$target" in staging|production) ;; *) usage ;; esac
+[ "$target" = production ] || ! "$sync_provider_secrets" || { echo "provider secret synchronization is production-only" >&2; exit 2; }
 case "$env_dir" in /*) ;; *) echo "environment directory must be absolute" >&2; exit 2 ;; esac
 if [ ! -d "$env_dir" ] || [ ! -f "$env_dir/.env" ]; then
   echo "environment directory must contain .env" >&2
@@ -21,6 +27,7 @@ bundle_root="$(cd "$(dirname "$0")/.." && pwd)"
 base_compose="$bundle_root/docker-compose.yml"
 [ -f "$base_compose" ] || { echo "release bundle is missing docker-compose.yml" >&2; exit 2; }
 [ -f "$bundle_root/deploy/lock.sh" ] || { echo "release bundle is missing deploy/lock.sh" >&2; exit 2; }
+[ -f "$bundle_root/deploy/provider_secrets.py" ] || ! "$sync_provider_secrets" || { echo "release bundle is missing deploy/provider_secrets.py; use a fresh CI bundle" >&2; exit 2; }
 # shellcheck disable=SC1091
 . "$bundle_root/deploy/lock.sh"
 
@@ -117,6 +124,12 @@ trap on_release_error ERR
 if [ "$target" = production ]; then
   validate_proof
 fi
+# Docker and backup subprocesses may read standard input. Consume and validate the payload while
+# the deployment lock is held, before invoking any of them; retain it only in this shell's memory.
+provider_payload=""
+if "$sync_provider_secrets"; then
+  provider_payload="$(python3 "$bundle_root/deploy/provider_secrets.py" --normalize-stdin)"
+fi
 
 # !override in the staging ports configuration needs Compose 2.24.4 or newer.
 compose_version="$(docker compose version --short | sed 's/^v//')"
@@ -132,6 +145,10 @@ if [ "$target" = production ]; then
   # A backup failure stops here, before the worker is quiesced or either migration can run.
   ARI_COMPOSE_PROJECT="$project" ARI_COMPOSE_FILE="$base_compose" ARI_COMPOSE_ENV_FILE="$env_dir/.env" \
     "$bundle_root/deploy/backup.sh" "predeploy-${commit_sha}"
+  if "$sync_provider_secrets"; then
+    printf '%s' "$provider_payload" | python3 "$bundle_root/deploy/provider_secrets.py" --install-stdin "$env_dir/.env"
+    unset provider_payload
+  fi
 else
   compose up -d --no-build --wait --wait-timeout 180 postgres
 fi
@@ -154,3 +171,4 @@ rm -f "$env_dir/.release-failure.json"
 failure_guard=0
 echo "Deployed $target $image_ref ($commit_sha); previous successful release: $previous"
 echo "Fallback: rerun this command with the previous immutable image and SHA after assessing migration compatibility; data is not rolled back automatically."
+
