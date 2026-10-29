@@ -52,18 +52,8 @@ def oracle_patient(request: LLMRequest, payload: dict[str, Any]) -> dict[str, An
 def _evaluation_output(
     payload: dict[str, Any], errors: list[dict[str, Any]], switches: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    turns = [t["turn"] for t in payload["transcript"]]
     return {
         "summary": "Synthetische Rückmeldung.",
-        "criteria": [
-            {
-                "criterion_id": c["id"],
-                "score": 3,
-                "evidence_turn_sequences": turns[:1],
-                "feedback": "ok",
-            }
-            for c in payload["rubric"]
-        ],
         "language_errors": errors,
         "code_switches": switches,
         "empathy": [],
@@ -161,7 +151,7 @@ async def test_language_oracle_scores_perfectly_and_measures_reliability() -> No
     assert report.metrics["stability.changed_rate"] == 0.0
     [reliability] = report.reliability
     assert (reliability.source, reliability.precision) == ("llm", 1.0)
-    assert reliability.producer == "evaluation-v6@gpt-6-luna"
+    assert reliability.producer == "evaluation-v7@gpt-6-luna"
     assert report.versions.evaluation_schema_version == "session-evaluation-v4"
     assert set(report.versions.output_schemas) == {"EvaluationOutputSchema"}
 

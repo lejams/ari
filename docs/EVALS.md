@@ -19,7 +19,7 @@ pour les autres. Le seul modèle appelé est celui de la configuration testée.
 | Suite | Ce qui est exécuté | Ce que dit l'annotation | Jeu de données |
 |---|---|---|---|
 | `patient-leakage@1` | le patient réel : `PatientSimulator` (`patient-v3`, entraînement) ou `ExamPatient` (`patient-exam-v1`, chaîne d'examen) selon la configuration | type de réponse attendu, faits que la question demande légitimement | 80 questions sur 4 cas inventés (60 dev, 20 holdout) |
-| `evaluation-language@1` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v6`) | erreurs injectées : genre, cas, forme verbale, ordre des mots ; mot français ; artefact de transcription ; section oubliée | 120 transcripts synthétiques (90 dev, 30 holdout) |
+| `evaluation-language@1` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v7`) | erreurs injectées : genre, cas, forme verbale, ordre des mots ; mot français ; artefact de transcription ; section oubliée | 120 transcripts synthétiques (90 dev, 30 holdout) |
 | `evaluation-medical@1` | l'évaluateur réel | omissions exigibles et erreurs médicales relevées par le médecin | **en attente du médecin** (section 6 du plan) |
 | `voice-snippets@1` | la voix ElevenLabs de chaque persona sur des phrases fixes, puis le STT | termes critiques de chaque phrase (chiffres, doses, termes) | 33 phrases de patient en allemand |
 | `voice-sim@1` | toute la chaîne vocale, de bout en bout : sockets, segmentation de la parole, STT, patient, voix, accusés de lecture, évaluation finale | faits demandés par chaque question du script | 1 script de 12 questions sur le cas `ARI-DEV-FR` |
@@ -43,7 +43,7 @@ routes:
   evaluation: {provider: anthropic, model: claude-sonnet-5-5}
 prompts:
   patient: patient-v3
-  evaluation: evaluation-v6
+  evaluation: evaluation-v7
 patient_engine: training    # ou « exam » (chaîne d'examen, prompt patient-exam-v1)
 ```
 

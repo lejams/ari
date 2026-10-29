@@ -154,17 +154,7 @@ class LLMBackedEvaluator:
                 ),
             )
 
-        allowed_criteria = {item.id: item for item in case.rubric}
-        result_ids = [item.criterion_id for item in result.value.criteria]
-        if set(result_ids) != set(allowed_criteria) or len(result_ids) != len(set(result_ids)):
-            raise reject("Evaluation criteria do not match the case rubric")
         valid_turns = {item.sequence for item in session.turns}
-        for item in result.value.criteria:
-            if set(item.evidence_turn_sequences) - valid_turns:
-                raise reject("Evaluation references an unknown transcript turn")
-            if item.score > allowed_criteria[item.criterion_id].max_score:
-                raise reject("Evaluation score exceeds rubric maximum")
-
         for observations in (
             result.value.strengths,
             result.value.priorities,

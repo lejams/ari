@@ -83,13 +83,6 @@ class LanguageErrorSchema(EvidenceObservationSchema):
     ]
 
 
-class CriterionResultSchema(StrictModel):
-    criterion_id: str
-    score: Annotated[int, Field(ge=0, le=5)]
-    evidence_turn_sequences: list[int] = Field(min_length=1, max_length=5)
-    feedback: Annotated[str, Field(min_length=1, max_length=350)]
-
-
 class VocabularyCandidateSchema(StrictModel):
     lemma: Annotated[str, Field(min_length=1, max_length=80)]
     translation: Annotated[str, Field(min_length=1, max_length=120)]
@@ -120,7 +113,6 @@ class EvaluationOutputSchema(StrictModel):
     strengths: list[EvidenceObservationSchema] = Field(default_factory=list, max_length=2)
     priorities: list[EvidenceObservationSchema] = Field(default_factory=list, max_length=3)
     language_errors: list[LanguageErrorSchema] = Field(default_factory=list, max_length=6)
-    criteria: list[CriterionResultSchema]
     vocabulary_candidates: list[VocabularyCandidateSchema] = Field(
         default_factory=list, max_length=8
     )

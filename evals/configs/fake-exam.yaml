@@ -5,4 +5,4 @@ provider: fake
 patient_engine: exam
 prompts:
   patient: patient-exam-v1
-  evaluation: evaluation-v6
+  evaluation: evaluation-v7
