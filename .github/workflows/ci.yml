@@ -123,7 +123,7 @@ jobs:
           [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ && "$RELEASE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "invalid release metadata" >&2; exit 1; }
           mkdir -p release-bundle/deploy/postgres
           cp docker-compose.yml release-bundle/
-          cp deploy/Caddyfile deploy/backup.sh deploy/lock.sh deploy/release.sh deploy/staging.compose.yml release-bundle/deploy/
+          cp deploy/Caddyfile deploy/backup.sh deploy/lock.sh deploy/provider_secrets.py deploy/release.sh deploy/staging.compose.yml release-bundle/deploy/
           cp -R deploy/postgres/init release-bundle/deploy/postgres/
           printf '{"sha":"%s","image":"%s"}\n' "$RELEASE_SHA" "$image" > release-bundle/release.json
       - uses: actions/upload-artifact@v4
@@ -152,3 +152,4 @@ jobs:
         run: deploy/transfer-release.sh staging release-bundle "ghcr.io/lejams/ari@${{ needs.image.outputs.digest }}" "${{ github.sha }}"
       - uses: actions/upload-artifact@v4
         with: {name: staged-release, path: release-bundle, if-no-files-found: error, retention-days: 30, include-hidden-files: true}
+

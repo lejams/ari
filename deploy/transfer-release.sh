@@ -11,6 +11,7 @@ case "$environment" in staging|production) ;; *) fail "environment must be stagi
 DEPLOY_HOST="${DEPLOY_HOST:-}"; DEPLOY_USER="${DEPLOY_USER:-}"; DEPLOY_PORT="${DEPLOY_PORT:-22}"; DEPLOY_PATH="${DEPLOY_PATH:-}"
 SSH_KNOWN_HOSTS="${SSH_KNOWN_HOSTS:-}"; SSH_PRIVATE_KEY="${SSH_PRIVATE_KEY:-}"
 GHCR_USERNAME="${GHCR_USERNAME:-}"; GHCR_TOKEN="${GHCR_TOKEN:-}"
+ARI_SYNC_PROVIDER_SECRETS="${ARI_SYNC_PROVIDER_SECRETS:-}"
 [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || fail "invalid DEPLOY_HOST"
 [[ "$DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || fail "invalid DEPLOY_USER"
 if ! [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] || (( DEPLOY_PORT <= 0 || DEPLOY_PORT >= 65536 )); then
@@ -23,6 +24,20 @@ if [[ -n "$GHCR_USERNAME" || -n "$GHCR_TOKEN" ]]; then
   [[ -n "$GHCR_USERNAME" && -n "$GHCR_TOKEN" ]] || fail "GHCR_USERNAME and GHCR_TOKEN must be provided together"
   [[ "$GHCR_USERNAME" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$ ]] || fail "invalid GHCR_USERNAME"
   registry_auth=true
+fi
+sync_provider_secrets=false
+if [[ -n "$ARI_SYNC_PROVIDER_SECRETS" && "$ARI_SYNC_PROVIDER_SECRETS" != 1 ]]; then
+  fail "ARI_SYNC_PROVIDER_SECRETS must be exactly 1 when set"
+fi
+if [[ "$ARI_SYNC_PROVIDER_SECRETS" = 1 ]]; then
+  [[ "$environment" = production ]] || fail "provider secret synchronization is production-only"
+  [[ -f "$bundle_dir/deploy/provider_secrets.py" ]] || fail "release bundle is missing deploy/provider_secrets.py; run fresh CI after merge"
+  python3 "$bundle_dir/deploy/provider_secrets.py" --validate-env
+  sync_provider_secrets=true
+fi
+release_secret_flag=""
+if "$sync_provider_secrets"; then
+  release_secret_flag=" --provider-secrets-stdin"
 fi
 python3 - "$bundle_dir/release.json" "$commit_sha" "$image_ref" <<'PY'
 import json
@@ -56,6 +71,13 @@ ssh "${ssh_options[@]}" "$target" "chmod +x '$release_dir'/deploy/*.sh"
 if "$registry_auth"; then
   # The short-lived Actions token is sent only over SSH standard input. The remote
   # Docker configuration is private to this invocation and removed by the trap.
+  if "$sync_provider_secrets"; then
+    registry_login='IFS= read -r ghcr_token
+printf "%s" "$ghcr_token" | docker login ghcr.io --username '"$GHCR_USERNAME"' --password-stdin
+unset ghcr_token'
+  else
+    registry_login="docker login ghcr.io --username $GHCR_USERNAME --password-stdin"
+  fi
   remote_command="set -euo pipefail
 docker_config=\$(mktemp -d)
 chmod 700 \"\$docker_config\"
@@ -63,9 +85,15 @@ cleanup() { rm -rf \"\$docker_config\"; }
 trap cleanup EXIT
 trap \"exit 1\" HUP INT TERM
 export DOCKER_CONFIG=\"\$docker_config\"
-docker login ghcr.io --username $GHCR_USERNAME --password-stdin
-$release_dir/deploy/release.sh $environment $environment_dir $image_ref $commit_sha"
-  printf '%s' "$GHCR_TOKEN" | ssh "${ssh_options[@]}" "$target" "bash -c '$remote_command'"
+$registry_login
+$release_dir/deploy/release.sh $environment $environment_dir $image_ref $commit_sha$release_secret_flag"
+  if "$sync_provider_secrets"; then
+    { printf '%s\n' "$GHCR_TOKEN"; python3 "$bundle_dir/deploy/provider_secrets.py" --json-from-env; } | ssh "${ssh_options[@]}" "$target" "bash -c '$remote_command'"
+  else
+    printf '%s' "$GHCR_TOKEN" | ssh "${ssh_options[@]}" "$target" "bash -c '$remote_command'"
+  fi
+elif "$sync_provider_secrets"; then
+  python3 "$bundle_dir/deploy/provider_secrets.py" --json-from-env | ssh "${ssh_options[@]}" "$target" "$release_dir/deploy/release.sh" "$environment" "$environment_dir" "$image_ref" "$commit_sha" --provider-secrets-stdin
 else
   ssh "${ssh_options[@]}" "$target" "$release_dir/deploy/release.sh" "$environment" "$environment_dir" "$image_ref" "$commit_sha"
 fi
@@ -80,3 +108,4 @@ if marker != {"sha": sys.argv[2], "image": sys.argv[3]}:
     raise SystemExit("staging success proof does not match this release")
 PY
 fi
+
