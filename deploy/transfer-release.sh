@@ -72,6 +72,8 @@ if "$registry_auth"; then
   # The short-lived Actions token is sent only over SSH standard input. The remote
   # Docker configuration is private to this invocation and removed by the trap.
   if "$sync_provider_secrets"; then
+    # The token variable must expand on the remote host, never into the SSH command.
+    # shellcheck disable=SC2016
     registry_login='IFS= read -r ghcr_token
 printf "%s" "$ghcr_token" | docker login ghcr.io --username '"$GHCR_USERNAME"' --password-stdin
 unset ghcr_token'
