@@ -216,9 +216,22 @@ def diagnosis_text(report: Report, *, limit: int = 60) -> str:
             missed = [
                 f"{m.get('category')}@{m.get('turn')}" for m in detail.get("missed_errors", [])
             ]
+            switches = (
+                f" ; alternances {detail.get('reported_code_switches', [])}"
+                f" attendues {detail.get('expected_code_switches', [])}"
+                if detail.get("reported_code_switches") or detail.get("expected_code_switches")
+                else ""
+            )
+            sections = (
+                f" ; sections oubliées {detail.get('forgotten_sections', [])}"
+                f" attendues {detail.get('expected_missing_sections', [])}"
+                if "section_mismatch" in run.outcomes
+                else ""
+            )
             lines.append(
                 f"    passage {run.repetition} : "
                 f"signalé [{'; '.join(reported) or '-'}] manqué [{', '.join(missed) or '-'}]"
+                f"{switches}{sections}"
                 f"{' ; ' + ', '.join(run.outcomes) if run.outcomes else ''}"
             )
     if shown > limit:

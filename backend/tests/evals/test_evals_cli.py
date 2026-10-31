@@ -58,6 +58,8 @@ def test_diagnose_lists_failed_items_of_a_dev_report(
     # and missed are readable in a log.
     assert text.startswith("Diagnostic de evaluation-language@2 (dev) :")
     assert "en échec" in text and "passage 1 : signalé [" in text and "manqué [" in text
+    # What changed between repetitions can be a code switch or a section, not only an error.
+    assert "alternances [" in text and "attendues [" in text
 
 
 def test_diagnose_shows_nothing_of_a_gate_report(
