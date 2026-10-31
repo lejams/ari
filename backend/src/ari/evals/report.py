@@ -187,6 +187,46 @@ def read_report(path: Path) -> Report:
     return Report.model_validate_json(path.read_text(encoding="utf-8"))
 
 
+def diagnosis_text(report: Report, *, limit: int = 60) -> str:
+    """The items that failed or changed between repetitions, with what each repetition reported.
+
+    For reading a dev-split run in a log without downloading the report. The holdout keeps its
+    content out of reports (`detail` is None), so it has nothing to show and says so.
+    """
+    if report.gate_mode or report.split != "dev":
+        return "Diagnostic : réservé au split dev ; le holdout garde son contenu hors des rapports."
+    lines: list[str] = []
+    shown = 0
+    for item in report.items:
+        unstable = len({run.signature for run in item.runs}) > 1
+        failed = any(run.outcomes or not run.usable for run in item.runs)
+        if not (unstable or failed):
+            continue
+        shown += 1
+        if shown > limit:
+            continue
+        flags = ", ".join(([] if not unstable else ["instable"]) + (["en échec"] if failed else []))
+        lines.append(f"- {item.item_id} ({item.family}, {item.case_id}) : {flags}")
+        for run in item.runs:
+            detail = run.detail or {}
+            reported = [
+                f"{r['category']}@{r['turns']} {r['verdict']} « {str(r['text'])[:90]} »"
+                for r in detail.get("reported_errors", [])
+            ]
+            missed = [
+                f"{m.get('category')}@{m.get('turn')}" for m in detail.get("missed_errors", [])
+            ]
+            lines.append(
+                f"    passage {run.repetition} : "
+                f"signalé [{'; '.join(reported) or '-'}] manqué [{', '.join(missed) or '-'}]"
+                f"{' ; ' + ', '.join(run.outcomes) if run.outcomes else ''}"
+            )
+    if shown > limit:
+        lines.append(f"… {shown - limit} autre(s) item(s) non affichés")
+    head = f"Diagnostic de {report.suite} ({report.split}) : {shown} item(s) à regarder"
+    return "\n".join([head, *lines])
+
+
 def summarize_cost(
     calls: Sequence[CallEntry], runs: int, pricing_version: str | None
 ) -> CostSummary:

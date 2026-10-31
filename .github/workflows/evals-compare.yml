@@ -53,8 +53,11 @@ jobs:
             out="eval-compare/${config%.yaml}.json"
             PYTHONPATH=backend/src .venv/bin/python -m ari.evals run --suite "$SUITE" --config "evals/configs/$config" --split dev --repeat 3 --live --out "$out"
             reports+=("$out")
+            PYTHONPATH=backend/src .venv/bin/python -m ari.evals diagnose "$out"
           done
-          PYTHONPATH=backend/src .venv/bin/python -m ari.evals compare "${reports[@]}" --out eval-compare/comparison.json
+          if [ "${#reports[@]}" -gt 1 ]; then
+            PYTHONPATH=backend/src .venv/bin/python -m ari.evals compare "${reports[@]}" --out eval-compare/comparison.json
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: eval-compare, path: eval-compare, if-no-files-found: ignore, retention-days: 90}

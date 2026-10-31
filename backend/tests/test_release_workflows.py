@@ -101,6 +101,8 @@ def test_the_comparison_workflow_measures_on_dev_and_never_judges() -> None:
     script = run_step["run"]
     assert "--split dev" in script and "--live" in script
     assert "holdout" not in script and "--gate" not in script and "promotion" not in script
+    # One configuration alone is a measurement to read, not a comparison.
+    assert "ari.evals diagnose" in script and '"${#reports[@]}" -gt 1' in script
     # Inputs reach the shell through the environment only, after a pattern check.
     assert "${{" not in script
     assert run_step["env"]["ARI_OPENAI_API_KEY"] == "${{ secrets.ARI_OPENAI_API_KEY }}"
