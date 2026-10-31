@@ -1,4 +1,5 @@
-"""Command line: `python -m ari.evals run|voice|pronunciation|compare|fingerprint|promotion`.
+"""Command line: `python -m ari.evals` + run, voice, pronunciation, compare, diagnose,
+fingerprint or promotion.
 
 See docs/EVALS.md. Real models are only called with `--live` and a configuration whose
 provider is not `fake`; every call is then costed with the versioned price list.
@@ -19,7 +20,7 @@ from ari.evals.compare import CompareError, compare, render_markdown
 from ari.evals.configs import ConfigError, build_provider, load_config, load_prompts
 from ari.evals.manifest import DatasetError, load_dataset, parse_suite_ref
 from ari.evals.promotion import PROMOTION_RUNS, fingerprint, verdict
-from ari.evals.report import Report, format_micro_eur, read_report, write_report
+from ari.evals.report import Report, diagnosis_text, format_micro_eur, read_report, write_report
 from ari.evals.runner import RunRequest, run
 from ari.evals.suites import SUITES
 from ari.infrastructure.pricing import load_pricing
@@ -99,6 +100,11 @@ def _parser() -> argparse.ArgumentParser:
     compare_cmd.add_argument("reports", nargs="+", type=Path)
     compare_cmd.add_argument("--gates", type=Path, default=DEFAULT_GATES)
     compare_cmd.add_argument("--out", type=Path, help="chemin de la comparaison JSON")
+
+    diagnose_cmd = commands.add_parser(
+        "diagnose", help="items en échec ou instables d'un rapport du split dev"
+    )
+    diagnose_cmd.add_argument("report", type=Path)
 
     fingerprint_cmd = commands.add_parser(
         "fingerprint", help="empreinte IA d'un checkout (prompts, modèles, routage)"
@@ -268,6 +274,11 @@ def _compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _diagnose(args: argparse.Namespace) -> int:
+    print(diagnosis_text(read_report(args.report)))
+    return 0
+
+
 def _fingerprint(args: argparse.Namespace) -> int:
     result = fingerprint(args.root)
     text = result.model_dump_json(indent=2) + "\n"
@@ -324,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
             return _voice(args)
         if args.command == "pronunciation":
             return _pronunciation(args)
+        if args.command == "diagnose":
+            return _diagnose(args)
         if args.command == "fingerprint":
             return _fingerprint(args)
         if args.command == "promotion":

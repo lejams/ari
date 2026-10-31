@@ -45,6 +45,34 @@ def test_fake_run_writes_a_complete_report(suite: str, tmp_path: Path) -> None:
     assert report.metrics["stability.changed_rate"] == 0.0  # The fake is deterministic.
 
 
+def test_diagnose_lists_failed_items_of_a_dev_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "report.json"
+    argv = ["run", "--suite", "evaluation-language@2", "--config", str(CONFIGS / "fake.yaml")]
+    assert main([*argv, "--repeat", "1", "--out", str(out)]) == 0
+    capsys.readouterr()
+    assert main(["diagnose", str(out)]) == 0
+    text = capsys.readouterr().out
+    # The fake evaluator misses annotated errors: the failed items and what each pass reported
+    # and missed are readable in a log.
+    assert text.startswith("Diagnostic de evaluation-language@2 (dev) :")
+    assert "en échec" in text and "passage 1 : signalé [" in text and "manqué [" in text
+    # What changed between repetitions can be a code switch or a section, not only an error.
+    assert "alternances [" in text and "attendues [" in text
+
+
+def test_diagnose_shows_nothing_of_a_gate_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "gate.json"
+    argv = ["run", "--suite", "evaluation-language@2", "--config", str(CONFIGS / "fake.yaml")]
+    main([*argv, "--split", "holdout", "--gate", "--out", str(out)])
+    capsys.readouterr()
+    assert main(["diagnose", str(out)]) == 0
+    assert "réservé au split dev" in capsys.readouterr().out
+
+
 def test_gate_run_on_the_holdout_exits_non_zero_when_it_fails(tmp_path: Path) -> None:
     out = tmp_path / "gate.json"
     code = main(
