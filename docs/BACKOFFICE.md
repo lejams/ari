@@ -27,7 +27,10 @@ Désactiver un compte révoque ses sessions.
    requiert pas de preuve des droits. Le traitement démarre en arrière-plan ; la page du document
    montre les tâches, les segments trouvés et leur protocole. Un protocole manqué se déclare à la
    main (première et dernière pages, premiers mots copiés exactement).
-2. **Envoyer en relecture** (propriétaire), par document ou par protocole.
+2. **Envoi en relecture** (automatique). Dès que l'extraction d'un protocole se termine, il entre
+   directement dans la file des médecins (statut « en relecture médecin », événements `extracted`
+   puis `released` dans l'historique). Le bouton « Envoyer en relecture » (par document ou par
+   protocole) ne sert plus que pour les protocoles restés « extraits » avant ce changement.
 3. **Relecture** (médecin). La page d'un protocole met la page source à gauche (image, ou texte)
    et l'enregistrement structuré à droite : localisation, patient, anamnèse par section FSP,
    diagnostic, questions des examinateurs, Arzt-Arzt, Fachbegriffe, issue, questions de l'IA,
@@ -38,7 +41,8 @@ Désactiver un compte révoque ses sessions.
    corrections ou rejette, avec une note obligatoire hors approbation. Le propriétaire peut aussi
    **supprimer un protocole non validé** depuis sa page : il est retiré du circuit et conservé dans
    l'historique comme rejeté, tandis qu'un protocole gold ne peut plus être supprimé.
-4. **Validation** (propriétaire). Sur un protocole approuvé : différences avec la version
+4. **Validation** (propriétaire). L'approbation du médecin met le protocole en attente de ta
+   validation, sans autre étape. Sur un protocole approuvé : différences avec la version
    précédente, revues, détections PII masquées. Valider exige un Land, aucune détection PII ou
    une note de dérogation, des droits non incompatibles ; le protocole devient **gold**, figé par
    hash. Renvoyer au médecin ou rejeter sont les autres issues.

@@ -212,7 +212,6 @@ def test_worker_stores_drafts_and_invalid_outputs_with_their_reasons(
     workflow = content_container.workflow
     doctor = Actor(kind="account", name="Doc", account_id="doc-1")
     owner = Actor(kind="account", name="Owner", account_id="owner-1")
-    workflow.release(head.id, actor=owner)
     revised = workflow.revise(
         head.id,
         base_version=head.version,
