@@ -9,7 +9,6 @@ import pytest
 from scripted import DATASETS, GATES, ScriptedProvider, item_id_of, repetition_of, request_for
 
 from ari.application.contracts import LLMRequest
-from ari.application.services.language_errors import squeezed
 from ari.evals.gates import load_gates
 from ari.evals.manifest import load_dataset
 from ari.evals.runner import run
@@ -162,14 +161,7 @@ async def test_an_extra_passage_on_one_repetition_makes_the_item_unstable() -> N
 
     report = await measure(flaky, repetitions=3)
 
-    # Where the last word is also in the first two, the extra quote is the same passage.
-    def distinct(item: LanguageItem) -> bool:
-        turn = item.truth.language_errors[0].turn
-        spoken = next(t.doctor for t in item.turns if t.sequence == turn).split()
-        first, last = squeezed(" ".join(spoken[:2])), squeezed(spoken[-1])
-        return last not in first and first not in last
-
-    changed = sum(1 for i in ITEMS.values() if i.truth.language_errors and distinct(i))
+    changed = sum(1 for i in ITEMS.values() if i.truth.language_errors)
     assert report.metrics["stability.changed_rate"] == pytest.approx(changed / len(ITEMS))
 
 

@@ -95,17 +95,28 @@ def verify_language_errors(
         if quote == squeezed(error.correction):
             dropped["transcriber_only"] += 1
             continue
-        # The same passage: the words of the quote overlap words already reported in a turn.
-        if any(
-            start < old_end and old_start < end
-            for turn, where in found.items()
-            for start, end in where
-            for old_start, old_end in seen.get(turn, ())
-        ):
+        # The same passage: its words overlap words already reported in the turn. A quote that
+        # occurs twice in a turn stands for the first occurrence not yet reported, so two
+        # corrections of two occurrences of one word are two errors.
+        free: dict[int, tuple[int, int]] = {}
+        for turn, where in found.items():
+            taken = seen.get(turn, [])
+            span = next(
+                (
+                    (start, end)
+                    for start, end in where
+                    if not any(start < old_end and old_start < end for old_start, old_end in taken)
+                ),
+                None,
+            )
+            if span is not None:
+                free[turn] = span
+        if not free:
             dropped["duplicate"] += 1
             continue
-        for turn, where in found.items():
-            seen.setdefault(turn, []).extend(where)
+        turns = tuple(sorted(free))
+        for turn, span in free.items():
+            seen.setdefault(turn, []).append(span)
         category = error.category
         spoken, corrected = words(error.quote), words(error.correction)
         if spoken != corrected and Counter(spoken) == Counter(corrected):

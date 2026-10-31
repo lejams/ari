@@ -142,3 +142,18 @@ def test_words_that_only_look_alike_are_not_the_same_passage() -> None:
         turns,
     )
     assert [e.quote for e in verdict.kept] == ["ein", "Bein"]
+
+
+def test_two_occurrences_of_one_word_are_two_passages() -> None:
+    turns = {1: "Ich habe ein Termin und fahre mit ein Auto."}
+    verdict = verify_language_errors(
+        [
+            error("ein", "einen", [1], "gender"),
+            error("mit ein Auto", "mit einem Auto", [1], "case"),
+        ],
+        turns,
+    )
+    assert [e.quote for e in verdict.kept] == ["ein", "mit ein Auto"]
+    # The same word reported three times in a turn that has it twice: the third is a repeat.
+    triple = verify_language_errors([error("ein", "einen", [1])] * 3, turns)
+    assert len(triple.kept) == 2 and triple.dropped == {"duplicate": 1}
