@@ -19,7 +19,7 @@ pour les autres. Le seul modèle appelé est celui de la configuration testée.
 | Suite | Ce qui est exécuté | Ce que dit l'annotation | Jeu de données |
 |---|---|---|---|
 | `patient-leakage@1` | le patient réel : `PatientSimulator` (`patient-v3`, entraînement) ou `ExamPatient` (`patient-exam-v1`, chaîne d'examen) selon la configuration | type de réponse attendu, faits que la question demande légitimement | 80 questions sur 4 cas inventés (60 dev, 20 holdout) |
-| `evaluation-language@2` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v8`) | erreurs injectées : genre, cas, forme verbale, ordre des mots, choix du mot, registre ; mot français ; artefact de transcription ; section oubliée ; formulations correctes mais inhabituelles | 175 transcripts synthétiques (100 dev, 75 holdout) |
+| `evaluation-language@2` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v9`) | erreurs injectées : genre, cas, forme verbale, ordre des mots, choix du mot, registre ; mot français ; artefact de transcription ; section oubliée ; formulations correctes mais inhabituelles | 175 transcripts synthétiques (100 dev, 75 holdout) |
 | `evaluation-language@1` | idem (version 1, gardée pour mémoire, plus exigée) | genre, cas, forme verbale, ordre des mots ; mot français ; artefact ; section oubliée | 120 transcripts (90 dev, 30 holdout) |
 | `evaluation-medical@1` | l'évaluateur réel | omissions exigibles et erreurs médicales relevées par le médecin | **en attente du médecin** (section 6 du plan) |
 | `voice-snippets@1` | la voix ElevenLabs de chaque persona sur des phrases fixes, puis le STT | termes critiques de chaque phrase (chiffres, doses, termes) | 33 phrases de patient en allemand |
@@ -44,7 +44,7 @@ routes:
   evaluation: {provider: anthropic, model: claude-sonnet-5-5}
 prompts:
   patient: patient-v3
-  evaluation: evaluation-v8
+  evaluation: evaluation-v9
 patient_engine: training    # ou « exam » (chaîne d'examen, prompt patient-exam-v1)
 ```
 
@@ -349,14 +349,40 @@ Réponse, en trois couches, sans toucher aux seuils du plan :
    affirmation, salutation régionale) et un holdout neuf de trois familles. La famille
    `kopfschmerz`, ancien holdout vu pendant la mise au point, passe en développement. La règle
    d'annotation genre / cas est écrite en tête de `build_synthetic_v2.py` et dans le prompt.
-2. **Prompt** `evaluation-v8` : règles de catégories dans l'ordre, ce qu'il ne faut jamais
-   signaler, citation exacte (`quote`) et correction (`correction`) obligatoires.
+2. **Prompt** `evaluation-v9` : règles de catégories dans l'ordre, ce qu'il ne faut jamais
+   signaler, citation exacte (`quote`) et correction (`correction`) obligatoires, parcours des tours
+   un par un sans plafond de signalements, et les motifs qui sont toujours des erreurs (voir la
+   mesure ci-dessous). Les exemples du prompt ne sont jamais des phrases du jeu de données.
 3. **Code** (`application/services/language_errors.py`) : « le LLM propose, le code décide ».
    Une erreur dont la citation n'est dans aucun tour cité est écartée, la preuve est réduite aux
    tours qui contiennent la citation, une correction qui ne change que la ponctuation, la casse, les
    traits d'union, les espaces ou ss/ß est écartée (artefact du STT), un même passage (une citation contenue dans l'autre, dans le même tour) n'est
    rapporté qu'une fois, deux passages différents d'un même tour restent deux erreurs, une citation ne peut pas commencer ni finir au milieu d'un mot (`Ihre` n'est pas dans `Ihrer`), et une correction qui ne fait que déplacer les mêmes mots est classée
    `word_order`.
+
+**Mesures sur les vrais modèles** (`gpt-6-luna`, split dev, 3 passages, jeu `@2`) :
+
+| | `evaluation-v8`, run 1 | `evaluation-v8`, run 2 |
+|---|---|---|
+| précision par catégorie / globale | 1,00 (verb_form 0,99) / 0,998 | 0,98 à 1,00 / 0,996 |
+| hallucination de preuve, fausses erreurs STT | 0 / 0 | 0 / 0 |
+| rappel `word_choice` (seuil 0,70) | **0,62** | **0,58** |
+| rappel `word_order` | 0,75 | 0,74 |
+| rappel `verb_form` | 0,87 | 0,84 |
+| instabilité (seuil 0,10) | **0,26** | **0,18** |
+
+Lecture des 36 items à regarder du run 2 (commande `ari.evals diagnose`, dans le log du workflow) :
+la précision n'est plus le problème. Le modèle **sous-déclare** : il rapporte deux ou trois erreurs
+d'un transcript qui en contient davantage, toujours les plus évidentes, et le nombre rapporté varie
+d'un passage à l'autre, ce qui produit l'instabilité (par exemple 1 erreur sur 3 au passage 1, 3 sur
+3 au passage 2). Les manques constants sont des motifs précis : verbe conjugué ou participe mal placé
+dans une question (`Haben Sie geraucht früher`), particule séparable absente (`Wie fühlt sich der
+Schmerz`), mauvais auxiliaire (`Hat jemand … erkrankt`), collocation fausse (`lange Erkrankung`,
+`stumpf` pour un mal de tête). Deux étiquettes restent ambiguës pour le modèle : préverbe mal placé
+(`Was einnehmen Sie`, annoté `verb_form`) et article seul à changer (`in die Woche`, annoté `case`).
+`evaluation-v9` répond à cela dans le prompt (parcours tour par tour, pas de plafond, motifs
+toujours fautifs, règles d'étiquette), sans phrase du jeu de données dans les exemples, pour que le
+split dev ne mesure pas une mémorisation.
 
 Reste ouvert, à décider après mesure sur le split dev : une seconde passe de vérification par un
 modèle. Elle n'est pas écrite : elle coûte un appel de plus, et les mesures diront si les trois
