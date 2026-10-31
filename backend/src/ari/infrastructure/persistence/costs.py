@@ -125,6 +125,14 @@ class CostReport:
                 .group_by(table.learner_id, LearnerAccountRow.email)
                 .order_by(func.coalesce(func.sum(cost), 0).desc())
             ).all()
+            # The A/B test of the training voice: what each voice cost, per session it spoke in.
+            sessions = func.count(func.distinct(table.session_id)).label("sessions")
+            by_voice = db.execute(
+                select(table.provider, table.model, sessions, *_measures(cost))
+                .where(window, table.operation == "text_to_speech")
+                .group_by(table.provider, table.model)
+                .order_by(table.provider, table.model)
+            ).all()
             kind = case(
                 (table.attempt_ref.like("placement:%"), "placement"), else_="session"
             ).label("kind")
@@ -162,6 +170,17 @@ class CostReport:
         result["median_learner_micro_eur"] = median
         result["evaluation_excluded"] = _group(excluded, ())
         result["by_learner"] = learners
+        result["by_voice"] = [
+            {
+                **_group(row, ("provider", "model")),
+                "sessions": int(row.sessions),
+                # Known cost only: calls with an unknown cost are counted apart, never as zero.
+                "known_micro_eur_per_session": (
+                    row.known_micro_eur // row.sessions if row.sessions else 0
+                ),
+            }
+            for row in by_voice
+        ]
         result["by_kind"] = [_group(row, ("kind",)) for row in by_kind]
         result["recent_sessions"] = [
             {

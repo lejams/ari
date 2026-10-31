@@ -97,6 +97,7 @@ jobs:
           ARI_SYNC_PROVIDER_SECRETS: "1"
           ARI_OPENAI_API_KEY: "${{ secrets.ARI_OPENAI_API_KEY }}"
           ARI_STT_API_KEY: "${{ secrets.ARI_STT_API_KEY }}"
+          ARI_ELEVENLABS_API_KEY: "${{ secrets.ARI_ELEVENLABS_API_KEY }}"
         run: deploy/transfer-release.sh production staged-release "${{ steps.candidate.outputs.image }}" "${{ steps.candidate.outputs.sha }}"
       - name: Publish deployed release metadata
         env:

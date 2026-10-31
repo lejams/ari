@@ -7,7 +7,7 @@ from ari.application.ports.repository import SessionRepository
 from ari.application.services.exam_session import CHAIN_EXAM_STACK_ID, ExamPatient
 from ari.application.services.lexicon import LexiconService
 from ari.application.services.patient import PatientOutcome, PatientSimulator
-from ari.application.voice_stacks import VoiceStack
+from ari.application.voice_stacks import TrainingVoices, VoiceStack
 from ari.domain.errors import InvalidStateError, ProviderError
 from ari.domain.models import (
     ConversationSession,
@@ -49,12 +49,15 @@ class ConversationOrchestrator:
         exam_voice_stack: VoiceStack | None = None,
         lexicon: LexiconService | None = None,
         exam_patient: ExamPatient | None = None,
+        training_voices: TrainingVoices | None = None,
     ) -> None:
         self.repository = repository
         self.cases = cases
         self._patient = patient
         self._evaluator = evaluator
         self._voice_stack = voice_stack
+        # Training sessions draw their voice here (A/B test); without it everyone gets voice_stack.
+        self._training_voices = training_voices or TrainingVoices.single(voice_stack)
         # Exam sessions run on the open-microphone speech-to-speech stack when configured.
         self._exam_voice_stack = exam_voice_stack or voice_stack
         # Without a lexicon service the analysis completes; nothing carries across sessions.
@@ -102,7 +105,11 @@ class ConversationOrchestrator:
         )
         if not case.available_for_new_sessions:
             raise InvalidStateError("This case has been withdrawn from new sessions")
-        stack = self._exam_voice_stack if learning_mode is LearningMode.EXAM else self._voice_stack
+        stack = (
+            self._exam_voice_stack
+            if learning_mode is LearningMode.EXAM
+            else self._training_voices.choose(learner.tts_provider)
+        )
         session = ConversationSession(
             id=new_id(),
             learner_id=learner.id,

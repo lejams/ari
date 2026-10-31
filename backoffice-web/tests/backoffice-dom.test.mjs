@@ -127,6 +127,7 @@ const responses = {
     by_operation: [{operation: "session_evaluation", model: "gpt-6-luna", calls: 2, known_micro_eur: 528000, unknown_calls: 0}, {operation: "text_to_speech", model: "gpt-4o-mini-tts", calls: 1, known_micro_eur: 0, unknown_calls: 1}],
     unknown_reasons: {"usage.audio_seconds": 1},
     by_learner: [{learner_id: "learner-1", email: "l@example.org", calls: 3, known_micro_eur: 528000, unknown_calls: 1, ratio_to_median: 1.0}], median_learner_micro_eur: 528000,
+    by_voice: [{provider: "openai", model: "gpt-4o-mini-tts", sessions: 1, calls: 1, known_micro_eur: 0, unknown_calls: 1, known_micro_eur_per_session: 0}, {provider: "elevenlabs", model: "eleven_v4_turbo", sessions: 2, calls: 5, known_micro_eur: 400000, unknown_calls: 0, known_micro_eur_per_session: 200000}],
     by_kind: [{kind: "session", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
     evaluation_excluded: {calls: 4, known_micro_eur: 120000, unknown_calls: 0},
     recent_sessions: [{session_id: "session-1-abcdef", learner_id: "learner-1", case_id: "FSP-BY-P-cccccccc-000", learning_mode: "exam", last_call_at: "2026-10-15T10:00:00Z", calls: 3, known_micro_eur: 528000, unknown_calls: 1}],
@@ -171,6 +172,7 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   assert.match(nodes.get("costs-unknown").textContent, /durée audio non rapportée \(1\)/);
   assert.equal(nodes.get("costs-evaluation").hidden, false, "evaluation calls are excluded, not hidden");
   assert.match(nodes.get("costs-evaluation").textContent, /exclus des chiffres de cette page : 4 appel\(s\)/);
+  assert.ok(JSON.stringify(nodes.get("costs-voices")).includes("ElevenLabs"), "the page compares the voices of the A/B test");
 }
 {
   const {nodes} = await load(`#/documents/${"c".repeat(64)}`);
