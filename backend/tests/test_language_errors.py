@@ -130,3 +130,15 @@ def test_a_quote_that_holds_or_is_held_by_an_earlier_one_is_the_same_passage() -
     )
     assert [e.quote for e in verdict.kept] == ["Nennen Sie mich"]
     assert verdict.dropped == {"duplicate": 2}
+
+
+def test_words_that_only_look_alike_are_not_the_same_passage() -> None:
+    turns = {1: "Ich habe ein Termin mit Schmerzen in beiden Bein."}
+    verdict = verify_language_errors(
+        [
+            error("ein", "einen", [1], "gender"),
+            error("Bein", "Beinen", [1], "case"),
+        ],
+        turns,
+    )
+    assert [e.quote for e in verdict.kept] == ["ein", "Bein"]
