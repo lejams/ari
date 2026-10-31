@@ -36,8 +36,15 @@ args = sys.argv[1:]; open(os.environ['DOCKER_LOG'], 'a').write(' '.join(args) + 
 image = os.environ['EXPECTED_IMAGE']
 ids = {'app':'app-id','backoffice':'backoffice-id','worker':'worker-id'}
 if args[:2] == ['compose', '-p'] and 'config' in args:
+ if 'serve' not in args:
+  print(json.dumps({'services': {}})); raise SystemExit
  image_value = 'wrong' if os.environ.get('BAD_CONFIG') else image
- environment = {'ARI_PATIENT_MODEL':'active-model', 'ARI_OPENAI_API_KEY':'rendered'}
+ environment = {
+  'ARI_PATIENT_MODEL':'active-model',
+  'ARI_OPENAI_API_KEY':'rendered',
+  'LITERAL_DOLLAR':'single$$dollar',
+  'DOUBLE_DOLLAR':'double$$$$dollar',
+ }
  print(json.dumps({'services': {x:{'image':image_value, 'environment':environment} for x in ids}}))
 elif args[:3] == ['image','inspect','--format']:
  if 'json .Config.Env' in args[3]: print(json.dumps(['PATH=/usr/local/bin', 'PYTHONUNBUFFERED=1']))
@@ -54,6 +61,7 @@ elif args[:2] == ['inspect','--format']:
    model = 'drifted-model' if os.environ.get('DRIFT_MODEL') else 'active-model'
    env = ['PATH=/usr/local/bin', 'PYTHONUNBUFFERED=1']
    env += ['ARI_PATIENT_MODEL='+model, 'ARI_OPENAI_API_KEY=old']
+   env += ['LITERAL_DOLLAR=single$dollar', 'DOUBLE_DOLLAR=double$$dollar']
    print(json.dumps(env))
    raise SystemExit
   image_id = 'sha256:wrong' if os.environ.get('BAD_IMAGE') else 'sha256:recorded'

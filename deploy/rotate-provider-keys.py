@@ -64,7 +64,7 @@ def rendered_environment(
     ):
         fail("active compose file is malformed")
     return image_defaults | non_provider_environment(
-        [f"{name}={value}" for name, value in values.items()]
+        [f"{name}={value.replace('$$', '$')}" for name, value in values.items()]
     )
 
 
@@ -131,6 +131,8 @@ def main() -> None:
         "compose",
         "-p",
         "ari",
+        "--profile",
+        "serve",
         "--env-file",
         str(env_file),
         "-f",
