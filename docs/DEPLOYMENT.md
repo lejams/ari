@@ -208,29 +208,92 @@ jour des fichiers ne redémarre pas les conteneurs; la promotion reste une étap
 ### Clés des providers en production
 
 Les clés des providers de production se gèrent dans GitHub : **Settings > Environments >
-production > Environment secrets**. Créer exactement ces deux secrets, sans documenter ni copier
-leurs valeurs ici : `ARI_OPENAI_API_KEY` et `ARI_STT_API_KEY`. La seconde clé doit être celle du
-provider STT actuellement configuré (par exemple Groq), et non nécessairement une clé OpenAI.
+production > Environment secrets**. Créer exactement ces trois secrets, sans documenter ni copier
+leurs valeurs ici : `ARI_OPENAI_API_KEY`, `ARI_STT_API_KEY` et `ARI_ELEVENLABS_API_KEY`. La
+deuxième clé doit être celle du provider STT actuellement configuré (par exemple Groq), et non
+nécessairement une clé OpenAI. La troisième est la clé API ElevenLabs (compte avec le forfait
+Creator au minimum : la voix par défaut `3nMIMZ7RlGwsq1WLgxY3` est une voix de la bibliothèque, que
+l'API refuse sur le forfait gratuit, erreur `payment_required`).
 Cette synchronisation ne modifie ni endpoint, ni modèle, ni `ARI_PROVIDER_MODE` : ces réglages
 restent dans `/opt/ari/.env`.
 
 Après fusion de ce changement, lancer d'abord un nouveau run CI sur `main` afin de produire un
 bundle récent contenant le helper de synchronisation. Puis lancer **Actions > Promote staged
-release**, avec l'identifiant de ce run CI. La promotion vérifie les deux secrets avant toute
-connexion SSH et les transmet uniquement par l'entrée standard chiffrée; ils ne sont ni ajoutés au
-bundle, ni aux arguments de commande, ni aux logs. Sous le même verrou de déploiement, le VPS
-remplace atomiquement uniquement ces deux entrées de `.env` (mode `600`), après les prévols et la
-sauvegarde, avant l'arrêt des services. Staging ne reçoit jamais ces clés.
+release**, avec l'identifiant de ce run CI. La promotion vérifie les trois secrets avant toute
+connexion SSH (un secret absent ou vide l'arrête, sans rien changer sur le VPS) et les transmet
+uniquement par l'entrée standard chiffrée; ils ne sont ni ajoutés au bundle, ni aux arguments de
+commande, ni aux logs. Sous le même verrou de déploiement, le VPS remplace atomiquement uniquement
+ces trois entrées de `.env` (mode `600`), après les prévols et la sauvegarde, avant l'arrêt des
+services. Staging ne reçoit jamais ces clés.
+
+### Test A/B de la voix d'entraînement (OpenAI contre ElevenLabs)
+
+Chaque session d'entraînement tire sa voix au hasard à sa création, 50 % OpenAI
+(`gpt-4o-mini-tts`) et 50 % ElevenLabs (`eleven_v4_turbo`), et la garde jusqu'à sa fin : une session
+reprise parle avec la même voix. L'examen, lui, ne change pas (`openai_realtime`). Si ElevenLabs
+échoue avant le premier son d'une réponse (crédits épuisés, service indisponible), la réponse est
+dite avec OpenAI, un avertissement est journalisé (`falling back to OpenAI`) et chaque appel garde
+son propre fournisseur dans la page Coûts. Sans clé ElevenLabs, le test est désactivé et tout le
+monde garde OpenAI, avec un avertissement au démarrage.
+
+**Ce qu'Ismail doit ajouter à la main, dans cet ordre :**
+
+1. **Secret GitHub.** Sur GitHub : dépôt `lejams/ari` > Settings > Environments > `production` >
+   Environment secrets > *Add secret* : nom `ARI_ELEVENLABS_API_KEY`, valeur = la clé API du compte
+   ElevenLabs (forfait Creator ; clé créée dans ElevenLabs > Developers > API keys, avec le droit
+   « Text to Speech »). Les secrets `ARI_OPENAI_API_KEY` et `ARI_STT_API_KEY` existent déjà. À faire
+   **avant** la promotion : sans ce secret, la promotion s'arrête avant toute connexion SSH.
+2. **Activer le test dans `/opt/ari/.env`** (seule modification manuelle du VPS), en SSH sur le VPS :
+   ajouter la ligne `ARI_TTS_PROVIDER=ab` (`echo 'ARI_TTS_PROVIDER=ab' >> /opt/ari/.env`, une seule
+   fois : vérifier avec `grep ARI_TTS_PROVIDER /opt/ari/.env`). Sans cette ligne, tout le monde
+   garde OpenAI, même avec la clé installée. Ne lancer aucun redémarrage de l'ancienne version entre
+   cette étape et la suivante (l'ancienne image refuse la valeur `ab`).
+3. **Promouvoir**, ce qui livre le code, installe la clé sur le VPS (atomiquement, `.env` en mode
+   `600`) et redémarre les services avec le nouveau `.env` : *Actions > Promote staged release*,
+   avec l'identifiant du run CI de `main` qui contient cette PR (voir plus haut).
+4. **Rien d'autre à écrire.** Ces réglages ont déjà leur valeur correcte : `ARI_ELEVENLABS_VOICE_ID=
+   3nMIMZ7RlGwsq1WLgxY3`, `ARI_ELEVENLABS_TTS_MODEL=eleven_v4_turbo`,
+   `ARI_ELEVENLABS_OUTPUT_FORMAT=pcm_24000`, `ARI_ELEVENLABS_VOICE_REGISTRATION=ids`. Les
+   modifier n'est utile que pour changer de voix ou de modèle (décision du propriétaire, plan
+   section 6).
+5. **Vérifier.** Ouvrir une session d'entraînement : la réponse de `/api/sessions/<id>` contient
+   `voice_stack_config.models.tts` (`eleven_v4_turbo` ou `gpt-4o-mini-tts`). La page Coûts du
+   back-office montre, par voix, le nombre de sessions, d'appels et le coût par session.
+
+Plus tard : pour changer ensuite un réglage `.env` (désactiver le test avec `ARI_TTS_PROVIDER=
+openai`, changer de voix), éditer `/opt/ari/.env` puis relancer une promotion. Pour seulement
+renouveler la clé ElevenLabs, mettre à jour le secret GitHub puis lancer *Rotate production
+provider keys* (voir plus bas) : cette rotation refuse volontairement tout autre changement de
+`.env` non encore déployé.
+
+Forcer la voix d'un compte (par exemple le frère d'Ismail, pour qu'il entende toujours la même),
+sur le VPS, une fois son compte créé et son onboarding terminé :
+
+```sh
+cd /opt/ari && docker compose --profile serve exec backoffice \
+  python -m ari.backoffice_api.cli voice-provider set --email <adresse> --provider elevenlabs
+```
+
+`--provider openai` ou `elevenlabs` ; `voice-provider list` montre les comptes forcés,
+`voice-provider clear --email <adresse>` rend le compte au tirage. Le choix vaut pour les sessions
+créées ensuite ; une session déjà créée garde sa voix. Si le fournisseur forcé n'est pas disponible
+(ElevenLabs sans clé), le compte reçoit la voix par défaut, avec un avertissement.
+
+Les coûts ElevenLabs de la page Coûts utilisent le prix catalogue de la grille `pricing-v2`
+(0,04 $ pour 1 000 caractères). Le forfait Creator se facture en crédits : à comparer avec la
+consommation réelle du tableau de bord ElevenLabs avant de s'appuyer sur la comparaison de coût ; un
+recalage passe par une nouvelle version de la grille (`pricing-v3`), à décider par le propriétaire.
 
 ## Rotation des clés provider en production
 
 Pour renouveler uniquement les clés de provider sans promouvoir de code, lancer manuellement le
 workflow GitHub Actions **Rotate production provider keys** depuis `main`. L'environnement GitHub
-`production` doit contenir `ARI_OPENAI_API_KEY`, `ARI_STT_API_KEY`, `SSH_PRIVATE_KEY` et
+`production` doit contenir `ARI_OPENAI_API_KEY`, `ARI_STT_API_KEY`, `ARI_ELEVENLABS_API_KEY`,
+`SSH_PRIVATE_KEY` et
 `SSH_KNOWN_HOSTS`, ainsi que les variables `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT` et
 `DEPLOY_PATH`.
 
-Cette opération applique les deux clés à la version actuellement déployée : elle relit le digest et
+Cette opération applique les trois clés à la version actuellement déployée : elle relit le digest et
 le SHA de `.release.json`, utilise le `docker-compose.yml` du bundle de cette release et redémarre
 brièvement seulement `app`, `backoffice` et `worker`. Elle ne télécharge ni ne construit d'image,
 ne lance ni migration ni sauvegarde, et ne modifie pas les modèles, providers ou prompts. Elle ne

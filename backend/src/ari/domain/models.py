@@ -143,6 +143,9 @@ class LearnerProfile:
     # Set by an administrator only, never by the learner: an account used to measure ARI
     # (`voice-sim` on staging), exempt from the exam quota. None for every real learner.
     evaluation_since: datetime | None = None
+    # Set by an administrator only: forces this learner's training voice ("openai" or
+    # "elevenlabs") instead of the A/B draw. None for everyone else.
+    tts_provider: str | None = None
 
     @property
     def evaluation_account(self) -> bool:

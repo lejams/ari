@@ -1,4 +1,4 @@
-"""Rotate only the two provider keys for the currently active production image."""
+"""Rotate only the three provider keys for the currently active production image."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from provider_secrets import from_stdin, install
 SHA = re.compile(r"^[0-9a-f]{40}$")
 IMAGE = re.compile(r"^ghcr\.io/lejams/ari@sha256:[0-9a-f]{64}$")
 SERVICES = ("app", "backoffice", "worker")
-PROVIDER_KEYS = ("ARI_OPENAI_API_KEY", "ARI_STT_API_KEY")
+PROVIDER_KEYS = ("ARI_OPENAI_API_KEY", "ARI_STT_API_KEY", "ARI_ELEVENLABS_API_KEY")
 
 
 def fail(message: str) -> NoReturn:
@@ -228,7 +228,7 @@ def main() -> None:
             rendered_services[service], image_environment
         ):
             fail("active service configuration does not match the recorded release")
-    # Mutation is deliberately limited to the two entries and the three consumers.
+    # Mutation is deliberately limited to the three entries and the three consumers.
     install(env_file, values)
     run(
         compose

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import time
 from collections.abc import AsyncIterator, Coroutine
 from contextlib import suppress
@@ -20,6 +21,7 @@ from ari.api.voice_session_dto import public_turn
 from ari.application.contracts import AudioStreamEvent, ExecutionContext, TranscriptionConfig
 from ari.application.ports.tts import StreamingTTSProvider
 from ari.application.schemas import ClientControlMessage
+from ari.application.voice_stacks import VoiceStack
 from ari.container import Container
 from ari.domain.errors import (
     AriError,
@@ -72,6 +74,9 @@ def close_code_for(exc: Exception) -> int:
 
 def is_websocket_disconnect_runtime(exc: RuntimeError) -> bool:
     return "disconnect message has been received" in str(exc)
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -154,6 +159,10 @@ class VoiceSocket:
         self.sample_rate = services.settings.audio_sample_rate
         self.last_activity = time.monotonic()
         # Set in run() once the session and its pinned case are resolved.
+        self.stack: VoiceStack
+        # Set when the pinned ElevenLabs voice failed before any audio: the rest of this
+        # connection speaks with OpenAI (every call records its own provider and cost).
+        self._fallback_voice: StreamingTTSProvider | None = None
         self.lifecycle: VoiceLifecycle
         self.session: ConversationSession
         self.case: MedicalCase
@@ -164,7 +173,7 @@ class VoiceSocket:
         await websocket.accept()
         try:
             opened = services.repository.get_session(session_id)
-            stack = services.resolve_voice_stack(opened)
+            stack = self.stack = services.resolve_voice_stack(opened)
         except AriError as exc:
             await self._refuse("The persisted voice stack is unavailable", str(exc), code=4403)
             return
@@ -421,6 +430,18 @@ class VoiceSocket:
         except ProviderError as exc:
             repository.record_execution(cast(ExecutionRecord, exc.execution))
             failed = repository.mark_tts_failed(session_id, turn.id, audio_stream_id)
+            fallback = self._fallback_tts() if index == 0 else None
+            if fallback is not None:
+                # No audio reached the learner: say the answer with the OpenAI voice instead,
+                # explicitly (logged, one extra recorded call), never a silent swap of the pin.
+                logger.warning(
+                    "ElevenLabs voice failed for session %s (%s): falling back to OpenAI",
+                    session_id,
+                    exc,
+                )
+                self._fallback_voice = fallback
+                await self.send("voice.fallback", provider="openai", turn_id=turn.id)
+                return await self._stream_patient_audio(failed)
             await self.send("turn.tts_failed", turn=public_turn(failed), retryable=True)
             await self.send(
                 "voice.error",
@@ -489,7 +510,16 @@ class VoiceSocket:
             await asyncio.shield(asyncio.gather(*self.interrupted_streams, return_exceptions=True))
 
     def _tts(self) -> StreamingTTSProvider:
-        return self.services.tts
+        # The voice the session was pinned with (OpenAI or ElevenLabs), not the global setting.
+        return self._fallback_voice or self.services.tts_for(self.stack)
+
+    def _fallback_tts(self) -> StreamingTTSProvider | None:
+        """OpenAI, for a training session pinned on ElevenLabs; nothing for any other stack."""
+        if self._fallback_voice is not None or self.stack.id != "pipeline_economy":
+            return None
+        if self.stack.parameters.get("tts_provider") != "elevenlabs":
+            return None
+        return self.services.tts_providers.get("openai")
 
     async def _retry_tts(self, turn_id: str) -> None:
         async with self.processing_lock:
