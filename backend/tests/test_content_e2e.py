@@ -49,9 +49,8 @@ def test_gold_protocol_becomes_a_published_case_learners_can_see(
             data=FORM,
             files={"file": ("p.pdf", pdf.read_bytes(), "application/pdf")},
         )
-        document_id = uploaded.json()["document"]["id"]
+        assert uploaded.status_code == 201
         drain(backoffice)
-        owner.post(f"/api/documents/{document_id}/release")
         protocol_id = doctor.get("/api/protocols").json()["items"][0]["id"]
         head = doctor.get(f"/api/protocols/{protocol_id}").json()
         settled = settle(ProtocolRecord.model_validate_json(json.dumps(head["record"])))

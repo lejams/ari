@@ -188,7 +188,7 @@ def test_upload_review_and_gold_through_the_api(backoffice: Backoffice, tmp_path
         assert detail["document"]["status"] == "extracted"
         assert (
             len(detail["segments"]) == 1
-            and detail["segments"][0]["protocol"]["status"] == "extracted"
+            and detail["segments"][0]["protocol"]["status"] == "doctor_review"
         )
         assert detail["jobs"]["succeeded"] == 3
         assert detail["progress"] == {
@@ -207,7 +207,9 @@ def test_upload_review_and_gold_through_the_api(backoffice: Backoffice, tmp_path
         assert original.headers["content-type"] == "application/pdf"
         assert "attachment" in original.headers["content-disposition"]
 
-        assert owner.post(f"/api/documents/{document_id}/release").json() == {"released": 1}
+        # The extraction already queued the protocol for the doctors; the manual release only
+        # concerns protocols still left in `extracted` (older ones), here none.
+        assert owner.post(f"/api/documents/{document_id}/release").json() == {"released": 0}
         queue = doctor.get("/api/protocols", params={"status": "doctor_review"}).json()
         assert queue["total"] == 1 and queue["items"][0]["land"] == "Bayern"
         protocol_id = queue["items"][0]["id"]
@@ -419,7 +421,7 @@ def test_protocol_source_review_seen_and_revision_boundaries(
         assert uploaded.status_code == 201, uploaded.text
         document_id = uploaded.json()["document"]["id"]
         drain(backoffice)
-        assert owner.post(f"/api/documents/{document_id}/release").json() == {"released": 3}
+        assert owner.post(f"/api/documents/{document_id}/release").json() == {"released": 0}
 
         queue = doctor.get("/api/protocols", params={"status": "doctor_review"}).json()
         assert queue["total"] == 3

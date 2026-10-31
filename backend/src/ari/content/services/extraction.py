@@ -262,7 +262,9 @@ class ProtocolExtraction:
             document_id=document_id,
             segment_id=segment_id,
             created_via="ai",
-            status=ProtocolStatus.EXTRACTED,
+            # The extraction hands the protocol straight to the doctors' queue: the owner's
+            # decision comes later, on the doctor's approval. Both events stay in the history.
+            status=ProtocolStatus.DOCTOR_REVIEW,
             pii_findings=scan(record.model_dump(mode="json")),
             pii_detector_version=PII_DETECTOR_VERSION,
         )
@@ -277,6 +279,19 @@ class ProtocolExtraction:
                     event_type="extracted",
                     actor=SYSTEM_ACTOR,
                     payload={"ai_run_id": run.id, "pii_findings": len(protocol.pii_findings)},
+                )
+            )
+            tx.add_event(
+                ProtocolEvent(
+                    id=new_id(),
+                    protocol_id=protocol_id,
+                    protocol_version=1,
+                    event_type="released",
+                    actor=SYSTEM_ACTOR,
+                    payload={
+                        "from": ProtocolStatus.EXTRACTED.value,
+                        "to": ProtocolStatus.DOCTOR_REVIEW.value,
+                    },
                 )
             )
             tx.set_segment_status(segment_id, SegmentStatus.EXTRACTED)

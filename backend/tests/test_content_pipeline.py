@@ -113,7 +113,7 @@ def test_pdf_becomes_traced_protocol_drafts(
         assert all(s.status.value == "extracted" for s in segments)
         heads = tx.list_heads(document_id=document.id)
         assert [h.id for h in heads] == [f"P-{document.id[:8]}-00{i}" for i in range(3)]
-        assert all(h.status is ProtocolStatus.EXTRACTED and h.version == 1 for h in heads)
+        assert all(h.status is ProtocolStatus.DOCTOR_REVIEW and h.version == 1 for h in heads)
         first = heads[0].record
         assert first.location.land is Land.BAYERN and first.location.city is None
         assert first.source.city_hint == "München" and first.patient.age_years == 41
@@ -123,7 +123,7 @@ def test_pdf_becomes_traced_protocol_drafts(
         assert {r.operation for r in runs} == {"protocol_segmentation", "protocol_extraction"}
         assert all(r.prompt_hash and r.input_hash and r.status == "succeeded" for r in runs)
         assert {r.prompt_version for r in runs} == {"segmentation-v1", "protocol-extraction-v2"}
-        assert [e.event_type for e in tx.events(heads[0].id)] == ["extracted"]
+        assert [e.event_type for e in tx.events(heads[0].id)] == ["extracted", "released"]
     assert all(job.status is JobStatus.SUCCEEDED for job in content_container.queue.list())
 
     again = content_container.ingestion.ingest(

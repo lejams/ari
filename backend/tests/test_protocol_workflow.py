@@ -56,8 +56,8 @@ def test_state_machine_from_extraction_to_gold(
     content_container: ContentContainer, extracted: ProtocolVersion
 ) -> None:
     workflow = content_container.workflow
-    released = workflow.release(extracted.id, actor=OPERATOR)
-    assert released.status is ProtocolStatus.DOCTOR_REVIEW
+    # The extraction already queued it for the doctors: no manual release left to do.
+    assert extracted.status is ProtocolStatus.DOCTOR_REVIEW
     with pytest.raises(ConflictError):
         workflow.release(extracted.id, actor=OPERATOR)
 
@@ -160,11 +160,23 @@ def test_state_machine_from_extraction_to_gold(
         )
 
 
+def test_manual_release_still_serves_protocols_left_in_extracted(
+    content_container: ContentContainer, extracted: ProtocolVersion
+) -> None:
+    # Protocols extracted before the automatic hand-over stay `extracted` in the database.
+    with content_container.repository.transaction() as tx:
+        tx.set_protocol_status(extracted.id, extracted.version, ProtocolStatus.EXTRACTED)
+    released = content_container.workflow.release_document(extracted.document_id, actor=OWNER)
+    assert released == 1
+    with content_container.repository.transaction() as tx:
+        head = tx.head(extracted.id)
+        assert head is not None and head.status is ProtocolStatus.DOCTOR_REVIEW
+
+
 def test_owner_sends_back_and_rejects(
     content_container: ContentContainer, extracted: ProtocolVersion
 ) -> None:
     workflow = content_container.workflow
-    workflow.release(extracted.id, actor=OPERATOR)
     revised = workflow.revise(
         extracted.id,
         base_version=1,
@@ -207,7 +219,6 @@ def test_review_seen_is_an_audit_marker_and_closed_protocols_reject_it(
     content_container: ContentContainer, extracted: ProtocolVersion
 ) -> None:
     workflow = content_container.workflow
-    workflow.release(extracted.id, actor=OPERATOR)
     with content_container.repository.transaction() as tx:
         page = next(
             page
