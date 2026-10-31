@@ -96,6 +96,25 @@ async def test_retry_after_failed_status_reuses_persisted_transcript(container: 
 
 
 @pytest.mark.asyncio
+async def test_language_errors_shown_to_the_learner_carry_the_quote_and_its_correction(
+    container: Container,
+) -> None:
+    learner = container.orchestrator.create_learner(CEFRLevel.B2)
+    case = container.cases.list()[0]
+    session = container.orchestrator.create_session(learner.id, case.id, case.version)
+    container.orchestrator.activate(session.id)
+    await container.orchestrator.process_transcript(session.id, "Wo haben Sie Schmerzen?")
+
+    result = (await container.orchestrator.end_session(session.id)).session
+
+    assert result.evaluation is not None
+    [error] = result.evaluation.language_errors
+    assert error.text.startswith(
+        "« Wo haben Sie Schmerzen? » → « Wo haben Sie Schmerzen? (korrigiert) » : "
+    )
+
+
+@pytest.mark.asyncio
 async def test_case_hash_drift_is_rejected(container: Container) -> None:
     learner = container.orchestrator.create_learner(CEFRLevel.C1)
     case = container.cases.list()[0]

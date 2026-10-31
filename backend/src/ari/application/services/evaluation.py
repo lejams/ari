@@ -217,7 +217,13 @@ class LLMBackedEvaluator:
             ),
             missed_fact_ids=missed_fact_ids,
             language_errors=tuple(
-                EvidenceObservation(item.text, tuple(item.evidence_turn_sequences), item.category)
+                EvidenceObservation(
+                    # The learner reads this text: the quoted mistake and its correction are part
+                    # of it, whatever the model wrote in its explanation.
+                    f"« {item.quote} » → « {item.correction} » : {item.text}",
+                    tuple(item.evidence_turn_sequences),
+                    item.category,
+                )
                 for item in language_errors
             ),
             criteria=tuple(criteria_payload),
