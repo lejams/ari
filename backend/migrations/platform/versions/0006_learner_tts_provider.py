@@ -24,13 +24,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.add_column("learners", sa.Column("tts_provider", sa.String(), nullable=True))
-    op.create_check_constraint(
-        "ck_learners_tts_provider",
-        "learners",
-        "tts_provider IS NULL OR tts_provider IN ('openai', 'elevenlabs')",
-    )
 
 
 def downgrade() -> None:
-    op.drop_constraint("ck_learners_tts_provider", "learners", type_="check")
     op.drop_column("learners", "tts_provider")

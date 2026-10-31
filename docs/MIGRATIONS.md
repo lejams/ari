@@ -35,8 +35,8 @@ backfill: `learners.evaluation_since` (NULL for every learner, set by an adminis
 evaluation account) and `sessions.evaluation_account` (server default `false`, fixed when the
 session is created). Its downgrade drops both, and with them which sessions were evaluations.
 `0006_learner_tts_provider` adds one nullable column, `learners.tts_provider` (`openai` or
-`elevenlabs`, checked; NULL for every learner = the A/B draw of the training voice), written only by
-the back-office CLI. No backfill; the voice a session was drawn is already pinned in
+`elevenlabs`, validated by the CLI; NULL for every learner = the A/B draw of the training voice),
+written only by the back-office CLI. No backfill; the voice a session was drawn is already pinned in
 `sessions.voice_stack_config`. Its downgrade drops the column and the forced voices.
 Row locks (`SELECT ... FOR UPDATE`, or `FOR SHARE` when a session
 pins a published scenario) serialise workflow mutations.
