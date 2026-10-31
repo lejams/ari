@@ -1,0 +1,24 @@
+name: Rotate production provider keys
+on: {workflow_dispatch: {}}
+permissions: {contents: read}
+jobs:
+  production:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: {group: deploy-production, cancel-in-progress: false}
+    permissions: {contents: read}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main}
+      - name: Rotate keys on the active production release
+        env:
+          DEPLOY_HOST: "${{ vars.DEPLOY_HOST }}"
+          DEPLOY_USER: "${{ vars.DEPLOY_USER }}"
+          DEPLOY_PORT: "${{ vars.DEPLOY_PORT || '22' }}"
+          DEPLOY_PATH: "${{ vars.DEPLOY_PATH }}"
+          SSH_KNOWN_HOSTS: "${{ secrets.SSH_KNOWN_HOSTS }}"
+          SSH_PRIVATE_KEY: "${{ secrets.SSH_PRIVATE_KEY }}"
+          ARI_OPENAI_API_KEY: "${{ secrets.ARI_OPENAI_API_KEY }}"
+          ARI_STT_API_KEY: "${{ secrets.ARI_STT_API_KEY }}"
+        run: deploy/rotate-provider-keys.sh

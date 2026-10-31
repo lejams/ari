@@ -222,9 +222,20 @@ bundle, ni aux arguments de commande, ni aux logs. Sous le même verrou de dépl
 remplace atomiquement uniquement ces deux entrées de `.env` (mode `600`), après les prévols et la
 sauvegarde, avant l'arrêt des services. Staging ne reçoit jamais ces clés.
 
-Pour une rotation, modifier les deux secrets GitHub si nécessaire puis refaire une promotion d'un
-nouveau run CI/staging réussi; modifier GitHub seul ne change pas le VPS. Un ancien bundle ne peut
-pas synchroniser les clés : générer un nouveau run CI après la fusion.
+## Rotation des clés provider en production
+
+Pour renouveler uniquement les clés de provider sans promouvoir de code, lancer manuellement le
+workflow GitHub Actions **Rotate production provider keys** depuis `main`. L'environnement GitHub
+`production` doit contenir `ARI_OPENAI_API_KEY`, `ARI_STT_API_KEY`, `SSH_PRIVATE_KEY` et
+`SSH_KNOWN_HOSTS`, ainsi que les variables `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT` et
+`DEPLOY_PATH`.
+
+Cette opération applique les deux clés à la version actuellement déployée : elle relit le digest et
+le SHA de `.release.json`, utilise le `docker-compose.yml` du bundle de cette release et redémarre
+brièvement seulement `app`, `backoffice` et `worker`. Elle ne télécharge ni ne construit d'image,
+ne lance ni migration ni sauvegarde, et ne modifie pas les modèles, providers ou prompts. Elle ne
+nécessite donc aucune promotion de release ni évaluation : un échec du gate IA ne peut pas être
+contourné pour publier une nouvelle image par cette voie.
 
 Staging utilise son propre projet et ses propres volumes, sans Caddy :
 
