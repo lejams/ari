@@ -422,7 +422,20 @@ def test_costs_by_voice_compares_providers_per_session(
         )
         for _ in range(3)
     ]
+    # An exam on the chain also records ElevenLabs `text_to_speech`: not part of the A/B test.
+    exam = repository.create_session(
+        ConversationSession(
+            id=new_id(),
+            learner_id=learner.id,
+            case_id="case",
+            case_version="1",
+            case_hash="hash",
+            goal=LearningGoal(),
+            voice_stack_id="chain_exam",
+        )
+    )
     for session, provider, model, usage in (
+        (exam, "elevenlabs", "eleven_v4_turbo", {"characters": 9000}),
         (sessions[0], "openai", "gpt-4o-mini-tts", {"audio_seconds": 60.0}),
         (sessions[1], "elevenlabs", "eleven_v4_turbo", {"characters": 1000}),
         (sessions[2], "elevenlabs", "eleven_v4_turbo", {"characters": 3000}),

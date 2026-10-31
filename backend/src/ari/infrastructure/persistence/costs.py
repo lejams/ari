@@ -129,7 +129,14 @@ class CostReport:
             sessions = func.count(func.distinct(table.session_id)).label("sessions")
             by_voice = db.execute(
                 select(table.provider, table.model, sessions, *_measures(cost))
-                .where(window, table.operation == "text_to_speech")
+                .join(SessionRow, SessionRow.id == table.session_id)
+                # Training sessions only: the exam chain's persona voices also record
+                # `text_to_speech` but are not part of the A/B test.
+                .where(
+                    window,
+                    table.operation == "text_to_speech",
+                    SessionRow.voice_stack_id == "pipeline_economy",
+                )
                 .group_by(table.provider, table.model)
                 .order_by(table.provider, table.model)
             ).all()
