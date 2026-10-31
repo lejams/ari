@@ -8,6 +8,7 @@ from ari.application.ports.llm import LLMProvider
 from ari.application.prompting import VersionedPrompt
 from ari.application.schemas import EvaluationOutputSchema
 from ari.application.services.assessment import weighted_assessment
+from ari.application.services.language_errors import verify_language_errors
 from ari.application.services.next_actions import next_actions
 from ari.application.services.structure import first_delivery_turn, section_coverage
 from ari.domain.errors import ProviderError
@@ -183,6 +184,10 @@ class LLMBackedEvaluator:
                 evidence_turn_sequences=sorted(judgement.evidence_turn_sequences),
             )
 
+        language_errors = verify_language_errors(
+            result.value.language_errors, {item.sequence: item.user_text for item in session.turns}
+        ).kept
+
         revealed_fact_ids = frozenset(
             fact_id for turn in session.turns for fact_id in turn.revealed_fact_ids
         )
@@ -212,8 +217,14 @@ class LLMBackedEvaluator:
             ),
             missed_fact_ids=missed_fact_ids,
             language_errors=tuple(
-                EvidenceObservation(item.text, tuple(item.evidence_turn_sequences), item.category)
-                for item in result.value.language_errors
+                EvidenceObservation(
+                    # The learner reads this text: the quoted mistake and its correction are part
+                    # of it, whatever the model wrote in its explanation.
+                    f"« {item.quote} » → « {item.correction} » : {item.text}",
+                    tuple(item.evidence_turn_sequences),
+                    item.category,
+                )
+                for item in language_errors
             ),
             criteria=tuple(criteria_payload),
             code_switches=tuple(

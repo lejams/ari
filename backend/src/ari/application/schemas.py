@@ -76,8 +76,14 @@ LANGUAGE_ERROR_CATEGORIES = (
 
 
 class LanguageErrorSchema(EvidenceObservationSchema):
-    """A meaningful spoken error with a closed category, so recurrences can be counted."""
+    """A meaningful spoken error with a closed category, so recurrences can be counted.
 
+    `quote` is the learner's words, exactly as they stand in a cited turn, and `correction` the
+    same words corrected: the application checks the quote against the transcript.
+    """
+
+    quote: Annotated[str, Field(min_length=1, max_length=120)]
+    correction: Annotated[str, Field(min_length=1, max_length=120)]
     category: Literal[
         "gender", "case", "verb_form", "word_order", "word_choice", "register", "other"
     ]

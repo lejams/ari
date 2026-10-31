@@ -1,0 +1,40 @@
+{
+  "suite": "evaluation-language",
+  "version": "2",
+  "description": "Transcripts synthétiques à erreurs injectées (genre, cas, forme verbale, ordre des mots, choix du mot, registre, mot français, artefact STT, section oubliée) et à formulations correctes mais inhabituelles : vérité connue par construction.",
+  "synthetic": true,
+  "source": "Cas et énoncés inventés par l'agent, générés par evals/datasets/build_synthetic_v2.py",
+  "created_on": "2026-10-31",
+  "consent": "not_applicable:synthetic",
+  "annotators": [
+    {
+      "id": "agent:claude-sonnet-5.5",
+      "role": "rédaction synthétique",
+      "annotated_on": "2026-10-31"
+    }
+  ],
+  "splits": {
+    "dev": [
+      "brustschmerz",
+      "bauchschmerz",
+      "atemnot",
+      "kopfschmerz"
+    ],
+    "holdout": [
+      "rueckenschmerz",
+      "schwindel",
+      "halsschmerz"
+    ]
+  },
+  "files": {
+    "cases.json": "9bab157acb98c95d8c40e117eaa2258105c85b6e4076c23824ab2882eca9f995",
+    "dev.jsonl": "a5295b5926ba1dd7c0863a09714334ea6ded91ee06cae4e5cd21c503ddc9cb56",
+    "holdout.jsonl": "baa9efe41ee5ccd7a5c784ef6ea60d709912a1f52668bf739203ccc0ffc6552c"
+  },
+  "limitations": [
+    "Variantes allemandes rédigées par l'agent : relecture par un germanophone requise avant de se fier aux seuils.",
+    "Une phrase « correcte » qui contiendrait une vraie faute compterait comme fausse erreur du modèle.",
+    "La famille kopfschmerz, holdout de la version 1, a été vue lors de la mise au point : elle est en développement dans cette version. Le holdout est neuf.",
+    "Règle d'annotation genre / cas : voir l'en-tête de build_synthetic_v2.py."
+  ]
+}

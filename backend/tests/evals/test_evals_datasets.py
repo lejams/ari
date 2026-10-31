@@ -17,7 +17,7 @@ from ari.evals.scorers.evaluation_language import LanguageItem
 from ari.evals.scorers.patient_leakage import LeakageItem, PatientLeakageSuite
 from ari.evals.suites import SUITES
 
-COMMITTED = [("patient-leakage", "1"), ("evaluation-language", "1")]
+COMMITTED = [("patient-leakage", "1"), ("evaluation-language", "1"), ("evaluation-language", "2")]
 
 
 def _normalize(text: str) -> str:
@@ -61,9 +61,8 @@ def test_every_repository_dataset_is_synthetic() -> None:
 
 
 def test_the_build_script_reproduces_the_committed_files(tmp_path: Path) -> None:
-    script = DATASETS / "build_synthetic_v1.py"
-    module = runpy.run_path(str(script))
-    module["main"](tmp_path)
+    for script in ("build_synthetic_v1.py", "build_synthetic_v2.py"):
+        runpy.run_path(str(DATASETS / script))["main"](tmp_path)
     for suite, version in COMMITTED:
         for name in ("manifest.json", "cases.json", "dev.jsonl", "holdout.jsonl"):
             built = (tmp_path / suite / version / name).read_bytes()
@@ -71,10 +70,24 @@ def test_the_build_script_reproduces_the_committed_files(tmp_path: Path) -> None
             assert built == committed, f"{suite}/{version}/{name}: rebuild differs"
 
 
-def test_language_dataset_size_and_truth_by_construction() -> None:
-    dataset = load_dataset(DATASETS, "evaluation-language", "1")
+@pytest.mark.parametrize(
+    ("version", "expected_categories", "size"),
+    [
+        ("1", {"gender", "case", "verb_form", "word_order"}, (100, 150)),
+        # Version 2 is larger on purpose: more families, a bigger holdout (31 October 2026).
+        (
+            "2",
+            {"gender", "case", "verb_form", "word_order", "word_choice", "register"},
+            (150, 200),
+        ),
+    ],
+)
+def test_language_dataset_size_and_truth_by_construction(
+    version: str, expected_categories: set[str], size: tuple[int, int]
+) -> None:
+    dataset = load_dataset(DATASETS, "evaluation-language", version)
     rows = [*dataset.read_split("dev", gate=True), *dataset.read_split("holdout", gate=True)]
-    assert 100 <= len(rows) <= 150  # Plan: 100 to 150 transcripts.
+    assert size[0] <= len(rows) <= size[1]
     categories = set()
     for row in rows:
         item = LanguageItem.model_validate_json(json.dumps(row))
@@ -89,7 +102,46 @@ def test_language_dataset_size_and_truth_by_construction() -> None:
         heard = {f for t in item.turns for f in t.revealed_fact_ids}
         expected_missing = [s.id for s in case.anamnesis_sections if not heard & set(s.fact_ids)]
         assert item.truth.missing_sections == expected_missing
-    assert categories == {"gender", "case", "verb_form", "word_order"}
+    assert categories == expected_categories
+
+
+def test_language_v2_covers_every_gated_category_in_both_splits() -> None:
+    """A category gated without support in a split would pass or fail on nothing."""
+    dataset = load_dataset(DATASETS, "evaluation-language", "2")
+    for split in ("dev", "holdout"):
+        rows = [
+            LanguageItem.model_validate_json(json.dumps(r))
+            for r in dataset.read_split(split, gate=True)
+        ]  # type: ignore[arg-type]
+        per_category: dict[str, int] = {}
+        for row in rows:
+            for error in row.truth.language_errors:
+                per_category[error.category] = per_category.get(error.category, 0) + 1
+        assert set(per_category) == {
+            "gender",
+            "case",
+            "verb_form",
+            "word_order",
+            "word_choice",
+            "register",
+        }, split
+        assert min(per_category.values()) >= 15, (split, per_category)
+        assert {f for f in dataset.manifest.splits[split]} == {r.family for r in rows}
+
+
+def test_language_v2_holdout_is_new_and_has_correct_unusual_sentences() -> None:
+    v1 = load_dataset(DATASETS, "evaluation-language", "1")
+    v2 = load_dataset(DATASETS, "evaluation-language", "2")
+    # The holdout family of version 1 was seen while tuning: it is a development family now.
+    assert set(v1.manifest.splits["holdout"]) <= set(v2.manifest.splits["dev"])
+    assert set(v2.manifest.splits["holdout"]).isdisjoint(
+        {*v1.manifest.splits["dev"], *v1.manifest.splits["holdout"]}
+    )
+    seen_before = {
+        _normalize(text) for row in v1.read_split("holdout", gate=True) for text in _utterances(row)
+    }
+    fresh = {_normalize(t) for r in v2.read_split("holdout", gate=True) for t in _utterances(r)}
+    assert not seen_before & fresh
 
 
 def test_leakage_items_reference_known_facts() -> None:

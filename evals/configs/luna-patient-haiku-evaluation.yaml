@@ -1,0 +1,13 @@
+# Routage mixte inter-fournisseurs : évaluation de session sur Claude Haiku 5.5, au même prix de
+# catalogue que gpt-6-luna (pricing-v2 : 0,10 $ / 0,50 $ par million de jetons).
+# Équivalent : ARI_EVALUATION_PROVIDER=anthropic ARI_EVALUATION_MODEL=claude-haiku-5-5
+#              (ARI_ANTHROPIC_API_KEY requis), patient inchangé sur gpt-6-luna.
+id: luna-patient-haiku-evaluation
+description: Patient sur gpt-6-luna, évaluation sur claude-haiku-5-5
+provider: live
+routes:
+  patient: {provider: openai, model: gpt-6-luna}
+  evaluation: {provider: anthropic, model: claude-haiku-5-5}
+prompts:
+  patient: patient-v3
+  evaluation: evaluation-v8

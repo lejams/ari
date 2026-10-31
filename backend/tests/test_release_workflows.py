@@ -90,6 +90,23 @@ def test_live_evals_are_manual_main_only_with_scoped_keys() -> None:
     assert "eval-gate" in str(job["steps"][-1])
 
 
+def test_the_comparison_workflow_measures_on_dev_and_never_judges() -> None:
+    workflow = load_workflow(".github/workflows/evals-compare.yml")
+    assert set(workflow["on"]) == {"workflow_dispatch"}
+    job = workflow["jobs"]["compare"]
+    assert job["environment"] == "evals"
+    run_step = next(
+        s for s in job["steps"] if s.get("name") == "Run each configuration, then compare"
+    )
+    script = run_step["run"]
+    assert "--split dev" in script and "--live" in script
+    assert "holdout" not in script and "--gate" not in script and "promotion" not in script
+    # Inputs reach the shell through the environment only, after a pattern check.
+    assert "${{" not in script
+    assert run_step["env"]["ARI_OPENAI_API_KEY"] == "${{ secrets.ARI_OPENAI_API_KEY }}"
+    assert "eval-compare" in str(job["steps"][-1])
+
+
 def test_transfer_helper_rejects_bad_metadata_before_ssh(tmp_path: Path) -> None:
     bundle = tmp_path / "bundle"
     bundle.mkdir()

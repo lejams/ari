@@ -19,7 +19,8 @@ pour les autres. Le seul modèle appelé est celui de la configuration testée.
 | Suite | Ce qui est exécuté | Ce que dit l'annotation | Jeu de données |
 |---|---|---|---|
 | `patient-leakage@1` | le patient réel : `PatientSimulator` (`patient-v3`, entraînement) ou `ExamPatient` (`patient-exam-v1`, chaîne d'examen) selon la configuration | type de réponse attendu, faits que la question demande légitimement | 80 questions sur 4 cas inventés (60 dev, 20 holdout) |
-| `evaluation-language@1` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v7`) | erreurs injectées : genre, cas, forme verbale, ordre des mots ; mot français ; artefact de transcription ; section oubliée | 120 transcripts synthétiques (90 dev, 30 holdout) |
+| `evaluation-language@2` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v8`) | erreurs injectées : genre, cas, forme verbale, ordre des mots, choix du mot, registre ; mot français ; artefact de transcription ; section oubliée ; formulations correctes mais inhabituelles | 175 transcripts synthétiques (100 dev, 75 holdout) |
+| `evaluation-language@1` | idem (version 1, gardée pour mémoire, plus exigée) | genre, cas, forme verbale, ordre des mots ; mot français ; artefact ; section oubliée | 120 transcripts (90 dev, 30 holdout) |
 | `evaluation-medical@1` | l'évaluateur réel | omissions exigibles et erreurs médicales relevées par le médecin | **en attente du médecin** (section 6 du plan) |
 | `voice-snippets@1` | la voix ElevenLabs de chaque persona sur des phrases fixes, puis le STT | termes critiques de chaque phrase (chiffres, doses, termes) | 33 phrases de patient en allemand |
 | `voice-sim@1` | toute la chaîne vocale, de bout en bout : sockets, segmentation de la parole, STT, patient, voix, accusés de lecture, évaluation finale | faits demandés par chaque question du script | 1 script de 12 questions sur le cas `ARI-DEV-FR` |
@@ -43,7 +44,7 @@ routes:
   evaluation: {provider: anthropic, model: claude-sonnet-5-5}
 prompts:
   patient: patient-v3
-  evaluation: evaluation-v7
+  evaluation: evaluation-v8
 patient_engine: training    # ou « exam » (chaîne d'examen, prompt patient-exam-v1)
 ```
 
@@ -72,6 +73,7 @@ Configurations fournies :
 | `terra` | OpenAI | `gpt-5.6-terra` | `gpt-5.6-terra` | entraînement (configuration de retour arrière) |
 | `luna-patient-terra-evaluation` | OpenAI | `gpt-6-luna` | `gpt-5.6-terra` | entraînement |
 | `luna-patient-sonnet-evaluation` | OpenAI et Anthropic | `gpt-6-luna` | `claude-sonnet-5-5` | entraînement |
+| `luna-patient-haiku-evaluation` | OpenAI et Anthropic | `gpt-6-luna` | `claude-haiku-5-5` (même prix de catalogue que `luna`) | entraînement |
 
 Un test vérifie que chaque route a un prix dans la grille de prix du code (`pricing-v2`). Sans
 prix, le coût du run serait inconnu.
@@ -321,13 +323,59 @@ Exemple : `evals/reports/examples/patient-leakage-compare.md` compare le patient
 patient de la chaîne d'examen, sur le fournisseur simulé. Les deux échouent sur `leak_rate`, il n'y
 a donc pas de recommandation. C'est attendu : le fournisseur simulé ne mesure pas la qualité.
 
+### Fiabilité de l'évaluateur de langue (31 octobre 2026)
+
+Le premier run sur les vrais modèles (jeu v1, `evaluation-v7`, `gpt-6-luna`) a échoué sur quatre
+mesures. Le diagnostic, exemple par exemple :
+- le « 0 % de précision en choix du mot » venait de deux signalements sur une seule phrase
+  (`Nennen Sie mich`, annotée `case`), classée tantôt `word_choice`, tantôt `case` selon la
+  répétition : le jeu v1 n'injectait aucune erreur `word_choice`, donc le moindre signalement de
+  cette catégorie donnait une précision nulle ;
+- `Ihrem Familie` oscille entre `gender` et `case` ;
+- trois signalements sur 85 portaient sur des passages sans erreur (`evidence_hallucination_rate`
+  de 0,035 pour une limite de 0,02) ;
+- les 23 % d'instabilité mélangent des changements de catégorie, une même erreur signalée deux fois
+  et une remarque neutre comptée comme un changement.
+
+Réponse, en trois couches, sans toucher aux seuils du plan :
+1. **Mesure** (`evaluation-language-scorer-v2`, jeu `evaluation-language@2`) : la précision par
+   catégorie n'existe que pour les catégories que le jeu injecte (les faux signalements d'une autre
+   catégorie pèsent sur `language_overall.precision`) ; un même passage n'est rapporté qu'une fois (par l'évaluateur, pas par le scorer, pour ne pas
+   masquer un second passage fautif) ; la
+   signature de stabilité ne contient que les signalements jugés ; « bon endroit » et « bonne
+   catégorie » sont mesurés à part (`language_location.precision|recall`,
+   `category_accuracy_given_located`). Le jeu v2 injecte aussi `word_choice` et `register`, ajoute
+   des phrases correctes mais inhabituelles (ellipse, question à l'ordre des mots d'une
+   affirmation, salutation régionale) et un holdout neuf de trois familles. La famille
+   `kopfschmerz`, ancien holdout vu pendant la mise au point, passe en développement. La règle
+   d'annotation genre / cas est écrite en tête de `build_synthetic_v2.py` et dans le prompt.
+2. **Prompt** `evaluation-v8` : règles de catégories dans l'ordre, ce qu'il ne faut jamais
+   signaler, citation exacte (`quote`) et correction (`correction`) obligatoires.
+3. **Code** (`application/services/language_errors.py`) : « le LLM propose, le code décide ».
+   Une erreur dont la citation n'est dans aucun tour cité est écartée, la preuve est réduite aux
+   tours qui contiennent la citation, une correction qui ne change que la ponctuation, la casse, les
+   traits d'union, les espaces ou ss/ß est écartée (artefact du STT), un même passage (une citation contenue dans l'autre, dans le même tour) n'est
+   rapporté qu'une fois, deux passages différents d'un même tour restent deux erreurs, une citation ne peut pas commencer ni finir au milieu d'un mot (`Ihre` n'est pas dans `Ihrer`), et une correction qui ne fait que déplacer les mêmes mots est classée
+   `word_order`.
+
+Reste ouvert, à décider après mesure sur le split dev : une seconde passe de vérification par un
+modèle. Elle n'est pas écrite : elle coûte un appel de plus, et les mesures diront si les trois
+couches ci-dessus suffisent.
+
+**Choisir la configuration** : le workflow manuel `Compare evaluation configurations`
+(`.github/workflows/evals-compare.yml`, n'importe quelle branche, split dev uniquement, jamais de
+verdict) lance la suite sur chaque configuration et les compare. On retient la moins chère qui passe
+tous les seuils, puis on lance le holdout **une seule fois** avec `Evals on real models`. Le holdout
+ne sert pas à itérer.
+
 ## 7. Seuils et erreurs critiques
 
-`evals/gates.yaml` (version `gates-v3`) reprend les seuils du plan :
+`evals/gates.yaml` (version `gates-v4`) reprend les seuils du plan :
 
 | Mesure | Seuil |
 |---|---|
-| Erreurs de langue, par catégorie | précision ≥ 0,85, rappel ≥ 0,70 |
+| Erreurs de langue, par catégorie injectée | précision ≥ 0,85, rappel ≥ 0,70 |
+| Erreurs de langue, précision globale (`@2`, ajout à valider par le propriétaire) | ≥ 0,85 |
 | Fausses erreurs dues au STT | ≤ 5 % |
 | Hallucination de preuve | ≤ 2 % |
 | Fuite de faits | ≤ 2 % des tours |
@@ -402,7 +450,7 @@ politique change, détecté par empreinte. Code : `backend/src/ari/evals/promoti
 Une voix, une clé, un délai ou un fichier sans rapport ne la changent pas.
 
 **Runs exigés** (`PROMOTION_RUNS`) : `patient-leakage@1` sur `luna.yaml` (entraînement) et
-`luna-exam.yaml` (chaîne d'examen), `evaluation-language@1` sur `luna.yaml`. Tous sur le holdout,
+`luna-exam.yaml` (chaîne d'examen), `evaluation-language@2` sur `luna.yaml`. Tous sur le holdout,
 en mode gate, sur les vrais modèles. Un test vérifie que ces configurations ont les modèles, les
 fournisseurs et les prompts de production. `evaluation-medical@1` s'y ajoutera avec les annotations
 du médecin, `voice-sim@1` avec sa cible staging.

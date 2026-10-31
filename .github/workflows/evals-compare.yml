@@ -1,0 +1,60 @@
+name: Compare evaluation configurations
+# Manual, billed: runs one suite on the DEV split with several configurations of evals/configs/
+# and compares them (the first one is the baseline), so the cheapest configuration that passes
+# every threshold can be chosen (docs/EVALS.md, section 6). It never touches the holdout and
+# never produces a promotion verdict: that stays with evals-live.yml, on main.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Suite, <name>@<version>"
+        required: true
+        default: evaluation-language@2
+        type: string
+      configs:
+        description: "File names under evals/configs/, space separated; the first is the baseline"
+        required: true
+        default: luna.yaml luna-patient-haiku-evaluation.yaml
+        type: string
+permissions: {contents: read}
+jobs:
+  compare:
+    name: Dev-split comparison on real models
+    runs-on: ubuntu-latest
+    environment: evals
+    concurrency: {group: evals-live, cancel-in-progress: false}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.lock
+      - name: Install locked Python dependencies
+        run: |
+          python -m venv .venv
+          make install-locked
+      - name: Run each configuration, then compare
+        env:
+          ARI_OPENAI_API_KEY: "${{ secrets.ARI_OPENAI_API_KEY }}"
+          ARI_ANTHROPIC_API_KEY: "${{ secrets.ARI_ANTHROPIC_API_KEY }}"
+          SUITE: "${{ inputs.suite }}"
+          CONFIGS: "${{ inputs.configs }}"
+        run: |
+          set -euo pipefail
+          test -n "$ARI_OPENAI_API_KEY" || { echo "secret ARI_OPENAI_API_KEY missing in the evals environment" >&2; exit 1; }
+          [[ "$SUITE" =~ ^[a-z][a-z0-9-]*@[0-9]+$ ]] || { echo "invalid suite" >&2; exit 1; }
+          mkdir -p eval-compare
+          reports=()
+          for config in $CONFIGS; do
+            [[ "$config" =~ ^[a-z0-9][a-z0-9._-]*\.yaml$ ]] || { echo "invalid configuration name: $config" >&2; exit 1; }
+            test -f "evals/configs/$config" || { echo "unknown configuration: $config" >&2; exit 1; }
+            out="eval-compare/${config%.yaml}.json"
+            PYTHONPATH=backend/src .venv/bin/python -m ari.evals run --suite "$SUITE" --config "evals/configs/$config" --split dev --repeat 3 --live --out "$out"
+            reports+=("$out")
+          done
+          PYTHONPATH=backend/src .venv/bin/python -m ari.evals compare "${reports[@]}" --out eval-compare/comparison.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: eval-compare, path: eval-compare, if-no-files-found: ignore, retention-days: 90}
