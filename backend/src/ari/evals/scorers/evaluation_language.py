@@ -8,10 +8,10 @@ Run through the real `LLMBackedEvaluator`, with its evidence guards.
 
 Matching: a reported error is correct when it cites the modified turn with the injected
 category. A report citing a French turn is neutral (the fragment belongs to code switches,
-whatever category is given). A second report of a passage already matched with the same category
-is a duplicate: it is neither right nor wrong, and not part of the verdict. Any other report is a
-false error; it is also a hallucinated evidence when none of the turns it cites carries an
-injected language error.
+whatever category is given). The evaluator already reports a passage once (`language_errors.py`),
+so a second report in a turn with an injected error is another passage: a false error, like any
+other report that is not a match. It is also a hallucinated evidence when none of the turns it
+cites carries an injected language error.
 
 Where the error is and what it is called are measured apart: `language_location.*` counts a
 report as right when it cites a modified turn, whatever its category, and
@@ -154,13 +154,11 @@ class EvaluationLanguageSuite:
         unmatched = list(truth.language_errors)
         matched: list[InjectedError] = []
         located_turns: set[int] = set()
-        seen_reports: set[tuple[str, tuple[int, ...]]] = set()
         predicted: list[dict[str, object]] = []
         outcomes: set[str] = set()
         for observation in evaluation.language_errors:
             category = observation.category or "other"
             cited = set(observation.evidence_turn_sequences)
-            report_key = (category, tuple(sorted(cited)))
             match = next((e for e in unmatched if e.turn in cited and e.category == category), None)
             if match is not None:
                 unmatched.remove(match)
@@ -170,11 +168,6 @@ class EvaluationLanguageSuite:
             elif cited & switch_turns:
                 count("lang.neutral")
                 verdict = "neutral_code_switch"
-            elif report_key in seen_reports or any(
-                e.turn in cited and e.category == category for e in matched
-            ):
-                count("lang.duplicate")
-                verdict = "duplicate"
             else:
                 count(f"lang.fp.{category}")
                 outcomes.add("false_language_error")
@@ -184,9 +177,8 @@ class EvaluationLanguageSuite:
                 else:
                     count("lang.hallucinated")
                     verdict = "no_error_in_cited_turns"
-            if verdict not in ("neutral_code_switch", "duplicate"):
+            if verdict != "neutral_code_switch":
                 count("lang.reported")
-                seen_reports.add(report_key)
                 count("loc.reported")
                 if cited & error_turns:
                     count("loc.reported_hit")
@@ -236,13 +228,13 @@ class EvaluationLanguageSuite:
             outcomes.add("section_mismatch")
 
         # What the verdict rests on: the judged reports (not the neutral ones, which belong to
-        # code switches, nor a repeated report of one passage) and the code switches.
+        # code switches) and the code switches.
         signature = {
             "errors": sorted(
                 {
                     f"{p['category']}@{p['turns']}"
                     for p in predicted
-                    if p["verdict"] not in ("neutral_code_switch", "duplicate")
+                    if p["verdict"] != "neutral_code_switch"
                 }
             ),
             "code_switches": sorted(reported_switches),

@@ -124,6 +124,25 @@ async def test_a_passage_reported_twice_is_one_report_and_one_stable_verdict() -
     assert report.metrics["stability.changed_rate"] == 0.0
 
 
+async def test_a_second_passage_in_an_error_turn_is_a_false_error() -> None:
+    def extra(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
+        item = ITEMS[item_id_of(request)]
+        errors = [report_of(item, e.turn, e.category) for e in item.truth.language_errors]
+        if item.truth.language_errors:
+            turn = item.truth.language_errors[0].turn
+            spoken = next(t.doctor for t in item.turns if t.sequence == turn)
+            # The reported stretch is the first words; another stretch of the same turn, same
+            # category and a made-up correction, is a second passage.
+            words = spoken.split()
+            errors[0] = {**errors[0], "quote": " ".join(words[:2])}
+            errors.append({**errors[0], "quote": words[-1], "correction": "x"})
+        return output(errors[:6], switches(item))
+
+    report = await measure(extra)
+    precision = report.metrics["language_overall.precision"]
+    assert precision is not None and precision < 1.0
+
+
 async def test_an_error_reported_on_a_code_switch_turn_is_neutral_and_not_part_of_stability() -> (
     None
 ):

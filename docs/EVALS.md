@@ -73,6 +73,7 @@ Configurations fournies :
 | `terra` | OpenAI | `gpt-5.6-terra` | `gpt-5.6-terra` | entraînement (configuration de retour arrière) |
 | `luna-patient-terra-evaluation` | OpenAI | `gpt-6-luna` | `gpt-5.6-terra` | entraînement |
 | `luna-patient-sonnet-evaluation` | OpenAI et Anthropic | `gpt-6-luna` | `claude-sonnet-5-5` | entraînement |
+| `luna-patient-haiku-evaluation` | OpenAI et Anthropic | `gpt-6-luna` | `claude-haiku-5-5` (même prix de catalogue que `luna`) | entraînement |
 
 Un test vérifie que chaque route a un prix dans la grille de prix du code (`pricing-v2`). Sans
 prix, le coût du run serait inconnu.
@@ -339,7 +340,8 @@ mesures. Le diagnostic, exemple par exemple :
 Réponse, en trois couches, sans toucher aux seuils du plan :
 1. **Mesure** (`evaluation-language-scorer-v2`, jeu `evaluation-language@2`) : la précision par
    catégorie n'existe que pour les catégories que le jeu injecte (les faux signalements d'une autre
-   catégorie pèsent sur `language_overall.precision`) ; un doublon n'est ni juste ni faux ; la
+   catégorie pèsent sur `language_overall.precision`) ; un même passage n'est rapporté qu'une fois (par l'évaluateur, pas par le scorer, pour ne pas
+   masquer un second passage fautif) ; la
    signature de stabilité ne contient que les signalements jugés ; « bon endroit » et « bonne
    catégorie » sont mesurés à part (`language_location.precision|recall`,
    `category_accuracy_given_located`). Le jeu v2 injecte aussi `word_choice` et `register`, ajoute
@@ -352,8 +354,8 @@ Réponse, en trois couches, sans toucher aux seuils du plan :
 3. **Code** (`application/services/language_errors.py`) : « le LLM propose, le code décide ».
    Une erreur dont la citation n'est dans aucun tour cité est écartée, la preuve est réduite aux
    tours qui contiennent la citation, une correction qui ne change que la ponctuation, la casse, les
-   traits d'union, les espaces ou ss/ß est écartée (artefact du STT), une même citation n'est
-   rapportée qu'une fois, et une correction qui ne fait que déplacer les mêmes mots est classée
+   traits d'union, les espaces ou ss/ß est écartée (artefact du STT), un même passage (une citation contenue dans l'autre, dans le même tour) n'est
+   rapporté qu'une fois, deux passages différents d'un même tour restent deux erreurs, une citation ne peut pas commencer ni finir au milieu d'un mot (`Ihre` n'est pas dans `Ihrer`), et une correction qui ne fait que déplacer les mêmes mots est classée
    `word_order`.
 
 Reste ouvert, à décider après mesure sur le split dev : une seconde passe de vérification par un

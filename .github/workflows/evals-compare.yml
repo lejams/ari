@@ -14,7 +14,7 @@ on:
       configs:
         description: "File names under evals/configs/, space separated; the first is the baseline"
         required: true
-        default: luna.yaml terra.yaml luna-patient-sonnet-evaluation.yaml
+        default: luna.yaml luna-patient-haiku-evaluation.yaml
         type: string
 permissions: {contents: read}
 jobs:

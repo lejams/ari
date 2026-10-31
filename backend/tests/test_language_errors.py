@@ -94,3 +94,39 @@ def test_a_one_letter_quote_is_not_evidence() -> None:
 def test_an_unknown_turn_cannot_carry_a_quote() -> None:
     verdict = verify_language_errors([error("Nennen Sie mich", "Nennen Sie mir", [9])], TURNS)
     assert verdict.dropped == {"not_in_turn": 1}
+
+
+def test_a_quote_cannot_start_or_end_inside_another_word() -> None:
+    turns = {1: "In Ihrer Familie?"}
+    assert verify_language_errors([error("Ihre", "Ihrer", [1])], turns).dropped == {
+        "not_in_turn": 1
+    }
+    assert verify_language_errors([error("hrer", "Ihrer", [1])], turns).dropped == {
+        "not_in_turn": 1
+    }
+    assert verify_language_errors([error("In Ihrer", "In Ihre", [1])], turns).kept
+
+
+def test_two_different_passages_of_one_turn_are_two_errors() -> None:
+    turns = {1: "Darf ich Ihren Namen und Ihren Alter erfahren?"}
+    verdict = verify_language_errors(
+        [
+            error("Ihren Alter", "Ihr Alter", [1], "gender"),
+            error("Ihren Namen", "Ihr Namen", [1], "gender"),
+        ],
+        turns,
+    )
+    assert [e.quote for e in verdict.kept] == ["Ihren Alter", "Ihren Namen"]
+
+
+def test_a_quote_that_holds_or_is_held_by_an_earlier_one_is_the_same_passage() -> None:
+    verdict = verify_language_errors(
+        [
+            error("Nennen Sie mich", "Nennen Sie mir", [3], "case"),
+            error("mich", "mir", [3], "word_choice"),
+            error("Nennen Sie mich bitte", "Nennen Sie mir bitte", [3], "case"),
+        ],
+        TURNS,
+    )
+    assert [e.quote for e in verdict.kept] == ["Nennen Sie mich"]
+    assert verdict.dropped == {"duplicate": 2}
