@@ -118,7 +118,8 @@ class EvaluationOutputSchema(StrictModel):
     summary: Annotated[str, Field(min_length=1, max_length=500)]
     strengths: list[EvidenceObservationSchema] = Field(default_factory=list, max_length=2)
     priorities: list[EvidenceObservationSchema] = Field(default_factory=list, max_length=3)
-    language_errors: list[LanguageErrorSchema] = Field(default_factory=list, max_length=6)
+    # The prompt asks for every error, without a ceiling; this only bounds a runaway answer.
+    language_errors: list[LanguageErrorSchema] = Field(default_factory=list, max_length=16)
     vocabulary_candidates: list[VocabularyCandidateSchema] = Field(
         default_factory=list, max_length=8
     )
