@@ -1,0 +1,1343 @@
+{
+  "cases": [
+    {
+      "id": "SYN-BRUST",
+      "version": "1",
+      "language": "de-DE",
+      "title": "Synthetischer Fall: Brustschmerz",
+      "opening_statement": "Guten Tag, ich habe starke Schmerzen in der Brust.",
+      "opening_fact_ids": [
+        "reason"
+      ],
+      "communication_style": "besorgt, antwortet kurz",
+      "unknown_response": "Das weiß ich leider nicht.",
+      "out_of_scope_response": "Entschuldigung, das verstehe ich nicht. Es geht mir nicht gut.",
+      "facts": [
+        {
+          "id": "identity",
+          "category": "identity",
+          "value": "Klaus Berger, 58 Jahre",
+          "patient_phrase": "Ich heiße Klaus Berger und bin 58 Jahre alt.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "reason",
+          "category": "reason",
+          "value": "Brustschmerzen",
+          "patient_phrase": "Ich habe starke Schmerzen in der Brust.",
+          "disclosure": "spontaneous"
+        },
+        {
+          "id": "onset",
+          "category": "onset",
+          "value": "seit zwei Stunden, in Ruhe begonnen",
+          "patient_phrase": "Die Schmerzen haben vor zwei Stunden angefangen, als ich auf dem Sofa saß.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "character",
+          "category": "pain_character",
+          "value": "drückend, 8 von 10",
+          "patient_phrase": "Es drückt wie ein schwerer Stein, ich würde sagen acht von zehn.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "radiation",
+          "category": "pain_radiation",
+          "value": "Ausstrahlung in den linken Arm",
+          "patient_phrase": "Der Schmerz zieht in den linken Arm.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "history",
+          "category": "medical_history",
+          "value": "arterielle Hypertonie seit 10 Jahren",
+          "patient_phrase": "Ich habe seit zehn Jahren hohen Blutdruck.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "medication",
+          "category": "medication",
+          "value": "Ramipril 5 mg morgens",
+          "patient_phrase": "Ich nehme jeden Morgen Ramipril, fünf Milligramm.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "allergy",
+          "category": "allergy",
+          "value": "Penicillinallergie (Exanthem)",
+          "patient_phrase": "Gegen Penicillin bin ich allergisch, da bekomme ich Ausschlag.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "smoking",
+          "category": "smoking",
+          "value": "20 Zigaretten täglich seit 30 Jahren",
+          "patient_phrase": "Ich rauche seit dreißig Jahren etwa eine Schachtel am Tag.",
+          "disclosure": "when_explicitly_asked"
+        },
+        {
+          "id": "family",
+          "category": "family_history",
+          "value": "Vater: Myokardinfarkt mit 60",
+          "patient_phrase": "Mein Vater hatte mit sechzig einen Herzinfarkt.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "occupation",
+          "category": "occupation",
+          "value": "Busfahrer",
+          "patient_phrase": "Ich bin Busfahrer.",
+          "disclosure": "when_asked"
+        }
+      ],
+      "rubric": [
+        {
+          "id": "clinical_coverage",
+          "label": "Couverture clinique",
+          "max_score": 5,
+          "description": "Synthetic criterion: facts elicited"
+        },
+        {
+          "id": "communication",
+          "label": "Communication",
+          "max_score": 5,
+          "description": "Synthetic criterion: patient-centred questions"
+        },
+        {
+          "id": "structure",
+          "label": "Structure",
+          "max_score": 5,
+          "description": "Synthetic criterion: anamnesis order"
+        },
+        {
+          "id": "language",
+          "label": "Langue",
+          "max_score": 5,
+          "description": "Synthetic criterion: grammatical German"
+        },
+        {
+          "id": "vocabulary",
+          "label": "Vocabulaire",
+          "max_score": 5,
+          "description": "Synthetic criterion: medical vocabulary"
+        }
+      ],
+      "anamnesis_sections": [
+        {
+          "id": "patientendaten",
+          "label": "Patientendaten",
+          "fact_ids": [
+            "identity"
+          ]
+        },
+        {
+          "id": "aktuelle_beschwerden",
+          "label": "Aktuelle Beschwerden",
+          "fact_ids": [
+            "reason",
+            "onset",
+            "character",
+            "radiation"
+          ]
+        },
+        {
+          "id": "vorerkrankungen",
+          "label": "Vorerkrankungen",
+          "fact_ids": [
+            "history"
+          ]
+        },
+        {
+          "id": "medikamente",
+          "label": "Medikamente",
+          "fact_ids": [
+            "medication"
+          ]
+        },
+        {
+          "id": "allergien",
+          "label": "Allergien",
+          "fact_ids": [
+            "allergy"
+          ]
+        },
+        {
+          "id": "noxen",
+          "label": "Noxen",
+          "fact_ids": [
+            "smoking"
+          ]
+        },
+        {
+          "id": "familienanamnese",
+          "label": "Familienanamnese",
+          "fact_ids": [
+            "family"
+          ]
+        },
+        {
+          "id": "sozialanamnese",
+          "label": "Sozialanamnese",
+          "fact_ids": [
+            "occupation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SYN-BAUCH",
+      "version": "1",
+      "language": "de-DE",
+      "title": "Synthetischer Fall: Bauchschmerz",
+      "opening_statement": "Hallo, ich habe seit gestern starke Bauchschmerzen.",
+      "opening_fact_ids": [
+        "reason"
+      ],
+      "communication_style": "freundlich, etwas ängstlich",
+      "unknown_response": "Das weiß ich leider nicht.",
+      "out_of_scope_response": "Entschuldigung, das verstehe ich nicht. Es geht mir nicht gut.",
+      "facts": [
+        {
+          "id": "identity",
+          "category": "identity",
+          "value": "Sabine Keller, 34 Jahre",
+          "patient_phrase": "Ich bin Sabine Keller, vierunddreißig Jahre alt.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "reason",
+          "category": "reason",
+          "value": "Bauchschmerzen",
+          "patient_phrase": "Ich habe seit gestern starke Bauchschmerzen.",
+          "disclosure": "spontaneous"
+        },
+        {
+          "id": "onset",
+          "category": "onset",
+          "value": "seit gestern Abend, zuerst periumbilikal",
+          "patient_phrase": "Es hat gestern Abend um den Bauchnabel herum angefangen.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "localisation",
+          "category": "pain_location",
+          "value": "jetzt rechter Unterbauch",
+          "patient_phrase": "Jetzt tut es vor allem rechts unten weh.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "associated",
+          "category": "associated_symptoms",
+          "value": "Übelkeit, einmal Erbrechen",
+          "patient_phrase": "Mir ist übel, und ich habe heute Nacht einmal erbrochen.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "fever",
+          "category": "fever",
+          "value": "38,4 °C heute Morgen",
+          "patient_phrase": "Heute Morgen hatte ich 38,4 Grad Fieber.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "history",
+          "category": "medical_history",
+          "value": "Asthma bronchiale seit der Kindheit",
+          "patient_phrase": "Ich habe seit meiner Kindheit Asthma.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "medication",
+          "category": "medication",
+          "value": "Salbutamol-Spray bei Bedarf",
+          "patient_phrase": "Bei Bedarf nehme ich mein Salbutamol-Spray.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "allergy",
+          "category": "allergy",
+          "value": "keine bekannten Allergien",
+          "patient_phrase": "Allergien habe ich keine.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "alcohol",
+          "category": "alcohol",
+          "value": "ein Glas Wein am Wochenende",
+          "patient_phrase": "Am Wochenende trinke ich manchmal ein Glas Wein.",
+          "disclosure": "when_explicitly_asked"
+        },
+        {
+          "id": "family",
+          "category": "family_history",
+          "value": "Mutter: Cholelithiasis",
+          "patient_phrase": "Meine Mutter hatte Gallensteine.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "occupation",
+          "category": "occupation",
+          "value": "Grundschullehrerin",
+          "patient_phrase": "Ich bin Grundschullehrerin.",
+          "disclosure": "when_asked"
+        }
+      ],
+      "rubric": [
+        {
+          "id": "clinical_coverage",
+          "label": "Couverture clinique",
+          "max_score": 5,
+          "description": "Synthetic criterion: facts elicited"
+        },
+        {
+          "id": "communication",
+          "label": "Communication",
+          "max_score": 5,
+          "description": "Synthetic criterion: patient-centred questions"
+        },
+        {
+          "id": "structure",
+          "label": "Structure",
+          "max_score": 5,
+          "description": "Synthetic criterion: anamnesis order"
+        },
+        {
+          "id": "language",
+          "label": "Langue",
+          "max_score": 5,
+          "description": "Synthetic criterion: grammatical German"
+        },
+        {
+          "id": "vocabulary",
+          "label": "Vocabulaire",
+          "max_score": 5,
+          "description": "Synthetic criterion: medical vocabulary"
+        }
+      ],
+      "anamnesis_sections": [
+        {
+          "id": "patientendaten",
+          "label": "Patientendaten",
+          "fact_ids": [
+            "identity"
+          ]
+        },
+        {
+          "id": "aktuelle_beschwerden",
+          "label": "Aktuelle Beschwerden",
+          "fact_ids": [
+            "reason",
+            "onset",
+            "localisation",
+            "associated",
+            "fever"
+          ]
+        },
+        {
+          "id": "vorerkrankungen",
+          "label": "Vorerkrankungen",
+          "fact_ids": [
+            "history"
+          ]
+        },
+        {
+          "id": "medikamente",
+          "label": "Medikamente",
+          "fact_ids": [
+            "medication"
+          ]
+        },
+        {
+          "id": "allergien",
+          "label": "Allergien",
+          "fact_ids": [
+            "allergy"
+          ]
+        },
+        {
+          "id": "noxen",
+          "label": "Noxen",
+          "fact_ids": [
+            "alcohol"
+          ]
+        },
+        {
+          "id": "familienanamnese",
+          "label": "Familienanamnese",
+          "fact_ids": [
+            "family"
+          ]
+        },
+        {
+          "id": "sozialanamnese",
+          "label": "Sozialanamnese",
+          "fact_ids": [
+            "occupation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SYN-ATEM",
+      "version": "1",
+      "language": "de-DE",
+      "title": "Synthetischer Fall: Atemnot",
+      "opening_statement": "Guten Morgen, Herr Doktor. Ich bekomme schlecht Luft.",
+      "opening_fact_ids": [
+        "reason"
+      ],
+      "communication_style": "kurzatmig, spricht in kurzen Sätzen",
+      "unknown_response": "Das weiß ich leider nicht.",
+      "out_of_scope_response": "Entschuldigung, das verstehe ich nicht. Es geht mir nicht gut.",
+      "facts": [
+        {
+          "id": "identity",
+          "category": "identity",
+          "value": "Mehmet Yilmaz, 67 Jahre",
+          "patient_phrase": "Mein Name ist Mehmet Yilmaz, ich bin 67.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "reason",
+          "category": "reason",
+          "value": "Luftnot",
+          "patient_phrase": "Ich bekomme schlecht Luft.",
+          "disclosure": "spontaneous"
+        },
+        {
+          "id": "onset",
+          "category": "onset",
+          "value": "seit drei Tagen zunehmend",
+          "patient_phrase": "Seit drei Tagen wird es immer schlimmer.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "cough",
+          "category": "cough",
+          "value": "Husten mit gelblichem Auswurf",
+          "patient_phrase": "Ich huste viel, und der Schleim ist gelb.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "history",
+          "category": "medical_history",
+          "value": "COPD seit acht Jahren",
+          "patient_phrase": "Ich habe seit acht Jahren COPD.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "medication",
+          "category": "medication",
+          "value": "Tiotropium-Inhalator einmal täglich",
+          "patient_phrase": "Ich inhaliere einmal am Tag Tiotropium.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "allergy",
+          "category": "allergy",
+          "value": "Hausstauballergie",
+          "patient_phrase": "Ich bin gegen Hausstaub allergisch.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "smoking",
+          "category": "smoking",
+          "value": "Ex-Raucher, 40 Packungsjahre, Stopp vor 5 Jahren",
+          "patient_phrase": "Ich habe vierzig Jahre geraucht und vor fünf Jahren aufgehört.",
+          "disclosure": "when_explicitly_asked"
+        },
+        {
+          "id": "family",
+          "category": "family_history",
+          "value": "Bruder: Bronchialkarzinom",
+          "patient_phrase": "Mein Bruder hatte Lungenkrebs.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "occupation",
+          "category": "occupation",
+          "value": "Rentner, früher Bauarbeiter",
+          "patient_phrase": "Ich bin Rentner, früher war ich Bauarbeiter.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "sleep",
+          "category": "sleep",
+          "value": "Orthopnoe, schläft mit drei Kissen",
+          "patient_phrase": "Nachts brauche ich drei Kissen, sonst bekomme ich keine Luft.",
+          "disclosure": "when_asked"
+        }
+      ],
+      "rubric": [
+        {
+          "id": "clinical_coverage",
+          "label": "Couverture clinique",
+          "max_score": 5,
+          "description": "Synthetic criterion: facts elicited"
+        },
+        {
+          "id": "communication",
+          "label": "Communication",
+          "max_score": 5,
+          "description": "Synthetic criterion: patient-centred questions"
+        },
+        {
+          "id": "structure",
+          "label": "Structure",
+          "max_score": 5,
+          "description": "Synthetic criterion: anamnesis order"
+        },
+        {
+          "id": "language",
+          "label": "Langue",
+          "max_score": 5,
+          "description": "Synthetic criterion: grammatical German"
+        },
+        {
+          "id": "vocabulary",
+          "label": "Vocabulaire",
+          "max_score": 5,
+          "description": "Synthetic criterion: medical vocabulary"
+        }
+      ],
+      "anamnesis_sections": [
+        {
+          "id": "patientendaten",
+          "label": "Patientendaten",
+          "fact_ids": [
+            "identity"
+          ]
+        },
+        {
+          "id": "aktuelle_beschwerden",
+          "label": "Aktuelle Beschwerden",
+          "fact_ids": [
+            "reason",
+            "onset",
+            "cough"
+          ]
+        },
+        {
+          "id": "vorerkrankungen",
+          "label": "Vorerkrankungen",
+          "fact_ids": [
+            "history"
+          ]
+        },
+        {
+          "id": "medikamente",
+          "label": "Medikamente",
+          "fact_ids": [
+            "medication"
+          ]
+        },
+        {
+          "id": "allergien",
+          "label": "Allergien",
+          "fact_ids": [
+            "allergy"
+          ]
+        },
+        {
+          "id": "noxen",
+          "label": "Noxen",
+          "fact_ids": [
+            "smoking"
+          ]
+        },
+        {
+          "id": "familienanamnese",
+          "label": "Familienanamnese",
+          "fact_ids": [
+            "family"
+          ]
+        },
+        {
+          "id": "sozialanamnese",
+          "label": "Sozialanamnese",
+          "fact_ids": [
+            "occupation"
+          ]
+        },
+        {
+          "id": "vegetative_anamnese",
+          "label": "Vegetative Anamnese",
+          "fact_ids": [
+            "sleep"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SYN-KOPF",
+      "version": "1",
+      "language": "de-DE",
+      "title": "Synthetischer Fall: Kopfschmerz",
+      "opening_statement": "Grüß Gott. Ich habe seit Tagen furchtbare Kopfschmerzen.",
+      "opening_fact_ids": [
+        "reason"
+      ],
+      "communication_style": "erschöpft, lichtscheu",
+      "unknown_response": "Das weiß ich leider nicht.",
+      "out_of_scope_response": "Entschuldigung, das verstehe ich nicht. Es geht mir nicht gut.",
+      "facts": [
+        {
+          "id": "identity",
+          "category": "identity",
+          "value": "Anna Wolff, 45 Jahre",
+          "patient_phrase": "Ich heiße Anna Wolff und bin fünfundvierzig.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "reason",
+          "category": "reason",
+          "value": "Kopfschmerzen",
+          "patient_phrase": "Ich habe seit Tagen furchtbare Kopfschmerzen.",
+          "disclosure": "spontaneous"
+        },
+        {
+          "id": "onset",
+          "category": "onset",
+          "value": "seit fünf Tagen",
+          "patient_phrase": "Das geht jetzt seit fünf Tagen so.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "character",
+          "category": "pain_character",
+          "value": "pulsierend, linksseitig",
+          "patient_phrase": "Es pocht auf der linken Seite.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "associated",
+          "category": "associated_symptoms",
+          "value": "Photophobie",
+          "patient_phrase": "Helles Licht kann ich kaum ertragen.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "history",
+          "category": "medical_history",
+          "value": "Migräne seit der Jugend",
+          "patient_phrase": "Migräne habe ich schon seit meiner Jugend.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "medication",
+          "category": "medication",
+          "value": "Ibuprofen 400 mg bei Bedarf",
+          "patient_phrase": "Wenn es schlimm ist, nehme ich Ibuprofen 400.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "allergy",
+          "category": "allergy",
+          "value": "Nussallergie",
+          "patient_phrase": "Ich vertrage keine Nüsse, da bin ich allergisch.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "smoking",
+          "category": "smoking",
+          "value": "Nichtraucherin",
+          "patient_phrase": "Ich rauche nicht.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "family",
+          "category": "family_history",
+          "value": "Mutter: Migräne",
+          "patient_phrase": "Meine Mutter hat auch Migräne.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "occupation",
+          "category": "occupation",
+          "value": "Bankkauffrau",
+          "patient_phrase": "Ich arbeite als Bankkauffrau.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "sleep",
+          "category": "sleep",
+          "value": "Durchschlafstörung wegen der Schmerzen",
+          "patient_phrase": "Ich schlafe wegen der Schmerzen sehr schlecht.",
+          "disclosure": "when_asked"
+        }
+      ],
+      "rubric": [
+        {
+          "id": "clinical_coverage",
+          "label": "Couverture clinique",
+          "max_score": 5,
+          "description": "Synthetic criterion: facts elicited"
+        },
+        {
+          "id": "communication",
+          "label": "Communication",
+          "max_score": 5,
+          "description": "Synthetic criterion: patient-centred questions"
+        },
+        {
+          "id": "structure",
+          "label": "Structure",
+          "max_score": 5,
+          "description": "Synthetic criterion: anamnesis order"
+        },
+        {
+          "id": "language",
+          "label": "Langue",
+          "max_score": 5,
+          "description": "Synthetic criterion: grammatical German"
+        },
+        {
+          "id": "vocabulary",
+          "label": "Vocabulaire",
+          "max_score": 5,
+          "description": "Synthetic criterion: medical vocabulary"
+        }
+      ],
+      "anamnesis_sections": [
+        {
+          "id": "patientendaten",
+          "label": "Patientendaten",
+          "fact_ids": [
+            "identity"
+          ]
+        },
+        {
+          "id": "aktuelle_beschwerden",
+          "label": "Aktuelle Beschwerden",
+          "fact_ids": [
+            "reason",
+            "onset",
+            "character",
+            "associated"
+          ]
+        },
+        {
+          "id": "vorerkrankungen",
+          "label": "Vorerkrankungen",
+          "fact_ids": [
+            "history"
+          ]
+        },
+        {
+          "id": "medikamente",
+          "label": "Medikamente",
+          "fact_ids": [
+            "medication"
+          ]
+        },
+        {
+          "id": "allergien",
+          "label": "Allergien",
+          "fact_ids": [
+            "allergy"
+          ]
+        },
+        {
+          "id": "noxen",
+          "label": "Noxen",
+          "fact_ids": [
+            "smoking"
+          ]
+        },
+        {
+          "id": "familienanamnese",
+          "label": "Familienanamnese",
+          "fact_ids": [
+            "family"
+          ]
+        },
+        {
+          "id": "sozialanamnese",
+          "label": "Sozialanamnese",
+          "fact_ids": [
+            "occupation"
+          ]
+        },
+        {
+          "id": "vegetative_anamnese",
+          "label": "Vegetative Anamnese",
+          "fact_ids": [
+            "sleep"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SYN-RUECKEN",
+      "version": "1",
+      "language": "de-DE",
+      "title": "Synthetischer Fall: Rückenschmerz",
+      "opening_statement": "Guten Tag. Ich habe seit einer Woche starke Rückenschmerzen.",
+      "opening_fact_ids": [
+        "reason"
+      ],
+      "communication_style": "sachlich, etwas ungeduldig",
+      "unknown_response": "Das weiß ich leider nicht.",
+      "out_of_scope_response": "Entschuldigung, das verstehe ich nicht. Es geht mir nicht gut.",
+      "facts": [
+        {
+          "id": "identity",
+          "category": "identity",
+          "value": "Thomas Brandt, 52 Jahre",
+          "patient_phrase": "Ich bin Thomas Brandt, zweiundfünfzig Jahre alt.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "reason",
+          "category": "reason",
+          "value": "Rückenschmerzen",
+          "patient_phrase": "Ich habe seit einer Woche starke Rückenschmerzen.",
+          "disclosure": "spontaneous"
+        },
+        {
+          "id": "onset",
+          "category": "onset",
+          "value": "seit einer Woche, nach dem Heben eines Schranks",
+          "patient_phrase": "Es hat angefangen, als ich einen Schrank getragen habe.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "character",
+          "category": "pain_character",
+          "value": "stechend, unterer Rücken",
+          "patient_phrase": "Es sticht unten im Rücken.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "radiation",
+          "category": "pain_radiation",
+          "value": "Ausstrahlung ins rechte Bein",
+          "patient_phrase": "Der Schmerz zieht in das rechte Bein.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "associated",
+          "category": "associated_symptoms",
+          "value": "Kribbeln im rechten Fuß",
+          "patient_phrase": "Mein rechter Fuß kribbelt manchmal.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "history",
+          "category": "medical_history",
+          "value": "Bandscheibenvorfall vor drei Jahren",
+          "patient_phrase": "Vor drei Jahren hatte ich einen Bandscheibenvorfall.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "medication",
+          "category": "medication",
+          "value": "Diclofenac 50 mg bei Bedarf",
+          "patient_phrase": "Ich nehme Diclofenac, fünfzig Milligramm, wenn es schlimm ist.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "allergy",
+          "category": "allergy",
+          "value": "keine bekannten Allergien",
+          "patient_phrase": "Allergien habe ich keine.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "smoking",
+          "category": "smoking",
+          "value": "10 Zigaretten täglich",
+          "patient_phrase": "Ich rauche etwa zehn Zigaretten am Tag.",
+          "disclosure": "when_explicitly_asked"
+        },
+        {
+          "id": "family",
+          "category": "family_history",
+          "value": "Vater: Osteoporose",
+          "patient_phrase": "Mein Vater hatte Osteoporose.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "occupation",
+          "category": "occupation",
+          "value": "Lagerarbeiter, hebt täglich schwer",
+          "patient_phrase": "Ich arbeite im Lager und hebe jeden Tag schwere Kisten.",
+          "disclosure": "when_asked"
+        }
+      ],
+      "rubric": [
+        {
+          "id": "clinical_coverage",
+          "label": "Couverture clinique",
+          "max_score": 5,
+          "description": "Synthetic criterion: facts elicited"
+        },
+        {
+          "id": "communication",
+          "label": "Communication",
+          "max_score": 5,
+          "description": "Synthetic criterion: patient-centred questions"
+        },
+        {
+          "id": "structure",
+          "label": "Structure",
+          "max_score": 5,
+          "description": "Synthetic criterion: anamnesis order"
+        },
+        {
+          "id": "language",
+          "label": "Langue",
+          "max_score": 5,
+          "description": "Synthetic criterion: grammatical German"
+        },
+        {
+          "id": "vocabulary",
+          "label": "Vocabulaire",
+          "max_score": 5,
+          "description": "Synthetic criterion: medical vocabulary"
+        }
+      ],
+      "anamnesis_sections": [
+        {
+          "id": "patientendaten",
+          "label": "Patientendaten",
+          "fact_ids": [
+            "identity"
+          ]
+        },
+        {
+          "id": "aktuelle_beschwerden",
+          "label": "Aktuelle Beschwerden",
+          "fact_ids": [
+            "reason",
+            "onset",
+            "character",
+            "radiation",
+            "associated"
+          ]
+        },
+        {
+          "id": "vorerkrankungen",
+          "label": "Vorerkrankungen",
+          "fact_ids": [
+            "history"
+          ]
+        },
+        {
+          "id": "medikamente",
+          "label": "Medikamente",
+          "fact_ids": [
+            "medication"
+          ]
+        },
+        {
+          "id": "allergien",
+          "label": "Allergien",
+          "fact_ids": [
+            "allergy"
+          ]
+        },
+        {
+          "id": "noxen",
+          "label": "Noxen",
+          "fact_ids": [
+            "smoking"
+          ]
+        },
+        {
+          "id": "familienanamnese",
+          "label": "Familienanamnese",
+          "fact_ids": [
+            "family"
+          ]
+        },
+        {
+          "id": "sozialanamnese",
+          "label": "Sozialanamnese",
+          "fact_ids": [
+            "occupation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SYN-SCHWINDEL",
+      "version": "1",
+      "language": "de-DE",
+      "title": "Synthetischer Fall: Schwindel",
+      "opening_statement": "Guten Tag. Mir ist seit gestern ständig schwindelig.",
+      "opening_fact_ids": [
+        "reason"
+      ],
+      "communication_style": "unsicher, spricht langsam",
+      "unknown_response": "Das weiß ich leider nicht.",
+      "out_of_scope_response": "Entschuldigung, das verstehe ich nicht. Es geht mir nicht gut.",
+      "facts": [
+        {
+          "id": "identity",
+          "category": "identity",
+          "value": "Petra Lindner, 71 Jahre",
+          "patient_phrase": "Ich bin Petra Lindner und einundsiebzig Jahre alt.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "reason",
+          "category": "reason",
+          "value": "Schwindel",
+          "patient_phrase": "Mir ist seit gestern ständig schwindelig.",
+          "disclosure": "spontaneous"
+        },
+        {
+          "id": "onset",
+          "category": "onset",
+          "value": "erstmals gestern Morgen",
+          "patient_phrase": "Gestern Morgen ist es zum ersten Mal passiert.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "character",
+          "category": "dizziness_type",
+          "value": "Drehschwindel",
+          "patient_phrase": "Alles dreht sich wie auf einem Karussell.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "trigger",
+          "category": "trigger",
+          "value": "schlimmer beim Aufstehen",
+          "patient_phrase": "Beim Aufstehen wird es viel schlimmer.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "associated",
+          "category": "associated_symptoms",
+          "value": "Übelkeit und Ohrensausen links",
+          "patient_phrase": "Mir ist übel, und links rauscht es im Ohr.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "history",
+          "category": "medical_history",
+          "value": "Bluthochdruck seit 15 Jahren",
+          "patient_phrase": "Ich habe seit fünfzehn Jahren hohen Blutdruck.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "medication",
+          "category": "medication",
+          "value": "Amlodipin 5 mg morgens",
+          "patient_phrase": "Morgens nehme ich Amlodipin, fünf Milligramm.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "allergy",
+          "category": "allergy",
+          "value": "Latexallergie",
+          "patient_phrase": "Gegen Latex bin ich allergisch.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "smoking",
+          "category": "smoking",
+          "value": "Nichtraucherin",
+          "patient_phrase": "Ich habe nie geraucht.",
+          "disclosure": "when_explicitly_asked"
+        },
+        {
+          "id": "family",
+          "category": "family_history",
+          "value": "Schwester: Schlaganfall mit 68",
+          "patient_phrase": "Meine Schwester hatte mit achtundsechzig einen Schlaganfall.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "occupation",
+          "category": "occupation",
+          "value": "Rentnerin, früher Verkäuferin",
+          "patient_phrase": "Ich bin Rentnerin, früher war ich Verkäuferin.",
+          "disclosure": "when_asked"
+        }
+      ],
+      "rubric": [
+        {
+          "id": "clinical_coverage",
+          "label": "Couverture clinique",
+          "max_score": 5,
+          "description": "Synthetic criterion: facts elicited"
+        },
+        {
+          "id": "communication",
+          "label": "Communication",
+          "max_score": 5,
+          "description": "Synthetic criterion: patient-centred questions"
+        },
+        {
+          "id": "structure",
+          "label": "Structure",
+          "max_score": 5,
+          "description": "Synthetic criterion: anamnesis order"
+        },
+        {
+          "id": "language",
+          "label": "Langue",
+          "max_score": 5,
+          "description": "Synthetic criterion: grammatical German"
+        },
+        {
+          "id": "vocabulary",
+          "label": "Vocabulaire",
+          "max_score": 5,
+          "description": "Synthetic criterion: medical vocabulary"
+        }
+      ],
+      "anamnesis_sections": [
+        {
+          "id": "patientendaten",
+          "label": "Patientendaten",
+          "fact_ids": [
+            "identity"
+          ]
+        },
+        {
+          "id": "aktuelle_beschwerden",
+          "label": "Aktuelle Beschwerden",
+          "fact_ids": [
+            "reason",
+            "onset",
+            "character",
+            "trigger",
+            "associated"
+          ]
+        },
+        {
+          "id": "vorerkrankungen",
+          "label": "Vorerkrankungen",
+          "fact_ids": [
+            "history"
+          ]
+        },
+        {
+          "id": "medikamente",
+          "label": "Medikamente",
+          "fact_ids": [
+            "medication"
+          ]
+        },
+        {
+          "id": "allergien",
+          "label": "Allergien",
+          "fact_ids": [
+            "allergy"
+          ]
+        },
+        {
+          "id": "noxen",
+          "label": "Noxen",
+          "fact_ids": [
+            "smoking"
+          ]
+        },
+        {
+          "id": "familienanamnese",
+          "label": "Familienanamnese",
+          "fact_ids": [
+            "family"
+          ]
+        },
+        {
+          "id": "sozialanamnese",
+          "label": "Sozialanamnese",
+          "fact_ids": [
+            "occupation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SYN-HALS",
+      "version": "1",
+      "language": "de-DE",
+      "title": "Synthetischer Fall: Halsschmerz",
+      "opening_statement": "Guten Abend. Mein Hals tut seit drei Tagen sehr weh.",
+      "opening_fact_ids": [
+        "reason"
+      ],
+      "communication_style": "heiser, flüstert fast",
+      "unknown_response": "Das weiß ich leider nicht.",
+      "out_of_scope_response": "Entschuldigung, das verstehe ich nicht. Es geht mir nicht gut.",
+      "facts": [
+        {
+          "id": "identity",
+          "category": "identity",
+          "value": "Jonas Albrecht, 28 Jahre",
+          "patient_phrase": "Ich heiße Jonas Albrecht und bin achtundzwanzig.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "reason",
+          "category": "reason",
+          "value": "Halsschmerzen",
+          "patient_phrase": "Mein Hals tut seit drei Tagen sehr weh.",
+          "disclosure": "spontaneous"
+        },
+        {
+          "id": "onset",
+          "category": "onset",
+          "value": "seit drei Tagen",
+          "patient_phrase": "Seit drei Tagen geht das schon so.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "character",
+          "category": "pain_character",
+          "value": "schlimmer beim Schlucken",
+          "patient_phrase": "Beim Schlucken ist es am schlimmsten.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "associated",
+          "category": "associated_symptoms",
+          "value": "Fieber 38,6 °C, Schüttelfrost",
+          "patient_phrase": "Gestern hatte ich achtunddreißig sechs Fieber und Schüttelfrost.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "history",
+          "category": "medical_history",
+          "value": "Mandelentzündung vor zwei Jahren",
+          "patient_phrase": "Vor zwei Jahren hatte ich eine Mandelentzündung.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "medication",
+          "category": "medication",
+          "value": "Ibuprofen 400 mg",
+          "patient_phrase": "Ich habe gestern Ibuprofen vierhundert genommen.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "allergy",
+          "category": "allergy",
+          "value": "Pollenallergie",
+          "patient_phrase": "Ich habe eine Pollenallergie.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "smoking",
+          "category": "smoking",
+          "value": "Gelegenheitsraucher",
+          "patient_phrase": "Ich rauche manchmal am Wochenende.",
+          "disclosure": "when_explicitly_asked"
+        },
+        {
+          "id": "family",
+          "category": "family_history",
+          "value": "Bruder: häufige Halsentzündungen",
+          "patient_phrase": "Mein Bruder hat oft Halsentzündungen.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "occupation",
+          "category": "occupation",
+          "value": "Erzieher in einer Kita",
+          "patient_phrase": "Ich bin Erzieher in einer Kita.",
+          "disclosure": "when_asked"
+        }
+      ],
+      "rubric": [
+        {
+          "id": "clinical_coverage",
+          "label": "Couverture clinique",
+          "max_score": 5,
+          "description": "Synthetic criterion: facts elicited"
+        },
+        {
+          "id": "communication",
+          "label": "Communication",
+          "max_score": 5,
+          "description": "Synthetic criterion: patient-centred questions"
+        },
+        {
+          "id": "structure",
+          "label": "Structure",
+          "max_score": 5,
+          "description": "Synthetic criterion: anamnesis order"
+        },
+        {
+          "id": "language",
+          "label": "Langue",
+          "max_score": 5,
+          "description": "Synthetic criterion: grammatical German"
+        },
+        {
+          "id": "vocabulary",
+          "label": "Vocabulaire",
+          "max_score": 5,
+          "description": "Synthetic criterion: medical vocabulary"
+        }
+      ],
+      "anamnesis_sections": [
+        {
+          "id": "patientendaten",
+          "label": "Patientendaten",
+          "fact_ids": [
+            "identity"
+          ]
+        },
+        {
+          "id": "aktuelle_beschwerden",
+          "label": "Aktuelle Beschwerden",
+          "fact_ids": [
+            "reason",
+            "onset",
+            "character",
+            "associated"
+          ]
+        },
+        {
+          "id": "vorerkrankungen",
+          "label": "Vorerkrankungen",
+          "fact_ids": [
+            "history"
+          ]
+        },
+        {
+          "id": "medikamente",
+          "label": "Medikamente",
+          "fact_ids": [
+            "medication"
+          ]
+        },
+        {
+          "id": "allergien",
+          "label": "Allergien",
+          "fact_ids": [
+            "allergy"
+          ]
+        },
+        {
+          "id": "noxen",
+          "label": "Noxen",
+          "fact_ids": [
+            "smoking"
+          ]
+        },
+        {
+          "id": "familienanamnese",
+          "label": "Familienanamnese",
+          "fact_ids": [
+            "family"
+          ]
+        },
+        {
+          "id": "sozialanamnese",
+          "label": "Sozialanamnese",
+          "fact_ids": [
+            "occupation"
+          ]
+        }
+      ]
+    }
+  ]
+}

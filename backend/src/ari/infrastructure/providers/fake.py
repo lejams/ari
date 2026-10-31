@@ -322,6 +322,8 @@ class FakeLLMProvider:
                 {
                     "text": f"Fake : vérifier l'accord dans « {doctor_by_turn[turn][:60]} ».",
                     "category": "case",
+                    "quote": doctor_by_turn[turn][:60],
+                    "correction": f"{doctor_by_turn[turn][:60]} (korrigiert)",
                     "evidence_turn_sequences": [turn],
                 }
                 for turn in turns

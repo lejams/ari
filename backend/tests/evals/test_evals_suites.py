@@ -49,6 +49,22 @@ def oracle_patient(request: LLMRequest, payload: dict[str, Any]) -> dict[str, An
     return {"response_kind": kind, "source_refs": refs}
 
 
+def _reported(
+    item: LanguageItem, turn: int, category: str, correction: str | None = None
+) -> dict[str, Any]:
+    """An error report as the evaluator prompt asks for it: the learner's words, corrected."""
+    spoken = next(t.doctor for t in item.turns if t.sequence == turn)
+    truth = next((e for e in item.truth.language_errors if e.turn == turn), None)
+    fixed = correction or (truth.correct if truth is not None else "x")
+    return {
+        "text": "Fehler",
+        "category": category,
+        "quote": spoken[:120],
+        "correction": fixed[:120],
+        "evidence_turn_sequences": [turn],
+    }
+
+
 def _evaluation_output(
     payload: dict[str, Any], errors: list[dict[str, Any]], switches: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -61,13 +77,11 @@ def _evaluation_output(
 
 
 def oracle_evaluator(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
-    truth = _language_items()[item_id_of(request)].truth
+    item = _language_items()[item_id_of(request)]
+    truth = item.truth
     return _evaluation_output(
         payload,
-        [
-            {"text": "Fehler", "category": e.category, "evidence_turn_sequences": [e.turn]}
-            for e in truth.language_errors
-        ],
+        [_reported(item, e.turn, e.category) for e in truth.language_errors],
         [
             {"turn": c.turn, "fragment": "frz.", "intended_term": c.intended_term}
             for c in truth.code_switches
@@ -151,7 +165,7 @@ async def test_language_oracle_scores_perfectly_and_measures_reliability() -> No
     assert report.metrics["stability.changed_rate"] == 0.0
     [reliability] = report.reliability
     assert (reliability.source, reliability.precision) == ("llm", 1.0)
-    assert reliability.producer == "evaluation-v7@gpt-6-luna"
+    assert reliability.producer == "evaluation-v8@gpt-6-luna"
     assert report.versions.evaluation_schema_version == "session-evaluation-v4"
     assert set(report.versions.output_schemas) == {"EvaluationOutputSchema"}
 
@@ -160,18 +174,15 @@ async def test_language_false_errors_stt_blame_and_hallucinated_evidence() -> No
     items = _language_items()
 
     def noisy(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
-        truth = items[item_id_of(request)].truth
+        item = items[item_id_of(request)]
+        truth = item.truth
         errors = [
             # Right turn, wrong category: a false error and a missed one, not hallucinated.
-            {
-                "text": "x",
-                "category": "register" if e.category == "gender" else e.category,
-                "evidence_turn_sequences": [e.turn],
-            }
+            _reported(item, e.turn, "register" if e.category == "gender" else e.category)
             for e in truth.language_errors
         ] + [
-            # Every speech-to-text artefact blamed on the learner.
-            {"text": "x", "category": "word_choice", "evidence_turn_sequences": [turn]}
+            # Every speech-to-text artefact blamed on the learner, with a made-up correction.
+            _reported(item, turn, "word_choice", "x")
             for turn in truth.stt_artifact_turns
         ]
         return _evaluation_output(payload, errors[:6], [])
@@ -179,7 +190,11 @@ async def test_language_false_errors_stt_blame_and_hallucinated_evidence() -> No
     report = await run(request_for(EvaluationLanguageSuite(), ScriptedProvider(noisy)))
     metrics = report.metrics
     assert metrics["language.recall.gender"] == 0.0
-    assert metrics["language.precision.register"] == 0.0
+    # `register` is not injected by this dataset: no precision of its own, its false reports
+    # weigh on the overall one.
+    assert "language.precision.register" not in metrics
+    assert metrics["language_overall.precision"] is not None
+    assert metrics["language_overall.precision"] < 1.0
     assert metrics["language.recall.case"] == 1.0
     assert metrics["stt_false_error_rate"] == pytest.approx(1.0, abs=0.05)
     assert metrics["category_confusion_rate"] is not None and metrics["category_confusion_rate"] > 0
@@ -207,13 +222,11 @@ async def test_a_report_on_the_holdout_keeps_its_content_out() -> None:
 
 def _holdout_oracle(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
     rows = {r["id"]: r for r in LANGUAGE.read_split("holdout", gate=True)}
-    truth = LanguageItem.model_validate_json(json.dumps(rows[item_id_of(request)])).truth
+    item = LanguageItem.model_validate_json(json.dumps(rows[item_id_of(request)]))
+    truth = item.truth
     return _evaluation_output(
         payload,
-        [
-            {"text": "f", "category": e.category, "evidence_turn_sequences": [e.turn]}
-            for e in truth.language_errors
-        ],
+        [_reported(item, e.turn, e.category) for e in truth.language_errors],
         [{"turn": c.turn, "fragment": "f"} for c in truth.code_switches],
     )
 

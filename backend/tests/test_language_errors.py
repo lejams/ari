@@ -1,0 +1,96 @@
+"""Deterministic checks on the language errors the evaluator proposes."""
+
+from __future__ import annotations
+
+from ari.application.schemas import LanguageErrorSchema
+from ari.application.services.language_errors import verify_language_errors
+
+TURNS = {
+    1: "Grüß Gott, ich bin Ihre Ärztin heute. Was bringt Sie zu mir?",
+    2: "nennen sie mir bitte ihren vollständigen namen",
+    3: "Nennen Sie mich bitte Ihren vollständigen Namen und Ihr Alter.",
+    4: "Wie lange Sie haben diese Kopfschmerzen schon?",
+}
+
+
+def error(
+    quote: str, correction: str, turns: list[int], category: str = "case"
+) -> LanguageErrorSchema:
+    return LanguageErrorSchema.model_validate(
+        {
+            "text": "x",
+            "quote": quote,
+            "correction": correction,
+            "category": category,
+            "evidence_turn_sequences": turns,
+        }
+    )
+
+
+def test_a_quote_found_in_the_cited_turn_is_kept() -> None:
+    verdict = verify_language_errors([error("Nennen Sie mich", "Nennen Sie mir", [3])], TURNS)
+    assert [e.quote for e in verdict.kept] == ["Nennen Sie mich"]
+    assert verdict.dropped == {}
+
+
+def test_a_quote_that_is_not_in_the_cited_turn_is_an_invented_evidence() -> None:
+    verdict = verify_language_errors([error("Nennen Sie mich", "Nennen Sie mir", [1])], TURNS)
+    assert verdict.kept == ()
+    assert verdict.dropped == {"not_in_turn": 1}
+
+
+def test_evidence_is_narrowed_to_the_turns_that_hold_the_quote() -> None:
+    verdict = verify_language_errors([error("Was bringt Sie", "Was bringt Sie", [1, 3])], TURNS)
+    # Same words after correction: nothing to report, but the narrowing is what is tested next.
+    assert verdict.dropped == {"transcriber_only": 1}
+    narrowed = verify_language_errors([error("Was bringt Sie", "Was führt Sie", [1, 3])], TURNS)
+    assert narrowed.kept[0].evidence_turn_sequences == [1]
+
+
+def test_a_correction_that_only_changes_what_the_transcriber_did_is_dropped() -> None:
+    for correction in (
+        "Nennen Sie mir bitte ihren vollständigen Namen",
+        "nennen sie mir bitte, ihren vollständigen Namen",
+    ):
+        verdict = verify_language_errors(
+            [error("nennen sie mir bitte ihren vollständigen namen", correction, [2])], TURNS
+        )
+        # Only a different word (mir/mich) would be an error; here only case and commas differ.
+        assert verdict.dropped == {"transcriber_only": 1}
+    spaced = verify_language_errors(
+        [error("Kopf schmerzen", "Kopfschmerzen", [4], "word_choice")],
+        {4: "Wie lange Sie haben diese Kopf schmerzen schon?"},
+    )
+    assert spaced.dropped == {"transcriber_only": 1}
+    assert verify_language_errors(
+        [error("Strasse", "Straße", [1], "other")], {1: "Die Strasse ist weit"}
+    ).dropped == {"transcriber_only": 1}
+
+
+def test_the_same_words_reported_twice_are_reported_once() -> None:
+    verdict = verify_language_errors(
+        [
+            error("Nennen Sie mich", "Nennen Sie mir", [3], "word_choice"),
+            error("nennen sie mich", "Nennen Sie mir", [3], "case"),
+        ],
+        TURNS,
+    )
+    assert [e.category for e in verdict.kept] == ["word_choice"]
+    assert verdict.dropped == {"duplicate": 1}
+
+
+def test_a_correction_that_only_moves_the_words_is_a_word_order_error() -> None:
+    verdict = verify_language_errors(
+        [error("Wie lange Sie haben", "Wie lange haben Sie", [4], "verb_form")], TURNS
+    )
+    assert [e.category for e in verdict.kept] == ["word_order"]
+
+
+def test_a_one_letter_quote_is_not_evidence() -> None:
+    verdict = verify_language_errors([error("S", "Sie", [1])], TURNS)
+    assert verdict.kept == ()
+
+
+def test_an_unknown_turn_cannot_carry_a_quote() -> None:
+    verdict = verify_language_errors([error("Nennen Sie mich", "Nennen Sie mir", [9])], TURNS)
+    assert verdict.dropped == {"not_in_turn": 1}

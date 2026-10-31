@@ -9,4 +9,4 @@ routes:
   evaluation: {provider: openai, model: gpt-6-luna}
 prompts:
   patient: patient-v3
-  evaluation: evaluation-v7
+  evaluation: evaluation-v8

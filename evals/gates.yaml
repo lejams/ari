@@ -9,7 +9,7 @@
 # - une seule NOUVELLE erreur critique (absente de la baseline) bloque, quelle que soit la moyenne.
 #   Les types d'erreur critiques sont listés par suite dans `critical_outcomes`.
 
-version: gates-v3
+version: gates-v4
 repetitions: 3  # Un run gate répète chaque item 3 fois (stabilité, intervalles).
 
 suites:
@@ -37,6 +37,36 @@ suites:
       - metric: "language.recall.*"
         min: 0.70
         source: "plan : erreurs de langue, rappel ≥ 0,70 par catégorie"
+      - metric: stt_false_error_rate
+        max: 0.05
+        source: "plan : fausses erreurs dues au STT ≤ 5 %"
+      - metric: evidence_hallucination_rate
+        max: 0.02
+        source: "plan : hallucination de preuve ≤ 2 %"
+      - metric: stability.changed_rate
+        max: 0.10
+        source: "plan : ≤ 10 % de verdicts changeants sur 3 répétitions"
+      - metric: structured_after_retry
+        min: 0.995
+        source: "plan : structure exploitable après un retry ≥ 99,5 %"
+    critical_outcomes: []
+
+  # Version 2 du jeu (31 octobre 2026) : mêmes seuils que la version 1, le plan n'est pas modifié.
+  # Ajout à valider par le propriétaire : `language_overall.precision` ≥ 0,85. La précision par
+  # catégorie n'existe plus que pour les catégories injectées par le jeu ; les faux signalements
+  # d'une catégorie jamais injectée (`other`) pèsent donc sur la précision globale, qui doit
+  # elle aussi tenir le seuil du plan.
+  evaluation-language@2:
+    thresholds:
+      - metric: "language.precision.*"
+        min: 0.85
+        source: "plan : erreurs de langue, précision ≥ 0,85 par catégorie"
+      - metric: "language.recall.*"
+        min: 0.70
+        source: "plan : erreurs de langue, rappel ≥ 0,70 par catégorie"
+      - metric: language_overall.precision
+        min: 0.85
+        source: "à valider : seuil du plan (≥ 0,85) appliqué à toutes les catégories rapportées, y compris celles que le jeu n'injecte pas"
       - metric: stt_false_error_rate
         max: 0.05
         source: "plan : fausses erreurs dues au STT ≤ 5 %"
