@@ -9,4 +9,4 @@ routes:
   evaluation: {provider: anthropic, model: claude-sonnet-5-5}
 prompts:
   patient: patient-v3
-  evaluation: evaluation-v8
+  evaluation: evaluation-v9

@@ -72,6 +72,22 @@ def test_evaluation_schema_rejects_model_owned_numeric_criteria() -> None:
         )
 
 
+def test_evaluation_schema_holds_every_language_error_the_prompt_asks_for() -> None:
+    """The prompt has no ceiling on language errors: a transcript with more than six must not
+    fail validation (and be dropped as unusable) because of an old limit."""
+    error = {
+        "text": "Explication.",
+        "evidence_turn_sequences": [1],
+        "category": "case",
+        "quote": "mit dem Arzt",
+        "correction": "mit der Ärztin",
+    }
+    parsed = EvaluationOutputSchema.model_validate(
+        {"summary": "Retour qualitatif.", "language_errors": [error] * 9}
+    )
+    assert len(parsed.language_errors) == 9
+
+
 class InventingProvider:
     async def generate_structured(
         self, request: LLMRequest, response_model: type[T]
@@ -115,8 +131,8 @@ async def test_invented_case_fact_is_rejected_and_traced(container: Container) -
         LLMBackedEvaluator(
             FakeLLMProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v8.txt",
-                "evaluation-v8",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v9.txt",
+                "evaluation-v9",
             ),
             "fr-FR",
         ),
@@ -159,9 +175,7 @@ class CodeSwitchInventingProvider(FakeLLMProvider):
         result = await super().generate_structured(request, response_model)
         if response_model is EvaluationOutputSchema:
             payload = result.value.model_dump()
-            payload["code_switches"] = [
-                {"turn": 99, "fragment": "invented", "intended_term": None}
-            ]
+            payload["code_switches"] = [{"turn": 99, "fragment": "invented", "intended_term": None}]
             return ProviderResult(response_model.model_validate(payload), result.execution)
         return result
 
@@ -219,8 +233,8 @@ async def test_code_switch_on_unknown_turn_is_rejected_and_traced(container: Con
         LLMBackedEvaluator(
             CodeSwitchInventingProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v8.txt",
-                "evaluation-v8",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v9.txt",
+                "evaluation-v9",
             ),
             "fr-FR",
         ),
@@ -249,8 +263,8 @@ async def test_unknown_empathy_judgement_is_rejected(container: Container) -> No
         LLMBackedEvaluator(
             EmpathyInventingProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v8.txt",
-                "evaluation-v8",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v9.txt",
+                "evaluation-v9",
             ),
             "fr-FR",
         ),
@@ -292,8 +306,8 @@ async def test_qualitative_feedback_cannot_change_weighted_assessment(container:
             LLMBackedEvaluator(
                 provider,
                 load_prompt(
-                    PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v8.txt",
-                    "evaluation-v8",
+                    PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v9.txt",
+                    "evaluation-v9",
                 ),
                 "fr-FR",
             ),

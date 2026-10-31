@@ -247,3 +247,27 @@ async def test_the_gate_of_version_2_fails_on_an_over_correcting_evaluator() -> 
     assert report.gate is not None and report.gate.status == "failed"
     failed = {c.metric for c in report.gate.checks if c.status == "failed"}
     assert "language_overall.precision" in failed or "evidence_hallucination_rate" in failed
+
+
+def test_the_evaluation_prompt_quotes_no_sentence_of_the_dataset() -> None:
+    """The examples of the prompt are never the test: a measure on the dev split would then
+    reward memorising, and the holdout would not be independent."""
+    import re
+
+    from ari.config import PROJECT_ROOT
+
+    prompt = (PROJECT_ROOT / "backend/src/ari/prompts/evaluation_v9.txt").read_text("utf-8")
+    quoted = [q for q in re.findall(r'"([^"]{12,})"', prompt) if any(c.isalpha() for c in q)]
+    assert quoted  # The prompt does carry German examples.
+    spoken: list[str] = []
+    for split in ("dev", "holdout"):
+        spoken += [
+            t.doctor.casefold().rstrip("?.!") for item in _items(split).values() for t in item.turns
+        ] + [
+            error.correct.casefold().rstrip("?.!")
+            for item in _items(split).values()
+            for error in item.truth.language_errors
+        ]
+    for example in quoted:
+        needle = example.casefold().rstrip("?.!")
+        assert not any(needle in line for line in spoken), example

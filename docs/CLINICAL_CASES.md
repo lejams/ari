@@ -159,7 +159,7 @@ et sur les cinq précédents), langue (catégories fermées d'erreurs `gender`, 
 récurrentes avec exemples cités), carnet (actif, acquis, ajouts et acquisitions sur trente
 jours), rythme (sessions et minutes vocales par semaine sur quatre semaines) et niveau
 (historique des tests). Tout est déterministe ; les catégories viennent du schéma strict de
-l'évaluation (`evaluation-v8`), jamais d'un texte libre.
+l'évaluation (`evaluation-v9`), jamais d'un texte libre.
 
 ### Exercices structurés
 
