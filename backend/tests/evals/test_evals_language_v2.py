@@ -9,6 +9,7 @@ import pytest
 from scripted import DATASETS, GATES, ScriptedProvider, item_id_of, repetition_of, request_for
 
 from ari.application.contracts import LLMRequest
+from ari.application.services.language_errors import squeezed
 from ari.evals.gates import load_gates
 from ari.evals.manifest import load_dataset
 from ari.evals.runner import run
@@ -141,6 +142,35 @@ async def test_a_second_passage_in_an_error_turn_is_a_false_error() -> None:
     report = await measure(extra)
     precision = report.metrics["language_overall.precision"]
     assert precision is not None and precision < 1.0
+
+
+async def test_an_extra_passage_on_one_repetition_makes_the_item_unstable() -> None:
+    def flaky(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
+        item = ITEMS[item_id_of(request)]
+        errors = [report_of(item, e.turn, e.category) for e in item.truth.language_errors]
+        if item.truth.language_errors:
+            spoken = next(
+                t.doctor
+                for t in item.turns
+                if t.sequence == errors[0]["evidence_turn_sequences"][0]
+            )
+            words = spoken.split()
+            errors[0] = {**errors[0], "quote": " ".join(words[:2])}
+            if repetition_of(request) == 1:
+                errors.append({**errors[0], "quote": words[-1], "correction": "x"})
+        return output(errors[:6], switches(item))
+
+    report = await measure(flaky, repetitions=3)
+
+    # Where the last word is also in the first two, the extra quote is the same passage.
+    def distinct(item: LanguageItem) -> bool:
+        turn = item.truth.language_errors[0].turn
+        spoken = next(t.doctor for t in item.turns if t.sequence == turn).split()
+        first, last = squeezed(" ".join(spoken[:2])), squeezed(spoken[-1])
+        return last not in first and first not in last
+
+    changed = sum(1 for i in ITEMS.values() if i.truth.language_errors and distinct(i))
+    assert report.metrics["stability.changed_rate"] == pytest.approx(changed / len(ITEMS))
 
 
 async def test_an_error_reported_on_a_code_switch_turn_is_neutral_and_not_part_of_stability() -> (

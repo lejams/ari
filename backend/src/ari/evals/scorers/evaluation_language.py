@@ -230,12 +230,12 @@ class EvaluationLanguageSuite:
         # What the verdict rests on: the judged reports (not the neutral ones, which belong to
         # code switches) and the code switches.
         signature = {
+            # A list, not a set: a second report on the same turn and category is another
+            # passage (the evaluator reports one passage once) and must change the signature.
             "errors": sorted(
-                {
-                    f"{p['category']}@{p['turns']}"
-                    for p in predicted
-                    if p["verdict"] != "neutral_code_switch"
-                }
+                f"{p['category']}@{p['turns']}"
+                for p in predicted
+                if p["verdict"] != "neutral_code_switch"
             ),
             "code_switches": sorted(reported_switches),
         }
