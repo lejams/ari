@@ -78,6 +78,8 @@ class LearnerRow(Base):
     evaluation_since: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Written only by `VoiceProviders` (administrator): a forced training voice, NULL = A/B draw.
+    tts_provider: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class SessionRow(Base):
@@ -319,6 +321,7 @@ class SqlSessionRepository:
                 created_at=_dt(row.created_at),
                 details=_details(row.details),
                 evaluation_since=_dt(row.evaluation_since) if row.evaluation_since else None,
+                tts_provider=row.tts_provider,
             )
 
     def update_learner(self, learner: LearnerProfile) -> LearnerProfile:

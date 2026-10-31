@@ -14,7 +14,13 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 IMAGE = "ghcr.io/lejams/ari@sha256:" + "a" * 64
 SHA = "b" * 40
-PAYLOAD = json.dumps({"ARI_OPENAI_API_KEY": "openai_key", "ARI_STT_API_KEY": "stt_key"})
+PAYLOAD = json.dumps(
+    {
+        "ARI_OPENAI_API_KEY": "openai_key",
+        "ARI_STT_API_KEY": "stt_key",
+        "ARI_ELEVENLABS_API_KEY": "xi_key",
+    }
+)
 
 
 def setup_rotation(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -26,6 +32,7 @@ def setup_rotation(tmp_path: Path) -> tuple[Path, Path, Path]:
     (env / ".release.json").write_text(json.dumps({"sha": SHA, "image": IMAGE}))
     config = (
         "COMPOSE_PROJECT_NAME=ari\nUNRELATED=value\nARI_OPENAI_API_KEY=old\nARI_STT_API_KEY=old\n"
+        "ARI_ELEVENLABS_API_KEY=old\n"
     )
     (env / ".env").write_text(config)
     (env / ".env").chmod(0o600)
@@ -99,6 +106,7 @@ def test_rotation_recreates_only_consumers_and_preserves_metadata(tmp_path: Path
         "UNRELATED=value" in content
         and "ARI_OPENAI_API_KEY=openai_key" in content
         and "ARI_STT_API_KEY=stt_key" in content
+        and "ARI_ELEVENLABS_API_KEY=xi_key" in content
     )
     assert stat.S_IMODE((env / ".env").stat().st_mode) == 0o600
     commands = (bin_dir / "docker.log").read_text()
@@ -160,3 +168,4 @@ def test_non_key_environment_drift_rejects_but_key_drift_is_allowed(
     content = (env / ".env").read_text()
     assert "ARI_OPENAI_API_KEY=openai_key" in content
     assert "ARI_STT_API_KEY=stt_key" in content
+    assert "ARI_ELEVENLABS_API_KEY=xi_key" in content

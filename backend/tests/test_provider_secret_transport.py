@@ -63,7 +63,11 @@ def test_secret_transport_keeps_registry_and_provider_streams_separate(
     ssh_log = tmp_path / "ssh.log"
     token_capture = tmp_path / "token"
     config_capture = tmp_path / "config"
-    values = {"ARI_OPENAI_API_KEY": "sk-test-unique", "ARI_STT_API_KEY": "gsk_test-unique"}
+    values = {
+        "ARI_OPENAI_API_KEY": "sk-test-unique",
+        "ARI_STT_API_KEY": "gsk_test-unique",
+        "ARI_ELEVENLABS_API_KEY": "xi_test-unique",
+    }
     environment = os.environ | values | {
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
         "DEPLOY_HOST": "release.example",
@@ -108,7 +112,13 @@ def test_unsafe_provider_token_is_rejected_without_mutation(tmp_path: Path, valu
     result = subprocess.run(
         [sys.executable, str(ROOT / "deploy/provider_secrets.py"),
          "--install-stdin", str(env_file)],
-        input=json.dumps({"ARI_OPENAI_API_KEY": value, "ARI_STT_API_KEY": "safe"}),
+        input=json.dumps(
+            {
+                "ARI_OPENAI_API_KEY": value,
+                "ARI_STT_API_KEY": "safe",
+                "ARI_ELEVENLABS_API_KEY": "safe",
+            }
+        ),
         capture_output=True, text=True, check=False,
     )
     assert result.returncode != 0

@@ -140,8 +140,11 @@ class Settings(BaseSettings):
     tts_model: str = "gpt-4o-mini-tts"
     tts_voice: str = "alloy"
     # Training voice. "openai" uses tts_model and tts_voice above (gpt-4o-mini-tts is retired on
-    # 6 January 2027); "elevenlabs" uses the settings below (docs/spikes/exam-elevenlabs.md).
-    tts_provider: Literal["openai", "elevenlabs"] = "openai"
+    # 6 January 2027); "elevenlabs" uses the settings below (docs/spikes/exam-elevenlabs.md);
+    # "ab" draws one of the two, 50/50, when a training session is created and pins it on the
+    # session (an account can be forced to one of them from the back-office CLI). Without an
+    # ElevenLabs key, "ab" explicitly falls back to OpenAI.
+    tts_provider: Literal["openai", "elevenlabs", "ab"] = "openai"
     elevenlabs_api_key: str | None = None
     # Chosen by the owner on 22 October 2026 (plan, section 6, point 2).
     elevenlabs_voice_id: str | None = "3nMIMZ7RlGwsq1WLgxY3"

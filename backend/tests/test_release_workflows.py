@@ -57,6 +57,7 @@ def test_promotion_is_manual_main_only_and_validates_staging_proof() -> None:
     assert transfer["env"]["ARI_SYNC_PROVIDER_SECRETS"] == "1"
     assert transfer["env"]["ARI_OPENAI_API_KEY"] == "${{ secrets.ARI_OPENAI_API_KEY }}"
     assert transfer["env"]["ARI_STT_API_KEY"] == "${{ secrets.ARI_STT_API_KEY }}"
+    assert transfer["env"]["ARI_ELEVENLABS_API_KEY"] == "${{ secrets.ARI_ELEVENLABS_API_KEY }}"
     assert "refs/heads/main" in production["if"]
     steps = str(production["steps"])
     assert "actions/runs/$RUN_ID" in steps
@@ -227,15 +228,22 @@ def test_transfer_helper_rejects_incomplete_or_invalid_registry_auth_before_ssh(
 
 
 @pytest.mark.parametrize(
-    ("environment", "sync_value", "openai_key", "stt_key", "message"),
+    ("environment", "sync_value", "openai_key", "stt_key", "xi_key", "message"),
     [
-        ("production", "1", "", "stt-token", "ARI_OPENAI_API_KEY"),
-        ("production", "1", "openai-token", "", "ARI_STT_API_KEY"),
-        ("staging", "1", "openai-token", "stt-token", "production-only"),
+        ("production", "1", "", "stt-token", "xi-token", "ARI_OPENAI_API_KEY"),
+        ("production", "1", "openai-token", "", "xi-token", "ARI_STT_API_KEY"),
+        ("production", "1", "openai-token", "stt-token", "", "ARI_ELEVENLABS_API_KEY"),
+        ("staging", "1", "openai-token", "stt-token", "xi-token", "production-only"),
     ],
 )
 def test_transfer_rejects_invalid_or_staging_secret_sync_before_ssh(
-    tmp_path: Path, environment: str, sync_value: str, openai_key: str, stt_key: str, message: str
+    tmp_path: Path,
+    environment: str,
+    sync_value: str,
+    openai_key: str,
+    stt_key: str,
+    xi_key: str,
+    message: str,
 ) -> None:
     sha = "a" * 40
     image = "ghcr.io/lejams/ari@sha256:" + "b" * 64
@@ -258,7 +266,7 @@ def test_transfer_rejects_invalid_or_staging_secret_sync_before_ssh(
             "DEPLOY_HOST": "release.example", "DEPLOY_USER": "ari", "DEPLOY_PATH": "/opt/ari",
             "SSH_KNOWN_HOSTS": "release.example ssh-ed25519 AAAA", "SSH_PRIVATE_KEY": "private-key",
             "ARI_SYNC_PROVIDER_SECRETS": sync_value, "ARI_OPENAI_API_KEY": openai_key,
-            "ARI_STT_API_KEY": stt_key,
+            "ARI_STT_API_KEY": stt_key, "ARI_ELEVENLABS_API_KEY": xi_key,
         },
         capture_output=True, text=True, check=False,
     )
@@ -421,3 +429,10 @@ def test_voice_snippets_are_manual_main_only_with_scoped_keys() -> None:
     assert "pronunciation --live" in run_step["run"]
     assert "voice-snippets" in str(job["steps"][-1])
 
+
+
+def test_provider_key_rotation_passes_all_three_secrets() -> None:
+    job = load_workflow(".github/workflows/rotate-provider-keys.yml")["jobs"]["production"]
+    step = next(s for s in job["steps"] if "env" in s and "ARI_STT_API_KEY" in s["env"])
+    for name in ("ARI_OPENAI_API_KEY", "ARI_STT_API_KEY", "ARI_ELEVENLABS_API_KEY"):
+        assert step["env"][name] == "${{ secrets." + name + " }}"

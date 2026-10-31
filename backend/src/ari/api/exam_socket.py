@@ -56,6 +56,9 @@ class ChainExamSocket(VoiceSocket):
         assert voices is not None  # resolve_voice_stack refuses chain sessions without voices
         return voices.for_case(self.case)
 
+    def _fallback_tts(self) -> StreamingTTSProvider | None:
+        return None  # The exam keeps its persona voice: no swap to another voice.
+
     async def _receive_loop(self) -> None:
         settings = self.services.settings
         segmenter = self._segmenter = SpeechSegmenter(

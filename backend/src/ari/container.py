@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import cast
 
@@ -22,7 +23,7 @@ from ari.application.services.placement import PlacementService
 from ari.application.services.practice import PracticeService
 from ari.application.services.realtime_patient import FactAttributor
 from ari.application.services.usage_guard import UsageGuard
-from ari.application.voice_stacks import VoiceStack
+from ari.application.voice_stacks import TrainingVoices, VoiceStack
 from ari.config import ExamPersonaVoice, Settings
 from ari.domain.clinical import PERSONA_VARIANTS
 from ari.domain.errors import InvalidStateError
@@ -75,19 +76,43 @@ class Container:
     # to resume rather than continue on another engine.
     chain_stack: VoiceStack | None = None
     exam_voices: ExamVoices | None = None
+    # Training voices (A/B test): the stacks a new session can be created with, and one TTS
+    # provider per name. `tts` stays the placement test's voice.
+    training_voices: TrainingVoices | None = None
+    tts_providers: Mapping[str, StreamingTTSProvider] = field(default_factory=dict)
 
     def resolve_voice_stack(self, session: ConversationSession) -> VoiceStack:
         """The exact stack a session was created with, or an error: never a silent swap."""
-        stacks = (self.voice_stack, self.realtime_stack, *(s for s in (self.chain_stack,) if s))
-        for stack in stacks:
-            if stack.id == session.voice_stack_id:
+        training = self.training_voices.stacks if self.training_voices else ()
+        stacks = (
+            self.voice_stack,
+            *training,
+            self.realtime_stack,
+            *(s for s in (self.chain_stack,) if s),
+        )
+        candidates = [stack for stack in stacks if stack.id == session.voice_stack_id]
+        for stack in candidates:
+            # Several training stacks share an id: the pinned snapshot tells which voice it is.
+            if stack.snapshot() == dict(session.voice_stack_config):
                 return stack.resolve_persisted(
                     session.voice_stack_id, session.voice_stack_version, session.voice_stack_config
                 )
+        if candidates:  # Raises the usual "not available exactly" error.
+            return candidates[0].resolve_persisted(
+                session.voice_stack_id, session.voice_stack_version, session.voice_stack_config
+            )
         raise InvalidStateError(f"Unknown voice stack {session.voice_stack_id}")
 
+    def tts_for(self, stack: VoiceStack) -> StreamingTTSProvider:
+        """The training voice a session's stack names; stacks that predate the A/B test: OpenAI."""
+        name = str(stack.parameters.get("tts_provider", "openai"))
+        default = "elevenlabs" if self.settings.tts_provider == "elevenlabs" else "openai"
+        if name == default or name not in self.tts_providers:
+            return self.tts  # the default voice is `tts`, which also speaks the placement test
+        return self.tts_providers[name]
 
-def _voice_stack(settings: Settings) -> VoiceStack:
+
+def _training_stack(settings: Settings, provider: str) -> VoiceStack:
     """Training: push-to-talk pipeline (Whisper, structured LLM, TTS), pinned on the session."""
     parameters: dict[str, object] = {
         "sample_rate": settings.audio_sample_rate,
@@ -95,7 +120,7 @@ def _voice_stack(settings: Settings) -> VoiceStack:
         "tts_voice": settings.tts_voice,
     }
     tts_model = settings.tts_model
-    if settings.tts_provider == "elevenlabs":
+    if provider == "elevenlabs":
         # Only an ElevenLabs stack names its provider: OpenAI stacks keep the snapshot they
         # already had, so sessions created before this setting existed still resume.
         tts_model = settings.elevenlabs_tts_model
@@ -113,9 +138,40 @@ def _voice_stack(settings: Settings) -> VoiceStack:
     )
 
 
-def _tts_provider(settings: Settings) -> StreamingTTSProvider:
-    """The training voice for ARI_PROVIDER_MODE=openai, chosen by ARI_TTS_PROVIDER."""
-    if settings.tts_provider == "elevenlabs":
+def _voice_stack(settings: Settings) -> VoiceStack:
+    """The default training stack: ElevenLabs when ARI_TTS_PROVIDER=elevenlabs, else OpenAI."""
+    return _training_stack(
+        settings, "elevenlabs" if settings.tts_provider == "elevenlabs" else "openai"
+    )
+
+
+def _elevenlabs_ready(settings: Settings) -> bool:
+    """Whether a training session can be given the ElevenLabs voice (fake mode needs no key)."""
+    has_key = settings.provider_mode != "openai" or bool(settings.elevenlabs_api_key)
+    return has_key and bool(settings.elevenlabs_voice_id)
+
+
+def _training_voices(settings: Settings) -> TrainingVoices:
+    """The training voices a new session may get: ARI_TTS_PROVIDER, then a forced account."""
+    stacks = {"openai": _training_stack(settings, "openai")}
+    if settings.tts_provider == "elevenlabs" or _elevenlabs_ready(settings):
+        stacks["elevenlabs"] = _training_stack(settings, "elevenlabs")
+    default: str | None = "elevenlabs" if settings.tts_provider == "elevenlabs" else "openai"
+    if settings.tts_provider == "ab":
+        if "elevenlabs" in stacks:
+            default = None  # drawn 50/50 for each new training session
+        else:
+            logger.warning(
+                "ARI_TTS_PROVIDER=ab but ARI_ELEVENLABS_API_KEY or ARI_ELEVENLABS_VOICE_ID is "
+                "missing: every training session uses the OpenAI voice (no A/B test)"
+            )
+    return TrainingVoices(stacks, default=default)
+
+
+def _tts_provider(settings: Settings, provider: str | None = None) -> StreamingTTSProvider:
+    """A training voice for ARI_PROVIDER_MODE=openai; by default the one ARI_TTS_PROVIDER names."""
+    provider = provider or ("elevenlabs" if settings.tts_provider == "elevenlabs" else "openai")
+    if provider == "elevenlabs":
         from ari.infrastructure.providers.elevenlabs import ElevenLabsStreamingTTSProvider
 
         assert settings.elevenlabs_api_key and settings.elevenlabs_voice_id
@@ -277,12 +333,14 @@ def build_container(settings: Settings) -> Container:
         settings.prompt_directory / "placement_speaking_v1.txt", "placement-speaking-v1"
     )
     voice_stack = _voice_stack(settings)
+    training_voices = _training_voices(settings)
     realtime_stack = _realtime_stack(settings)
     chain_stack = _chain_stack(settings) if chain else None
     exam_voices: ExamVoices | None = None
     llm: LLMProvider
     transcriber: UtteranceTranscriber
     tts: StreamingTTSProvider
+    tts_providers: dict[str, StreamingTTSProvider]
     realtime: RealtimeVoiceEngine
     if settings.provider_mode == "openai":
         missing = [
@@ -336,6 +394,7 @@ def build_container(settings: Settings) -> Container:
             timeout_seconds=settings.stt_timeout_seconds,
         )
         tts = _tts_provider(settings)
+        tts_providers = {name: _tts_provider(settings, name) for name in training_voices.providers}
         if chain:
             exam_voices = _exam_voices(settings)
         realtime = OpenAIRealtimeEngine(
@@ -350,6 +409,7 @@ def build_container(settings: Settings) -> Container:
         llm = FakeLLMProvider()
         transcriber = FakeTranscriber()
         tts = FakeTTSProvider()
+        tts_providers = {name: tts for name in training_voices.providers}
         realtime = FakeRealtimeEngine()
         if chain:
             exam_voices = ExamVoices(MappingProxyType({"standard": tts}))
@@ -364,6 +424,7 @@ def build_container(settings: Settings) -> Container:
         exam_voice_stack=chain_stack or realtime_stack,
         lexicon=lexicon,
         exam_patient=ExamPatient(llm, exam_prompt) if chain else None,
+        training_voices=training_voices,
     )
     practice_service = PracticeService(
         PublishedPracticeCatalog(cases.store), SqlPracticeRepository(repository.engine)
@@ -403,4 +464,6 @@ def build_container(settings: Settings) -> Container:
         ),
         chain_stack=chain_stack,
         exam_voices=exam_voices,
+        training_voices=training_voices,
+        tts_providers=tts_providers,
     )

@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 OPENAI = "transport_openai_key"
 STT = "transport_stt_key"
+ELEVENLABS = "transport_xi_key"
 
 
 def write_executable(path: Path, source: str) -> None:
@@ -94,6 +95,7 @@ elif args[:1] == ['inspect']:
         "SSH_PRIVATE_KEY": "private-key",
         "ARI_OPENAI_API_KEY": OPENAI,
         "ARI_STT_API_KEY": STT,
+        "ARI_ELEVENLABS_API_KEY": ELEVENLABS,
     }
     Path(env["TMPDIR"]).mkdir()
     result = subprocess.run(
@@ -106,7 +108,9 @@ elif args[:1] == ['inspect']:
     assert result.returncode == 0, result.stderr
     assert f"ARI_OPENAI_API_KEY={OPENAI}" in env_file.read_text()
     assert f"ARI_STT_API_KEY={STT}" in env_file.read_text()
+    assert f"ARI_ELEVENLABS_API_KEY={ELEVENLABS}" in env_file.read_text()
     transcript = log.read_text() + result.stdout + result.stderr
+    assert ELEVENLABS not in transcript
     assert OPENAI not in transcript and STT not in transcript
     assert list(remote.iterdir()) == []
     assert list(Path(env["TMPDIR"]).iterdir()) == []
@@ -124,6 +128,7 @@ def test_missing_key_and_unsafe_host_fail_before_ssh(tmp_path: Path) -> None:
         "SSH_PRIVATE_KEY": "key",
         "ARI_OPENAI_API_KEY": OPENAI,
         "ARI_STT_API_KEY": STT,
+        "ARI_ELEVENLABS_API_KEY": ELEVENLABS,
     }
     unsafe = subprocess.run([str(ROOT / "deploy/rotate-provider-keys.sh")], env=base, check=False)
     assert unsafe.returncode != 0 and not marker.exists()

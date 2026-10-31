@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate and atomically install the two production provider secrets.
+"""Validate and atomically install the three production provider secrets.
 
 Values deliberately travel only through standard input/output; never accept them as arguments.
 """
@@ -16,8 +16,10 @@ from contextlib import suppress
 from pathlib import Path
 from typing import NoReturn
 
-SECRET_NAMES = ("ARI_OPENAI_API_KEY", "ARI_STT_API_KEY")
-SECRET_ASSIGNMENT = re.compile(r"^\s*(?:export\s+)?(ARI_OPENAI_API_KEY|ARI_STT_API_KEY)\s*=")
+SECRET_NAMES = ("ARI_OPENAI_API_KEY", "ARI_STT_API_KEY", "ARI_ELEVENLABS_API_KEY")
+SECRET_ASSIGNMENT = re.compile(
+    r"^\s*(?:export\s+)?(ARI_OPENAI_API_KEY|ARI_STT_API_KEY|ARI_ELEVENLABS_API_KEY)\s*="
+)
 TOKEN = re.compile(r"^[A-Za-z0-9_.:/+=-]+$")
 
 

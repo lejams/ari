@@ -284,7 +284,13 @@ def test_provider_secrets_are_installed_under_the_deploy_lock_before_activation(
     backup = release_bundle / "deploy" / "backup.sh"
     backup.write_text("#!/usr/bin/env bash\ncat >/dev/null\n")
     backup.chmod(0o755)
-    payload = json.dumps({"ARI_OPENAI_API_KEY": "openai-key", "ARI_STT_API_KEY": "groq-key"})
+    payload = json.dumps(
+        {
+            "ARI_OPENAI_API_KEY": "openai-key",
+            "ARI_STT_API_KEY": "groq-key",
+            "ARI_ELEVENLABS_API_KEY": "xi-key",
+        }
+    )
     result = subprocess.run(
         [
             str(release_bundle / "deploy" / "release.sh"),
@@ -300,6 +306,7 @@ def test_provider_secrets_are_installed_under_the_deploy_lock_before_activation(
     contents = (environment_dir / ".env").read_text()
     assert "ARI_OPENAI_API_KEY=openai-key" in contents
     assert "ARI_STT_API_KEY=groq-key" in contents
+    assert "ARI_ELEVENLABS_API_KEY=xi-key" in contents
     assert activation_env.read_text() == contents
     assert " up -d --no-build --no-deps" in log.read_text()
 
@@ -315,7 +322,13 @@ def test_provider_secret_payload_is_not_applied_when_lock_is_busy(
             str(release_bundle / "deploy" / "release.sh"),
             "production", str(environment_dir), IMAGE, SHA, "--provider-secrets-stdin",
         ],
-        input=json.dumps({"ARI_OPENAI_API_KEY": "one", "ARI_STT_API_KEY": "two"}),
+        input=json.dumps(
+            {
+                "ARI_OPENAI_API_KEY": "one",
+                "ARI_STT_API_KEY": "two",
+                "ARI_ELEVENLABS_API_KEY": "three",
+            }
+        ),
         text=True,
         capture_output=True,
         env=os.environ | {"PATH": f"{bin_dir}:{os.environ['PATH']}"},
@@ -328,8 +341,9 @@ def test_provider_secret_payload_is_not_applied_when_lock_is_busy(
 def test_provider_secret_helper_replaces_only_secret_lines_atomically(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "OTHER=value\nARI_OPENAI_API_KEY=old\nARI_STT_API_KEY=old\n"
+        "OTHER=value\nARI_OPENAI_API_KEY=old\nARI_STT_API_KEY=old\nARI_ELEVENLABS_API_KEY=old\n"
         " export ARI_STT_API_KEY = duplicate\n  ARI_OPENAI_API_KEY = duplicate\n"
+        "ARI_ELEVENLABS_API_KEY = duplicate\nARI_ELEVENLABS_VOICE_ID=kept\n"
     )
     result = subprocess.run(
         [
@@ -338,12 +352,19 @@ def test_provider_secret_helper_replaces_only_secret_lines_atomically(tmp_path: 
             "--install-stdin",
             str(env_file),
         ],
-        input=json.dumps({"ARI_OPENAI_API_KEY": "new-openai", "ARI_STT_API_KEY": "new+/stt=="}),
+        input=json.dumps(
+            {
+                "ARI_OPENAI_API_KEY": "new-openai",
+                "ARI_STT_API_KEY": "new+/stt==",
+                "ARI_ELEVENLABS_API_KEY": "new-xi",
+            }
+        ),
         text=True, capture_output=True, check=False,
     )
     assert result.returncode == 0, result.stderr
     assert env_file.read_text() == (
-        "OTHER=value\nARI_OPENAI_API_KEY=new-openai\nARI_STT_API_KEY=new+/stt==\n"
+        "OTHER=value\nARI_ELEVENLABS_VOICE_ID=kept\nARI_OPENAI_API_KEY=new-openai\n"
+        "ARI_STT_API_KEY=new+/stt==\nARI_ELEVENLABS_API_KEY=new-xi\n"
     )
     assert stat.S_IMODE(env_file.stat().st_mode) == 0o600
 
@@ -363,7 +384,13 @@ def test_provider_sync_invalid_proof_preserves_environment(
     result = subprocess.run(
         [str(release_bundle / "deploy/release.sh"), "production", str(environment_dir),
          IMAGE, SHA, "--provider-secrets-stdin"],
-        input=json.dumps({"ARI_OPENAI_API_KEY": "new-openai", "ARI_STT_API_KEY": "new-stt"}),
+        input=json.dumps(
+            {
+                "ARI_OPENAI_API_KEY": "new-openai",
+                "ARI_STT_API_KEY": "new-stt",
+                "ARI_ELEVENLABS_API_KEY": "new-xi",
+            }
+        ),
         env=os.environ | {"PATH": f"{bin_dir}:{os.environ['PATH']}"},
         capture_output=True, text=True, check=False,
     )
@@ -382,7 +409,13 @@ def test_provider_secret_helper_rejects_malicious_newlines_without_mutating(tmp_
             "--install-stdin",
             str(env_file),
         ],
-        input=json.dumps({"ARI_OPENAI_API_KEY": "safe\nINJECTED=yes", "ARI_STT_API_KEY": "ok"}),
+        input=json.dumps(
+            {
+                "ARI_OPENAI_API_KEY": "safe\nINJECTED=yes",
+                "ARI_STT_API_KEY": "ok",
+                "ARI_ELEVENLABS_API_KEY": "ok",
+            }
+        ),
         text=True, capture_output=True, check=False,
     )
     assert result.returncode != 0
