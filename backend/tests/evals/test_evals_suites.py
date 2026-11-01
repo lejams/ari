@@ -65,6 +65,12 @@ def _reported(
     }
 
 
+def _first_word(item: LanguageItem, turn: int) -> str:
+    """A fragment that stands in the turn, as the evaluator must quote it."""
+    spoken = next(t.doctor for t in item.turns if t.sequence == turn)
+    return spoken.split()[0].strip(".,;:!?«»\"'")
+
+
 def _evaluation_output(
     payload: dict[str, Any], errors: list[dict[str, Any]], switches: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -83,7 +89,11 @@ def oracle_evaluator(request: LLMRequest, payload: dict[str, Any]) -> dict[str, 
         payload,
         [_reported(item, e.turn, e.category) for e in truth.language_errors],
         [
-            {"turn": c.turn, "fragment": "frz.", "intended_term": c.intended_term}
+            {
+                "turn": c.turn,
+                "fragment": _first_word(item, c.turn),
+                "intended_term": c.intended_term,
+            }
             for c in truth.code_switches
         ],
     )
@@ -227,7 +237,7 @@ def _holdout_oracle(request: LLMRequest, payload: dict[str, Any]) -> dict[str, A
     return _evaluation_output(
         payload,
         [_reported(item, e.turn, e.category) for e in truth.language_errors],
-        [{"turn": c.turn, "fragment": "f"} for c in truth.code_switches],
+        [{"turn": c.turn, "fragment": _first_word(item, c.turn)} for c in truth.code_switches],
     )
 
 

@@ -216,8 +216,12 @@ def diagnosis_text(report: Report, *, limit: int = 60) -> str:
             missed = [
                 f"{m.get('category')}@{m.get('turn')}" for m in detail.get("missed_errors", [])
             ]
+            fragments = "".join(
+                f" « {c['fragment']} »→« {c['intended_term']} »@{c['turn']}"
+                for c in detail.get("code_switch_fragments", [])
+            )
             switches = (
-                f" ; alternances {detail.get('reported_code_switches', [])}"
+                f" ; alternances {detail.get('reported_code_switches', [])}{fragments}"
                 f" attendues {detail.get('expected_code_switches', [])}"
                 if detail.get("reported_code_switches") or detail.get("expected_code_switches")
                 else ""
