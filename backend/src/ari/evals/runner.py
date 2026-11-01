@@ -221,6 +221,16 @@ async def run(request: RunRequest) -> Report:
     )
 
 
+def _provider_error(exc: ProviderError) -> str:
+    """The provider's own error (its type and message), not only the generic wrapper."""
+    execution = (
+        getattr(exc.execution, "error_code", None),
+        getattr(exc.execution, "error_message", None),
+    )
+    detail = " : ".join(str(part) for part in execution if part)
+    return f"{exc}{' (' + detail + ')' if detail else ''}"[:400]
+
+
 async def _run_once(
     request: RunRequest, item: EvalItem, case: MedicalCase, repetition: int
 ) -> RunEntry:
@@ -241,7 +251,7 @@ async def _run_once(
             value = await suite.execute(item, case, recorder, context)
             break
         except ProviderError as exc:
-            errors.append(str(exc)[:300])
+            errors.append(_provider_error(exc))
     score = suite.score(item, case, value, recorder.calls)
     counts = dict(score.counts)
     counts["runs.total"] = 1.0
