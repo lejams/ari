@@ -13,6 +13,7 @@ from ari.application.services.assessment import weighted_assessment
 from ari.application.services.language_errors import (
     consolidate_code_switches,
     consolidate_language_errors,
+    placed_errors,
     verify_code_switches,
     verify_language_errors,
 )
@@ -206,18 +207,20 @@ class LLMBackedEvaluator:
         )
 
         learner_text = {item.sequence: item.user_text for item in session.turns}
-        verified_errors = [
-            verify_language_errors(item.result.value.language_errors, learner_text).kept
+        verdicts = [
+            verify_language_errors(item.result.value.language_errors, learner_text)
             for item in passed
         ]
         verified_switches = [
             verify_code_switches(item.result.value.code_switches, learner_text) for item in passed
         ]
         if len(passed) == 1:
-            language_errors = verified_errors[0]
+            language_errors = verdicts[0].kept
             code_switches = verified_switches[0]
         else:
-            language_errors = consolidate_language_errors(verified_errors, learner_text)
+            language_errors = consolidate_language_errors(
+                [placed_errors(verdict) for verdict in verdicts]
+            )
             code_switches = consolidate_code_switches(verified_switches, learner_text)
 
         revealed_fact_ids = frozenset(

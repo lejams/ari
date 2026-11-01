@@ -98,12 +98,16 @@ def splits_a_word(spoken: Sequence[str], corrected: Sequence[str]) -> bool:
 class LanguageErrorVerdict:
     kept: tuple[LanguageErrorSchema, ...]
     dropped: Mapping[str, int]  # Reason -> count: not_in_turn, transcriber_only, duplicate.
+    # For each kept error, the word range `[start, end)` it was given in each of its turns: the
+    # occurrence the verification attributed to it (a quote can occur twice in a turn).
+    placed: tuple[Mapping[int, tuple[int, int]], ...] = ()
 
 
 def verify_language_errors(
     errors: Sequence[LanguageErrorSchema], learner_text_by_turn: Mapping[int, str]
 ) -> LanguageErrorVerdict:
     kept: list[LanguageErrorSchema] = []
+    placed: list[Mapping[int, tuple[int, int]]] = []
     dropped: Counter[str] = Counter()
     seen: dict[int, list[tuple[int, int]]] = {}  # Turn -> word ranges already reported.
     for error in errors:
@@ -152,7 +156,8 @@ def verify_language_errors(
         kept.append(
             error.model_copy(update={"category": category, "evidence_turn_sequences": list(turns)})
         )
-    return LanguageErrorVerdict(kept=tuple(kept), dropped=dict(dropped))
+        placed.append(dict(free))
+    return LanguageErrorVerdict(kept=tuple(kept), dropped=dict(dropped), placed=tuple(placed))
 
 
 def verify_code_switches(
@@ -174,24 +179,18 @@ def verify_code_switches(
     return tuple(kept)
 
 
-def _cells(
-    quote: str, turns: Sequence[int], learner_text_by_turn: Mapping[int, str]
-) -> set[tuple[int, int]]:
-    """The words of the learner's turns a quote covers, as `(turn, word position)`."""
-    return {
-        (turn, position)
-        for turn in turns
-        if turn in learner_text_by_turn
-        for start, end in spans(quote, learner_text_by_turn[turn])
-        for position in range(start, end)
-    }
+Cell = tuple[int, int]  # (turn, word position)
+
+
+def _cells_of(turn: int, span: tuple[int, int]) -> set[Cell]:
+    return {(turn, position) for position in range(span[0], span[1])}
 
 
 def _cluster[T](
-    passes: Sequence[Sequence[T]], cells_of: Callable[[T], set[tuple[int, int]]]
+    passes: Sequence[Sequence[T]], cells_of: Callable[[T], set[Cell]]
 ) -> list[list[tuple[int, T]]]:
     """Group what several passes reported about the same words: one member per pass at most."""
-    clusters: list[tuple[set[tuple[int, int]], list[tuple[int, T]]]] = []
+    clusters: list[tuple[set[Cell], list[tuple[int, T]]]] = []
     for index, items in enumerate(passes):
         for item in items:
             cells = cells_of(item)
@@ -216,37 +215,59 @@ def majority(passes: int) -> int:
     return passes // 2 + 1
 
 
+@dataclass(frozen=True, slots=True)
+class PlacedError:
+    """A verified language error and where it stands (see `LanguageErrorVerdict.placed`)."""
+
+    error: LanguageErrorSchema
+    placed: Mapping[int, tuple[int, int]]
+
+
+def placed_errors(verdict: LanguageErrorVerdict) -> tuple[PlacedError, ...]:
+    return tuple(PlacedError(e, p) for e, p in zip(verdict.kept, verdict.placed, strict=True))
+
+
 def consolidate_language_errors(
-    passes: Sequence[Sequence[LanguageErrorSchema]], learner_text_by_turn: Mapping[int, str]
+    passes: Sequence[Sequence[PlacedError]],
 ) -> tuple[LanguageErrorSchema, ...]:
     """The language errors that a majority of independent passes report on the same words.
 
     Each pass is already verified (`verify_language_errors`). A single pass sometimes sees an
     error and sometimes does not, so what the evaluator reports changes from one run to the next;
-    keeping what most passes see removes that noise without any new judgement by the code. The
-    category is the one most passes gave (the earliest pass on a tie).
+    keeping what most passes see removes that noise without any new judgement by the code.
+
+    Votes are counted on the exact words each pass was given, per turn: the evidence kept is the
+    turns where a majority agree, and the category is the one most passes gave (the earliest pass
+    on a tie).
     """
     needed = majority(len(passes))
-    kept: list[tuple[tuple[int, int], LanguageErrorSchema]] = []
+    kept: list[tuple[Cell, LanguageErrorSchema]] = []
     for members in _cluster(
         passes,
-        lambda error: _cells(error.quote, error.evidence_turn_sequences, learner_text_by_turn),
+        lambda item: {c for turn, span in item.placed.items() for c in _cells_of(turn, span)},
     ):
-        if len(members) < needed:
+        votes: Counter[int] = Counter()
+        for _, item in members:
+            votes.update(item.placed.keys())
+        supported = sorted(turn for turn, count in votes.items() if count >= needed)
+        if not supported:
             continue
-        counts = Counter(error.category for _, error in members)
+        counts = Counter(item.error.category for _, item in members)
         top = max(counts.values())
-        chosen = next(error for _, error in members if counts[error.category] == top)
+        chosen = next(item.error for _, item in members if counts[item.error.category] == top)
         position = min(
-            (
-                cell
-                for _, error in members
-                for cell in _cells(error.quote, error.evidence_turn_sequences, learner_text_by_turn)
-            ),
-            default=(0, 0),
+            (turn, span[0])
+            for _, item in members
+            for turn, span in item.placed.items()
+            if turn in supported
         )
-        kept.append((position, chosen))
+        kept.append((position, chosen.model_copy(update={"evidence_turn_sequences": supported})))
     return tuple(error for _, error in sorted(kept, key=lambda entry: entry[0]))
+
+
+def _switch_cells(switch: CodeSwitchSchema, learner_text_by_turn: Mapping[int, str]) -> set[Cell]:
+    found = spans(switch.fragment, learner_text_by_turn.get(switch.turn, ""))
+    return _cells_of(switch.turn, found[0]) if found else set()
 
 
 def consolidate_code_switches(
@@ -258,17 +279,13 @@ def consolidate_code_switches(
     shortest fragment stands: it is the one that names the foreign word.
     """
     needed = majority(len(passes))
-    kept: list[tuple[tuple[int, int], CodeSwitchSchema]] = []
-    for members in _cluster(
-        passes, lambda switch: _cells(switch.fragment, (switch.turn,), learner_text_by_turn)
-    ):
+    kept: list[tuple[Cell, CodeSwitchSchema]] = []
+    for members in _cluster(passes, lambda switch: _switch_cells(switch, learner_text_by_turn)):
         if len(members) < needed:
             continue
         chosen = min((switch for _, switch in members), key=lambda switch: len(switch.fragment))
         position = min(
-            cell
-            for _, switch in members
-            for cell in _cells(switch.fragment, (switch.turn,), learner_text_by_turn)
+            cell for _, switch in members for cell in _switch_cells(switch, learner_text_by_turn)
         )
         kept.append((position, chosen))
     return tuple(switch for _, switch in sorted(kept, key=lambda entry: entry[0]))
