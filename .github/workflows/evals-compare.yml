@@ -9,7 +9,7 @@ on:
       suite:
         description: "Suite, <name>@<version>"
         required: true
-        default: evaluation-language@2
+        default: evaluation-language@3
         type: string
       configs:
         description: "File names under evals/configs/, space separated; the first is the baseline"
