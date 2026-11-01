@@ -142,6 +142,31 @@ def test_a_real_model_configuration_needs_live(tmp_path: Path) -> None:
         build_provider(live, live=False, pricing=PRICING)
 
 
+async def test_a_failing_provider_shows_its_own_error_in_the_diagnostic() -> None:
+    from types import SimpleNamespace
+    from typing import Any
+
+    from scripted import ScriptedProvider, request_for
+
+    from ari.application.contracts import LLMRequest
+    from ari.domain.errors import ProviderError
+    from ari.evals.report import diagnosis_text
+    from ari.evals.runner import run
+    from ari.evals.scorers.evaluation_language import EvaluationLanguageSuite
+
+    class Refusing(ScriptedProvider):
+        async def generate_structured(self, request: LLMRequest, response_model: Any) -> Any:
+            execution = SimpleNamespace(
+                error_code="RateLimitError", error_message="Error code: 429 - quota exceeded"
+            )
+            raise ProviderError("OpenAI structured generation failed", execution=execution)
+
+    report = await run(request_for(EvaluationLanguageSuite(), Refusing(lambda r, p: {})))
+    text = diagnosis_text(report)
+    assert "causes : " in text and "RateLimitError : Error code: 429 - quota exceeded" in text
+    assert "erreur du fournisseur :" in text
+
+
 def _live_config(**routes: dict[str, object]) -> dict[str, object]:
     base: dict[str, object] = {
         "patient": {"provider": "openai", "model": "gpt-6-luna"},
