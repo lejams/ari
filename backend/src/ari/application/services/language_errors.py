@@ -11,7 +11,9 @@ any model, what it can check:
 - the same passage reported twice (quotes covering some of the same words of a turn) is reported
   once; two different passages of one turn stay two errors;
 - a correction that only moves the same words is a word-order error, whatever label the model
-  gave it.
+  gave it;
+- a separable verb said in one piece (`einnehmen Sie`) that the correction splits into its verb
+  and its prefix (`nehmen Sie ... ein`) is a verb-form error, not a word-order one.
 
 What the code cannot decide (is it really wrong German? gender or case?) stays with the model,
 guided by the prompt and measured by `ari.evals`.
@@ -68,6 +70,30 @@ def spans(quote: str, text: str) -> list[tuple[int, int]]:
     return found
 
 
+def splits_a_word(spoken: Sequence[str], corrected: Sequence[str]) -> bool:
+    """Whether a spoken word is, in the correction, cut into a prefix and a verb.
+
+    `einnehmen` -> `nehmen` and `ein`: the spoken word is gone from the correction and both parts
+    are added to it. Words are counted, not just listed, so a prefix that the quote already holds
+    elsewhere (`einnehmen Sie ein Medikament` -> `nehmen Sie ein Medikament ein`) is still an added
+    word. Prefix and stem are at least two letters long, so a short function word never counts.
+    """
+    added = Counter(corrected) - Counter(spoken)
+    gone = Counter(spoken) - Counter(corrected)
+    return any(
+        word in gone
+        and any(
+            len(prefix) >= 2
+            and len(stem) >= 2
+            and prefix + stem == word
+            and (prefix != stem or added[prefix] >= 2)
+            for prefix in added
+            for stem in added
+        )
+        for word in spoken
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class LanguageErrorVerdict:
     kept: tuple[LanguageErrorSchema, ...]
@@ -121,6 +147,8 @@ def verify_language_errors(
         spoken, corrected = words(error.quote), words(error.correction)
         if spoken != corrected and Counter(spoken) == Counter(corrected):
             category = "word_order"
+        elif category == "word_order" and splits_a_word(spoken, corrected):
+            category = "verb_form"
         kept.append(
             error.model_copy(update={"category": category, "evidence_turn_sequences": list(turns)})
         )

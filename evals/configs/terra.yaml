@@ -8,4 +8,4 @@ routes:
   evaluation: {provider: openai, model: gpt-5.6-terra}
 prompts:
   patient: patient-v3
-  evaluation: evaluation-v9
+  evaluation: evaluation-v10

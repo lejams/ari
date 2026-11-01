@@ -256,7 +256,7 @@ def test_the_evaluation_prompt_quotes_no_sentence_of_the_dataset() -> None:
 
     from ari.config import PROJECT_ROOT
 
-    prompt = (PROJECT_ROOT / "backend/src/ari/prompts/evaluation_v9.txt").read_text("utf-8")
+    prompt = (PROJECT_ROOT / "backend/src/ari/prompts/evaluation_v10.txt").read_text("utf-8")
     quoted = [q for q in re.findall(r'"([^"]{12,})"', prompt) if any(c.isalpha() for c in q)]
     assert quoted  # The prompt does carry German examples.
     spoken: list[str] = []

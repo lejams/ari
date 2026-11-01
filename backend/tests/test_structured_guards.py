@@ -131,8 +131,8 @@ async def test_invented_case_fact_is_rejected_and_traced(container: Container) -
         LLMBackedEvaluator(
             FakeLLMProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v9.txt",
-                "evaluation-v9",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v10.txt",
+                "evaluation-v10",
             ),
             "fr-FR",
         ),
@@ -233,8 +233,8 @@ async def test_code_switch_on_unknown_turn_is_rejected_and_traced(container: Con
         LLMBackedEvaluator(
             CodeSwitchInventingProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v9.txt",
-                "evaluation-v9",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v10.txt",
+                "evaluation-v10",
             ),
             "fr-FR",
         ),
@@ -263,8 +263,8 @@ async def test_unknown_empathy_judgement_is_rejected(container: Container) -> No
         LLMBackedEvaluator(
             EmpathyInventingProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v9.txt",
-                "evaluation-v9",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v10.txt",
+                "evaluation-v10",
             ),
             "fr-FR",
         ),
@@ -306,8 +306,8 @@ async def test_qualitative_feedback_cannot_change_weighted_assessment(container:
             LLMBackedEvaluator(
                 provider,
                 load_prompt(
-                    PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v9.txt",
-                    "evaluation-v9",
+                    PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v10.txt",
+                    "evaluation-v10",
                 ),
                 "fr-FR",
             ),

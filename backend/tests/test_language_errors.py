@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ari.application.schemas import LanguageErrorSchema
-from ari.application.services.language_errors import verify_language_errors
+from ari.application.services.language_errors import splits_a_word, verify_language_errors
 
 TURNS = {
     1: "Grüß Gott, ich bin Ihre Ärztin heute. Was bringt Sie zu mir?",
@@ -157,3 +157,51 @@ def test_two_occurrences_of_one_word_are_two_passages() -> None:
     # The same word reported three times in a turn that has it twice: the third is a repeat.
     triple = verify_language_errors([error("ein", "einen", [1])] * 3, turns)
     assert len(triple.kept) == 2 and triple.dropped == {"duplicate": 1}
+
+
+def test_a_separable_verb_said_in_one_piece_is_a_verb_form_error_not_a_word_order_one() -> None:
+    turns = {1: "Was einnehmen Sie gegen die Schmerzen?"}
+    verdict = verify_language_errors(
+        [
+            error(
+                "Was einnehmen Sie",
+                "Was nehmen Sie ein",
+                [1],
+                category="word_order",
+            )
+        ],
+        turns,
+    )
+    assert [e.category for e in verdict.kept] == ["verb_form"]
+
+
+def test_a_word_order_error_without_a_split_word_stays_word_order() -> None:
+    turns = {1: "Wie lange Sie haben diese Kopfschmerzen schon?"}
+    verdict = verify_language_errors(
+        [
+            error(
+                "Wie lange Sie haben",
+                "Wie lange haben Sie",
+                [1],
+                category="word_order",
+            )
+        ],
+        turns,
+    )
+    assert [e.category for e in verdict.kept] == ["word_order"]
+    assert not splits_a_word(["er", "geht"], ["er", "geht", "weg"])
+
+
+def test_a_short_function_word_is_not_a_prefix() -> None:
+    # `zu` + `viel` would spell `zuviel`: only prefixes and stems of two letters or more count,
+    # and only when the spoken word is gone from the correction.
+    assert splits_a_word(["zuviel"], ["zu", "viel"])
+    assert not splits_a_word(["zuviel"], ["zuviel", "zu", "viel"])
+    assert not splits_a_word(["ab"], ["a", "b"])
+
+
+def test_a_prefix_already_in_the_quote_still_counts_as_an_added_word() -> None:
+    assert splits_a_word(
+        ["einnehmen", "sie", "ein", "medikament"], ["nehmen", "sie", "ein", "medikament", "ein"]
+    )
+    assert not splits_a_word(["nehmen", "sie", "ein"], ["nehmen", "sie", "ein", "ein"])

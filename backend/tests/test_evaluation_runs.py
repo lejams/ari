@@ -120,7 +120,7 @@ async def test_two_analyses_keep_two_runs_and_point_at_the_second(container: Con
         execution = executions[run.execution_id]
         assert execution.operation == "session_evaluation"
         assert execution.status is ExecutionStatus.SUCCEEDED
-        assert run.prompt_version == execution.prompt_version == "evaluation-v9"
+        assert run.prompt_version == execution.prompt_version == "evaluation-v10"
         assert run.prompt_hash == execution.prompt_hash
         assert run.prompt_hash
         assert run.model == execution.model
@@ -168,8 +168,8 @@ async def test_a_failed_reanalysis_adds_no_run_and_keeps_the_current_one(
         LLMBackedEvaluator(
             FailingEvaluationProvider(),
             load_prompt(
-                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v9.txt",
-                "evaluation-v9",
+                PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "evaluation_v10.txt",
+                "evaluation-v10",
             ),
             "fr-FR",
         ),
