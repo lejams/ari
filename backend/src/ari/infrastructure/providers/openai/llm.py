@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from openai import AsyncOpenAI
 from pydantic import BaseModel
@@ -26,12 +26,21 @@ class OpenAILLMProvider:
         evaluation_timeout_seconds: float,
         content_model: str | None = None,
         content_timeout_seconds: float | None = None,
+        evaluation_reasoning_effort: str | None = None,
+        evaluation_seed: int | None = None,
     ) -> None:
         self._client = AsyncOpenAI(api_key=api_key)
         self._patient_model = patient_model
         self._evaluation_model = evaluation_model
         self._patient_timeout_seconds = patient_timeout_seconds
         self._evaluation_timeout_seconds = evaluation_timeout_seconds
+        # Sampling settings of the session evaluation only: the patient and the content keep the
+        # model's defaults.
+        self._evaluation_options: dict[str, Any] = {}
+        if evaluation_reasoning_effort is not None:
+            self._evaluation_options["reasoning_effort"] = evaluation_reasoning_effort
+        if evaluation_seed is not None:
+            self._evaluation_options["seed"] = evaluation_seed
         self._content_model = content_model or evaluation_model
         self._content_timeout_seconds = content_timeout_seconds or evaluation_timeout_seconds
 
@@ -54,12 +63,16 @@ class OpenAILLMProvider:
         """Structured generation on the model a route chose (see llm_routing)."""
         timeout = timeout_seconds
         started = time.perf_counter()
+        options: dict[str, Any] = (
+            self._evaluation_options if request.context.operation == "session_evaluation" else {}
+        )
         try:
             async with asyncio.timeout(timeout):
                 response = await self._client.chat.completions.parse(
                     model=model,
                     messages=list(request.messages),  # type: ignore[arg-type]
                     response_format=response_model,
+                    **options,
                 )
             parsed = response.choices[0].message.parsed
             if parsed is None:

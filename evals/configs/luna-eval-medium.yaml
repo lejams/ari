@@ -1,0 +1,12 @@
+# Évaluation sur gpt-6-luna avec un effort de raisonnement fixé (medium) et une graine fixe, pour
+# mesurer la stabilité de l'évaluateur de langue (docs/EVALS.md). Équivalent :
+# ARI_EVALUATION_REASONING_EFFORT=medium ARI_EVALUATION_SEED=7.
+id: luna-eval-medium
+description: Production, évaluation sur gpt-6-luna, effort de raisonnement medium, graine 7
+provider: live
+routes:
+  patient: {provider: openai, model: gpt-6-luna}
+  evaluation: {provider: openai, model: gpt-6-luna, reasoning_effort: medium, seed: 7}
+prompts:
+  patient: patient-v3
+  evaluation: evaluation-v10

@@ -35,6 +35,19 @@ class Route(BaseModel):
 
     provider: Literal["openai", "anthropic"]
     model: Annotated[str, Field(min_length=1)]
+    # Sampling settings of the evaluation route (ARI_EVALUATION_REASONING_EFFORT and
+    # ARI_EVALUATION_SEED), OpenAI only; unset, the model's defaults.
+    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
+    seed: int | None = None
+
+    def label(self) -> str:
+        options = [
+            f"{name}={value}"
+            for name, value in (("reasoning_effort", self.reasoning_effort), ("seed", self.seed))
+            if value is not None
+        ]
+        suffix = f"[{','.join(options)}]" if options else ""
+        return f"{self.provider}:{self.model}{suffix}"
 
 
 class EvalConfig(BaseModel):
@@ -57,6 +70,10 @@ class EvalConfig(BaseModel):
             raise ValueError("the fake provider takes no route")
         if self.provider == "live" and not {"patient", "evaluation"} <= set(self.routes):
             raise ValueError("a live configuration routes the patient and the evaluation")
+        for task, route in self.routes.items():
+            sampling = route.reasoning_effort is not None or route.seed is not None
+            if sampling and (task != "evaluation" or route.provider != "openai"):
+                raise ValueError("reasoning_effort and seed apply to the OpenAI evaluation route")
         return self
 
     @property
@@ -64,7 +81,7 @@ class EvalConfig(BaseModel):
         return self.provider == "live"
 
     def route_labels(self) -> dict[str, str]:
-        return {task: f"{r.provider}:{r.model}" for task, r in self.routes.items()}
+        return {task: r.label() for task, r in self.routes.items()}
 
 
 def load_config(path: Path) -> tuple[EvalConfig, str]:
@@ -114,6 +131,9 @@ def build_provider(config: EvalConfig, *, live: bool, pricing: PricingTable) -> 
     for task, route in config.routes.items():
         update[f"{task}_provider"] = route.provider
         update[f"{task}_model"] = route.model
+        if task == "evaluation":
+            update["evaluation_reasoning_effort"] = route.reasoning_effort
+            update["evaluation_seed"] = route.seed
     settings = Settings().model_copy(update=update)
     try:
         return llm_provider_from_settings(settings, pricing, LEARNER_TASKS)

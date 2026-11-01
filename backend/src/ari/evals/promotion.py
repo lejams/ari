@@ -41,7 +41,9 @@ COMPOSE_FILE = "docker-compose.yml"
 COMPOSE_ANCHORS = ("x-provider-env", "x-content-env")
 # ARI_PATIENT_MODEL, ARI_EVALUATION_PROVIDER, ARI_ANTHROPIC_EFFORT, ARI_EXAM_ENGINE,
 # ARI_PROVIDER_MODE... Voices, keys and timeouts are not the AI's behaviour under test.
-AI_VARIABLE = re.compile(r"^ARI_(?:[A-Z0-9_]+_)?(?:MODEL|PROVIDER|EFFORT|ENGINE|PROVIDER_MODE)$")
+AI_VARIABLE = re.compile(
+    r"^ARI_(?:[A-Z0-9_]+_)?(?:MODEL|PROVIDER|EFFORT|SEED|ENGINE|PROVIDER_MODE)$"
+)
 PROMPT_ID = re.compile(r"\"([a-z][a-z0-9-]*-v\d+)\"")
 
 

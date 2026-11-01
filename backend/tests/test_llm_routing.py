@@ -188,6 +188,59 @@ def test_default_settings_build_an_openai_only_router() -> None:
     assert {provider.route(op).provider for op in OPERATIONS[:4]} == {"openai"}
 
 
+# ----- sampling settings of the OpenAI evaluation -------------------------------------------
+
+
+class _Completions:
+    def __init__(self) -> None:
+        self.seen: list[dict[str, Any]] = []
+
+    async def parse(self, **kwargs: Any) -> Any:
+        self.seen.append(kwargs)
+        raise RuntimeError("stop here")
+
+
+def _openai_with(completions: _Completions, **kw: Any) -> Any:
+    from types import SimpleNamespace
+
+    from ari.infrastructure.providers.openai import OpenAILLMProvider
+
+    provider = OpenAILLMProvider(
+        "k",
+        patient_model="p",
+        evaluation_model="e",
+        patient_timeout_seconds=5,
+        evaluation_timeout_seconds=5,
+        **kw,
+    )
+    provider._client = SimpleNamespace(chat=SimpleNamespace(completions=completions))  # type: ignore[assignment]
+    return provider
+
+
+async def test_the_evaluation_alone_gets_the_sampling_settings() -> None:
+    completions = _Completions()
+    provider = _openai_with(completions, evaluation_reasoning_effort="high", evaluation_seed=7)
+    for operation in ("session_evaluation", "patient_simulation"):
+        with pytest.raises(ProviderError):
+            await provider.generate_structured(_request(operation), _Answer)
+    evaluation, patient = completions.seen
+    assert evaluation["reasoning_effort"] == "high" and evaluation["seed"] == 7
+    assert "reasoning_effort" not in patient and "seed" not in patient
+
+
+async def test_without_sampling_settings_the_models_defaults_are_kept() -> None:
+    completions = _Completions()
+    with pytest.raises(ProviderError):
+        await _openai_with(completions).generate_structured(_request(), _Answer)
+    assert "reasoning_effort" not in completions.seen[0] and "seed" not in completions.seen[0]
+
+
+def test_compose_empty_strings_leave_the_sampling_settings_unset() -> None:
+    settings = _settings(evaluation_reasoning_effort="", evaluation_seed="")
+    assert settings.evaluation_reasoning_effort is None and settings.evaluation_seed is None
+    assert _settings(evaluation_seed="7").evaluation_seed == 7
+
+
 # ----- the Claude adapter, real SDK, mock transport -------------------------------------------
 
 

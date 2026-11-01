@@ -148,6 +148,8 @@ def llm_provider_from_settings(
             evaluation_timeout_seconds=settings.evaluation_timeout_seconds,
             content_model=settings.content_model,
             content_timeout_seconds=settings.content_timeout_seconds,
+            evaluation_reasoning_effort=settings.evaluation_reasoning_effort,
+            evaluation_seed=settings.evaluation_seed,
         )
     if "anthropic" in providers:
         from ari.infrastructure.providers.anthropic import AnthropicLLMProvider
