@@ -64,8 +64,12 @@ class OpenAILLMProvider:
         timeout = timeout_seconds
         started = time.perf_counter()
         options: dict[str, Any] = (
-            self._evaluation_options if request.context.operation == "session_evaluation" else {}
+            dict(self._evaluation_options)
+            if request.context.operation == "session_evaluation"
+            else {}
         )
+        if "seed" in options:
+            options["seed"] += request.sample
         try:
             async with asyncio.timeout(timeout):
                 response = await self._client.chat.completions.parse(

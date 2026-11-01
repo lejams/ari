@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from ari.application.schemas import CodeSwitchSchema, LanguageErrorSchema
 from ari.application.services.language_errors import (
+    consolidate_code_switches,
+    consolidate_language_errors,
     splits_a_word,
     verify_code_switches,
     verify_language_errors,
@@ -234,3 +236,47 @@ def test_a_code_switch_not_in_the_cited_turn_is_dropped() -> None:
     turns = {1: "Haben Sie Fieber?", 2: "Und mal de tête?"}
     assert verify_code_switches([switch(1, "mal de tête", "Kopfschmerzen")], turns) == ()
     assert verify_code_switches([switch(9, "mal de tête", "Kopfschmerzen")], turns) == ()
+
+
+def test_an_error_seen_by_two_passes_out_of_three_stands_and_one_seen_once_does_not() -> None:
+    seen_twice = error("Nennen Sie mich", "Nennen Sie mir", [3])
+    seen_once = error("Wie lange Sie haben", "Wie lange haben Sie", [4], "word_order")
+    kept = consolidate_language_errors([[seen_twice, seen_once], [seen_twice], []], TURNS)
+    assert [e.quote for e in kept] == ["Nennen Sie mich"]
+
+
+def test_the_same_words_quoted_differently_count_as_one_error() -> None:
+    short = error("Wie lange Sie", "Wie lange haben Sie", [4], "word_order")
+    long = error("Wie lange Sie haben diese", "Wie lange haben Sie diese", [4], "word_order")
+    kept = consolidate_language_errors([[short], [long], []], TURNS)
+    assert len(kept) == 1
+
+
+def test_the_category_most_passes_gave_wins_and_the_earliest_pass_breaks_a_tie() -> None:
+    first = error("Nennen Sie mich", "Nennen Sie mir", [3], "case")
+    second = error("Nennen Sie mich", "Nennen Sie mir", [3], "word_choice")
+    third = error("Nennen Sie mich", "Nennen Sie mir", [3], "word_choice")
+    assert consolidate_language_errors([[first], [second], [third]], TURNS)[0].category == (
+        "word_choice"
+    )
+    assert consolidate_language_errors([[first], [second]], TURNS)[0].category == "case"
+
+
+def test_two_errors_of_one_pass_are_not_merged_into_one() -> None:
+    one = error("Nennen Sie mich", "Nennen Sie mir", [3])
+    two = error("Ihr Alter", "Ihr Alter", [3])
+    both = [one, two]
+    assert len(consolidate_language_errors([both, both, both], TURNS)) == 2
+
+
+def test_a_single_pass_is_its_own_majority() -> None:
+    only = error("Nennen Sie mich", "Nennen Sie mir", [3])
+    assert consolidate_language_errors([[only]], TURNS) == (only,)
+
+
+def test_a_code_switch_needs_a_majority_and_the_shortest_fragment_stands() -> None:
+    word = switch(2, "namen", "Namen")
+    sentence = switch(2, "ihren vollständigen namen", "Name")
+    other = switch(4, "Kopfschmerzen", "Kopfschmerzen ")
+    kept = consolidate_code_switches([[word, other], [sentence], []], TURNS)
+    assert kept == (word,)

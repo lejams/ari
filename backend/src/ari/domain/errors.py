@@ -39,3 +39,5 @@ class ProviderError(AriError):
         super().__init__(message)
         self.execution = execution
         self.retryable = retryable
+        # Executions of the other calls that failed with this one (a multi-pass evaluation).
+        self.related_executions: tuple[object, ...] = ()

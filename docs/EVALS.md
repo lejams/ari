@@ -420,9 +420,29 @@ sans valeur) ; le diagnostic montre maintenant l'erreur du fournisseur. Retenu :
 graine 7 (autant de stabilité que `high`, plus rapide), fixé dans `docker-compose.yml` (donc dans
 l'empreinte IA) et dans `evals/configs/luna.yaml`, la configuration de production du gate.
 
-Reste ouvert, à décider après mesure sur le split dev : une seconde passe de vérification par un
-modèle. Elle n'est pas écrite : elle coûte un appel de plus, et les mesures diront si les trois
-couches ci-dessus suffisent.
+**Holdout du 1er novembre 2026 : échec, et il est grillé.** Un seul lancement (75 transcripts, trois
+familles jamais vues) : instabilité 0,20 (≤ 0,10) et rappel `word_choice` 0,68 (≥ 0,70) ; précision
+globale 0,97, hallucination de preuve 0,002, faux positif de transcription 0. La mise au point sur le
+dev (instabilité 0,05) ne s'est donc pas transportée sur des familles neuves. Ce holdout ne sert plus
+à rien : ni relance « pour vérifier », ni réglage sur ses résultats. Il faut un holdout neuf (nouvelles
+familles, jeu `evaluation-language@3`) avant une nouvelle tentative du gate.
+
+**Haiku 5.5 contre luna (dev, 1er novembre 2026)** : même instabilité (0,07 chacun), mais Haiku échoue
+au rappel `word_choice` (0,68 contre 0,80), rappel global 0,89 contre 0,95, erreurs de cas 0,85. Même
+prix sur la grille. Luna reste le modèle de l'évaluation.
+
+**Vote à la majorité** (`ARI_EVALUATION_PASSES`, 3 par défaut, de 1 à 5). Une passe unique oscille
+entre signaler une erreur et la manquer ; c'est ce qui fait l'instabilité des items limites. Le
+`LLMBackedEvaluator` appelle maintenant le modèle `passes` fois en parallèle (graine décalée de
+l'indice de la passe pour que les passes ne se répètent pas), vérifie chaque réponse avec les mêmes
+gardes de code, puis garde les erreurs de langue et les alternances de langue signalées sur les
+mêmes mots par plus de la moitié des passes (2 sur 3 ; la catégorie est celle que la plupart ont
+donnée). Tout le reste (résumé, points forts, empathie, vocabulaire) vient de la première passe. Une
+passe en échec est écartée (la majorité se calcule sur les passes qui ont répondu) mais son appel est
+enregistré pour le coût ; si toutes échouent, l'évaluation échoue comme avant. Coût : trois appels
+d'évaluation au lieu d'un (environ 0,002 $ par session au prix de la grille). La configuration de
+mesure dit `evaluation_passes: 3` (`luna.yaml` et `luna-exam.yaml`, que le test de promotion
+compare au défaut de production) ; les autres configurations mesurent une seule passe.
 
 **Choisir la configuration** : le workflow manuel `Compare evaluation configurations`
 (`.github/workflows/evals-compare.yml`, n'importe quelle branche, split dev uniquement, jamais de

@@ -44,6 +44,9 @@ class TranscriptionConfig:
 class LLMRequest:
     messages: tuple[dict[str, str], ...]
     context: ExecutionContext
+    # Index of an independent pass over the same request: a provider that is given a seed
+    # shifts it by this index, so passes do not repeat each other.
+    sample: int = 0
 
 
 @dataclass(frozen=True, slots=True)

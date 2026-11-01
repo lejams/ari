@@ -187,6 +187,7 @@ async def run(request: RunRequest) -> Report:
             prompts={str(k): v for k, v in request.config.prompts.items()},
             patient_engine=request.config.patient_engine,
             feedback_language=request.config.feedback_language,
+            evaluation_passes=request.config.evaluation_passes,
             sha256=request.config_sha256,
         ),
         versions=Versions(
@@ -241,6 +242,7 @@ async def _run_once(
         feedback_language=request.config.feedback_language,
         run_key=f"evals:{suite.name}:{item.id}:r{repetition}",
         patient_engine=request.config.patient_engine,
+        evaluation_passes=request.config.evaluation_passes,
     )
     value: object | None = None
     errors: list[str] = []

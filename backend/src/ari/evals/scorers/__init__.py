@@ -63,6 +63,7 @@ class RunContext:
     feedback_language: str
     run_key: str  # Unique per item and repetition; becomes the session id of the calls.
     patient_engine: str = "training"  # "exam": the exam chain patient answers instead.
+    evaluation_passes: int = 1  # Independent evaluations per session (the evaluator votes).
 
 
 @dataclass(frozen=True, slots=True)

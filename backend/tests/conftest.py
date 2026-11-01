@@ -133,6 +133,9 @@ def build_test_container(database_url: str) -> Container:
         provider_mode="fake",
         database_url=database_url,
         prompt_directory=PROJECT_ROOT / "backend" / "src" / "ari" / "prompts",
+        # One evaluation call per session, as most tests count calls; the vote has its own tests
+        # (test_evaluation_passes.py), which build the evaluator they need.
+        evaluation_passes=1,
     )
     return build_container(settings)
 

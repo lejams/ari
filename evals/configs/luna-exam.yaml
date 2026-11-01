@@ -9,3 +9,4 @@ routes:
 prompts:
   patient: patient-exam-v1
   evaluation: evaluation-v10
+evaluation_passes: 3

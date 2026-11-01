@@ -419,7 +419,12 @@ def build_container(settings: Settings) -> Container:
         repository,
         cases,
         PatientSimulator(llm, patient_prompt),
-        LLMBackedEvaluator(llm, evaluation_prompt, settings.feedback_language),
+        LLMBackedEvaluator(
+            llm,
+            evaluation_prompt,
+            settings.feedback_language,
+            passes=settings.evaluation_passes,
+        ),
         voice_stack,
         exam_voice_stack=chain_stack or realtime_stack,
         lexicon=lexicon,

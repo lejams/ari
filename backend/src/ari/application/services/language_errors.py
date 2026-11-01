@@ -24,7 +24,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 from ari.application.schemas import CodeSwitchSchema, LanguageErrorSchema
@@ -172,3 +172,103 @@ def verify_code_switches(
             continue
         kept.append(switch)
     return tuple(kept)
+
+
+def _cells(
+    quote: str, turns: Sequence[int], learner_text_by_turn: Mapping[int, str]
+) -> set[tuple[int, int]]:
+    """The words of the learner's turns a quote covers, as `(turn, word position)`."""
+    return {
+        (turn, position)
+        for turn in turns
+        if turn in learner_text_by_turn
+        for start, end in spans(quote, learner_text_by_turn[turn])
+        for position in range(start, end)
+    }
+
+
+def _cluster[T](
+    passes: Sequence[Sequence[T]], cells_of: Callable[[T], set[tuple[int, int]]]
+) -> list[list[tuple[int, T]]]:
+    """Group what several passes reported about the same words: one member per pass at most."""
+    clusters: list[tuple[set[tuple[int, int]], list[tuple[int, T]]]] = []
+    for index, items in enumerate(passes):
+        for item in items:
+            cells = cells_of(item)
+            home = next(
+                (
+                    entry
+                    for entry in clusters
+                    if entry[0] & cells and all(owner != index for owner, _ in entry[1])
+                ),
+                None,
+            )
+            if home is None:
+                clusters.append((set(cells), [(index, item)]))
+            else:
+                home[0].update(cells)
+                home[1].append((index, item))
+    return [members for _, members in clusters]
+
+
+def majority(passes: int) -> int:
+    """How many of the passes must report something for it to stand: more than half."""
+    return passes // 2 + 1
+
+
+def consolidate_language_errors(
+    passes: Sequence[Sequence[LanguageErrorSchema]], learner_text_by_turn: Mapping[int, str]
+) -> tuple[LanguageErrorSchema, ...]:
+    """The language errors that a majority of independent passes report on the same words.
+
+    Each pass is already verified (`verify_language_errors`). A single pass sometimes sees an
+    error and sometimes does not, so what the evaluator reports changes from one run to the next;
+    keeping what most passes see removes that noise without any new judgement by the code. The
+    category is the one most passes gave (the earliest pass on a tie).
+    """
+    needed = majority(len(passes))
+    kept: list[tuple[tuple[int, int], LanguageErrorSchema]] = []
+    for members in _cluster(
+        passes,
+        lambda error: _cells(error.quote, error.evidence_turn_sequences, learner_text_by_turn),
+    ):
+        if len(members) < needed:
+            continue
+        counts = Counter(error.category for _, error in members)
+        top = max(counts.values())
+        chosen = next(error for _, error in members if counts[error.category] == top)
+        position = min(
+            (
+                cell
+                for _, error in members
+                for cell in _cells(error.quote, error.evidence_turn_sequences, learner_text_by_turn)
+            ),
+            default=(0, 0),
+        )
+        kept.append((position, chosen))
+    return tuple(error for _, error in sorted(kept, key=lambda entry: entry[0]))
+
+
+def consolidate_code_switches(
+    passes: Sequence[Sequence[CodeSwitchSchema]], learner_text_by_turn: Mapping[int, str]
+) -> tuple[CodeSwitchSchema, ...]:
+    """The code switches that a majority of passes report on the same words.
+
+    When passes cite a different stretch of the same words (the word, or the whole sentence), the
+    shortest fragment stands: it is the one that names the foreign word.
+    """
+    needed = majority(len(passes))
+    kept: list[tuple[tuple[int, int], CodeSwitchSchema]] = []
+    for members in _cluster(
+        passes, lambda switch: _cells(switch.fragment, (switch.turn,), learner_text_by_turn)
+    ):
+        if len(members) < needed:
+            continue
+        chosen = min((switch for _, switch in members), key=lambda switch: len(switch.fragment))
+        position = min(
+            cell
+            for _, switch in members
+            for cell in _cells(switch.fragment, (switch.turn,), learner_text_by_turn)
+        )
+        kept.append((position, chosen))
+    return tuple(switch for _, switch in sorted(kept, key=lambda entry: entry[0]))
