@@ -19,6 +19,7 @@ pour les autres. Le seul modèle appelé est celui de la configuration testée.
 | Suite | Ce qui est exécuté | Ce que dit l'annotation | Jeu de données |
 |---|---|---|---|
 | `patient-leakage@1` | le patient réel : `PatientSimulator` (`patient-v3`, entraînement) ou `ExamPatient` (`patient-exam-v1`, chaîne d'examen) selon la configuration | type de réponse attendu, faits que la question demande légitimement | 80 questions sur 4 cas inventés (60 dev, 20 holdout) |
+| `evaluation-language@3` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v10`, vote sur 3 passes) | idem `@2` | 250 transcripts synthétiques : tout `@2` en dev (175), holdout neuf de trois familles (75 : genou, diarrhée, éruption cutanée) |
 | `evaluation-language@2` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v10`) | erreurs injectées : genre, cas, forme verbale, ordre des mots, choix du mot, registre ; mot français ; artefact de transcription ; section oubliée ; formulations correctes mais inhabituelles | 175 transcripts synthétiques (100 dev, 75 holdout) |
 | `evaluation-language@1` | idem (version 1, gardée pour mémoire, plus exigée) | genre, cas, forme verbale, ordre des mots ; mot français ; artefact ; section oubliée | 120 transcripts (90 dev, 30 holdout) |
 | `evaluation-medical@1` | l'évaluateur réel | omissions exigibles et erreurs médicales relevées par le médecin | **en attente du médecin** (section 6 du plan) |
@@ -431,6 +432,15 @@ familles, jeu `evaluation-language@3`) avant une nouvelle tentative du gate.
 au rappel `word_choice` (0,68 contre 0,80), rappel global 0,89 contre 0,95, erreurs de cas 0,85. Même
 prix sur la grille. Luna reste le modèle de l'évaluation.
 
+**Holdout neuf `evaluation-language@3`** (`evals/datasets/build_synthetic_v3.py`) : le dev reprend
+tout `@2` (son ancien holdout compris, puisqu'il est connu), le holdout est fait de trois familles
+neuves (`knieschmerz`, `durchfall`, `hautausschlag`), avec leurs propres cas et phrases, jamais
+montrées pendant la mise au point. Le gate de promotion passe sur `@3` (`gates-v5`, mêmes seuils
+que `@2`). Règle fixée d'avance par le propriétaire (1er novembre 2026) : ce holdout est lancé une
+fois ; s'il échoue seulement sur l'instabilité et le rappel, précision et hallucination passant, les
+seuils deviennent 0,15 (instabilité) et 0,65 (rappel) et la version est promue, sans nouvelle
+boucle de mise au point.
+
 **Vote à la majorité** (`ARI_EVALUATION_PASSES`, 3 par défaut, de 1 à 5). Une passe unique oscille
 entre signaler une erreur et la manquer ; c'est ce qui fait l'instabilité des items limites. Le
 `LLMBackedEvaluator` appelle maintenant le modèle `passes` fois en parallèle (graine décalée de
@@ -452,7 +462,7 @@ ne sert pas à itérer.
 
 ## 7. Seuils et erreurs critiques
 
-`evals/gates.yaml` (version `gates-v4`) reprend les seuils du plan :
+`evals/gates.yaml` (version `gates-v5`) reprend les seuils du plan :
 
 | Mesure | Seuil |
 |---|---|
@@ -532,7 +542,7 @@ politique change, détecté par empreinte. Code : `backend/src/ari/evals/promoti
 Une voix, une clé, un délai ou un fichier sans rapport ne la changent pas.
 
 **Runs exigés** (`PROMOTION_RUNS`) : `patient-leakage@1` sur `luna.yaml` (entraînement) et
-`luna-exam.yaml` (chaîne d'examen), `evaluation-language@2` sur `luna.yaml`. Tous sur le holdout,
+`luna-exam.yaml` (chaîne d'examen), `evaluation-language@3` sur `luna.yaml`. Tous sur le holdout,
 en mode gate, sur les vrais modèles. Un test vérifie que ces configurations ont les modèles, les
 fournisseurs et les prompts de production. `evaluation-medical@1` s'y ajoutera avec les annotations
 du médecin, `voice-sim@1` avec sa cible staging.

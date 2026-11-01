@@ -17,7 +17,12 @@ from ari.evals.scorers.evaluation_language import LanguageItem
 from ari.evals.scorers.patient_leakage import LeakageItem, PatientLeakageSuite
 from ari.evals.suites import SUITES
 
-COMMITTED = [("patient-leakage", "1"), ("evaluation-language", "1"), ("evaluation-language", "2")]
+COMMITTED = [
+    ("patient-leakage", "1"),
+    ("evaluation-language", "1"),
+    ("evaluation-language", "2"),
+    ("evaluation-language", "3"),
+]
 
 
 def _normalize(text: str) -> str:
@@ -61,7 +66,7 @@ def test_every_repository_dataset_is_synthetic() -> None:
 
 
 def test_the_build_script_reproduces_the_committed_files(tmp_path: Path) -> None:
-    for script in ("build_synthetic_v1.py", "build_synthetic_v2.py"):
+    for script in ("build_synthetic_v1.py", "build_synthetic_v2.py", "build_synthetic_v3.py"):
         runpy.run_path(str(DATASETS / script))["main"](tmp_path)
     for suite, version in COMMITTED:
         for name in ("manifest.json", "cases.json", "dev.jsonl", "holdout.jsonl"):
@@ -79,6 +84,12 @@ def test_the_build_script_reproduces_the_committed_files(tmp_path: Path) -> None
             "2",
             {"gender", "case", "verb_form", "word_order", "word_choice", "register"},
             (150, 200),
+        ),
+        # Version 3: all of version 2 in development, three new holdout families (1 Nov. 2026).
+        (
+            "3",
+            {"gender", "case", "verb_form", "word_order", "word_choice", "register"},
+            (240, 260),
         ),
     ],
 )
@@ -105,9 +116,10 @@ def test_language_dataset_size_and_truth_by_construction(
     assert categories == expected_categories
 
 
-def test_language_v2_covers_every_gated_category_in_both_splits() -> None:
+@pytest.mark.parametrize("version", ["2", "3"])
+def test_language_covers_every_gated_category_in_both_splits(version: str) -> None:
     """A category gated without support in a split would pass or fail on nothing."""
-    dataset = load_dataset(DATASETS, "evaluation-language", "2")
+    dataset = load_dataset(DATASETS, "evaluation-language", version)
     for split in ("dev", "holdout"):
         rows = [
             LanguageItem.model_validate_json(json.dumps(r))
@@ -141,6 +153,28 @@ def test_language_v2_holdout_is_new_and_has_correct_unusual_sentences() -> None:
         _normalize(text) for row in v1.read_split("holdout", gate=True) for text in _utterances(row)
     }
     fresh = {_normalize(t) for r in v2.read_split("holdout", gate=True) for t in _utterances(r)}
+    assert not seen_before & fresh
+
+
+def test_language_v3_holdout_is_new_and_version_2_is_its_development_split() -> None:
+    v2 = load_dataset(DATASETS, "evaluation-language", "2")
+    v3 = load_dataset(DATASETS, "evaluation-language", "3")
+    # The holdout of version 2 was run once (1 November 2026): it is development data now.
+    assert v3.manifest.splits["dev"] == [*v2.manifest.splits["dev"], *v2.manifest.splits["holdout"]]
+    assert v3.read_split("dev", gate=True) == [
+        *v2.read_split("dev", gate=True),
+        *v2.read_split("holdout", gate=True),
+    ]
+    assert set(v3.manifest.splits["holdout"]).isdisjoint(
+        {*v2.manifest.splits["dev"], *v2.manifest.splits["holdout"]}
+    )
+    seen_before = {
+        _normalize(text)
+        for split in ("dev", "holdout")
+        for row in v2.read_split(split, gate=True)
+        for text in _utterances(row)
+    }
+    fresh = {_normalize(t) for r in v3.read_split("holdout", gate=True) for t in _utterances(r)}
     assert not seen_before & fresh
 
 

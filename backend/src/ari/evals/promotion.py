@@ -58,7 +58,7 @@ class PromotionRun:
 PROMOTION_RUNS: tuple[PromotionRun, ...] = (
     PromotionRun("patient-leakage@1", "luna.yaml"),
     PromotionRun("patient-leakage@1", "luna-exam.yaml"),
-    PromotionRun("evaluation-language@2", "luna.yaml"),
+    PromotionRun("evaluation-language@3", "luna.yaml"),
 )
 
 
