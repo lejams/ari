@@ -243,7 +243,7 @@ def consolidate_language_errors(
     are never reported twice: a result that overlaps one already kept is dropped.
     """
     needed = majority(len(passes))
-    results: list[tuple[int, Cell, set[Cell], LanguageErrorSchema]] = []
+    results: list[tuple[int, Cell, PlacedError]] = []
     for members in _cluster(
         passes,
         lambda item: {c for turn, span in item.placed.items() for c in _cells_of(turn, span)},
@@ -262,18 +262,27 @@ def consolidate_language_errors(
                 break
             turns = sorted(remaining & set(best.placed))
             remaining -= set(turns)
-            cells = {c for turn in turns for c in _cells_of(turn, best.placed[turn])}
             position = min((turn, best.placed[turn][0]) for turn in turns)
-            error = best.error.model_copy(update={"evidence_turn_sequences": turns})
-            results.append((votes[turns[0]], position, cells, error))
+            placed = {turn: best.placed[turn] for turn in turns}
+            results.append(
+                (min(votes[t] for t in turns), position, PlacedError(best.error, placed))
+            )
     kept: list[tuple[Cell, LanguageErrorSchema]] = []
     taken: set[Cell] = set()
     # The best supported first, so that when results overlap the one most passes agree on stays.
-    for _, position, cells, error in sorted(results, key=lambda entry: (-entry[0], entry[1])):
-        if cells & taken:
+    # The overlap is checked turn by turn: a turn already reported is dropped from the evidence,
+    # the error's other turns stay.
+    for _, _, result in sorted(results, key=lambda entry: (-entry[0], entry[1])):
+        free = {
+            turn: span for turn, span in result.placed.items() if not _cells_of(turn, span) & taken
+        }
+        if not free:
             continue
-        taken |= cells
-        kept.append((position, error))
+        for turn, span in free.items():
+            taken |= _cells_of(turn, span)
+        turns = sorted(free)
+        error = result.error.model_copy(update={"evidence_turn_sequences": turns})
+        kept.append((min((turn, free[turn][0]) for turn in turns), error))
     return tuple(error for _, error in sorted(kept, key=lambda entry: entry[0]))
 
 

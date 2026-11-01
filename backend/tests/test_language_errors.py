@@ -335,3 +335,19 @@ def test_the_same_words_are_not_reported_twice_by_two_clusters() -> None:
     for index, (start, end) in enumerate(covered):
         for other_start, other_end in covered[index + 1 :]:
             assert end <= other_start or other_end <= start
+
+
+def test_an_overlap_in_one_turn_keeps_the_error_in_its_other_turns() -> None:
+    turns = {
+        1: "Ich habe ein Termin und fahre mit ein Auto.",
+        2: "Morgen fahre ich mit ein Auto.",
+    }
+    whole = error("ein Termin und fahre mit ein Auto", "einen Termin und fahre mit einem Auto", [1])
+    first = error("ein Termin", "einen Termin", [1])
+    second = error("mit ein Auto", "mit einem Auto", [1, 2])
+    kept = vote([[whole], [first, second], [first, second]], turns)
+    # The second mistake, seen by two passes in turn 2, is still reported there.
+    assert any(2 in item.evidence_turn_sequences for item in kept)
+    for item in kept:
+        if 2 in item.evidence_turn_sequences:
+            assert item.quote == "mit ein Auto"
