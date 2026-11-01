@@ -73,17 +73,22 @@ def spans(quote: str, text: str) -> list[tuple[int, int]]:
 def splits_a_word(spoken: Sequence[str], corrected: Sequence[str]) -> bool:
     """Whether a spoken word is, in the correction, cut into a prefix and a verb.
 
-    `einnehmen` -> `nehmen` and `ein`: both parts are new words of the correction and the spoken
-    word is gone from it. Prefix and stem are at least two letters long, so a short function word
-    never counts.
+    `einnehmen` -> `nehmen` and `ein`: the spoken word is gone from the correction and both parts
+    are added to it. Words are counted, not just listed, so a prefix that the quote already holds
+    elsewhere (`einnehmen Sie ein Medikament` -> `nehmen Sie ein Medikament ein`) is still an added
+    word. Prefix and stem are at least two letters long, so a short function word never counts.
     """
-    new = [word for word in corrected if word not in spoken]
+    added = Counter(corrected) - Counter(spoken)
+    gone = Counter(spoken) - Counter(corrected)
     return any(
-        word not in corrected
+        word in gone
         and any(
-            len(prefix) >= 2 and len(stem) >= 2 and prefix + stem == word
-            for prefix in new
-            for stem in new
+            len(prefix) >= 2
+            and len(stem) >= 2
+            and prefix + stem == word
+            and (prefix != stem or added[prefix] >= 2)
+            for prefix in added
+            for stem in added
         )
         for word in spoken
     )

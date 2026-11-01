@@ -198,3 +198,10 @@ def test_a_short_function_word_is_not_a_prefix() -> None:
     assert splits_a_word(["zuviel"], ["zu", "viel"])
     assert not splits_a_word(["zuviel"], ["zuviel", "zu", "viel"])
     assert not splits_a_word(["ab"], ["a", "b"])
+
+
+def test_a_prefix_already_in_the_quote_still_counts_as_an_added_word() -> None:
+    assert splits_a_word(
+        ["einnehmen", "sie", "ein", "medikament"], ["nehmen", "sie", "ein", "medikament", "ein"]
+    )
+    assert not splits_a_word(["nehmen", "sie", "ein"], ["nehmen", "sie", "ein", "ein"])
