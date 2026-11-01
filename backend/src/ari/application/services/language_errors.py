@@ -27,7 +27,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from ari.application.schemas import LanguageErrorSchema
+from ari.application.schemas import CodeSwitchSchema, LanguageErrorSchema
 
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
 _MIN_QUOTE_CHARACTERS = 2
@@ -153,3 +153,22 @@ def verify_language_errors(
             error.model_copy(update={"category": category, "evidence_turn_sequences": list(turns)})
         )
     return LanguageErrorVerdict(kept=tuple(kept), dropped=dict(dropped))
+
+
+def verify_code_switches(
+    switches: Sequence[CodeSwitchSchema], learner_text_by_turn: Mapping[int, str]
+) -> tuple[CodeSwitchSchema, ...]:
+    """Keep the code switches the transcript can back.
+
+    The fragment must stand in the cited turn, and the term the learner "needed" must differ from
+    what they said: a model that proposes `Migräne` for `Migräne` has found German, not a switch.
+    """
+    kept: list[CodeSwitchSchema] = []
+    for switch in switches:
+        text = learner_text_by_turn.get(switch.turn)
+        if text is None or not spans(switch.fragment, text):
+            continue
+        if switch.intended_term and squeezed(switch.intended_term) == squeezed(switch.fragment):
+            continue
+        kept.append(switch)
+    return tuple(kept)

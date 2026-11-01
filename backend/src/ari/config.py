@@ -124,13 +124,23 @@ class Settings(BaseSettings):
     content_provider: Literal["openai", "anthropic"] = "openai"
     fact_attribution_provider: Literal["openai", "anthropic"] | None = None
     fact_attribution_model: str | None = None
+    # Session evaluation on OpenAI only. None keeps the model's own defaults. A fixed seed and a
+    # chosen reasoning effort make the evaluator answer more alike from one call to the next
+    # (the `stability` metric of ari.evals); the values are measured, not guessed.
+    evaluation_reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
+    evaluation_seed: int | None = None
     anthropic_api_key: str | None = None
     anthropic_max_tokens: int = Field(default=16000, ge=1024)
     # None keeps the model's own default effort (high on Claude Sonnet 5.5).
     anthropic_effort: Literal["low", "medium", "high", "xhigh", "max"] | None = None
 
     @field_validator(
-        "fact_attribution_provider", "fact_attribution_model", "anthropic_effort", mode="before"
+        "fact_attribution_provider",
+        "fact_attribution_model",
+        "anthropic_effort",
+        "evaluation_reasoning_effort",
+        "evaluation_seed",
+        mode="before",
     )
     @classmethod
     def empty_means_unset(cls, value: object) -> object:

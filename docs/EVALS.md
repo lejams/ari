@@ -390,7 +390,23 @@ préverbe tantôt `verb_form` tantôt `word_order`, une particule oubliée vue u
 bruit sur des phrases limites. `evaluation-v10` ajoute trois règles générales (un mot correct n'est
 jamais une alternance de langue, une erreur de registre par tour, contrôle de la particule de tout
 verbe séparable) et le code tranche le préverbe coupé, pour avoir de la marge avant le holdout, qui
-n'est lancé qu'une fois.
+n'est lancé qu'une fois. Mesure de `evaluation-v10` sur le dev (31 octobre 2026) : tous les seuils
+passent (`word_choice` 0,78, `word_order` 0,99, `verb_form` 0,95, précision globale 0,9965,
+hallucination 0), mais l'instabilité reste à 0,10 pile : la règle du prompt n'a pas arrêté la fausse
+alternance sur `Migräne` (4 items sur les 10 instables). Le code tranche donc aussi les
+alternances (`verify_code_switches`) : le fragment doit se trouver dans le tour cité, et un terme
+voulu identique au fragment dit n'est pas une alternance. Le diagnostic montre désormais
+fragment et terme voulu de chaque alternance signalée.
+
+La cause plus profonde est la variation du modèle d'un appel à l'autre : l'appel d'évaluation
+n'imposait ni graine ni effort de raisonnement (réglages par défaut du modèle). Deux réglages
+production, appliqués à l'évaluation de session sur OpenAI seulement et vides par défaut :
+`ARI_EVALUATION_REASONING_EFFORT` (`minimal`, `low`, `medium`, `high`) et `ARI_EVALUATION_SEED`.
+Une route d'une configuration d'évaluation les porte (`reasoning_effort`, `seed`, visibles dans
+l'étiquette de la route du rapport). Les configurations `luna-eval-low|medium|high` (graine 7)
+servent à mesurer la stabilité sur le dev avec `evals-compare.yml` ; la valeur retenue sera
+celle de la configuration la moins chère qui passe tous les seuils, puis fixée dans
+`docker-compose.yml` (elle entre alors dans l'empreinte IA).
 
 Reste ouvert, à décider après mesure sur le split dev : une seconde passe de vérification par un
 modèle. Elle n'est pas écrite : elle coûte un appel de plus, et les mesures diront si les trois

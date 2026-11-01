@@ -8,7 +8,7 @@ from ari.application.ports.llm import LLMProvider
 from ari.application.prompting import VersionedPrompt
 from ari.application.schemas import EvaluationOutputSchema
 from ari.application.services.assessment import weighted_assessment
-from ari.application.services.language_errors import verify_language_errors
+from ari.application.services.language_errors import verify_code_switches, verify_language_errors
 from ari.application.services.next_actions import next_actions
 from ari.application.services.structure import first_delivery_turn, section_coverage
 from ari.domain.errors import ProviderError
@@ -184,9 +184,9 @@ class LLMBackedEvaluator:
                 evidence_turn_sequences=sorted(judgement.evidence_turn_sequences),
             )
 
-        language_errors = verify_language_errors(
-            result.value.language_errors, {item.sequence: item.user_text for item in session.turns}
-        ).kept
+        learner_text = {item.sequence: item.user_text for item in session.turns}
+        language_errors = verify_language_errors(result.value.language_errors, learner_text).kept
+        code_switches = verify_code_switches(result.value.code_switches, learner_text)
 
         revealed_fact_ids = frozenset(
             fact_id for turn in session.turns for fact_id in turn.revealed_fact_ids
@@ -199,7 +199,7 @@ class LLMBackedEvaluator:
         empathy = tuple(moments)
         candidates = sum(
             1 for item in result.value.vocabulary_candidates if item.kind != "well_used"
-        ) + sum(1 for item in result.value.code_switches if item.intended_term)
+        ) + sum(1 for item in code_switches if item.intended_term)
         evaluation = Evaluation(
             schema_version=EVALUATION_SCHEMA_VERSION,
             prompt_version=self._prompt.version,
@@ -228,8 +228,7 @@ class LLMBackedEvaluator:
             ),
             criteria=tuple(criteria_payload),
             code_switches=tuple(
-                CodeSwitch(item.turn, item.fragment, item.intended_term)
-                for item in result.value.code_switches
+                CodeSwitch(item.turn, item.fragment, item.intended_term) for item in code_switches
             ),
             structure=structure,
             empathy=empathy,

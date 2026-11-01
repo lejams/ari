@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from ari.application.schemas import LanguageErrorSchema
-from ari.application.services.language_errors import splits_a_word, verify_language_errors
+from ari.application.schemas import CodeSwitchSchema, LanguageErrorSchema
+from ari.application.services.language_errors import (
+    splits_a_word,
+    verify_code_switches,
+    verify_language_errors,
+)
 
 TURNS = {
     1: "Grüß Gott, ich bin Ihre Ärztin heute. Was bringt Sie zu mir?",
@@ -205,3 +209,28 @@ def test_a_prefix_already_in_the_quote_still_counts_as_an_added_word() -> None:
         ["einnehmen", "sie", "ein", "medikament"], ["nehmen", "sie", "ein", "medikament", "ein"]
     )
     assert not splits_a_word(["nehmen", "sie", "ein"], ["nehmen", "sie", "ein", "ein"])
+
+
+def switch(turn: int, fragment: str, intended: str | None) -> CodeSwitchSchema:
+    return CodeSwitchSchema(turn=turn, fragment=fragment, intended_term=intended)
+
+
+def test_a_code_switch_whose_intended_term_is_what_was_said_is_dropped() -> None:
+    turns = {1: "Leidet jemand aus Ihrer Familie ebenfalls an Migräne?"}
+    assert verify_code_switches([switch(1, "Migräne", "Migräne")], turns) == ()
+    assert verify_code_switches([switch(1, "migraene", "Migräne")], turns) == ()
+
+
+def test_a_code_switch_found_in_its_turn_with_another_term_is_kept() -> None:
+    turns = {1: "Haben Sie mal de tête seit gestern?"}
+    kept = verify_code_switches([switch(1, "mal de tête", "Kopfschmerzen")], turns)
+    assert [item.intended_term for item in kept] == ["Kopfschmerzen"]
+    assert verify_code_switches([switch(1, "mal de tête", None)], turns) == tuple(
+        [switch(1, "mal de tête", None)]
+    )
+
+
+def test_a_code_switch_not_in_the_cited_turn_is_dropped() -> None:
+    turns = {1: "Haben Sie Fieber?", 2: "Und mal de tête?"}
+    assert verify_code_switches([switch(1, "mal de tête", "Kopfschmerzen")], turns) == ()
+    assert verify_code_switches([switch(9, "mal de tête", "Kopfschmerzen")], turns) == ()

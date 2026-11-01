@@ -248,6 +248,10 @@ class EvaluationLanguageSuite:
                 "reported_errors": predicted,
                 "missed_errors": [e.model_dump() for e in unmatched],
                 "reported_code_switches": sorted(reported_switches),
+                "code_switch_fragments": [
+                    {"turn": c.turn, "fragment": c.fragment, "intended_term": c.intended_term}
+                    for c in evaluation.code_switches
+                ],
                 "expected_code_switches": sorted(switch_turns),
                 "stt_artifact_turns_blamed": sorted(blamed),
                 "forgotten_sections": sorted(forgotten),

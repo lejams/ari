@@ -142,6 +142,40 @@ def test_a_real_model_configuration_needs_live(tmp_path: Path) -> None:
         build_provider(live, live=False, pricing=PRICING)
 
 
+def _live_config(**routes: dict[str, object]) -> dict[str, object]:
+    base: dict[str, object] = {
+        "patient": {"provider": "openai", "model": "gpt-6-luna"},
+        "evaluation": {"provider": "openai", "model": "gpt-6-luna"},
+    }
+    return {
+        "id": "x",
+        "description": "x",
+        "provider": "live",
+        "routes": {**base, **routes},
+        "prompts": {"patient": "patient-v3", "evaluation": "evaluation-v10"},
+    }
+
+
+def test_sampling_settings_label_the_evaluation_route_and_apply_to_it_only() -> None:
+    sampled = {
+        "provider": "openai",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "high",
+        "seed": 7,
+    }
+    config = EvalConfig.model_validate(_live_config(evaluation=sampled))
+    assert config.route_labels()["evaluation"] == "openai:gpt-6-luna[reasoning_effort=high,seed=7]"
+    assert config.route_labels()["patient"] == "openai:gpt-6-luna"
+    with pytest.raises(ValueError, match="OpenAI evaluation route"):
+        EvalConfig.model_validate(_live_config(patient=sampled))
+    with pytest.raises(ValueError, match="OpenAI evaluation route"):
+        EvalConfig.model_validate(
+            _live_config(
+                evaluation={**sampled, "provider": "anthropic", "model": "claude-sonnet-5-5"}
+            )
+        )
+
+
 def test_the_medical_suite_waits_for_the_physician(capsys: pytest.CaptureFixture[str]) -> None:
     assert not (DATASETS / "evaluation-medical" / "1" / "manifest.json").exists()
     code = main(["run", "--suite", "evaluation-medical@1", "--config", str(CONFIGS / "fake.yaml")])
