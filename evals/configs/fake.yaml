@@ -4,4 +4,4 @@ description: Fournisseur simulé déterministe (CI), prompts de production, pati
 provider: fake
 prompts:
   patient: patient-v3
-  evaluation: evaluation-v9
+  evaluation: evaluation-v10

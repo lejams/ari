@@ -10,4 +10,4 @@ routes:
   evaluation: {provider: anthropic, model: claude-haiku-5-5}
 prompts:
   patient: patient-v3
-  evaluation: evaluation-v9
+  evaluation: evaluation-v10
