@@ -60,7 +60,7 @@ Toute valeur marquée « Hypothèse, paramètre » vit dans la configuration ou 
 
 ## 4. Calendrier et jalons
 
-Phase 1 (actions 1 à 8) : octobre 2026 à mi-février 2027. Phase 2a (actions 9 à 12) : mi-février à juin 2027. L'action 13 (UI/UX) se fait en deux passes : l'application avant J3, la landing avant J4.
+Phase 1 (actions 1 à 8) : octobre 2026 à mi-février 2027. Phase 2a (actions 9 à 12) : mi-février à juin 2027. L'action 13 (UI/UX) se fait en deux passes : l'application avant J3, la landing avant J4. L'action 14 (suivi des apprenants) se fait avant le premier test réel et au plus tard avant J3.
 
 | Jalon | Cible | Condition |
 |---|---|---|
@@ -386,6 +386,30 @@ Si un skill est introuvable, le dire et appliquer la même grille à la main, sa
 **Points réservés au propriétaire.** Textes marketing et promesses de la landing, prix affichés et offres, tout retrait ou masquage d'un élément visible (préférence : réorganiser ou replier, jamais retirer ; section 6, point 6), changement d'identité visuelle.
 
 **Acceptation.** Les deux rapports existent avec constats priorisés. Aucun constat bloquant ouvert sur les parcours de l'étape 1 avant J3. Les parcours de l'étape 1 sont couverts par l'e2e en mode fake, sur mobile et ordinateur, en CI. Le temps médian jusqu'à la première consultation est mesuré sur le test utilisateur.
+
+---
+
+### Action 14 : suivi des apprenants dans le back-office
+
+**Objectif.** Le propriétaire voit, pour chaque personne inscrite, ce qu'elle fait sur ARI et ce qu'elle coûte : inscription, connexions, temps passé, activité, progression et coût, avec une vue d'ensemble et une fiche par personne. Demande du propriétaire du 1er novembre 2026, pour suivre le test de son frère puis les premiers inscrits.
+
+**Dépend de.** Action 1 (coût par exécution, fusionnée). Rien d'autre pour démarrer.
+
+**Lire d'abord.** `infrastructure/persistence/platform/account_rows.py` (`learner_accounts` : création, vérification de l'email ; `learner_sessions` : une ligne par connexion, `created_at` et `last_seen_at` touché au plus une fois par minute), `infrastructure/persistence/platform/repository.py` (`sessions` : `created_at`, `call_started_at`, `ended_at`), `infrastructure/persistence/costs.py` (page Coûts, coût par apprenant et médiane), `backoffice_api/routes_admin.py`, `backoffice-web/`, `docs/EVALS.md` (comptes d'évaluation exclus).
+
+**Ce qui existe déjà.** La page Coûts donne le coût par apprenant (email, rapport à la médiane), par jour, par opération et modèle, par voix, et les 20 dernières séances. La page Comptes ne liste que les comptes de l'équipe. Ni liste des inscrits, ni connexions, ni temps passé ne sont visibles.
+
+**Faire.**
+1. Liste des inscrits (propriétaire seulement) : email, date d'inscription, email vérifié ou non, profil rempli, test de niveau fait, première et dernière connexion, nombre de connexions, nombre de séances (entraînement, examen), temps de pratique vocale, coût total sur la période. Tri et filtre (actifs sur 7 jours, jamais revenus, comptes d'évaluation à part).
+2. Fiche par personne : chronologie des connexions (début, dernière activité, durée estimée), écart entre deux connexions, séances avec cas, mode, durée, score et coût, examens utilisés sur le quota, programme de la semaine suivi ou non, lexique (mots ajoutés, révisions faites), progression des compétences du noyau `ari.learning`.
+3. Indicateurs d'ensemble : inscrits, activés, actifs à 1, 7 et 30 jours, rétention par semaine d'inscription, temps médian jusqu'à la première consultation, temps de pratique médian par semaine, coût médian et P95 par apprenant actif, entonnoir inscription → profil → test de niveau → première séance → deuxième semaine.
+4. Temps passé : le temps de pratique vient des séances (`call_started_at` → `ended_at`). Le temps dans l'application ne peut pas se déduire de `learner_sessions` (une connexion reste ouverte plusieurs jours) : ajouter un signal d'activité léger côté `web/` (battement toutes les 60 s quand l'onglet est visible, regroupé en périodes d'activité côté serveur, sans contenu, sans outil tiers). Toujours dire « estimé » à l'écran.
+5. Lecture seule, aucune action sur le compte depuis ces pages, rien coupé ni plafonné sur ces chiffres (décision du 18 octobre 2026). Accès propriétaire seulement, journalisé.
+6. Tests : requêtes d'agrégat sur une base de test (séances ouvertes, connexions sans séance, comptes d'évaluation exclus, coût inconnu jamais compté à zéro), e2e du back-office sur la liste et une fiche.
+
+**Points réservés au propriétaire.** Liste finale des indicateurs ; durée de conservation des périodes d'activité ; mention du suivi d'activité dans la politique de confidentialité (action 12, section 6, point 5) avant d'ouvrir à des inconnus. Le test avec le frère du propriétaire peut commencer avant.
+
+**Acceptation.** Pour un compte de test qui s'inscrit, se connecte deux fois et fait une séance, la liste et la fiche montrent les bonnes dates, le bon nombre de connexions, une durée de séance juste à la minute près, le coût égal à celui de la page Coûts. Les comptes d'évaluation n'entrent dans aucun indicateur. Aucune requête de la page ne dépasse 500 ms sur 1 000 apprenants simulés.
 
 ---
 

@@ -454,6 +454,15 @@ d'évaluation au lieu d'un (environ 0,002 $ par session au prix de la grille). L
 mesure dit `evaluation_passes: 3` (`luna.yaml` et `luna-exam.yaml`, que le test de promotion
 compare au défaut de production) ; les autres configurations mesurent une seule passe.
 
+**Mesures avec le vote (1er novembre 2026).** Dev `@2` (run 41323425764) : instabilité 0,05,
+précision 1, rappel global 0,95, rappel `word_choice` 0,80, aucune hallucination de preuve, 900 appels
+sans échec. **Holdout neuf `@3`, lancé une seule fois (run 41326682114, commit `9595bbc`) : gate
+passé, sans changer aucun seuil.** Instabilité 0,027, précision 1 dans toutes les catégories, rappel
+global 0,996 (`word_choice` 1, `case` 0,98, `verb_form` 0,99), hallucination de preuve 0, faux positif
+de transcription 0, alternances de langue précision et rappel 1. `patient-leakage@1` passe sur les
+deux configurations (fuite 0, fait inventé 0). Verdict de promotion : `passed`. La règle de repli sur
+les seuils (0,15 et 0,65) n'a pas servi ; `gates-v5` reste en vigueur.
+
 **Choisir la configuration** : le workflow manuel `Compare evaluation configurations`
 (`.github/workflows/evals-compare.yml`, n'importe quelle branche, split dev uniquement, jamais de
 verdict) lance la suite sur chaque configuration et les compare. On retient la moins chère qui passe
