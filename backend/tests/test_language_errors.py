@@ -7,6 +7,7 @@ from ari.application.services.language_errors import (
     consolidate_code_switches,
     consolidate_language_errors,
     placed_errors,
+    spans,
     splits_a_word,
     verify_code_switches,
     verify_language_errors,
@@ -307,3 +308,30 @@ def test_the_evidence_is_narrowed_to_the_turns_a_majority_agrees_on() -> None:
     only_first = error("Nennen Sie mich", "Nennen Sie mir", [1])
     kept = vote([[both], [only_first], []], turns)
     assert len(kept) == 1 and kept[0].evidence_turn_sequences == [1]
+
+
+def test_the_returned_quote_stands_in_every_turn_it_is_given_as_evidence() -> None:
+    turns = {1: "Nennen Sie mich bitte", 2: "Nennen Sie mich noch einmal"}
+    long = error("Nennen Sie mich bitte", "Nennen Sie mir bitte", [1])
+    short_both = error("Sie mich", "Sie mir", [1, 2])
+    short_second = error("Sie mich", "Sie mir", [2])
+    kept = vote([[long], [short_both], [short_second]], turns)
+    for item in kept:
+        for turn in item.evidence_turn_sequences:
+            assert turn in turns and item.quote.split()[-1] in turns[turn]
+    # The words of turn 2 are still reported, by an error that is really there.
+    assert {t for item in kept for t in item.evidence_turn_sequences} == {1, 2}
+
+
+def test_the_same_words_are_not_reported_twice_by_two_clusters() -> None:
+    turns = {1: "Ich habe ein Termin und fahre mit ein Auto."}
+    whole = error("ein Termin und fahre mit ein Auto", "einen Termin und fahre mit einem Auto", [1])
+    first = error("ein Termin", "einen Termin", [1])
+    second = error("mit ein Auto", "mit einem Auto", [1])
+    kept = vote([[whole], [first, second], [first, second]], turns)
+    covered: list[tuple[int, int]] = []
+    for item in kept:
+        covered += spans(item.quote, turns[1])
+    for index, (start, end) in enumerate(covered):
+        for other_start, other_end in covered[index + 1 :]:
+            assert end <= other_start or other_end <= start

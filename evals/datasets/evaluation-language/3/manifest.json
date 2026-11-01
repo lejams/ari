@@ -1,0 +1,43 @@
+{
+  "suite": "evaluation-language",
+  "version": "3",
+  "description": "Version 2 (développement et ancien holdout) en développement, et un holdout neuf de trois familles : transcripts synthétiques à erreurs injectées (genre, cas, forme verbale, ordre des mots, choix du mot, registre, mot français, artefact STT, section oubliée) et à formulations correctes mais inhabituelles : vérité connue par construction.",
+  "synthetic": true,
+  "source": "Cas et énoncés inventés par l'agent, générés par evals/datasets/build_synthetic_v3.py",
+  "created_on": "2026-11-01",
+  "consent": "not_applicable:synthetic",
+  "annotators": [
+    {
+      "id": "agent:claude-opus-5.5",
+      "role": "rédaction synthétique",
+      "annotated_on": "2026-11-01"
+    }
+  ],
+  "splits": {
+    "dev": [
+      "brustschmerz",
+      "bauchschmerz",
+      "atemnot",
+      "kopfschmerz",
+      "rueckenschmerz",
+      "schwindel",
+      "halsschmerz"
+    ],
+    "holdout": [
+      "knieschmerz",
+      "durchfall",
+      "hautausschlag"
+    ]
+  },
+  "files": {
+    "cases.json": "c0008a87cb7fdca4b04912262c9c50e38178c8e47014b5d35bd906658abe0fcb",
+    "dev.jsonl": "56c79c7626394b2fe11bf5d41f597395dd5000cb9f8008d2b28b42e1a5c20927",
+    "holdout.jsonl": "beabd343ff765e13083c937a2d096a24f6c9e55e40cd24ed4b99f5720d16e673"
+  },
+  "limitations": [
+    "Variantes allemandes rédigées par l'agent : relecture par un germanophone requise avant de se fier aux seuils.",
+    "Une phrase « correcte » qui contiendrait une vraie faute compterait comme fausse erreur du modèle.",
+    "Le holdout de la version 2 a été lancé une fois (1er novembre 2026, échec) : ses familles sont en développement dans cette version. Le holdout est neuf.",
+    "Règle d'annotation genre / cas : voir l'en-tête de build_synthetic_v2.py."
+  ]
+}
