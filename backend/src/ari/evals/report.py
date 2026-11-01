@@ -9,7 +9,6 @@ and is counted apart; the mean cost per case is then None, never a partial sum.
 from __future__ import annotations
 
 import math
-from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
@@ -239,20 +238,9 @@ def diagnosis_text(report: Report, *, limit: int = 60) -> str:
                 f"{switches}{sections}"
                 f"{' ; ' + ', '.join(run.outcomes) if run.outcomes else ''}"
             )
-            if not run.usable and run.errors:
-                lines.append(f"      erreur du fournisseur : {run.errors[-1]}")
     if shown > limit:
         lines.append(f"… {shown - limit} autre(s) item(s) non affichés")
     head = f"Diagnostic de {report.suite} ({report.split}) : {shown} item(s) à regarder"
-    failures = Counter(
-        run.errors[-1][:200]
-        for item in report.items
-        for run in item.runs
-        if run.errors and not run.usable
-    )
-    if failures:
-        causes = " | ".join(f"{count} x {text}" for text, count in failures.most_common(3))
-        head += f"\nPassages sans réponse exploitable, causes : {causes}"
     return "\n".join([head, *lines])
 
 
