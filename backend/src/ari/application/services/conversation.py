@@ -232,6 +232,8 @@ class ConversationOrchestrator:
         try:
             outcome = await self._evaluator.evaluate(session, case)
             self.repository.record_execution(outcome.execution)
+            for extra in outcome.extra_executions:
+                self.repository.record_execution(extra)
             metrics = self._build_metrics(outcome, case)
             vocabulary = tuple(
                 VocabularyObservation(
@@ -260,6 +262,8 @@ class ConversationOrchestrator:
         except ProviderError as exc:
             execution = cast(ExecutionRecord, exc.execution)
             self.repository.record_execution(execution)
+            for related in exc.related_executions:
+                self.repository.record_execution(cast(ExecutionRecord, related))
             self.repository.set_status(session_id, SessionStatus.ANALYSIS_FAILED)
             raise
         except Exception:

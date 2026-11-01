@@ -116,6 +116,7 @@ class ConfigInfo(_Model):
     prompts: dict[str, str]
     patient_engine: str
     feedback_language: str
+    evaluation_passes: int = 1
     voice: dict[str, str] = Field(default_factory=dict)  # voice-sim: target, engines, pacing.
     sha256: str
 

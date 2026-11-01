@@ -112,7 +112,10 @@ class EvaluationLanguageSuite:
             context.run_key, case, language.turns, language.target_cefr
         )
         evaluator = LLMBackedEvaluator(
-            provider, context.prompts["evaluation"], context.feedback_language
+            provider,
+            context.prompts["evaluation"],
+            context.feedback_language,
+            passes=context.evaluation_passes,
         )
         return await evaluator.evaluate(session, case)
 

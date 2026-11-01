@@ -1,14 +1,22 @@
+import asyncio
 import json
-from dataclasses import replace
+from copy import deepcopy
+from dataclasses import dataclass, replace
 from typing import Any, cast
 
-from ari.application.contracts import ExecutionContext, LLMRequest
+from ari.application.contracts import ExecutionContext, LLMRequest, ProviderResult
 from ari.application.ports.evaluator import EvaluationOutcome
 from ari.application.ports.llm import LLMProvider
 from ari.application.prompting import VersionedPrompt
 from ari.application.schemas import EvaluationOutputSchema
 from ari.application.services.assessment import weighted_assessment
-from ari.application.services.language_errors import verify_code_switches, verify_language_errors
+from ari.application.services.language_errors import (
+    consolidate_code_switches,
+    consolidate_language_errors,
+    placed_errors,
+    verify_code_switches,
+    verify_language_errors,
+)
 from ari.application.services.next_actions import next_actions
 from ari.application.services.structure import first_delivery_turn, section_coverage
 from ari.domain.errors import ProviderError
@@ -17,6 +25,7 @@ from ari.domain.models import (
     ConversationSession,
     Evaluation,
     EvidenceObservation,
+    ExecutionRecord,
     ExecutionStatus,
     MedicalCase,
 )
@@ -60,13 +69,39 @@ def empathy_triggers(session: ConversationSession, case: MedicalCase) -> list[di
     return moments
 
 
+MAX_PASSES = 5
+
+
+@dataclass(frozen=True, slots=True)
+class _Pass:
+    """One independent evaluation of the session that passed the evidence guards."""
+
+    result: ProviderResult[EvaluationOutputSchema]
+    moments: list[dict[str, Any]]
+
+
 class LLMBackedEvaluator:
+    """Evaluates a session with the model.
+
+    With `passes` > 1 the model evaluates the session that many times, independently, and the
+    language errors and code switches are the ones a majority of passes report ("the LLM
+    proposes, the code decides"): one pass flips between reporting an error and missing it, so a
+    single run is not repeatable. Everything else comes from the first pass.
+    """
+
     def __init__(
-        self, provider: LLMProvider, prompt: VersionedPrompt, feedback_language: str
+        self,
+        provider: LLMProvider,
+        prompt: VersionedPrompt,
+        feedback_language: str,
+        passes: int = 1,
     ) -> None:
+        if not 1 <= passes <= MAX_PASSES:
+            raise ValueError(f"passes must be between 1 and {MAX_PASSES}")
         self._provider = provider
         self._prompt = prompt
         self._feedback_language = feedback_language
+        self._passes = passes
 
     async def evaluate(self, session: ConversationSession, case: MedicalCase) -> EvaluationOutcome:
         transcript = [
@@ -85,108 +120,108 @@ class LLMBackedEvaluator:
         ]
         moments = empathy_triggers(session, case)
         judgeable = {m["moment_id"]: m for m in moments if m["verdict"] == "pending"}
-        request = LLMRequest(
-            messages=(
-                {"role": "system", "content": self._prompt.content},
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        {
-                            "simulation_language": case.language,
-                            "feedback_language": self._feedback_language,
-                            "goal": {
-                                "exam": session.goal.target_exam,
-                                "cefr": session.goal.target_cefr.value,
-                            },
-                            "rubric": [
-                                {
-                                    "id": item.id,
-                                    "label": item.label,
-                                    "max_score": item.max_score,
-                                    "description": item.description,
-                                }
-                                for item in case.rubric
-                            ],
-                            "case_facts": [
-                                {
-                                    "id": fact.id,
-                                    "category": fact.category,
-                                    "value": fact.value,
-                                    "disclosure": fact.disclosure.value,
-                                }
-                                for fact in case.facts
-                            ],
-                            "transcript": transcript,
-                            "empathy_moments": [
-                                {
-                                    "id": m["moment_id"],
-                                    "trigger_turn": m["trigger_turn"],
-                                    "response_turn": m["response_turn"],
-                                    "cue": m["cue"],
-                                    "expected": m["expected"],
-                                }
-                                for m in judgeable.values()
-                            ],
+        messages = (
+            {"role": "system", "content": self._prompt.content},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "simulation_language": case.language,
+                        "feedback_language": self._feedback_language,
+                        "goal": {
+                            "exam": session.goal.target_exam,
+                            "cefr": session.goal.target_cefr.value,
                         },
-                        ensure_ascii=False,
-                    ),
-                },
-            ),
-            context=ExecutionContext(
-                session_id=session.id,
-                learner_id=session.learner_id,
-                operation="session_evaluation",
-                case_version=case.version,
-                case_hash=case.content_hash,
-                prompt_version=self._prompt.version,
-                prompt_hash=self._prompt.content_hash,
-            ),
-        )
-        result = await self._provider.generate_structured(request, EvaluationOutputSchema)
-
-        def reject(message: str) -> ProviderError:
-            return ProviderError(
-                message,
-                execution=replace(
-                    result.execution,
-                    status=ExecutionStatus.FAILED,
-                    error_code="structured_output_guard",
-                    error_message=message,
+                        "rubric": [
+                            {
+                                "id": item.id,
+                                "label": item.label,
+                                "max_score": item.max_score,
+                                "description": item.description,
+                            }
+                            for item in case.rubric
+                        ],
+                        "case_facts": [
+                            {
+                                "id": fact.id,
+                                "category": fact.category,
+                                "value": fact.value,
+                                "disclosure": fact.disclosure.value,
+                            }
+                            for fact in case.facts
+                        ],
+                        "transcript": transcript,
+                        "empathy_moments": [
+                            {
+                                "id": m["moment_id"],
+                                "trigger_turn": m["trigger_turn"],
+                                "response_turn": m["response_turn"],
+                                "cue": m["cue"],
+                                "expected": m["expected"],
+                            }
+                            for m in judgeable.values()
+                        ],
+                    },
+                    ensure_ascii=False,
                 ),
-            )
-
+            },
+        )
+        context = ExecutionContext(
+            session_id=session.id,
+            learner_id=session.learner_id,
+            operation="session_evaluation",
+            case_version=case.version,
+            case_hash=case.content_hash,
+            prompt_version=self._prompt.version,
+            prompt_hash=self._prompt.content_hash,
+        )
         valid_turns = {item.sequence for item in session.turns}
-        for observations in (
-            result.value.strengths,
-            result.value.priorities,
-            result.value.language_errors,
-            result.value.vocabulary_candidates,
-        ):
-            for observation in observations:
-                if set(observation.evidence_turn_sequences) - valid_turns:
-                    raise reject("Evaluation observation references an unknown transcript turn")
-        for code_switch in result.value.code_switches:
-            if code_switch.turn not in valid_turns:
-                raise reject("Code switch references an unknown transcript turn")
-        judged_ids = [judgement.moment_id for judgement in result.value.empathy]
-        if set(judged_ids) != set(judgeable) or len(judged_ids) != len(set(judged_ids)):
-            raise reject("Empathy judgements do not match the supplied moments")
-        for judgement in result.value.empathy:
-            moment = judgeable[judgement.moment_id]
-            if set(judgement.evidence_turn_sequences) - {
-                moment["trigger_turn"],
-                moment["response_turn"],
-            }:
-                raise reject("Empathy judgement references a turn outside the moment")
-            moment.update(
-                verdict=judgement.verdict,
-                feedback=judgement.feedback,
-                evidence_turn_sequences=sorted(judgement.evidence_turn_sequences),
+
+        async def run_pass(sample: int) -> _Pass:
+            pass_moments = deepcopy(moments)
+            pass_judgeable = {m["moment_id"]: m for m in pass_moments if m["verdict"] == "pending"}
+            request = LLMRequest(messages=messages, context=context, sample=sample)
+            result = await self._provider.generate_structured(request, EvaluationOutputSchema)
+            self._guard(result, valid_turns, pass_judgeable)
+            return _Pass(result, pass_moments)
+
+        outcomes = await asyncio.gather(
+            *(run_pass(sample) for sample in range(self._passes)), return_exceptions=True
+        )
+        passed = [item for item in outcomes if isinstance(item, _Pass)]
+        failures = [item for item in outcomes if isinstance(item, BaseException)]
+        for failure in failures:
+            if not isinstance(failure, ProviderError):
+                raise failure
+        if not passed:
+            first = cast(ProviderError, failures[0])
+            first.related_executions = tuple(
+                cast(ProviderError, item).execution for item in failures[1:]
             )
+            raise first
+        primary = passed[0]
+        result = primary.result
+        moments = primary.moments
+        extra_executions = tuple(item.result.execution for item in passed[1:]) + tuple(
+            cast(ExecutionRecord, cast(ProviderError, item).execution) for item in failures
+        )
 
         learner_text = {item.sequence: item.user_text for item in session.turns}
-        language_errors = verify_language_errors(result.value.language_errors, learner_text).kept
-        code_switches = verify_code_switches(result.value.code_switches, learner_text)
+        verdicts = [
+            verify_language_errors(item.result.value.language_errors, learner_text)
+            for item in passed
+        ]
+        verified_switches = [
+            verify_code_switches(item.result.value.code_switches, learner_text) for item in passed
+        ]
+        if len(passed) == 1:
+            language_errors = verdicts[0].kept
+            code_switches = verified_switches[0]
+        else:
+            language_errors = consolidate_language_errors(
+                [placed_errors(verdict) for verdict in verdicts]
+            )
+            code_switches = consolidate_code_switches(verified_switches, learner_text)
 
         revealed_fact_ids = frozenset(
             fact_id for turn in session.turns for fact_id in turn.revealed_fact_ids
@@ -237,7 +272,56 @@ class LLMBackedEvaluator:
         return EvaluationOutcome(
             evaluation=evaluation,
             execution=result.execution,
+            extra_executions=extra_executions,
             vocabulary_candidates=tuple(
                 item.model_dump() for item in result.value.vocabulary_candidates
             ),
         )
+
+    @staticmethod
+    def _guard(
+        result: ProviderResult[EvaluationOutputSchema],
+        valid_turns: set[int],
+        judgeable: dict[str, dict[str, Any]],
+    ) -> None:
+        """Reject an evaluation whose evidence does not match the session; fill the empathy
+        verdicts of `judgeable` from it."""
+
+        def reject(message: str) -> ProviderError:
+            return ProviderError(
+                message,
+                execution=replace(
+                    result.execution,
+                    status=ExecutionStatus.FAILED,
+                    error_code="structured_output_guard",
+                    error_message=message,
+                ),
+            )
+
+        for observations in (
+            result.value.strengths,
+            result.value.priorities,
+            result.value.language_errors,
+            result.value.vocabulary_candidates,
+        ):
+            for observation in observations:
+                if set(observation.evidence_turn_sequences) - valid_turns:
+                    raise reject("Evaluation observation references an unknown transcript turn")
+        for code_switch in result.value.code_switches:
+            if code_switch.turn not in valid_turns:
+                raise reject("Code switch references an unknown transcript turn")
+        judged_ids = [judgement.moment_id for judgement in result.value.empathy]
+        if set(judged_ids) != set(judgeable) or len(judged_ids) != len(set(judged_ids)):
+            raise reject("Empathy judgements do not match the supplied moments")
+        for judgement in result.value.empathy:
+            moment = judgeable[judgement.moment_id]
+            if set(judgement.evidence_turn_sequences) - {
+                moment["trigger_turn"],
+                moment["response_turn"],
+            }:
+                raise reject("Empathy judgement references a turn outside the moment")
+            moment.update(
+                verdict=judgement.verdict,
+                feedback=judgement.feedback,
+                evidence_turn_sequences=sorted(judgement.evidence_turn_sequences),
+            )

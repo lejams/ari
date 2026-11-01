@@ -9,6 +9,8 @@ class EvaluationOutcome:
     evaluation: Evaluation
     execution: ExecutionRecord
     vocabulary_candidates: tuple[dict[str, object], ...]
+    # The other passes of a multi-pass evaluation (and the failed ones): recorded for cost.
+    extra_executions: tuple[ExecutionRecord, ...] = ()
 
 
 class Evaluator(Protocol):

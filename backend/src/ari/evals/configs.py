@@ -63,6 +63,9 @@ class EvalConfig(BaseModel):
     # Which patient answers in patient-leakage: the training simulator or the exam chain.
     patient_engine: Literal["training", "exam"] = "training"
     feedback_language: str = "fr-FR"
+    # Independent evaluations per session (ARI_EVALUATION_PASSES). Production runs 3: a
+    # configuration that measures the single-pass evaluator says 1.
+    evaluation_passes: Annotated[int, Field(ge=1, le=5)] = 1
 
     @model_validator(mode="after")
     def routes_match_provider(self) -> EvalConfig:

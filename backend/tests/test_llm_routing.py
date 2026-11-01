@@ -8,6 +8,7 @@ the SDK, offline.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -226,6 +227,19 @@ async def test_the_evaluation_alone_gets_the_sampling_settings() -> None:
     evaluation, patient = completions.seen
     assert evaluation["reasoning_effort"] == "high" and evaluation["seed"] == 7
     assert "reasoning_effort" not in patient and "seed" not in patient
+
+
+async def test_each_pass_of_the_evaluation_shifts_the_seed() -> None:
+    completions = _Completions()
+    provider = _openai_with(completions, evaluation_seed=7)
+    for sample in (0, 1, 2):
+        with pytest.raises(ProviderError):
+            await provider.generate_structured(
+                replace(_request("session_evaluation"), sample=sample), _Answer
+            )
+    assert [seen["seed"] for seen in completions.seen] == [7, 8, 9]
+    # The configured seed itself is not changed by the shifts.
+    assert provider._evaluation_options["seed"] == 7
 
 
 async def test_without_sampling_settings_the_models_defaults_are_kept() -> None:

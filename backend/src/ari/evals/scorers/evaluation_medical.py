@@ -99,7 +99,10 @@ class EvaluationMedicalSuite:
             raise ValueError(f"{item.id}: unknown assessment items {sorted(unknown)}")
         session = session_from_transcript(context.run_key, case, medical.turns, medical.target_cefr)
         evaluator = LLMBackedEvaluator(
-            provider, context.prompts["evaluation"], context.feedback_language
+            provider,
+            context.prompts["evaluation"],
+            context.feedback_language,
+            passes=context.evaluation_passes,
         )
         return await evaluator.evaluate(session, case)
 

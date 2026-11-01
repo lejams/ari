@@ -129,6 +129,10 @@ class Settings(BaseSettings):
     # (the `stability` metric of ari.evals); the values are measured, not guessed.
     evaluation_reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
     evaluation_seed: int | None = None
+    # Independent evaluations of a session: the language errors and code switches kept are the
+    # ones most passes report, so the result does not flip from one run to the next. Each pass
+    # is one model call (the seed, when set, is shifted by the pass index).
+    evaluation_passes: int = Field(default=3, ge=1, le=5)
     anthropic_api_key: str | None = None
     anthropic_max_tokens: int = Field(default=16000, ge=1024)
     # None keeps the model's own default effort (high on Claude Sonnet 5.5).

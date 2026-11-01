@@ -104,6 +104,8 @@ def test_promotion_configurations_are_what_production_runs() -> None:
         assert "fact_attribution" not in config.routes
         assert _compose_default("ARI_FACT_ATTRIBUTION_MODEL") == ""
         assert set(config.prompts.values()) <= set(prompt_ids)
+        assert config.evaluation_passes == Settings.model_fields["evaluation_passes"].default
+        assert str(config.evaluation_passes) == _compose_default("ARI_EVALUATION_PASSES")
     engines = {load_config(CONFIGS / run.config)[0].patient_engine for run in PROMOTION_RUNS}
     assert engines == {"training", "exam"}
 
