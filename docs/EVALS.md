@@ -400,13 +400,25 @@ fragment et terme voulu de chaque alternance signalée.
 
 La cause plus profonde est la variation du modèle d'un appel à l'autre : l'appel d'évaluation
 n'imposait ni graine ni effort de raisonnement (réglages par défaut du modèle). Deux réglages
-production, appliqués à l'évaluation de session sur OpenAI seulement et vides par défaut :
+production, appliqués à l'évaluation de session sur OpenAI seulement :
 `ARI_EVALUATION_REASONING_EFFORT` (`minimal`, `low`, `medium`, `high`) et `ARI_EVALUATION_SEED`.
 Une route d'une configuration d'évaluation les porte (`reasoning_effort`, `seed`, visibles dans
-l'étiquette de la route du rapport). Les configurations `luna-eval-low|medium|high` (graine 7)
-servent à mesurer la stabilité sur le dev avec `evals-compare.yml` ; la valeur retenue sera
-celle de la configuration la moins chère qui passe tous les seuils, puis fixée dans
-`docker-compose.yml` (elle entre alors dans l'empreinte IA).
+l'étiquette de la route du rapport).
+
+Mesures sur le dev (luna, graine 7, `evaluation-v10`, 1er novembre 2026) :
+
+| | instabilité (≤ 0,10) | rappel global | précision globale | durée des 300 appels |
+|---|---|---|---|---|
+| sans réglage (référence) | 0,10 | 0,94 | 0,9965 | 18 min |
+| `low` | 0,10 | 0,93 | 0,995 | 10 min |
+| `medium` | **0,05** | 0,945 | 0,998 | 14 min |
+| `high` (1re mesure) | 0,08 | 0,95 | 1,00 | 34 min |
+| `high` (2e mesure) | **0,05** | 0,952 | 1,00 | 23 min |
+
+Une première mesure de la seconde série avait échoué pour crédit épuisé (appels en échec, rapport
+sans valeur) ; le diagnostic montre maintenant l'erreur du fournisseur. Retenu : `medium` avec la
+graine 7 (autant de stabilité que `high`, plus rapide), fixé dans `docker-compose.yml` (donc dans
+l'empreinte IA) et dans `evals/configs/luna.yaml`, la configuration de production du gate.
 
 Reste ouvert, à décider après mesure sur le split dev : une seconde passe de vérification par un
 modèle. Elle n'est pas écrite : elle coûte un appel de plus, et les mesures diront si les trois
