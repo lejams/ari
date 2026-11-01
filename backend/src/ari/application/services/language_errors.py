@@ -236,32 +236,44 @@ def consolidate_language_errors(
     error and sometimes does not, so what the evaluator reports changes from one run to the next;
     keeping what most passes see removes that noise without any new judgement by the code.
 
-    Votes are counted on the exact words each pass was given, per turn: the evidence kept is the
-    turns where a majority agree, and the category is the one most passes gave (the earliest pass
-    on a tie).
+    Votes are counted on the exact words each pass was given, per turn. The errors returned are
+    always one of the passes' own, whole: its quote and correction stand in every turn it cites,
+    so a turn a majority agrees on but that this pass did not cite is reported by another pass's
+    error (the category is the one most passes gave, the earliest pass on a tie). The same words
+    are never reported twice: a result that overlaps one already kept is dropped.
     """
     needed = majority(len(passes))
-    kept: list[tuple[Cell, LanguageErrorSchema]] = []
+    results: list[tuple[int, Cell, set[Cell], LanguageErrorSchema]] = []
     for members in _cluster(
         passes,
         lambda item: {c for turn, span in item.placed.items() for c in _cells_of(turn, span)},
     ):
         votes: Counter[int] = Counter()
-        for _, item in members:
-            votes.update(item.placed.keys())
-        supported = sorted(turn for turn, count in votes.items() if count >= needed)
-        if not supported:
+        for _, member in members:
+            votes.update(member.placed.keys())
+        remaining = {turn for turn, count in votes.items() if count >= needed}
+        counts = Counter(member.error.category for _, member in members)
+        ranked = sorted(
+            (member for _, member in members), key=lambda member: -counts[member.error.category]
+        )  # Stable: the earliest pass first among equal categories.
+        while remaining:
+            best = next((m for m in ranked if remaining & set(m.placed)), None)
+            if best is None:
+                break
+            turns = sorted(remaining & set(best.placed))
+            remaining -= set(turns)
+            cells = {c for turn in turns for c in _cells_of(turn, best.placed[turn])}
+            position = min((turn, best.placed[turn][0]) for turn in turns)
+            error = best.error.model_copy(update={"evidence_turn_sequences": turns})
+            results.append((votes[turns[0]], position, cells, error))
+    kept: list[tuple[Cell, LanguageErrorSchema]] = []
+    taken: set[Cell] = set()
+    # The best supported first, so that when results overlap the one most passes agree on stays.
+    for _, position, cells, error in sorted(results, key=lambda entry: (-entry[0], entry[1])):
+        if cells & taken:
             continue
-        counts = Counter(item.error.category for _, item in members)
-        top = max(counts.values())
-        chosen = next(item.error for _, item in members if counts[item.error.category] == top)
-        position = min(
-            (turn, span[0])
-            for _, item in members
-            for turn, span in item.placed.items()
-            if turn in supported
-        )
-        kept.append((position, chosen.model_copy(update={"evidence_turn_sequences": supported})))
+        taken |= cells
+        kept.append((position, error))
     return tuple(error for _, error in sorted(kept, key=lambda entry: entry[0]))
 
 
