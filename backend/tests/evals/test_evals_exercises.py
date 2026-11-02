@@ -268,3 +268,40 @@ def test_the_gates_file_has_thresholds_for_the_suite() -> None:
     assert thresholds["false_accept_rate"].max == 0.0
     assert suite.critical_outcomes == ["false_accept"]
     assert json.dumps(gates.version).startswith('"gates-v')
+
+
+def test_each_route_keeps_its_own_anthropic_settings() -> None:
+    from types import SimpleNamespace
+
+    from ari.infrastructure.exercises.models import ExerciseModelsConfig, _RoutedProvider
+
+    config = ExerciseModelsConfig.model_validate(
+        {
+            "id": "two-anthropic",
+            "description": "two routes of one vendor",
+            "provider": "live",
+            "routes": {
+                "author": {
+                    "provider": "anthropic",
+                    "model": "claude-haiku-5-5",
+                    "max_tokens": 1024,
+                    "effort": "low",
+                },
+                "checker": {
+                    "provider": "anthropic",
+                    "model": "claude-sonnet-5-5",
+                    "max_tokens": 16000,
+                    "effort": "high",
+                },
+            },
+            "prompts": {
+                "author": "exercise-author-v1",
+                "solver": "exercise-solver-v1",
+                "judge": "exercise-judge-v1",
+            },
+        }
+    )
+    settings = SimpleNamespace(openai_api_key=None, anthropic_api_key="test-key")
+    backends = _RoutedProvider(config, settings)._backends  # type: ignore[arg-type]
+    assert (backends["author"]._max_tokens, backends["author"]._effort) == (1024, "low")  # type: ignore[union-attr]
+    assert (backends["checker"]._max_tokens, backends["checker"]._effort) == (16000, "high")  # type: ignore[union-attr]

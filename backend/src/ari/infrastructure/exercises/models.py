@@ -141,29 +141,31 @@ class _RoutedProvider:
                 f"{', '.join(missing)} required for the routes "
                 f"({', '.join(f'{r}={x.label()}' for r, x in sorted(config.routes.items()))})"
             )
+        # One backend per role, so that each route keeps its own settings (token limit, effort)
+        # even when both roles use the same vendor.
         self._backends: dict[str, OpenAILLMProvider | AnthropicLLMProvider] = {}
-        if "openai" in providers:
-            model = config.routes.get("author", config.routes["checker"]).model
-            self._backends["openai"] = OpenAILLMProvider(
-                keys["openai"] or "",
-                patient_model=model,
-                evaluation_model=model,
-                patient_timeout_seconds=TIMEOUT_SECONDS,
-                evaluation_timeout_seconds=TIMEOUT_SECONDS,
-            )
-        if "anthropic" in providers:
-            anthropic_route = next(r for r in config.routes.values() if r.provider == "anthropic")
-            self._backends["anthropic"] = AnthropicLLMProvider(
-                keys["anthropic"] or "",
-                max_tokens=anthropic_route.max_tokens,
-                effort=anthropic_route.effort,
-            )
+        for role, route in config.routes.items():
+            if route.provider == "openai":
+                self._backends[role] = OpenAILLMProvider(
+                    keys["openai"] or "",
+                    patient_model=route.model,
+                    evaluation_model=route.model,
+                    patient_timeout_seconds=TIMEOUT_SECONDS,
+                    evaluation_timeout_seconds=TIMEOUT_SECONDS,
+                )
+            else:
+                self._backends[role] = AnthropicLLMProvider(
+                    keys["anthropic"] or "", max_tokens=route.max_tokens, effort=route.effort
+                )
 
     async def generate_structured[T: BaseModel](
         self, request: LLMRequest, response_model: type[T]
     ) -> ProviderResult[T]:
-        route = self._routes["author" if request.context.operation == OP_GENERATE else "checker"]
-        return await self._backends[route.provider].generate(
+        role: Literal["author", "checker"] = (
+            "author" if request.context.operation == OP_GENERATE else "checker"
+        )
+        route = self._routes[role]
+        return await self._backends[role].generate(
             request, response_model, model=route.model, timeout_seconds=TIMEOUT_SECONDS
         )
 
