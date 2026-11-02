@@ -260,27 +260,32 @@ class ExerciseChecker:
             )
         if not solver_accepts(candidate, solved):
             return CheckOutcome(False, "blind_solver", (), solved, None, tuple(executions))
-        judged, execution, failed = await _generate(
-            self._provider,
-            self._judge_prompt,
-            OP_JUDGE,
-            run_id,
-            content_hash,
-            {
-                "rubric_version": RUBRIC_VERSION,
-                "level": candidate.level,
-                "category": candidate.category,
-                "format": candidate.format,
-                "instruction_fr": candidate.instruction_fr,
-                "context_fr": candidate.context_fr,
-                "stem": candidate.stem,
-                "options": [{"index": i, "text": o} for i, o in enumerate(candidate.options)],
-                "key_index": candidate.answer_index,
-                "explanation_fr": candidate.explanation_fr,
-                "setting": candidate.setting,
-            },
-            JudgeSchema,
-        )
+        try:
+            judged, execution, failed = await _generate(
+                self._provider,
+                self._judge_prompt,
+                OP_JUDGE,
+                run_id,
+                content_hash,
+                {
+                    "rubric_version": RUBRIC_VERSION,
+                    "level": candidate.level,
+                    "category": candidate.category,
+                    "format": candidate.format,
+                    "instruction_fr": candidate.instruction_fr,
+                    "context_fr": candidate.context_fr,
+                    "stem": candidate.stem,
+                    "options": [{"index": i, "text": o} for i, o in enumerate(candidate.options)],
+                    "key_index": candidate.answer_index,
+                    "explanation_fr": candidate.explanation_fr,
+                    "setting": candidate.setting,
+                },
+                JudgeSchema,
+            )
+        except ProviderError as exc:
+            # The solver call was made and billed: it stays in the batch's history.
+            exc.related_executions = (*executions, *exc.related_executions)
+            raise
         executions.extend([*failed, execution])
         self._guard(execution)
         if not judged.approved:

@@ -170,6 +170,27 @@ async def test_a_provider_failure_is_retried_once_then_reported() -> None:
     assert Flaky.calls == 2
 
 
+async def test_a_judge_failure_keeps_the_solver_call_in_the_batch_history() -> None:
+    inner = ScriptedModels(
+        author=lambda r, p: {"exercises": [DRAFT]},
+        solver=solving_the_key(candidate(CLOZE)),
+        judge=judge_passes(),
+    )
+
+    class JudgeDown:
+        async def generate_structured(self, request: LLMRequest, schema: Any) -> Any:
+            if request.context.operation == OP_JUDGE:
+                raise ProviderError("down", execution=None)
+            return await inner.generate_structured(request, schema)
+
+    provider = JudgeDown()
+    factory = ExerciseFactory(ExerciseAuthor(provider, PROMPTS["author"]), checker_over(provider))
+    batch = await factory.run("b0", [(ExerciseSpec("B1", "gender", "cloze"), 1)])
+    assert [r.stage for r in batch.rejected] == ["error"]
+    # The solver answered and was billed before the judge failed: its call is still recorded.
+    assert sorted(c.operation for c in batch.calls) == sorted([OP_GENERATE, OP_SOLVE])
+
+
 def author_script(drafts: list[dict[str, Any]]) -> Any:
     def respond(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
         return {"exercises": drafts[: payload["count"]]}
