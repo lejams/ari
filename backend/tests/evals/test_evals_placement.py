@@ -35,16 +35,27 @@ def oracle(
     category: str | None = None,
     invent: bool = False,
     repeat: bool = False,
+    widen_every_other_call: bool = False,
 ) -> Any:
+    calls = {"n": 0}
     levels = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
     def respond(_request: Any, payload: dict[str, Any]) -> dict[str, Any]:
         item = BY_TRANSCRIPT[payload["transcript"]]
+        calls["n"] += 1
+        wide = widen_every_other_call and calls["n"] % 2 == 0
+
+        def quoted(e: Any) -> str:
+            if not wide:
+                return str(e.quote)
+            sentences = re.split(r"(?<=[.!?])\s+", item.transcript)
+            return next((s for s in sentences if e.quote in s), str(e.quote))
+
         errors = [
             {
                 "text": "Fehler",
                 "evidence_turn_sequences": [1],
-                "quote": e.quote,
+                "quote": quoted(e),
                 "correction": e.correction,
                 "category": category or e.category,
             }
@@ -131,6 +142,12 @@ async def test_a_repeated_real_quote_is_not_invented_evidence() -> None:
     report = await measure(oracle(repeat=True))
     assert report.metrics["language_overall.precision"] == 1.0
     assert report.metrics["invented_quote_rate"] == 0.0
+
+
+async def test_other_quote_boundaries_for_the_same_error_are_not_instability() -> None:
+    report = await measure(oracle(widen_every_other_call=True), split="holdout", gate=True)
+    assert report.metrics["language_overall.recall"] == 1.0
+    assert report.metrics["stability.changed_rate"] == 0.0
 
 
 async def test_the_level_is_judged_to_one_level() -> None:

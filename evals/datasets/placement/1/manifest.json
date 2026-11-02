@@ -25,7 +25,7 @@
   "files": {
     "cases.json": "88adf458b4aea8f635a96afa860e732670623be297d862d346d19c6ba832a77b",
     "dev.jsonl": "2c53013cdd57c971ebc19cf8c65c8ec53f4a7ee6bbabad495476fba664efa978",
-    "holdout.jsonl": "0fe8a0afe3187919c21d7080ad8dd1f47ee0a14ab9c7c1f7a919e01f57b55085"
+    "holdout.jsonl": "b66a5e31094be9aa501cfa34db502e38f9c16336cea31f69f4bc35c147dd5c2f"
   },
   "limitations": [
     "Énoncés allemands rédigés par l'agent et non relus par un germanophone : une phrase « correcte » qui contiendrait une vraie faute compterait comme fausse erreur du modèle.",

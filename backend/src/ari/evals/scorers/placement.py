@@ -145,6 +145,7 @@ class PlacementSuite:
         unmatched = list(injected)
         outcomes: set[str] = set()
         predicted: list[dict[str, object]] = []
+        identities: list[str] = []  # What each report stands for, whatever its quote boundaries.
         for reported in rating.language_errors:
             where = spans(reported.quote, spoken.transcript)
             match = next(
@@ -161,6 +162,7 @@ class PlacementSuite:
                 unmatched.remove(match)
                 count(f"lang.tp.{reported.category}")
                 verdict = "correct"
+                identities.append(f"hit:{injected.index(match)}")
             else:
                 count(f"lang.fp.{reported.category}")
                 outcomes.add("false_language_error")
@@ -168,6 +170,14 @@ class PlacementSuite:
                 if confused:
                     count("lang.confused")
                 verdict = "wrong_category" if confused else "no_injected_error_there"
+                where_wrong = next(
+                    (i for i, (_, e_where) in enumerate(truth_spans) if _overlap(where, e_where)),
+                    None,
+                )
+                identities.append(
+                    f"{verdict}:{reported.category}:"
+                    + (str(where_wrong) if where_wrong is not None else reported.quote)
+                )
             count("lang.reported")
             predicted.append(
                 {"category": reported.category, "quote": reported.quote, "verdict": verdict}
@@ -193,7 +203,7 @@ class PlacementSuite:
         if distance > 1:
             outcomes.add("level_off")
         signature = {
-            "errors": sorted(f"{p['category']}:{p['quote']}" for p in predicted),
+            "errors": sorted(identities),
             "level": rating.estimated_level,
         }
         return ItemScore(

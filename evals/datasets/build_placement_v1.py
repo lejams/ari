@@ -342,10 +342,10 @@ FAMILIES: dict[str, dict[str, Any]] = {
                 ),
                 (
                     "word_choice",
-                    "Meine Kollegen sprechen manchmal sehr schnell.",
-                    "Meine Kollegen sprechen manchmal sehr früh.",
-                    "sehr früh",
-                    "sehr schnell",
+                    "Jeden Morgen warte ich auf den Bus.",
+                    "Jeden Morgen warte ich für den Bus.",
+                    "für den Bus",
+                    "auf den Bus",
                 ),
                 (
                     "gender",
