@@ -1,6 +1,6 @@
 import {PracticeClient, phaseLabel, stateLabel, dimensionText, modeLabel} from './practice-client.mjs';
 import {LexiconClient, RATINGS, lexiconStateLabel, ratingLabel, sourceLabel} from './lexicon-client.mjs';
-import {PlacementClient, LEVEL_LABELS, PHASE_LABELS, describeResult} from './placement-client.mjs';
+import {PlacementClient, LEVEL_LABELS, PHASE_LABELS, describeResult, describeWeakPoints} from './placement-client.mjs';
 import {PcmRecorder} from './pcm-recorder.mjs';
 import {completedDayKeys, lastLocalDays, localDayKey, scrollDelta} from './calendar.mjs';
 import {clearFieldErrorOnInput, microphoneErrorMessage, validateFields} from './errors.mjs';
@@ -607,7 +607,7 @@ async function showPlacement() {
   $('placement-status').textContent = !overview.available ? 'Le test sera disponible dès qu’un jeu de questions aura été relu et publié.'
     : latest?.status === 'completed' ? `Dernière estimation : ${latest.result.band} (${new Date(latest.ended_at).toLocaleDateString('fr-FR')}). Vous pouvez refaire le test.`
     : latest?.status === 'active' ? `Un test est en cours (${PHASE_LABELS[latest.phase]}).`
-    : `Environ quinze minutes. Niveau de départ : ${overview.declared_level || 'A2'} (votre niveau déclaré).`;
+    : `Environ ${overview.duration_minutes || 10} minutes. Niveau de départ : ${overview.declared_level ? `${overview.declared_level} (votre niveau déclaré)` : overview.default_start_level || 'B1'}.`;
   placementAttempt = latest && latest.status === 'active' ? latest : null;
   view('placement');
 }
@@ -636,7 +636,7 @@ function renderPlacement(attempt) {
   const p = attempt.progress;
   $('placement-phase').textContent = `${PHASE_LABELS[attempt.phase]} · étape ${attempt.phase === 'mcq' ? 1 : attempt.phase === 'listening' ? 2 : 3} / 3`;
   $('placement-progress').textContent = attempt.phase === 'mcq' ? `Question ${p.mcq_answered + 1} · le test s’adapte à vos réponses, ${p.mcq_max} questions au plus`
-    : attempt.phase === 'listening' ? `Écoute ${p.listening_answered + 1} / ${p.listening_total} · deux écoutes maximum par extrait`
+    : attempt.phase === 'listening' ? `Écoute ${p.listening_answered + 1} / ${p.listening_total} · deux écoutes au plus par extrait`
     : `Prise de parole ${p.speaking_answered + 1} / ${p.speaking_total}`;
   $('placement-item').replaceChildren();
   const item = attempt.current_item;
@@ -672,10 +672,17 @@ function renderPlacementResult(attempt) {
   $('placement-band').textContent = `Niveau estimé : ${result.band}`;
   $('placement-band-label').textContent = LEVEL_LABELS[result.band] ? `Repère CECRL : ${LEVEL_LABELS[result.band]}.` : '';
   $('placement-detail').textContent = describeResult(result) + ` · ${result.mcq_answered} questions, ${result.listening_answered} écoutes, ${result.speaking_answered} prises de parole.`;
+  const weak = describeWeakPoints(result);
+  $('placement-weak').replaceChildren(...(weak.length ? [node('h3', 'À travailler en priorité'), node('p', 'Ce que le test a relevé en premier. Une indication pour choisir quoi travailler, pas un diagnostic.', 'help'), ...weak.map(point => {
+    const card = node('article', undefined, 'card'); card.append(node('h4', point.label), node('p', point.evidence, 'muted'));
+    for (const example of point.examples) { const line = node('p', `« ${example.quote} » → « ${example.correction} »`); line.lang = attempt.language.split('-')[0]; card.append(line); }
+    return card;
+  })] : []));
   $('placement-speaking-feedback').replaceChildren(...attempt.speaking_feedback.map(item => {
     const card = node('article', undefined, 'card'); card.append(node('h3', `Expression orale · ${item.estimated_level} (confiance ${Math.round(item.confidence * 100)} %)`));
     const quote = node('blockquote', item.transcript); quote.lang = attempt.language.split('-')[0]; card.append(quote);
     for (const observation of item.observations) card.append(node('p', observation, 'muted'));
+    for (const error of item.language_errors || []) { const line = node('p', `« ${error.quote} » → « ${error.correction} » : ${error.text}`, 'muted'); line.lang = attempt.language.split('-')[0]; card.append(line); }
     return card;
   }));
 }
@@ -716,6 +723,7 @@ $('case-search').oninput=renderCatalog;$('case-filter').onchange=renderCatalog;$
 $('warmup-start').onclick=()=>perform(startSelected);
 $('placement-start').onclick=()=>perform(()=>startPlacement(false));
 $('placement-resume').onclick=()=>perform(()=>startPlacement(true));
+$('placement-report').onclick=()=>{const attempt=placementAttempt;if(!attempt?.current_item)return;perform(async()=>{await placement.report(attempt,attempt.current_item.id,'');$('notice').textContent='Merci : cette question sera relue.';});};
 $('placement-again').onclick=()=>perform(()=>startPlacement(false));
 $('placement-choice-form').onsubmit=event=>{event.preventDefault();const chosen=document.querySelector('[name=placement-option]:checked');if(!chosen){$('notice').textContent='Choisissez une réponse.';return;}const attempt=placementAttempt;perform(async()=>placementStep(await placement.answer(attempt,attempt.current_item.id,Number(chosen.value))));};
 $('placement-record').onclick=()=>perform(toggleRecording);

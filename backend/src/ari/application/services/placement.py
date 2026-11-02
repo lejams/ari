@@ -15,22 +15,20 @@ from datetime import datetime
 from hashlib import sha256
 from typing import Any
 
-from ari.application.contracts import ExecutionContext, LLMRequest, TranscriptionConfig
+from ari.application.contracts import ExecutionContext, TranscriptionConfig
 from ari.application.ports.llm import LLMProvider
 from ari.application.ports.placement import PlacementAttemptRepository, PlacementCatalog
 from ari.application.ports.repository import SessionRepository
 from ari.application.ports.stt import UtteranceTranscriber
 from ari.application.ports.tts import StreamingTTSProvider
 from ari.application.prompting import VersionedPrompt
-from ari.application.schemas import SpeakingRatingSchema
+from ari.application.services.placement_speaking import rate_spoken_task
 from ari.domain.errors import InvalidStateError, NotFoundError, ProviderError
 from ari.domain.models import CEFRLevel, ExecutionRecord, new_id, utc_now
 from ari.domain.placement import (
     LEVELS,
-    LISTENING_ITEMS,
-    PLACEMENT_METHOD,
-    STAIRCASE_MAX_ITEMS,
-    STAIRCASE_MAX_REVERSALS,
+    METHOD_V1,
+    METHOD_V2,
     ListeningItem,
     McqItem,
     PlacementAttempt,
@@ -42,9 +40,8 @@ from ari.domain.placement import (
     listening_level,
     next_level,
     shift_level,
+    weak_points,
 )
-
-DEFAULT_START_LEVEL = "A2"
 
 
 def _execution_summary(execution: ExecutionRecord) -> dict[str, Any]:
@@ -96,7 +93,7 @@ class PlacementService:
         latest = attempts[0] if attempts else None
         return {
             "available": placement_set is not None,
-            "method": PLACEMENT_METHOD,
+            "method": (placement_set.method if placement_set else METHOD_V2).method,
             "set": self._set_summary(placement_set) if placement_set else None,
             "latest": self.public_attempt(latest) if latest else None,
             "estimated_level": (
@@ -108,6 +105,12 @@ class PlacementService:
             "declared_level": (
                 learner.details.declared_level.value if learner.details.declared_level else None
             ),
+            "duration_minutes": (
+                placement_set.method if placement_set else METHOD_V2
+            ).duration_minutes,
+            "default_start_level": (
+                placement_set.method if placement_set else METHOD_V2
+            ).default_start,
             "limitations": (
                 "Niveau estimé par un test court : QCM adaptatif, écoute, deux productions "
                 "orales notées automatiquement. Ce n'est ni un certificat ni le niveau requis "
@@ -125,9 +128,11 @@ class PlacementService:
             "title": placement_set.title,
             "description_fr": placement_set.description_fr,
             "mcq_items": len(placement_set.mcq_items),
-            "listening_items": min(LISTENING_ITEMS, len(placement_set.listening_items)),
+            "listening_items": min(
+                placement_set.method.listening_items, len(placement_set.listening_items)
+            ),
             "speaking_items": len(placement_set.speaking_items),
-            "max_mcq": STAIRCASE_MAX_ITEMS,
+            "max_mcq": placement_set.method.max_items,
         }
 
     def _pinned_set(self, attempt: PlacementAttempt) -> PlacementSetVersion:
@@ -138,6 +143,26 @@ class PlacementService:
 
     def get(self, learner_id: str, attempt_id: str) -> dict[str, Any]:
         return self.public_attempt(self.attempts.get(attempt_id, learner_id))
+
+    MAX_REPORT_NOTE = 500
+
+    def report_item(
+        self, learner_id: str, attempt_id: str, item_id: str, note: str = ""
+    ) -> dict[str, Any]:
+        """Flag an item the learner has met as wrong. The set is pinned, so the report names it."""
+        attempt = self.attempts.get(attempt_id, learner_id)
+        seen = {*attempt.state.get("presented", []), attempt.state.get("current_item")}
+        if item_id not in seen:
+            raise NotFoundError("Question inconnue pour ce test")
+        self.store.record_item_report(
+            attempt.set_id,
+            attempt.set_version,
+            item_id=item_id,
+            learner_id=learner_id,
+            attempt_id=attempt_id,
+            note=note.strip()[: self.MAX_REPORT_NOTE],
+        )
+        return {"reported": True}
 
     # ----- start ---------------------------------------------------------------------
 
@@ -151,7 +176,8 @@ class PlacementService:
         learner = self._learners.get_learner(learner_id)
         available = placement_set.mcq_levels()
         declared = learner.details.declared_level
-        start = shift_level(declared.value if declared else DEFAULT_START_LEVEL, 0, available)
+        method = placement_set.method
+        start = shift_level(declared.value if declared else method.default_start, 0, available)
         attempt_id = new_id()
         order = {
             level: self._shuffled(
@@ -160,7 +186,7 @@ class PlacementService:
             for level in available
         }
         state: dict[str, Any] = {
-            "method": PLACEMENT_METHOD,
+            "method": method.method,
             "level": start,
             "start_level": start,
             "streak_correct": 0,
@@ -210,7 +236,7 @@ class PlacementService:
         presented = set(state["presented"])
         for item_id in state["order"].get(state["level"], []):
             if item_id not in presented:
-                return item_id
+                return str(item_id)
         return None
 
     # ----- answers -------------------------------------------------------------------
@@ -231,7 +257,13 @@ class PlacementService:
         if attempt.phase == "mcq":
             item = self._mcq(placement_set, item_id)
             correct = option_index == item.answer_index
-            payload = {"option_index": option_index, "correct": correct, "level": item.level}
+            payload: dict[str, Any] = {
+                "option_index": option_index,
+                "correct": correct,
+                "level": item.level,
+            }
+            if item.category is not None:
+                payload["category"] = item.category
             next_phase = self._advance_mcq(state, placement_set, item, correct)
         else:
             listening = self._listening(placement_set, item_id)
@@ -273,8 +305,8 @@ class PlacementService:
         state.update(level=level, streak_correct=streak_correct, streak_wrong=streak_wrong)
         next_item = self._pick_mcq(state, available)
         finished = (
-            len(state["presented"]) >= STAIRCASE_MAX_ITEMS
-            or state["reversals"] >= STAIRCASE_MAX_REVERSALS
+            len(state["presented"]) >= placement_set.method.max_items
+            or state["reversals"] >= placement_set.method.max_reversals
             or next_item is None
         )
         if not finished:
@@ -290,7 +322,7 @@ class PlacementService:
             key=lambda i: (abs(level_index(i.level) - level_index(level)), i.level, i.id),
         )
         # Two at the estimated level when possible, then the nearest neighbours.
-        chosen = [i.id for i in by_distance][:LISTENING_ITEMS]
+        chosen = [i.id for i in by_distance][: placement_set.method.listening_items]
         state["listening_ids"] = self._shuffled(state["start_level"] + level, chosen)
         state["listening_correct"] = 0
         if not state["listening_ids"]:
@@ -411,6 +443,8 @@ class PlacementService:
                 "estimated_level": rating["estimated_level"],
                 "confidence": rating["confidence"],
                 "observations": rating["observations"],
+                "language_errors": rating["language_errors"],
+                "dropped_errors": rating["dropped_errors"],
                 "executions": executions,
             },
             state=state,
@@ -427,32 +461,32 @@ class PlacementService:
         transcript: str,
         context: ExecutionContext,
     ) -> dict[str, Any]:
-        request = LLMRequest(
-            messages=(
-                {"role": "system", "content": self._prompt.content},
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        {
-                            "test_language": placement_set.language,
-                            "feedback_language": self._feedback_language,
-                            "task": item.prompt_target,
-                            "task_level_hint": item.level_hint,
-                            "target_seconds": item.target_seconds,
-                            "transcript": transcript,
-                        },
-                        ensure_ascii=False,
-                    ),
-                },
-            ),
+        rating = await rate_spoken_task(
+            self._llm,
+            self._prompt,
+            test_language=placement_set.language,
+            feedback_language=self._feedback_language,
+            task=item.prompt_target,
+            task_level_hint=item.level_hint,
+            target_seconds=item.target_seconds,
+            transcript=transcript,
             context=context,
         )
-        result = await self._llm.generate_structured(request, SpeakingRatingSchema)
         return {
-            "estimated_level": result.value.estimated_level,
-            "confidence": result.value.confidence,
-            "observations": list(result.value.observations),
-            "execution": result.execution,
+            "estimated_level": rating.estimated_level,
+            "confidence": rating.confidence,
+            "observations": rating.observations,
+            "language_errors": [
+                {
+                    "category": error.category,
+                    "quote": error.quote,
+                    "correction": error.correction,
+                    "text": error.text,
+                }
+                for error in rating.language_errors
+            ],
+            "dropped_errors": rating.proposed_errors - len(rating.language_errors),
+            "execution": rating.execution,
         }
 
     # ----- audio ---------------------------------------------------------------------
@@ -528,8 +562,9 @@ class PlacementService:
         speaking = LEVELS[min(level_index(r["level"]) for r in ratings)] if ratings else None
         confidence = sum(r["confidence"] for r in ratings) / len(ratings) if ratings else 0.0
         overall, counted = band(vocab_grammar, listening, speaking, confidence)
+        method = state.get("method") or METHOD_V1.method
         result = {
-            "method": PLACEMENT_METHOD,
+            "method": method,
             "state": "estimated",
             "vocab_grammar_level": vocab_grammar,
             "listening_level": listening,
@@ -542,6 +577,20 @@ class PlacementService:
             "speaking_answered": len(ratings),
             "start_level": state.get("start_level"),
         }
+        if method == METHOD_V2.method:
+            result["weak_points"] = weak_points(
+                [
+                    (a["category"], bool(a["correct"]))
+                    for a in attempt.answers
+                    if a["phase"] == "mcq" and a.get("category")
+                ],
+                [
+                    error
+                    for a in attempt.answers
+                    if a["phase"] == "speaking"
+                    for error in a.get("language_errors", [])
+                ],
+            )
         finished = self.attempts.finish(attempt_id, learner_id, result)
         learner = self._learners.get_learner(learner_id)
         self._learners.update_learner(
@@ -605,10 +654,10 @@ class PlacementService:
             },
             "progress": {
                 "mcq_answered": mcq_answered,
-                "mcq_max": STAIRCASE_MAX_ITEMS,
+                "mcq_max": placement_set.method.max_items,
                 "listening_answered": sum(1 for a in attempt.answers if a["phase"] == "listening"),
                 "listening_total": len(state.get("listening_ids", []))
-                or min(LISTENING_ITEMS, len(placement_set.listening_items)),
+                or min(placement_set.method.listening_items, len(placement_set.listening_items)),
                 "speaking_answered": sum(1 for a in attempt.answers if a["phase"] == "speaking"),
                 "speaking_total": len(state.get("speaking_ids", [])),
             },
@@ -620,6 +669,7 @@ class PlacementService:
                     "estimated_level": a["estimated_level"],
                     "confidence": a["confidence"],
                     "observations": a["observations"],
+                    "language_errors": a.get("language_errors", []),
                 }
                 for a in attempt.answers
                 if a["phase"] == "speaking"

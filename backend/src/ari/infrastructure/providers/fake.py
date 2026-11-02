@@ -343,20 +343,42 @@ class FakeLLMProvider:
             "empathy": empathy[:8],
         }
 
+    # Known slips that the fake finds in a transcript (the real model proposes, the code checks).
+    _SPOKEN_SLIPS = (
+        ("ich habe gegangen", "ich bin gegangen", "verb_form"),
+        ("dem familie", "der Familie", "gender"),
+        ("mich hilft", "mir hilft", "case"),
+        ("ich bin gehe", "ich gehe", "verb_form"),
+    )
+
     @staticmethod
     def _speaking(payload: dict[str, object]) -> dict[str, object]:
         """Deterministic: a longer connected production rates B2 with confidence, else B1."""
-        words = len(str(payload.get("transcript", "")).split())
+        transcript = str(payload.get("transcript", ""))
+        words = len(transcript.split())
+        errors = [
+            {
+                "text": "Erreur fictive repérée par le fake.",
+                "evidence_turn_sequences": [1],
+                "quote": quote,
+                "correction": correction,
+                "category": category,
+            }
+            for quote, correction, category in FakeLLMProvider._SPOKEN_SLIPS
+            if quote in transcript.casefold()
+        ]
         if words >= 40:
             return {
                 "estimated_level": "B2",
                 "confidence": 0.8,
                 "observations": ["Production fictive longue : niveau B2 attribué par le fake."],
+                "language_errors": errors,
             }
         return {
             "estimated_level": "B1",
             "confidence": 0.5,
             "observations": ["Production fictive courte : niveau B1 attribué par le fake."],
+            "language_errors": errors,
         }
 
 

@@ -9,7 +9,7 @@
 # - une seule NOUVELLE erreur critique (absente de la baseline) bloque, quelle que soit la moyenne.
 #   Les types d'erreur critiques sont listés par suite dans `critical_outcomes`.
 
-version: gates-v5
+version: gates-v6
 repetitions: 3  # Un run gate répète chaque item 3 fois (stabilité, intervalles).
 
 suites:
@@ -123,6 +123,38 @@ suites:
         source: "plan : structure exploitable après un retry ≥ 99,5 %"
     # Critique = marqué `critical` par le médecin dans son annotation, jamais décidé par le code.
     critical_outcomes: [missed_critical_medical_error]
+
+  # Test de niveau, partie orale (2 novembre 2026). Seuils initiaux : ceux du plan pour les erreurs
+  # de langue, appliqués à l'ensemble des catégories (le jeu est petit : 45 transcripts), plus deux
+  # seuils propres au test. À recalibrer après la première mesure sur les vrais modèles ; aucune
+  # mesure réelle n'existe encore (voir docs/EVALS.md).
+  placement@1:
+    thresholds:
+      - metric: language_overall.precision
+        min: 0.85
+        source: "plan : erreurs de langue, précision ≥ 0,85 (appliquée à toutes les catégories)"
+      - metric: language_overall.recall
+        min: 0.70
+        source: "plan : erreurs de langue, rappel ≥ 0,70 (appliqué à toutes les catégories)"
+      - metric: invented_quote_rate
+        max: 0.02
+        source: "plan : hallucination de preuve ≤ 2 % (citation absente de la transcription, écartée par le code)"
+      - metric: weak_point.precision.all
+        min: 0.85
+        source: "à valider : un point faible affiché à tort envoie l'apprenant travailler la mauvaise chose"
+      - metric: weak_point.recall.all
+        min: 0.70
+        source: "à valider : même seuil que le rappel des erreurs de langue"
+      - metric: level.within_one
+        min: 0.90
+        source: "à valider : niveau estimé à un niveau près du niveau du texte, sur 90 % des transcripts"
+      - metric: stability.changed_rate
+        max: 0.10
+        source: "plan : ≤ 10 % de verdicts changeants sur 3 répétitions"
+      - metric: structured_after_retry
+        min: 0.995
+        source: "plan : structure exploitable après un retry ≥ 99,5 %"
+    critical_outcomes: []
 
   voice-sim@1:
     thresholds:

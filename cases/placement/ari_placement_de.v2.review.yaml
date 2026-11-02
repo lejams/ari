@@ -1,0 +1,17 @@
+# Revue du jeu ari-placement-de@2 par un juge LLM aux consignes strictes (décision D3 du 2 novembre 2026).
+# Grille `placement-grid-v1` (docs/PLACEMENT_REVIEW.md), verdicts item par item : docs/reviews/placement-de-v2-juge.md.
+# Valable pour ce hash seulement : un caractère modifié dans le jeu exige une nouvelle relecture.
+id: review-ari-placement-de-2-juge-llm
+set: {id: ari-placement-de, version: "2"}
+set_hash: 241e17293006b44c0af507bcb975fe2557f53e3d207dd22fea36bf9ce91c84cd
+review_type: linguistic
+reviewer_name: "claude-opus-5-5 · placement-grid-v1 (juge LLM, pas une personne)"
+reviewed_at: "2026-11-02T20:38:00+00:00"
+decision: approve
+notes: >-
+  41 éléments sur 41 ok (8 QCM A2, 8 B1, 8 B2, 8 C1, 7 écoutes, 2 consignes orales) après trois tours de
+  corrections. Chaque QCM a une seule réponse correcte (résolution à l'aveugle puis relecture avec la
+  clé), l'allemand est correct, les catégories sont justes, aucun savoir médical n'est requis. Sept
+  écarts de niveau d'un cran signalés sans blocage : b1-1, b1-2, b1-7 plutôt A2 ; c1-1, c1-2, c1-8,
+  l-c1-2 plutôt B2. Limite : relecture par un modèle, pas par une personne de langue allemande, et
+  aucun étalonnage psychométrique.

@@ -6,8 +6,14 @@ from ari.evals.scorers import Suite
 from ari.evals.scorers.evaluation_language import EvaluationLanguageSuite
 from ari.evals.scorers.evaluation_medical import EvaluationMedicalSuite
 from ari.evals.scorers.patient_leakage import PatientLeakageSuite
+from ari.evals.scorers.placement import PlacementSuite
 
 SUITES: dict[str, Suite] = {
     suite.name: suite
-    for suite in (PatientLeakageSuite(), EvaluationLanguageSuite(), EvaluationMedicalSuite())
+    for suite in (
+        PatientLeakageSuite(),
+        EvaluationLanguageSuite(),
+        EvaluationMedicalSuite(),
+        PlacementSuite(),
+    )
 }

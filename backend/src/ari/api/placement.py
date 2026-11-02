@@ -28,6 +28,11 @@ class AnswerPlacement(PlacementRequest):
     option_index: Annotated[int, Field(ge=0, le=3)]
 
 
+class ReportItem(PlacementRequest):
+    item_id: Identifier
+    note: Annotated[str, Field(max_length=500)] = ""
+
+
 def wav_bytes(pcm16: bytes, sample_rate: int) -> bytes:
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as container:
@@ -54,6 +59,10 @@ def placement_router(services: Container) -> APIRouter:
     @router.get("/api/placement/attempts/{attempt_id}")
     def get(attempt_id: str, request: Request) -> dict[str, Any]:
         return placement.get(request.state.learner_id, attempt_id)
+
+    @router.post("/api/placement/attempts/{attempt_id}/report")
+    def report(attempt_id: str, body: ReportItem, request: Request) -> dict[str, Any]:
+        return placement.report_item(request.state.learner_id, attempt_id, body.item_id, body.note)
 
     @router.post("/api/placement/attempts/{attempt_id}/answers")
     def answer(attempt_id: str, body: AnswerPlacement, request: Request) -> dict[str, Any]:
