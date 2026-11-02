@@ -10,6 +10,17 @@ class PlacementCatalog(Protocol):
 
     def get(self, set_id: str, version: str) -> tuple[PlacementSetVersion, str]: ...
 
+    def record_item_report(
+        self,
+        set_id: str,
+        version: str,
+        *,
+        item_id: str,
+        learner_id: str,
+        attempt_id: str,
+        note: str,
+    ) -> None: ...
+
 
 class PlacementAttemptRepository(Protocol):
     def get(self, attempt_id: str, learner_id: str) -> PlacementAttempt: ...

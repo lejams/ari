@@ -22,6 +22,7 @@ pour les autres. Le seul modèle appelé est celui de la configuration testée.
 | `evaluation-language@3` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v10`, vote sur 3 passes) | idem `@2` | 250 transcripts synthétiques : tout `@2` en dev (175), holdout neuf de trois familles (75 : genou, diarrhée, éruption cutanée) |
 | `evaluation-language@2` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v10`) | erreurs injectées : genre, cas, forme verbale, ordre des mots, choix du mot, registre ; mot français ; artefact de transcription ; section oubliée ; formulations correctes mais inhabituelles | 175 transcripts synthétiques (100 dev, 75 holdout) |
 | `evaluation-language@1` | idem (version 1, gardée pour mémoire, plus exigée) | genre, cas, forme verbale, ordre des mots ; mot français ; artefact ; section oubliée | 120 transcripts (90 dev, 30 holdout) |
+| `placement@1` | la notation de l'oral du test de niveau : `rate_spoken_task` (prompt `placement-speaking-v2`, route `patient`), avec la vérification des citations par le code, puis le calcul des points faibles par `weak_points` | erreurs injectées (catégorie, citation, correction) et niveau du texte (B1, B2, C1) | 45 transcripts synthétiques de six phrases : 3 sujets (2 en dev, 1 en holdout), 3 niveaux, 5 variantes (sans erreur, deux paires, trois catégories, toutes) |
 | `evaluation-medical@1` | l'évaluateur réel | omissions exigibles et erreurs médicales relevées par le médecin | **en attente du médecin** (section 6 du plan) |
 | `voice-snippets@1` | la voix ElevenLabs de chaque persona sur des phrases fixes, puis le STT | termes critiques de chaque phrase (chiffres, doses, termes) | 33 phrases de patient en allemand |
 | `voice-sim@1` | toute la chaîne vocale, de bout en bout : sockets, segmentation de la parole, STT, patient, voix, accusés de lecture, évaluation finale | faits demandés par chaque question du script | 1 script de 12 questions sur le cas `ARI-DEV-FR` |
@@ -471,7 +472,7 @@ ne sert pas à itérer.
 
 ## 7. Seuils et erreurs critiques
 
-`evals/gates.yaml` (version `gates-v5`) reprend les seuils du plan :
+`evals/gates.yaml` (version `gates-v6`) reprend les seuils du plan :
 
 | Mesure | Seuil |
 |---|---|
@@ -551,7 +552,7 @@ politique change, détecté par empreinte. Code : `backend/src/ari/evals/promoti
 Une voix, une clé, un délai ou un fichier sans rapport ne la changent pas.
 
 **Runs exigés** (`PROMOTION_RUNS`) : `patient-leakage@1` sur `luna.yaml` (entraînement) et
-`luna-exam.yaml` (chaîne d'examen), `evaluation-language@3` sur `luna.yaml`. Tous sur le holdout,
+`luna-exam.yaml` (chaîne d'examen), `evaluation-language@3` et `placement@1` sur `luna.yaml`. Tous sur le holdout,
 en mode gate, sur les vrais modèles. Un test vérifie que ces configurations ont les modèles, les
 fournisseurs et les prompts de production. `evaluation-medical@1` s'y ajoutera avec les annotations
 du médecin, `voice-sim@1` avec sa cible staging.
@@ -582,3 +583,31 @@ Conséquences :
 - les seuils sont ceux du plan, à recalibrer après la première mesure. Si le gate échoue sur les
   vrais modèles, aucune mise en production n'est possible tant que la qualité ou les seuils ne
   sont pas revus.
+
+## 11. Suite `placement@1` (2 novembre 2026)
+
+Elle mesure ce que le test de niveau fait du modèle : le niveau estimé pour une prise de parole, les
+erreurs de langue citées, et les points faibles que l'application en tire. Le texte est écrit à un
+niveau connu, avec des erreurs injectées à des endroits connus : `evals/datasets/build_placement_v1.py`
+(déterministe, un test reconstruit les fichiers).
+
+- Une erreur signalée est juste quand elle a la catégorie injectée et que sa citation recouvre les
+  mots de la citation injectée. Une citation absente du texte est écartée par le code et comptée
+  (`invented_quote_rate`) : le modèle en répond même si le code protège l'apprenant.
+- Les points faibles ne sont pas demandés au modèle : la suite compare les catégories que
+  l'application afficherait (`weak_points`) à celles que les erreurs injectées appellent
+  (`weak_point.precision.all` et `.recall.all`).
+- Le niveau est jugé à un niveau près (`level.within_one`), le niveau exact est seulement rapporté :
+  les erreurs injectées peuvent faire baisser l'estimation d'un cran.
+- Seuils de `gates-v6` : précision ≥ 0,85, rappel ≥ 0,70 (toutes catégories ensemble, le jeu est
+  petit), citation inventée ≤ 2 %, précision et rappel des points faibles ≥ 0,85 et ≥ 0,70, niveau
+  à un cran près ≥ 90 %, stabilité et structure comme les autres suites.
+
+**Aucune mesure sur les vrais modèles n'existe encore.** Les seuils sont ceux du plan pour les
+erreurs de langue, reportés ici faute de mieux ; les deux seuils propres au test (points faibles,
+niveau) sont à valider par le propriétaire. Le jeu est petit (15 transcripts en holdout, un seul
+sujet sans erreur de cas ni de registre) : il vérifie la chaîne et les ordres de grandeur. Comme le
+prompt `placement-speaking-v2` change l'empreinte IA, la promotion suivante exige un run
+`Evals on real models` complet (les quatre runs de la section 10). Sur le fournisseur simulé
+(`make evals-fake`), le niveau passe et les erreurs ne sont pas trouvées : le fake ne sait repérer que
+quelques fautes connues, la chaîne seule est vérifiée.

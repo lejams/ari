@@ -43,7 +43,11 @@ from ari.evals.report import (
 from ari.evals.scorers import CallRecord, EvalItem, RecordingProvider, RunContext, Suite
 
 # Operation that each prompt role's calls carry, to name the producer of observations.
-ROLE_OPERATIONS = {"patient": "patient_simulation", "evaluation": "session_evaluation"}
+ROLE_OPERATIONS = {
+    "patient": "patient_simulation",
+    "evaluation": "session_evaluation",
+    "placement_speaking": "placement_speaking",
+}
 ATTEMPTS = 2  # One retry.
 
 

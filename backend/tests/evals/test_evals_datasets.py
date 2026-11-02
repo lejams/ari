@@ -22,6 +22,7 @@ COMMITTED = [
     ("evaluation-language", "1"),
     ("evaluation-language", "2"),
     ("evaluation-language", "3"),
+    ("placement", "1"),
 ]
 
 
@@ -66,7 +67,13 @@ def test_every_repository_dataset_is_synthetic() -> None:
 
 
 def test_the_build_script_reproduces_the_committed_files(tmp_path: Path) -> None:
-    for script in ("build_synthetic_v1.py", "build_synthetic_v2.py", "build_synthetic_v3.py"):
+    scripts = (
+        "build_synthetic_v1.py",
+        "build_synthetic_v2.py",
+        "build_synthetic_v3.py",
+        "build_placement_v1.py",
+    )
+    for script in scripts:
         runpy.run_path(str(DATASETS / script))["main"](tmp_path)
     for suite, version in COMMITTED:
         for name in ("manifest.json", "cases.json", "dev.jsonl", "holdout.jsonl"):

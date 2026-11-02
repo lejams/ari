@@ -10,7 +10,7 @@ from datetime import datetime
 from statistics import median_low
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import Field, model_validator
+from pydantic import Field, SerializerFunctionWrapHandler, model_serializer, model_validator
 
 from ari.domain.clinical import (
     ClinicalModel,
@@ -26,16 +26,58 @@ from ari.domain.models import utc_now
 
 Level = Literal["A1", "A2", "B1", "B2", "C1", "C2"]
 LEVELS: tuple[str, ...] = ("A1", "A2", "B1", "B2", "C1", "C2")
-REQUIRED_LEVELS: tuple[str, ...] = ("A1", "A2", "B1", "B2")
-PLACEMENT_METHOD = "placement-staircase-v1"
+REQUIRED_LEVELS: tuple[str, ...] = ("A1", "A2", "B1", "B2")  # placement-set-v1
+# placement-set-v2 targets learners from B1 to C1; A2 is the probe for "below B1".
+REQUIRED_LEVELS_V2: tuple[str, ...] = ("A2", "B1", "B2", "C1")
+LISTENING_LEVELS_V2: tuple[str, ...] = ("B1", "B2", "C1")
+MCQ_PER_LEVEL_V2 = 8
+MCQ_PER_CATEGORY_V2 = 4
 
-# Staircase parameters (documented in docs/CLINICAL_CASES.md).
-STAIRCASE_MAX_ITEMS = 14
-STAIRCASE_MAX_REVERSALS = 3
-STAIRCASE_STREAK = 2
-ESTIMATE_WINDOW = 6
-LISTENING_ITEMS = 4
+# Closed list shared with the session evaluator (`LANGUAGE_ERROR_CATEGORIES` without `other`,
+# which is not a thing to practise).
+PlacementCategory = Literal["gender", "case", "verb_form", "word_order", "word_choice", "register"]
+PLACEMENT_CATEGORIES: tuple[str, ...] = (
+    "gender",
+    "case",
+    "verb_form",
+    "word_order",
+    "word_choice",
+    "register",
+)
+
 SPEAKING_MIN_CONFIDENCE = 0.6
+ESTIMATE_WINDOW = 6
+STAIRCASE_STREAK = 2
+BLANK = "___"
+
+# Weak points (v2): a category is reported when the learner missed at least half of its written
+# items (two answered at least) or made at least two verified spoken errors in it.
+WEAK_MIN_WRITTEN_ITEMS = 2
+WEAK_WRITTEN_ERROR_RATE = 0.5
+WEAK_SPOKEN_ERRORS = 2
+MAX_WEAK_POINTS = 3
+
+
+@dataclass(frozen=True, slots=True)
+class StaircaseMethod:
+    """The numbers of one version of the method (documented in docs/CLINICAL_CASES.md)."""
+
+    method: str
+    max_items: int
+    max_reversals: int
+    listening_items: int
+    default_start: str
+    duration_minutes: int
+    weak_points: bool
+
+
+METHOD_V1 = StaircaseMethod("placement-staircase-v1", 14, 3, 4, "A2", 15, False)
+METHOD_V2 = StaircaseMethod("placement-staircase-v2", 12, 3, 2, "B1", 10, True)
+PLACEMENT_METHOD = METHOD_V2.method
+# Kept for the code that reads the numbers of the current method.
+STAIRCASE_MAX_ITEMS = METHOD_V2.max_items
+STAIRCASE_MAX_REVERSALS = METHOD_V2.max_reversals
+LISTENING_ITEMS = METHOD_V2.listening_items
 
 
 class McqItem(ClinicalModel):
@@ -46,6 +88,16 @@ class McqItem(ClinicalModel):
     options: tuple[Text, ...] = Field(min_length=3, max_length=4)
     answer_index: Annotated[int, Field(ge=0, le=3)]
     rationale_fr: Text | None = None
+    # What the item measures (placement-set-v2). Left out of the hashed content when absent, so
+    # the hash of a set written before categories existed does not change.
+    category: PlacementCategory | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_category(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if data.get("category") is None:
+            data.pop("category", None)
+        return data
 
     @model_validator(mode="after")
     def answer_exists(self) -> Self:
@@ -78,7 +130,7 @@ class SpeakingItem(ClinicalModel):
 
 
 class PlacementSetVersion(VersionRef):
-    schema_version: Literal["placement-set-v1"] = "placement-set-v1"
+    schema_version: Literal["placement-set-v1", "placement-set-v2"] = "placement-set-v1"
     language: Literal["de-DE", "fr-FR", "en-US"] = "de-DE"
     title: Text
     description_fr: Text
@@ -98,12 +150,48 @@ class PlacementSetVersion(VersionRef):
             "items du test",
         )
         unique(tuple(s.source_id for s in self.sources), "sources")
+        if self.schema_version == "placement-set-v2":
+            self._validate_v2()
+            return self
         for level in REQUIRED_LEVELS:
             if sum(1 for item in self.mcq_items if item.level == level) < 4:
                 raise ValueError(f"Au moins 4 QCM requis au niveau {level}")
             if not any(item.level == level for item in self.listening_items):
                 raise ValueError(f"Au moins 1 item d'écoute requis au niveau {level}")
         return self
+
+    def _validate_v2(self) -> None:
+        """B1 to C1 with an A2 probe, a category on every question, well-formed gaps."""
+        allowed = set(REQUIRED_LEVELS_V2)
+        questions: tuple[McqItem | ListeningItem, ...] = (*self.mcq_items, *self.listening_items)
+        if any(i.level not in allowed for i in questions):
+            raise ValueError("placement-set-v2 : niveaux A2 à C1 uniquement")
+        for level in REQUIRED_LEVELS_V2:
+            if sum(1 for item in self.mcq_items if item.level == level) < MCQ_PER_LEVEL_V2:
+                raise ValueError(f"Au moins {MCQ_PER_LEVEL_V2} QCM requis au niveau {level}")
+        for level in LISTENING_LEVELS_V2:
+            if sum(1 for item in self.listening_items if item.level == level) < 2:
+                raise ValueError(f"Au moins 2 items d'écoute requis au niveau {level}")
+        if not any(item.level == "A2" for item in self.listening_items):
+            raise ValueError("Au moins 1 item d'écoute requis au niveau A2")
+        for item in self.mcq_items:
+            if item.category is None:
+                raise ValueError(f"QCM {item.id} : catégorie requise")
+            if item.stem.count(BLANK) != 1:
+                raise ValueError(f"QCM {item.id} : exactement un trou « {BLANK} » attendu")
+        for category in PLACEMENT_CATEGORIES:
+            if sum(1 for i in self.mcq_items if i.category == category) < MCQ_PER_CATEGORY_V2:
+                raise ValueError(
+                    f"Au moins {MCQ_PER_CATEGORY_V2} QCM requis pour la catégorie {category}"
+                )
+        for question in questions:
+            folded = [option.casefold().strip() for option in question.options]
+            if len(set(folded)) != len(folded):
+                raise ValueError(f"Item {question.id} : options en double")
+
+    @property
+    def method(self) -> StaircaseMethod:
+        return METHOD_V2 if self.schema_version == "placement-set-v2" else METHOD_V1
 
     def mcq_levels(self) -> tuple[str, ...]:
         return tuple(level for level in LEVELS if any(i.level == level for i in self.mcq_items))
@@ -178,6 +266,45 @@ def next_level(
             moved = shift_level(level, -1, available)
             return moved, 0, 0, -1 if moved != level else 0
     return level, streak_correct, streak_wrong, 0
+
+
+def weak_points(
+    written: list[tuple[str, bool]], spoken_errors: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Up to three categories to work on first, computed by code from what the learner did.
+
+    `written` holds (category, correct) for each answered question, `spoken_errors` the spoken
+    errors that the code verified against the transcripts. A category qualifies on its written
+    items (at least two answered, at least half missed) or on its spoken errors (at least two).
+    The staircase stops where the learner starts to miss, so the written signal says what failed
+    at the learner's limit: an indication to work on, not a diagnosis.
+    """
+    points: list[dict[str, Any]] = []
+    for category in PLACEMENT_CATEGORIES:
+        answered = sum(1 for name, _ in written if name == category)
+        wrong = sum(1 for name, ok in written if name == category and not ok)
+        errors = [e for e in spoken_errors if e.get("category") == category]
+        signals = []
+        if answered >= WEAK_MIN_WRITTEN_ITEMS and wrong / answered >= WEAK_WRITTEN_ERROR_RATE:
+            signals.append("written")
+        if len(errors) >= WEAK_SPOKEN_ERRORS:
+            signals.append("spoken")
+        if not signals:
+            continue
+        points.append(
+            {
+                "category": category,
+                "signals": signals,
+                "written_answered": answered,
+                "written_wrong": wrong,
+                "spoken_errors": len(errors),
+                "examples": [
+                    {"quote": e["quote"], "correction": e["correction"]} for e in errors[:2]
+                ],
+            }
+        )
+    points.sort(key=lambda p: (-len(p["signals"]), -(p["written_wrong"] + p["spoken_errors"])))
+    return points[:MAX_WEAK_POINTS]
 
 
 def estimate_level(presented_levels: list[str], fallback: str) -> str:

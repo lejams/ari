@@ -135,6 +135,9 @@ class SpeakingRatingSchema(StrictModel):
     observations: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
         default_factory=list, max_length=4
     )
+    # Spoken errors, quoted from the transcript (turn 1): the application checks every quote
+    # against the transcript and drops what is not there (`verify_language_errors`).
+    language_errors: list[LanguageErrorSchema] = Field(default_factory=list, max_length=8)
 
 
 class VoiceEventSchema(BaseModel):

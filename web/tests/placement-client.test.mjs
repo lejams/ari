@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { PlacementClient, describeResult } from "../placement-client.mjs";
+import { PlacementClient, describeResult, describeWeakPoints } from "../placement-client.mjs";
 
 const values = new Map();
 const storage = { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
@@ -55,4 +55,18 @@ assert.notEqual(JSON.parse(calls.at(-1).options.body).event_id, aliceEvent);
 
 assert.match(describeResult({ vocab_grammar_level: "B1", listening_level: "B2", speaking_level: "A2", speaking_counted: false }), /non comptée/);
 assert.match(describeResult({ vocab_grammar_level: "B1", listening_level: "B1", speaking_level: null }), /non évaluée/);
+// A flagged question names the attempt and the item; weak points are described from the computed result only.
+failing = false;
+await client.report(attempt, "b1-1", "deux réponses possibles");
+assert.equal(calls.at(-1).path, "/api/placement/attempts/attempt-1/report");
+assert.deepEqual(JSON.parse(calls.at(-1).options.body), { item_id: "b1-1", note: "deux réponses possibles" });
+assert.deepEqual(describeWeakPoints({}), []);
+const points = describeWeakPoints({ weak_points: [
+  { category: "case", signals: ["written"], written_answered: 3, written_wrong: 2, spoken_errors: 0, examples: [] },
+  { category: "verb_form", signals: ["written", "spoken"], written_answered: 2, written_wrong: 1, spoken_errors: 2, examples: [{ quote: "ich habe gegangen", correction: "ich bin gegangen" }] },
+] });
+assert.match(points[0].label, /^Cas/);
+assert.equal(points[0].evidence, "2 réponses fausses sur 3 questions");
+assert.equal(points[1].evidence, "1 réponse fausse sur 2 questions · 2 erreurs à l’oral");
+assert.equal(points[1].examples[0].correction, "ich bin gegangen");
 console.log("Placement client: idempotent start, answers, speaking upload and identity passed");

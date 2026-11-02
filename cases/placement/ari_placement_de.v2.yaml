@@ -1,0 +1,121 @@
+# Test de niveau allemand B1 à C1 (sonde A2 « sous B1 »), jeu de production.
+# Écrit pour ARI à partir des descripteurs publics du CECRL, sans matériel de test tiers. Relecture
+# linguistique : juge LLM aux consignes strictes (grille `placement-grid-v1`, docs/PLACEMENT_REVIEW.md),
+# sur le hash exact. Le décor est médical quand c'est naturel, jamais un savoir médical à connaître.
+schema_version: ari-placement-bundle-v1
+sources:
+- id: ari-placement-de-original
+  source_type: synthetic
+  synthetic: true
+  document_reference: cases/placement/ari_placement_de.v2.yaml
+  original_checksum: null
+  immediate_source_checksum: null
+  provenance: Items écrits pour ARI à partir des descripteurs publics du CECRL ; aucun matériel de test tiers.
+  imported_at: '2026-11-02T00:00:00Z'
+  rights: compatible
+  intended_use: Test de niveau en allemand pour médecins qui préparent la FSP
+  rights_evidence: Contenu original écrit pour ce dépôt.
+  private_material_reference: none:synthetic
+  declared_original: null
+  original_verified: false
+sets:
+- id: ari-placement-de
+  version: '2'
+  schema_version: placement-set-v2
+  language: de-DE
+  title: Test de niveau · allemand général B1 à C1
+  description_fr: Douze questions adaptatives au plus, deux écoutes courtes et deux prises de parole d'une minute. Environ dix minutes.
+  sources:
+  - source_id: ari-placement-de-original
+    pages: []
+  mcq_items:
+  # ----- A2 (sonde « sous B1 ») -----
+  - {id: a2-1, skill: grammar, level: A2, category: case, stem: 'Der Arzt gibt ___ Kind ein Rezept.', options: [das, dem, den], answer_index: 1}
+  - {id: a2-2, skill: grammar, level: A2, category: gender, stem: 'Wo ist ___ Praxis von Dr. Weber?', options: [der, das, die], answer_index: 2}
+  - {id: a2-3, skill: grammar, level: A2, category: verb_form, stem: 'Gestern bin ich zum Arzt ___.', options: [gehen, gegangen, gegehen], answer_index: 1}
+  - {id: a2-4, skill: grammar, level: A2, category: word_order, stem: 'Morgen ___ zum Arzt.', options: [ich gehe, ich gehe nicht, gehe ich], answer_index: 2}
+  - {id: a2-5, skill: vocabulary, level: A2, category: word_choice, stem: 'Ich habe Kopfschmerzen und nehme eine ___ gegen den Schmerz.', options: [Tablette, Tasche, Tafel], answer_index: 0}
+  - {id: a2-6, skill: vocabulary, level: A2, category: register, stem: 'Sie sprechen mit Ihrer Ärztin und fragen höflich: „Entschuldigung, ___ mir bitte helfen?“', options: [kannst du, könnt ihr, können Sie], answer_index: 2}
+  - {id: a2-7, skill: grammar, level: A2, category: case, stem: 'Ich warte auf ___ Arzt.', options: [der, dem, den], answer_index: 2}
+  - {id: a2-8, skill: vocabulary, level: A2, category: word_choice, stem: 'Ich muss heute früh ___, weil ich um sieben Uhr arbeite.', options: [einsteigen, anziehen, aufstehen], answer_index: 2}
+  # ----- B1 -----
+  - {id: b1-1, skill: grammar, level: B1, category: gender, stem: 'Sie hat ___ starke Allergie gegen Pollen.', options: [ein, einen, eine], answer_index: 2}
+  - {id: b1-2, skill: grammar, level: B1, category: case, stem: 'Die Schwester hilft ___ beim Aufstehen.', options: [mir, ich, mich], answer_index: 0}
+  - {id: b1-3, skill: grammar, level: B1, category: verb_form, stem: 'Die Tablette muss dreimal täglich ___ werden.', options: [genommen, genommt, nehmen], answer_index: 0}
+  - {id: b1-4, skill: grammar, level: B1, category: word_order, stem: 'Ich weiß nicht, ___.', options: [wann kommt der Arzt, wann der Arzt kommt, der Arzt wann kommt], answer_index: 1}
+  - {id: b1-5, skill: vocabulary, level: B1, category: word_choice, stem: 'Er kümmert sich ___ seine kranke Mutter.', options: [für, um, über], answer_index: 1}
+  - {id: b1-6, skill: grammar, level: B1, category: verb_form, stem: 'Der Patient ___ gestern aus dem Krankenhaus entlassen.', options: [wird, worden, wurde], answer_index: 2}
+  - {id: b1-7, skill: grammar, level: B1, category: case, stem: 'Ich bin mit ___ Behandlung zufrieden.', options: [die, der, den], answer_index: 1}
+  - {id: b1-8, skill: vocabulary, level: B1, category: register, stem: 'Ein formeller Brief an die Klinik endet mit der Grußformel: „___“', options: [Liebe Grüße, Tschüss, Mit freundlichen Grüßen], answer_index: 2}
+  # ----- B2 -----
+  - {id: b2-1, skill: grammar, level: B2, category: gender, stem: 'Das Medikament, ___ Nebenwirkungen gering sind, wird oft verschrieben.', options: [deren, denen, dessen], answer_index: 2}
+  - {id: b2-2, skill: grammar, level: B2, category: case, stem: 'Die Untersuchung, bei ___ der Befund entdeckt wurde, war eine Routinekontrolle.', options: [die, der, den], answer_index: 1}
+  - {id: b2-3, skill: grammar, level: B2, category: case, stem: 'Aufgrund ___ Notfalls wurde die Operation verschoben.', options: [des, dem, den], answer_index: 0}
+  - {id: b2-4, skill: grammar, level: B2, category: verb_form, stem: 'Hätte ich früher einen Arzt aufgesucht, ___ ich schneller gesund geworden.', options: [wäre, bin, war], answer_index: 0}
+  - {id: b2-5, skill: grammar, level: B2, category: verb_form, stem: 'Er behauptet, die Tabletten regelmäßig ___ zu haben.', options: [nehmen, genommen, genommt], answer_index: 1}
+  - {id: b2-6, skill: grammar, level: B2, category: word_order, stem: 'Der Arzt sagt, dass der Patient gestern ___.', options: [in die Notaufnahme gebracht worden ist, in die Notaufnahme worden gebracht ist, ist in die Notaufnahme gebracht worden], answer_index: 0}
+  - {id: b2-7, skill: vocabulary, level: B2, category: word_choice, stem: 'Dieses Medikament ist auch für Kinder gut ___.', options: [verträglich, vertragen, vertraglich], answer_index: 0}
+  - {id: b2-8, skill: vocabulary, level: B2, category: register, stem: 'Im Arztbrief schreibt man: „Die Patientin ___ über Schmerzen im Rücken.“', options: [jammert, motzt, klagt], answer_index: 2}
+  # ----- C1 -----
+  - {id: c1-1, skill: grammar, level: C1, category: gender, stem: 'Die Studie, ___ Ergebnisse letzte Woche veröffentlicht wurden, betrifft ältere Patienten.', options: [dessen, deren, derer], answer_index: 1}
+  - {id: c1-2, skill: grammar, level: C1, category: case, stem: 'Die Behandlung erfolgt auf Grundlage eines ___ Gutachtens.', options: [aktuellen, aktuelles, aktueller], answer_index: 0}
+  - {id: c1-3, skill: grammar, level: C1, category: case, stem: 'Der Patient bedarf ___ sofortigen Eingriffs.', options: [des, dem, den], answer_index: 0}
+  - {id: c1-4, skill: grammar, level: C1, category: verb_form, stem: 'Die Operation hätte vermieden ___ können.', options: [werden, geworden, worden], answer_index: 0}
+  - {id: c1-5, skill: grammar, level: C1, category: verb_form, stem: 'Der ___ Patient wurde sofort operiert.', options: [einliefernde, eingelieferte, einlieferte], answer_index: 1}
+  - {id: c1-6, skill: grammar, level: C1, category: word_order, stem: 'Der Patient sagte, er habe die Operation ___.', options: [wollen nicht machen lassen, nicht lassen machen wollen, nicht machen lassen wollen], answer_index: 2}
+  - {id: c1-7, skill: vocabulary, level: C1, category: word_choice, stem: 'Die Symptome haben sich ___ verschlimmert, sodass eine Einweisung nötig war.', options: [zusehends, zuhauf, zuwider], answer_index: 0}
+  - {id: c1-8, skill: vocabulary, level: C1, category: register, stem: 'In einem wissenschaftlichen Aufsatz schreibt man: „Die Teilnehmenden ___ das Medikament zwölf Wochen lang.“', options: [kriegten, schnappten, erhielten], answer_index: 2}
+  listening_items:
+  - id: l-a2-1
+    level: A2
+    script: Guten Tag, hier ist die Praxis Dr. Weber. Ihr Termin ist am Dienstag um halb elf. Bitte bringen Sie Ihre Versichertenkarte mit.
+    question: Wann ist der Termin?
+    options: [Dienstag um halb elf, Dienstag um elf, Mittwoch um halb elf]
+    answer_index: 0
+  - id: l-b1-1
+    level: B1
+    script: Ich habe seit gestern Abend Bauchschmerzen und mir ist übel. Gegessen habe ich heute noch nichts, getrunken nur einen Tee.
+    question: Was hat die Person heute zu sich genommen?
+    options: [Nur Wasser, Eine Suppe, Nur einen Tee]
+    answer_index: 2
+  - id: l-b1-2
+    level: B1
+    script: Bitte nehmen Sie das Medikament zweimal täglich nach dem Essen. Wenn Sie Magenschmerzen bekommen, rufen Sie mich bitte an, bevor Sie die nächste Tablette nehmen.
+    question: Wann soll die Person anrufen?
+    options: [Wenn sie Magenschmerzen bekommt, Wenn die Packung leer ist, Wenn sie nach dem Essen müde ist]
+    answer_index: 0
+  - id: l-b2-1
+    level: B2
+    script: Die Untersuchung hat ergeben, dass Ihr Blutdruck zwar etwas erhöht ist, aber noch kein Grund zur Sorge besteht. Ich würde trotzdem vorschlagen, dass wir in drei Monaten noch einmal messen.
+    question: Was wird vorgeschlagen?
+    options: [Sofort ein neues Medikament, Eine Operation im Herbst, Eine erneute Messung in drei Monaten]
+    answer_index: 2
+  - id: l-b2-2
+    level: B2
+    script: Leider kann ich Ihnen den Termin nächste Woche nicht anbieten, weil unser Gerät gewartet wird. Falls es Ihnen nichts ausmacht, könnten Sie auch schon übermorgen kommen; da hätten wir kurzfristig einen Platz frei.
+    question: Warum ist der Termin nächste Woche nicht möglich?
+    options: [Das Gerät wird gewartet, Die Praxis ist geschlossen, Die Ärztin hat Urlaub]
+    answer_index: 0
+  - id: l-c1-1
+    level: C1
+    script: In einer neuen Befragung gaben etwa sechzig Prozent der Patientinnen und Patienten an, sie hätten schon seit Monaten Beschwerden gehabt, aber erst beim dritten Praxisbesuch darüber gesprochen. Ausschlaggebend dafür war meist nicht die Schwere der Symptome, sondern die Befürchtung, dem Arzt mit Kleinigkeiten Zeit zu stehlen.
+    question: Warum sprachen viele Befragte ihre Beschwerden erst spät an?
+    options: [Sie wollten dem Arzt nicht unnötig Zeit nehmen, Die Wartezeit auf einen Termin war zu lang, Die Beschwerden waren zunächst nur schwach ausgeprägt]
+    answer_index: 0
+  - id: l-c1-2
+    level: C1
+    script: Obwohl die Behandlung anfangs vielversprechend verlief, musste sie abgebrochen werden, da bei mehreren Patienten Nebenwirkungen auftraten, die man in dieser Form nicht erwartet hatte.
+    question: Weshalb wurde die Behandlung abgebrochen?
+    options: [Sie war zu teuer, Sie wirkte von Anfang an nicht, Es traten unerwartete Nebenwirkungen auf]
+    answer_index: 2
+  speaking_items:
+  - id: s-1
+    level_hint: B1
+    prompt_fr: "En allemand : décrivez une journée de travail typique dans votre hôpital ou votre cabinet ; expliquez ce qui vous plaît le plus et pourquoi ; proposez à un collègue de déjeuner ensemble."
+    prompt_target: Beschreiben Sie einen typischen Arbeitstag in Ihrer Klinik oder Praxis. Begründen Sie, was Ihnen daran am besten gefällt. Machen Sie einem Kollegen einen Vorschlag für ein gemeinsames Mittagessen.
+    target_seconds: 60
+  - id: s-2
+    level_hint: B2
+    prompt_fr: "Un patient a de fortes douleurs mais ne veut pas rester à l'hôpital. Expliquez-lui poliment, en allemand, pourquoi une surveillance d'une nuit serait utile."
+    prompt_target: Ein Patient hat starke Schmerzen, möchte aber nicht im Krankenhaus bleiben. Erklären Sie ihm höflich, warum eine Beobachtung über Nacht sinnvoll wäre.
+    target_seconds: 75

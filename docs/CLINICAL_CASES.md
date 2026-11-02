@@ -110,28 +110,56 @@ partiel, mots ajoutés au carnet.
 Le test de niveau est du contenu de langue générale, pas un cas clinique. Il passe par le
 même registre local : `placement import`, une revue **linguistique** du hash exact
 (`placement review`), puis `placement publish` ; le contenu est immuable, seul le statut
-change, et publier une version retire la précédente du même identifiant.
+change, et publier une version retire la précédente du même identifiant. `placement list`
+montre ce que le registre contient et ce qui est publié (donc ce que le serveur sert).
 
-Un `placement-set-v1` porte `language`, `title`, `description_fr`, ses `sources` (droits
-compatibles exigés) et trois familles d'items : `mcq_items` (`skill` vocabulaire ou
-grammaire, `level`, `stem`, 3 ou 4 `options`, `answer_index` ; en pratique 6 à 8 items
-par niveau évitent que le test s'arrête faute de questions), `listening_items` (`script`
-lu par la synthèse vocale, jamais affiché avant la réponse, `question`, `options`,
-`answer_index`) et exactement deux `speaking_items` (`prompt_fr`, `prompt_target`,
-`target_seconds`). Au moins 4 QCM et 1 écoute par niveau A1 à B2 sont exigés.
+Un jeu porte `language`, `title`, `description_fr`, ses `sources` (droits compatibles exigés) et
+trois familles d'items : `mcq_items` (`skill` vocabulaire ou grammaire, `level`, `stem`, 3 ou 4
+`options`, `answer_index`, et depuis la v2 une `category`), `listening_items` (`script` lu par la
+synthèse vocale, jamais affiché avant la réponse, `question`, `options`, `answer_index`) et
+exactement deux `speaking_items` (`prompt_fr`, `prompt_target`, `target_seconds`).
 
-Méthode `placement-staircase-v1`, déterministe : départ au niveau déclaré (sinon A2) ;
-deux bonnes réponses consécutives montent d'un niveau, deux mauvaises descendent ; arrêt
-après 14 questions, 3 renversements de direction ou épuisement des items du niveau
-atteint (aucun emprunt à un autre niveau, qui biaiserait l'estimation) ; l'estimation
-vocabulaire-grammaire est la médiane basse des niveaux des 6 dernières questions
-présentées. Quatre écoutes autour de ce niveau donnent le niveau d'écoute (≥ 75 % de
-bonnes réponses : +1 ; ≥ 50 % : égal ; sinon −1). Les deux productions orales sont
-transcrites puis notées par le fournisseur (`placement-speaking-v1`, schéma strict :
-niveau, confiance, observations citées). Le résultat global est le plus faible des
-niveaux mesurés ; l'oral n'est compté que si sa confiance atteint 0,6. Il est copié dans
-le profil comme `estimated_level`, avec la date et l'identifiant de la tentative. Ce
-n'est ni un certificat ni le niveau requis pour l'inscription à la FSP.
+Deux versions de contrat coexistent, car un jeu publié ne change jamais :
+
+| | `placement-set-v1` + `placement-staircase-v1` | `placement-set-v2` + `placement-staircase-v2` |
+|---|---|---|
+| Niveaux exigés | QCM et écoute de A1 à B2 (4 QCM par niveau) | A2 à C1 : A2 est la sonde « sous B1 », le résultat peut sortir C1 |
+| QCM | niveau, compétence | + une **catégorie** par QCM (`gender`, `case`, `verb_form`, `word_order`, `word_choice`, `register`), 8 QCM par niveau, 4 par catégorie, un seul trou `___` par énoncé, options distinctes |
+| Écoutes | 4 (au moins 1 par niveau) | 2 (au moins 2 par niveau de B1 à C1, 1 à A2) |
+| Escalier | départ au niveau déclaré, sinon A2, 14 questions au plus | départ au niveau déclaré, sinon B1, **12 questions au plus** |
+| Durée annoncée | environ 15 min | environ 10 min |
+| Résultat | niveau par compétence et niveau global | + `weak_points` (3 au plus) |
+
+Le contrat est choisi par la `schema_version` du jeu épinglé à la tentative : une tentative en
+cours ou passée se relit avec sa méthode d'origine. La `category` n'entre pas dans le hash quand
+elle est absente, donc le hash d'un jeu v1 publié ne change pas.
+
+Méthode, déterministe : deux bonnes réponses consécutives montent d'un niveau, deux mauvaises
+descendent ; arrêt après le maximum de questions, 3 renversements de direction ou épuisement des
+items du niveau atteint (aucun emprunt à un autre niveau, qui biaiserait l'estimation) ;
+l'estimation vocabulaire-grammaire est la médiane basse des niveaux des 6 dernières questions
+présentées. Les écoutes autour de ce niveau donnent le niveau d'écoute (≥ 75 % de bonnes
+réponses : +1 ; ≥ 50 % : égal ; sinon −1). Les deux productions orales sont transcrites puis
+notées par le fournisseur (`placement-speaking-v2`, schéma strict : niveau, confiance,
+observations, et en v2 des erreurs de langue citées). Le résultat global est le plus faible des
+niveaux mesurés ; l'oral n'est compté que si sa confiance atteint 0,6. Il est copié dans le
+profil comme `estimated_level`, avec la date et l'identifiant de la tentative. Ce n'est ni un
+certificat ni le niveau requis pour l'inscription à la FSP.
+
+**Points faibles (v2).** « Le LLM propose, le code décide » : le modèle ne désigne jamais un point
+faible. Les erreurs orales qu'il cite passent par `verify_language_errors` (la citation doit
+figurer dans la transcription, sinon l'erreur est écartée, comme pour l'évaluation de séance). Une
+catégorie est retenue quand l'apprenant a raté au moins la moitié de ses QCM de la catégorie (deux
+au moins répondus) ou fait au moins deux erreurs orales vérifiées de la catégorie ; les catégories
+signalées par les deux sources passent d'abord, trois au plus (`weak_points` du résultat : signaux,
+nombre de QCM répondus et ratés, erreurs orales, deux exemples citation → correction). L'escalier
+s'arrête là où l'apprenant commence à échouer : le signal écrit dit ce qui a échoué à sa limite, une
+indication pour choisir quoi travailler, pas un diagnostic.
+
+**Signaler une erreur.** `POST /api/placement/attempts/{id}/report` (`item_id` rencontré dans la
+tentative, note facultative de 500 caractères) enregistre un événement `item_report` dans la piste
+d'audit du jeu (`placement_events`, sans migration), avec le hash du jeu. Le propriétaire le relit ;
+une correction est une nouvelle version du jeu.
 
 ### Programme hebdomadaire (`program-rules-v3`)
 
