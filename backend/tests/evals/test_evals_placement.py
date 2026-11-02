@@ -29,7 +29,12 @@ BY_TRANSCRIPT = {i.transcript: i for split in ("dev", "holdout") for i in _items
 
 
 def oracle(
-    *, level_shift: int = 0, drop: int = 0, category: str | None = None, invent: bool = False
+    *,
+    level_shift: int = 0,
+    drop: int = 0,
+    category: str | None = None,
+    invent: bool = False,
+    repeat: bool = False,
 ) -> Any:
     levels = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
@@ -45,6 +50,8 @@ def oracle(
             }
             for e in item.truth.errors
         ][drop:]
+        if repeat:
+            errors = [*errors, *errors[:1]]  # One real quote reported twice.
         if invent:
             errors.append(
                 {
@@ -117,6 +124,13 @@ async def test_an_invented_quote_is_dropped_by_the_code_and_counted() -> None:
     # ...and the model is held to account for proposing it.
     assert report.metrics["invented_quote_rate"] is not None
     assert report.metrics["invented_quote_rate"] > 0.05
+
+
+async def test_a_repeated_real_quote_is_not_invented_evidence() -> None:
+    # The code drops the second report as a duplicate, but its quote stands in the transcript.
+    report = await measure(oracle(repeat=True))
+    assert report.metrics["language_overall.precision"] == 1.0
+    assert report.metrics["invented_quote_rate"] == 0.0
 
 
 async def test_the_level_is_judged_to_one_level() -> None:

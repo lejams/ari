@@ -178,7 +178,7 @@ class PlacementSuite:
 
         # The model proposes, the code decides: quotes the code dropped were invented.
         count("quotes.proposed", rating.proposed_errors)
-        count("quotes.invented", rating.proposed_errors - len(rating.language_errors))
+        count("quotes.invented", rating.invented_errors)
 
         found = {p["category"] for p in weak_points([], _as_errors(rating))}
         count("wp.tp.all", len(found & wanted))
