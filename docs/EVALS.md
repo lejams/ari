@@ -10,7 +10,8 @@
 Le code est dans `backend/src/ari/evals/`, les données dans `evals/` (hors de l'image Docker). Le
 code de production n'importe jamais `ari.evals` (contrat import-linter).
 
-**Aucun LLM ne note.** Les scorers sont du code déterministe. Ils comparent la sortie du modèle
+**Aucun LLM ne note.** Les scorers sont du code déterministe (la suite `language-exercises` mesure
+des contrôles qui, eux, utilisent un modèle : le scorer, lui, reste du code). Ils comparent la sortie du modèle
 testé à une réponse connue d'avance : par construction pour les jeux synthétiques, par l'annotation
 pour les autres. Le seul modèle appelé est celui de la configuration testée.
 
@@ -23,6 +24,7 @@ pour les autres. Le seul modèle appelé est celui de la configuration testée.
 | `evaluation-language@2` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v10`) | erreurs injectées : genre, cas, forme verbale, ordre des mots, choix du mot, registre ; mot français ; artefact de transcription ; section oubliée ; formulations correctes mais inhabituelles | 175 transcripts synthétiques (100 dev, 75 holdout) |
 | `evaluation-language@1` | idem (version 1, gardée pour mémoire, plus exigée) | genre, cas, forme verbale, ordre des mots ; mot français ; artefact ; section oubliée | 120 transcripts (90 dev, 30 holdout) |
 | `evaluation-medical@1` | l'évaluateur réel | omissions exigibles et erreurs médicales relevées par le médecin | **en attente du médecin** (section 6 du plan) |
+| `language-exercises@1` | les contrôles devant la banque d'exercices de langue : contrôles mécaniques, résolution à l'aveugle, juge strict (`python -m ari.evals exercises`) | exercice bon, ou défaut connu par construction (mauvaise clé, deux réponses justes, explication fausse…) | 139 exercices synthétiques (70 dev, 69 holdout) ; voir `docs/LANGUAGE_EXERCISES.md` |
 | `voice-snippets@1` | la voix ElevenLabs de chaque persona sur des phrases fixes, puis le STT | termes critiques de chaque phrase (chiffres, doses, termes) | 33 phrases de patient en allemand |
 | `voice-sim@1` | toute la chaîne vocale, de bout en bout : sockets, segmentation de la parole, STT, patient, voix, accusés de lecture, évaluation finale | faits demandés par chaque question du script | 1 script de 12 questions sur le cas `ARI-DEV-FR` |
 
@@ -461,7 +463,8 @@ passé, sans changer aucun seuil.** Instabilité 0,027, précision 1 dans toutes
 global 0,996 (`word_choice` 1, `case` 0,98, `verb_form` 0,99), hallucination de preuve 0, faux positif
 de transcription 0, alternances de langue précision et rappel 1. `patient-leakage@1` passe sur les
 deux configurations (fuite 0, fait inventé 0). Verdict de promotion : `passed`. La règle de repli sur
-les seuils (0,15 et 0,65) n'a pas servi ; `gates-v5` reste en vigueur.
+les seuils (0,15 et 0,65) n'a pas servi. `gates-v6` (2 novembre 2026) garde les seuils de `gates-v5` et ajoute seulement la
+suite `language-exercises@1`.
 
 **Choisir la configuration** : le workflow manuel `Compare evaluation configurations`
 (`.github/workflows/evals-compare.yml`, n'importe quelle branche, split dev uniquement, jamais de
@@ -471,7 +474,7 @@ ne sert pas à itérer.
 
 ## 7. Seuils et erreurs critiques
 
-`evals/gates.yaml` (version `gates-v5`) reprend les seuils du plan :
+`evals/gates.yaml` (version `gates-v6`) reprend les seuils du plan :
 
 | Mesure | Seuil |
 |---|---|
@@ -487,6 +490,7 @@ ne sert pas à itérer.
 | `voice-sim` : latence examen, P95 | ≤ 4 s (plafond ; objectif 2,5 s, section 3) |
 | `voice-sim` : interruption | fonctionnelle |
 | `voice-sim` : crédit sans accusé de lecture | aucun |
+| `language-exercises` : fausse acceptation (exercice défectueux accepté) | ≤ 0 (critique) ; fausse rejection ≤ 0,25 (valeur initiale) |
 
 Une métrique non mesurable fait échouer son seuil.
 
@@ -494,6 +498,7 @@ Erreurs critiques (`critical_outcomes`) :
 - `patient-leakage` : aucune. Le propriétaire a décidé le 24 octobre 2026 qu'une invention n'est
   pas critique : elle compte dans `invented_fact_rate`, avec un seuil.
 - `voice-sim` : `invented_fact` et `credit_without_ack`.
+- `language-exercises` : `false_accept`, un exercice défectueux accepté par les contrôles.
 - `evaluation-medical` : un élément marqué `critical` par le médecin et non relevé. Le code ne
   décide jamais de ce qui est critique.
 

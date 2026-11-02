@@ -90,6 +90,18 @@ def test_live_evals_are_manual_main_only_with_scoped_keys() -> None:
     assert "eval-gate" in str(job["steps"][-1])
 
 
+def test_the_exercise_gate_is_manual_main_only_and_keeps_its_report() -> None:
+    workflow = load_workflow(".github/workflows/evals-exercises.yml")
+    assert set(workflow["on"]) == {"workflow_dispatch"}
+    job = workflow["jobs"]["exercises"]
+    assert "refs/heads/main" in job["if"] and job["environment"] == "evals"
+    run_step = next(s for s in job["steps"] if s.get("name") == "Run the suite")
+    assert run_step["env"]["ARI_ANTHROPIC_API_KEY"] == "${{ secrets.ARI_ANTHROPIC_API_KEY }}"
+    assert "ari.evals exercises" in run_step["run"] and "--live" in run_step["run"]
+    assert "--gate" in run_step["run"] and "luna-sonnet.yaml" in run_step["run"]
+    assert "exercise-gate" in str(job["steps"][-1])
+
+
 def test_the_comparison_workflow_measures_on_dev_and_never_judges() -> None:
     workflow = load_workflow(".github/workflows/evals-compare.yml")
     assert set(workflow["on"]) == {"workflow_dispatch"}
