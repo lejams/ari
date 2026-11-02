@@ -246,6 +246,40 @@ async def test_the_last_failed_attempt_is_recorded_once() -> None:
     assert operations_of(batch) == sorted([OP_GENERATE, OP_SOLVE, OP_SOLVE])
 
 
+async def test_an_author_request_that_fails_twice_does_not_cost_the_other_requests() -> None:
+    inner = ScriptedModels(
+        author=lambda r, p: {"exercises": [DRAFT]},
+        solver=solving_the_key(candidate(CLOZE)),
+        judge=judge_passes(),
+    )
+
+    class OneSpecDown:
+        async def generate_structured(self, request: LLMRequest, schema: Any) -> Any:
+            if (
+                request.context.operation == OP_GENERATE
+                and "word_order" in request.context.case_hash
+            ):
+                done = await inner.generate_structured(request, schema)
+                failed = replace(done.execution, id=new_id(), status=ExecutionStatus.FAILED)
+                raise ProviderError("down", execution=failed)
+            return await inner.generate_structured(request, schema)
+
+    provider = OneSpecDown()
+    factory = ExerciseFactory(ExerciseAuthor(provider, PROMPTS["author"]), checker_over(provider))
+    batch = await factory.run(
+        "b8",
+        [
+            (ExerciseSpec("B1", "word_order", "correct_sentence"), 1),
+            (ExerciseSpec("B1", "gender", "cloze"), 1),
+        ],
+    )
+    assert len(batch.accepted) == 1  # The gender request went through.
+    errors = [r for r in batch.rejected if r.stage == "error"]
+    assert len(errors) == 1 and errors[0].detail["stage"] == "author"
+    # The failed author calls (two attempts) and the other request's three calls are all there.
+    assert operations_of(batch) == sorted([OP_GENERATE] * 3 + [OP_SOLVE, OP_JUDGE])
+
+
 def author_script(drafts: list[dict[str, Any]]) -> Any:
     def respond(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
         return {"exercises": drafts[: payload["count"]]}

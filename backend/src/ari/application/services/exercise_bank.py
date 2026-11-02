@@ -311,6 +311,15 @@ def stage_info(stage: str, execution: ExecutionRecord, prompt: VersionedPrompt) 
     )
 
 
+def _failed_calls(exc: ProviderError) -> list[CallSummary]:
+    """Every call behind a provider error, once each.
+
+    The last failed attempt is both `exc.execution` and in `related_executions`.
+    """
+    executions = {id(e): e for e in [*exc.related_executions, exc.execution]}
+    return [call_summary(e) for e in executions.values() if isinstance(e, ExecutionRecord)]
+
+
 def call_summary(execution: ExecutionRecord) -> CallSummary:
     return CallSummary(
         operation=execution.operation,
@@ -388,10 +397,31 @@ class ExerciseFactory:
                     run_id=batch_id,
                 )
                 for spec, count in requests
-            )
+            ),
+            return_exceptions=True,
         )
         pending: list[ExerciseCandidate] = []
-        for (_, _), (candidates, execution, failed) in zip(requests, drafts, strict=True):
+        for (spec, _), drafted in zip(requests, drafts, strict=True):
+            if isinstance(drafted, ProviderError):
+                # One author request that failed twice does not cost the others: what the other
+                # specs produced (and paid for) stays in the batch.
+                state.calls.extend(_failed_calls(drafted))
+                state.rejected.append(
+                    RejectedEntry(
+                        candidate=None,
+                        stage="error",
+                        issues=["provider_error"],
+                        detail={
+                            "stage": "author",
+                            "spec": f"{spec.level}:{spec.category}:{spec.format}",
+                            "error": str(drafted)[:300],
+                        },
+                    )
+                )
+                continue
+            if isinstance(drafted, BaseException):
+                raise drafted
+            candidates, execution, failed = drafted
             state.calls.extend(call_summary(e) for e in [*failed, execution])
             state.stages.setdefault("author", stage_info("author", execution, self._author.prompt))
             for candidate in candidates:
@@ -446,11 +476,7 @@ class ExerciseFactory:
             try:
                 outcome = await self._checker.check(candidate, run_id=batch_id)
             except ProviderError as exc:
-                # The last failed attempt is both `exc.execution` and in `related_executions`.
-                executions = {id(e): e for e in [*exc.related_executions, exc.execution]}
-                state.calls.extend(
-                    call_summary(e) for e in executions.values() if isinstance(e, ExecutionRecord)
-                )
+                state.calls.extend(_failed_calls(exc))
                 state.rejected.append(
                     RejectedEntry(
                         candidate=dumped,
