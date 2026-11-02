@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -29,6 +30,7 @@ from ari.application.services.exercise_bank import (
     ExerciseSpec,
 )
 from ari.domain.errors import InvalidStateError, ProviderError
+from ari.domain.models import ExecutionStatus, new_id
 from ari.infrastructure.exercises.models import load_prompts
 
 PROMPTS = load_prompts(live_config())
@@ -189,6 +191,59 @@ async def test_a_judge_failure_keeps_the_solver_call_in_the_batch_history() -> N
     assert [r.stage for r in batch.rejected] == ["error"]
     # The solver answered and was billed before the judge failed: its call is still recorded.
     assert sorted(c.operation for c in batch.calls) == sorted([OP_GENERATE, OP_SOLVE])
+
+
+class FailsFirst:
+    """Each listed operation fails its first `failures` attempts, with an execution record."""
+
+    def __init__(self, inner: Any, failures: dict[str, int]) -> None:
+        self._inner = inner
+        self._left = dict(failures)
+
+    async def generate_structured(self, request: LLMRequest, schema: Any) -> Any:
+        operation = request.context.operation
+        if self._left.get(operation, 0) > 0:
+            self._left[operation] -= 1
+            done = await self._inner.generate_structured(request, schema)
+            failed = replace(done.execution, id=new_id(), status=ExecutionStatus.FAILED)
+            raise ProviderError("down", execution=failed)
+        return await self._inner.generate_structured(request, schema)
+
+
+def operations_of(batch: Any) -> list[str]:
+    return sorted(c.operation for c in batch.calls)
+
+
+async def test_a_failed_author_attempt_before_a_successful_retry_stays_in_the_history() -> None:
+    inner = ScriptedModels(
+        author=lambda r, p: {"exercises": [DRAFT]},
+        solver=solving_the_key(candidate(CLOZE)),
+        judge=judge_passes(),
+    )
+    provider = FailsFirst(inner, {OP_GENERATE: 1})
+    factory = ExerciseFactory(ExerciseAuthor(provider, PROMPTS["author"]), checker_over(provider))
+    batch = await factory.run("b5", [(ExerciseSpec("B1", "gender", "cloze"), 1)])
+    assert len(batch.accepted) == 1
+    assert operations_of(batch) == sorted([OP_GENERATE, OP_GENERATE, OP_SOLVE, OP_JUDGE])
+
+
+async def test_the_last_failed_attempt_is_recorded_once() -> None:
+    inner = ScriptedModels(
+        author=lambda r, p: {"exercises": [DRAFT]},
+        solver=solving_the_key(candidate(CLOZE)),
+        judge=judge_passes(),
+    )
+    # Solver fine, both judge attempts fail: generate + solve + 2 failed judge calls, no more.
+    provider = FailsFirst(inner, {OP_JUDGE: 2})
+    factory = ExerciseFactory(ExerciseAuthor(provider, PROMPTS["author"]), checker_over(provider))
+    batch = await factory.run("b6", [(ExerciseSpec("B1", "gender", "cloze"), 1)])
+    assert [r.stage for r in batch.rejected] == ["error"]
+    assert operations_of(batch) == sorted([OP_GENERATE, OP_SOLVE, OP_JUDGE, OP_JUDGE])
+    # Two failed solver attempts: two calls, not three.
+    provider = FailsFirst(inner, {OP_SOLVE: 2})
+    factory = ExerciseFactory(ExerciseAuthor(provider, PROMPTS["author"]), checker_over(provider))
+    batch = await factory.run("b7", [(ExerciseSpec("B1", "gender", "cloze"), 1)])
+    assert operations_of(batch) == sorted([OP_GENERATE, OP_SOLVE, OP_SOLVE])
 
 
 def author_script(drafts: list[dict[str, Any]]) -> Any:

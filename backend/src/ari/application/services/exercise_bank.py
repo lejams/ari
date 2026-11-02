@@ -154,10 +154,14 @@ class ExerciseAuthor:
 
     async def draft(
         self, spec: ExerciseSpec, count: int, *, avoid: Sequence[str], run_id: str
-    ) -> tuple[list[ExerciseCandidate | tuple[str, dict[str, Any]]], ExecutionRecord]:
-        """Candidates assembled by the code; a draft that cannot be assembled comes back as
-        ("draft", what it said) so the run can report it."""
-        value, execution, _ = await _generate(
+    ) -> tuple[
+        list[ExerciseCandidate | tuple[str, dict[str, Any]]], ExecutionRecord, list[ExecutionRecord]
+    ]:
+        """Candidates assembled by the code, the successful call and the failed ones before it.
+
+        A draft that cannot be assembled comes back as ("draft", what it said) so the run can
+        report it."""
+        value, execution, failed = await _generate(
             self._provider,
             self._prompt,
             OP_GENERATE,
@@ -191,7 +195,7 @@ class ExerciseAuthor:
                 )
             except (ValidationError, ValueError):
                 candidates.append(("draft", draft.model_dump(mode="json")))
-        return candidates, execution
+        return candidates, execution, failed
 
 
 class ExerciseChecker:
@@ -387,8 +391,8 @@ class ExerciseFactory:
             )
         )
         pending: list[ExerciseCandidate] = []
-        for (_, _), (candidates, execution) in zip(requests, drafts, strict=True):
-            state.calls.append(call_summary(execution))
+        for (_, _), (candidates, execution, failed) in zip(requests, drafts, strict=True):
+            state.calls.extend(call_summary(e) for e in [*failed, execution])
             state.stages.setdefault("author", stage_info("author", execution, self._author.prompt))
             for candidate in candidates:
                 if isinstance(candidate, tuple):
@@ -442,9 +446,10 @@ class ExerciseFactory:
             try:
                 outcome = await self._checker.check(candidate, run_id=batch_id)
             except ProviderError as exc:
-                executions = [exc.execution, *exc.related_executions]
+                # The last failed attempt is both `exc.execution` and in `related_executions`.
+                executions = {id(e): e for e in [*exc.related_executions, exc.execution]}
                 state.calls.extend(
-                    call_summary(e) for e in executions if isinstance(e, ExecutionRecord)
+                    call_summary(e) for e in executions.values() if isinstance(e, ExecutionRecord)
                 )
                 state.rejected.append(
                     RejectedEntry(
