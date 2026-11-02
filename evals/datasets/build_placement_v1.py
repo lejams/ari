@@ -335,10 +335,10 @@ FAMILIES: dict[str, dict[str, Any]] = {
                 ),
                 (
                     "word_choice",
-                    "Ich lerne jeden Tag zwanzig neue Wörter.",
-                    "Ich lehre jeden Tag zwanzig neue Wörter.",
-                    "lehre jeden Tag",
-                    "lerne jeden Tag",
+                    "Ich spreche jeden Tag mit meinen Kollegen auf Deutsch.",
+                    "Ich sage jeden Tag mit meinen Kollegen auf Deutsch.",
+                    "sage jeden Tag mit",
+                    "spreche jeden Tag mit",
                 ),
                 (
                     "word_choice",
