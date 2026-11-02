@@ -70,6 +70,9 @@ class ExerciseBatch(_Model):
     created_at: datetime = Field(default_factory=utc_now)
     rubric_version: str = RUBRIC_VERSION
     mechanical_checks_version: str
+    # SHA-256 of the models configuration file that made the batch (set by the CLI): the gate
+    # report must have measured this same file, with its routes, effort and token limits.
+    config_sha256: str | None = None
     author: StageInfo
     solver: StageInfo
     judge: StageInfo

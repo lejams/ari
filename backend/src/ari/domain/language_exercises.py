@@ -82,7 +82,10 @@ EXPLANATION_LENGTH = (15, 500)
 MIN_SENTENCE_SIMILARITY = 0.5  # Corrections of one sentence stay close to each other.
 
 # Latin letters (with the accents of German and French) and ordinary punctuation, nothing else.
-_ALLOWED_CHARACTERS = re.compile(r"^[\u0020-\u007E\u00A0-\u024F\u2010-\u2027]*$")
+# The soft hyphen (U+00AD) is left out: invisible, it would make equal options look different.
+_ALLOWED_CHARACTERS = re.compile(r"[\u0020-\u007E\u00A0-\u00AC\u00AE-\u024F\u2010-\u2027]*")
+# Exactly three underscores make the blank; four or five are not a blank with a stray character.
+_BLANK = re.compile(r"(?<!_)___(?!_)")
 _MARKUP = re.compile(r"[<>{}\[\]\\|]|https?:|www\.", re.IGNORECASE)
 
 
@@ -153,12 +156,12 @@ def mechanical_issues(candidate: ExerciseCandidate) -> list[str]:
     if not EXPLANATION_LENGTH[0] <= len(candidate.explanation_fr.strip()) <= EXPLANATION_LENGTH[1]:
         issues.append("explanation_length")
     if candidate.format == "cloze":
-        if candidate.stem.count(BLANK) != 1:
+        if len(_BLANK.findall(candidate.stem)) != 1 or candidate.stem.count("_") != len(BLANK):
             issues.append("blank_count")
-        if any(BLANK in o for o in options):
+        if any("_" in o for o in options):
             issues.append("blank_in_option")
     else:
-        if BLANK in candidate.stem or any(BLANK in o for o in options):
+        if "_" in candidate.stem or any("_" in o for o in options):
             issues.append("blank_in_sentence")
         if normalize_answer(candidate.key) == normalize_answer(candidate.stem):
             issues.append("key_equals_stem")  # Nothing to correct or to rewrite.
@@ -171,7 +174,7 @@ def mechanical_issues(candidate: ExerciseCandidate) -> list[str]:
             issues.append("options_too_different")
     if candidate.format == "register_choice" and not (candidate.context_fr or "").strip():
         issues.append("context_missing")
-    if any(not _ALLOWED_CHARACTERS.match(text) for text in texts):
+    if any(not _ALLOWED_CHARACTERS.fullmatch(text) for text in texts):
         issues.append("unexpected_characters")
     if any(_MARKUP.search(text) for text in texts):
         issues.append("markup_or_link")

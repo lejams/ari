@@ -23,6 +23,7 @@ from test_language_exercises_domain import CLOZE, candidate
 from ari.application.exercise_batch import ExerciseBatch
 from ari.application.services.exercise_bank import ExerciseAuthor, ExerciseFactory, ExerciseSpec
 from ari.domain.errors import InvalidStateError
+from ari.domain.language_exercises import LanguageExercise
 from ari.evals.exercises.gate import GateRefusedError
 from ari.evals.report import Report
 from ari.exercises_cli import import_batch, parse_spec, run
@@ -51,7 +52,7 @@ async def make_batch() -> ExerciseBatch:
     factory = ExerciseFactory(ExerciseAuthor(provider, PROMPTS["author"]), checker_over(provider))
     batch = await factory.run("batch-1", [(ExerciseSpec("B1", "gender", "cloze"), 2)])
     assert len(batch.accepted) == 2
-    return batch
+    return batch.model_copy(update={"config_sha256": "0" * 64})  # The scripted gate report's.
 
 
 @pytest.fixture
@@ -88,9 +89,54 @@ async def test_a_batch_backed_by_a_passing_gate_enters_the_bank_with_its_checks(
     assert (again["nouveaux"], again["deja_presents"]) == (0, 2)
 
 
+async def test_a_batch_judged_with_another_rubric_or_checks_than_the_code_applies(
+    bank: SqlExerciseBank, report_file: Path
+) -> None:
+    batch = await make_batch()
+    for change in ({"rubric_version": "exercise-rubric-v2"}, {"mechanical_checks_version": "x"}):
+        with pytest.raises(InvalidStateError, match="ce code applique"):
+            import_batch(batch.model_copy(update=change), bank, gate_report_path=report_file)
+    assert bank.list_active() == ()
+
+
 async def test_a_dry_run_writes_nothing(bank: SqlExerciseBank, report_file: Path) -> None:
     result = import_batch(await make_batch(), bank, gate_report_path=report_file, dry_run=True)
     assert result["a_importer"] == 2 and bank.list_active() == ()
+
+
+async def test_a_sentence_already_taken_refuses_the_whole_batch_before_any_write(
+    bank: SqlExerciseBank, report_file: Path
+) -> None:
+    batch = await make_batch()
+    # Another exercise, with the same correct sentence as the batch's second one, is in the bank.
+    twin = LanguageExercise.model_validate_json(
+        json.dumps({**batch.accepted[1].exercise, "explanation_fr": "Une autre explication, ici."})
+    )
+    bank.add(twin, batch_id="older", provenance={}, reviews=[])
+    for dry_run in (True, False):
+        with pytest.raises(InvalidStateError, match="sous un autre exercice"):
+            import_batch(batch, bank, gate_report_path=report_file, dry_run=dry_run)
+    # Nothing of the batch was written: not even the exercise that came first.
+    assert [s.exercise.exercise_id for s in bank.list_active()] == [twin.exercise_id]
+
+
+async def test_a_dry_run_counts_what_is_already_in_the_bank(
+    bank: SqlExerciseBank, report_file: Path
+) -> None:
+    batch = await make_batch()
+    import_batch(batch, bank, gate_report_path=report_file)
+    result = import_batch(batch, bank, gate_report_path=report_file, dry_run=True)
+    assert (result["a_importer"], result["deja_presents"]) == (0, 2)
+
+
+async def test_the_same_sentence_twice_in_a_batch_is_refused(
+    bank: SqlExerciseBank, report_file: Path
+) -> None:
+    batch = await make_batch()
+    twice = batch.model_copy(update={"accepted": [batch.accepted[0], batch.accepted[0]]})
+    with pytest.raises(InvalidStateError, match="deux fois dans le lot"):
+        import_batch(twice, bank, gate_report_path=report_file)
+    assert bank.list_active() == ()
 
 
 async def test_without_a_passing_gate_nothing_is_imported(

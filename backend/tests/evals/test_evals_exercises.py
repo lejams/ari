@@ -194,6 +194,7 @@ def batch_for_gate() -> ExerciseBatch:
     return ExerciseBatch(
         batch_id="b",
         mechanical_checks_version=MECHANICAL_CHECKS_VERSION,
+        config_sha256="0" * 64,  # The one the scripted gate report carries.
         author=stage("author", prompts["author"], ("openai", "gpt-6-luna")),
         solver=stage("blind_solver", prompts["solver"], CHECKER),
         judge=stage("rubric_judge", prompts["judge"], CHECKER),
@@ -239,6 +240,14 @@ def test_each_way_a_report_can_fail_to_back_a_batch(passing_report: Report) -> N
     )
     refused(passing_report.model_copy(update={"gate": None}), batch, "pas passé")
     refused(passing_report.model_copy(update={"suite": "patient-leakage@1"}), batch, "pas de")
+    refused(
+        passing_report,
+        batch.model_copy(update={"config_sha256": "1" * 64}),
+        "fichier de configuration",
+    )
+    refused(
+        passing_report, batch.model_copy(update={"config_sha256": None}), "fichier de configuration"
+    )
     other = batch.model_copy(update={"rubric_version": "exercise-rubric-v2"})
     refused(passing_report, other, "grille ou contrôles")
     changed_prompt = batch.model_copy(

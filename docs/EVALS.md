@@ -464,8 +464,8 @@ passé, sans changer aucun seuil.** Instabilité 0,027, précision 1 dans toutes
 global 0,996 (`word_choice` 1, `case` 0,98, `verb_form` 0,99), hallucination de preuve 0, faux positif
 de transcription 0, alternances de langue précision et rappel 1. `patient-leakage@1` passe sur les
 deux configurations (fuite 0, fait inventé 0). Verdict de promotion : `passed`. La règle de repli sur
-les seuils (0,15 et 0,65) n'a pas servi. `gates-v6` (2 novembre 2026) garde les seuils de `gates-v5` et ajoute seulement la
-suite `language-exercises@1`.
+les seuils (0,15 et 0,65) n'a pas servi. `gates-v6` (2 novembre 2026) a ajouté la suite `placement@1` ; `gates-v7` (même jour) garde tous
+les seuils et ajoute seulement la suite `language-exercises@1`.
 
 **Choisir la configuration** : le workflow manuel `Compare evaluation configurations`
 (`.github/workflows/evals-compare.yml`, n'importe quelle branche, split dev uniquement, jamais de
@@ -475,7 +475,7 @@ ne sert pas à itérer.
 
 ## 7. Seuils et erreurs critiques
 
-`evals/gates.yaml` (version `gates-v6`) reprend les seuils du plan :
+`evals/gates.yaml` (version `gates-v7`) reprend les seuils du plan :
 
 | Mesure | Seuil |
 |---|---|
@@ -604,7 +604,7 @@ niveau connu, avec des erreurs injectées à des endroits connus : `evals/datase
   (`weak_point.precision.all` et `.recall.all`).
 - Le niveau est jugé à un niveau près (`level.within_one`), le niveau exact est seulement rapporté :
   les erreurs injectées peuvent faire baisser l'estimation d'un cran.
-- Seuils de `gates-v6` : précision ≥ 0,85, rappel ≥ 0,70 (toutes catégories ensemble, le jeu est
+- Seuils de `gates-v6` (inchangés en `gates-v7`) : précision ≥ 0,85, rappel ≥ 0,70 (toutes catégories ensemble, le jeu est
   petit), citation inventée ≤ 2 %, précision et rappel des points faibles ≥ 0,85 et ≥ 0,70, niveau
   à un cran près ≥ 90 %, stabilité et structure comme les autres suites.
 

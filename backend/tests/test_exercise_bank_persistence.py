@@ -177,4 +177,31 @@ def test_a_learner_answer_is_graded_by_code_kept_once_and_never_edited(database_
     ghost = replace(drill, id=new_id(), request_id="r2", exercise_id="lx-unknown")
     with pytest.raises(InvalidStateError):
         drills.record(ghost)
+    # The hash kept with an answer is the one of the exercise answered, not any hash.
+    wrong_version = replace(drill, id=new_id(), request_id="r3", exercise_hash="0" * 64)
+    with pytest.raises(InvalidStateError):
+        drills.record(wrong_version)
     engine.dispose()
+
+
+def test_a_column_added_later_is_immutable_until_a_migration_says_otherwise(engine: Any) -> None:
+    SqlExerciseBank(engine).add(exercise(), batch_id="b1", provenance={}, reviews=REVIEWS)
+    with (
+        pytest.raises(IntegrityError, match="Immutable language exercise"),
+        engine.begin() as c,
+    ):  # The transaction is rolled back with the error: the column never exists for the others.
+        c.execute(text("ALTER TABLE language_exercises ADD COLUMN difficulty integer"))
+        c.execute(text("UPDATE language_exercises SET difficulty = 3"))
+
+
+def test_a_withdrawal_is_complete_or_absent(engine: Any) -> None:
+    bank = SqlExerciseBank(engine)
+    item = exercise()
+    bank.add(item, batch_id="b1", provenance={}, reviews=REVIEWS)
+    for statement in (
+        "UPDATE language_exercises SET withdrawn_reason = 'seul'",  # Active with a reason.
+        "UPDATE language_exercises SET status = 'withdrawn', withdrawn_at = now(),"
+        " withdrawn_reason = ''",  # Withdrawn without a reason.
+    ):
+        with pytest.raises(IntegrityError), engine.begin() as c:
+            c.execute(text(statement))

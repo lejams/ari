@@ -75,12 +75,15 @@ changent pas l'empreinte IA de la production, qui conditionne `promote.yml`.
 - `language_exercises` : la banque. Le contenu ne change jamais (UPDATE d'une colonne de contenu et
   DELETE refusés par triggers). Seul le statut bouge, une fois, de `active` à `withdrawn` avec motif
   et date ; un exercice retiré n'est plus touché (jamais remis en circulation). Un exercice corrigé
-  est un nouvel exercice. Unicité du hash et de la phrase correcte normalisée.
+  est un nouvel exercice. Unicité du hash et de la phrase correcte normalisée. Le trigger énumère
+  ce qui peut changer (statut, motif, date), pas ce qui est protégé : une colonne ajoutée plus tard
+  est immuable tant qu'une migration ne dit pas le contraire.
 - `language_exercise_reviews` : en ajout seul, une ligne par contrôle franchi (`blind_solver`,
   `rubric_judge`, `human`, `learner_report`), avec le modèle et la version de la grille. Un retrait
   ajoute une ligne `human`.
 - `language_drills` : en ajout seul, la réponse d'un apprenant (catégorie et niveau copiés pour le
-  profil de langue, idempotente par `(learner_id, request_id)`). Elle n'est lue par rien encore.
+  profil de langue, idempotente par `(learner_id, request_id)`). Le hash gardé doit être celui de
+  l'exercice répondu (clé étrangère composite). Elle n'est lue par rien encore.
 - Provenance de chaque exercice (colonne `provenance`) : lot, étapes (fournisseur, modèle demandé et
   modèle qui a répondu, version et hash du prompt), versions de la grille et des contrôles, rapport
   de gate qui a autorisé l'import.
@@ -125,7 +128,7 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   médical absurde ; 70 items en dev, 69 en holdout, familles disjointes. Le scorer est du code
   déterministe (le seul modèle appelé est celui des contrôles testés).
 - Métrique principale : **taux de fausse acceptation** (`false_accept_rate`), l'exercice défectueux
-  qui passe. Seuils de `gates.yaml` (`gates-v6`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
+  qui passe. Seuils de `gates.yaml` (`gates-v7`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
   (valeur initiale, à recalibrer après la première mesure), contrôles mécaniques 1,0, verdicts
   changeants ≤ 10 %, structure exploitable ≥ 99,5 %. `false_accept` est une erreur critique : une
   seule nouvelle occurrence bloque.
@@ -134,9 +137,14 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   `exercise-gate`.
 - `import` exige ce rapport (`--gate-report`) et refuse s'il ne correspond pas au lot : rapport pas
   du holdout, pas en mode gate, pas sur de vrais modèles, gate pas passé, **ou prompt, modèle de
-  contrôle, grille ou contrôles mécaniques différents de ceux qui ont fait le lot**
-  (`ari/evals/exercises/gate.py`). Changer un prompt ou un modèle impose donc un nouveau run avant le
+  contrôle, grille, contrôles mécaniques ou fichier de configuration différents de ceux qui ont fait
+  le lot** (`ari/evals/exercises/gate.py`). Le fichier `evals/configs/exercises/*.yaml` est haché dans
+  le rapport et dans le lot, et il fige aussi `max_tokens` et `effort` du contrôle (jamais lus de
+  l'environnement). Changer un prompt, un modèle ou un réglage impose donc un nouveau run avant le
   prochain import.
+- L'import est tout ou rien : phrase déjà prise par un autre exercice, ou présente deux fois dans le
+  lot, refuse le lot entier avant toute écriture (aussi avec `--dry-run`, qui annonce ce qui est déjà
+  présent), puis un seul commit.
 - Il ne fait pas partie de la promotion en production (`PROMOTION_RUNS`) : la banque est de la
   donnée, pas un déploiement.
 - En CI, `make evals-fake` fait tourner la chaîne sur le fournisseur simulé (vérifie le câblage,
@@ -157,5 +165,10 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
 - Les deux modèles de contrôle (résolution et juge) sont la même famille. Un défaut qu'elle ne voit pas,
   elle ne le voit ni comme solveur ni comme juge. Le tirage humain de 10 % reste facultatif (D3 modifiée).
 - Le contrôle de plausibilité médicale est grossier par construction (décor, pas savoir).
+- Limites relevées à la revue et gardées telles quelles : les contrôles mécaniques comparent les
+  options sans tenir compte de la casse ni de `ß` (un exercice de registre « Sie / sie » est refusé
+  comme doublon) ; une correction n'est pas vérifiée comme proche de la phrase fautive (le juge est le
+  seul filet) ; la phrase correcte d'un exercice retiré reste prise, donc sa version corrigée doit
+  changer de phrase ; `TRUNCATE` contourne les triggers par ligne (limite de toute la base).
 - Hors périmètre de cette PR, volontairement : le tirage, le signalement, le créneau `language_drill`,
   le niveau de travail par catégorie, la génération en masse, l'API et l'interface apprenant.

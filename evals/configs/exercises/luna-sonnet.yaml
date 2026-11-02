@@ -7,7 +7,9 @@ description: Auteur gpt-6-luna, contrôle (aveugle + juge) Claude Sonnet 5.5
 provider: live
 routes:
   author: {provider: openai, model: gpt-6-luna}
-  checker: {provider: anthropic, model: claude-sonnet-5-5}
+  # Réglages du contrôle figés ici (jamais lus de l'environnement) : le fichier est haché dans le
+  # rapport de gate et dans le lot, `import` refuse un lot dont le fichier diffère.
+  checker: {provider: anthropic, model: claude-sonnet-5-5, max_tokens: 16000}
 prompts:
   author: exercise-author-v1
   solver: exercise-solver-v1

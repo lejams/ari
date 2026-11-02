@@ -23,6 +23,16 @@ class ExerciseBank(Protocol):
         """Store the exercise with its checks. False when this exact exercise is already there."""
         ...
 
+    def add_many(
+        self,
+        items: Sequence[tuple[LanguageExercise, Sequence[ExerciseReview]]],
+        *,
+        batch_id: str,
+        provenance: dict[str, Any],
+    ) -> list[bool]:
+        """`add` for a whole batch in one transaction: all of it is written or none of it."""
+        ...
+
     def get(self, exercise_id: str) -> StoredExercise: ...
 
     def list_active(

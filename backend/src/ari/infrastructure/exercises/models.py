@@ -31,6 +31,7 @@ from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
 PROMPT_ID = re.compile(r"^[a-z][a-z0-9-]*-v\d+$")
 EXERCISE_PROMPTS = Path(__file__).resolve().parents[2] / "exercise_prompts"
 TIMEOUT_SECONDS = 120.0
+DEFAULT_MAX_TOKENS = 16000
 
 
 class ExerciseConfigError(AriError):
@@ -42,6 +43,10 @@ class ExerciseRoute(BaseModel):
 
     provider: Literal["openai", "anthropic"]
     model: Annotated[str, Field(min_length=1)]
+    # Anthropic only. Pinned here, never read from the environment, so that what the gate
+    # measures is what generates: the file is hashed into the report and into the batch.
+    max_tokens: Annotated[int, Field(ge=1024)] = DEFAULT_MAX_TOKENS
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None = None
 
     @property
     def identity(self) -> tuple[str, str]:
@@ -147,10 +152,11 @@ class _RoutedProvider:
                 evaluation_timeout_seconds=TIMEOUT_SECONDS,
             )
         if "anthropic" in providers:
+            anthropic_route = next(r for r in config.routes.values() if r.provider == "anthropic")
             self._backends["anthropic"] = AnthropicLLMProvider(
                 keys["anthropic"] or "",
-                max_tokens=settings.anthropic_max_tokens,
-                effort=settings.anthropic_effort,
+                max_tokens=anthropic_route.max_tokens,
+                effort=anthropic_route.effort,
             )
 
     async def generate_structured[T: BaseModel](

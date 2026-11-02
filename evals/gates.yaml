@@ -9,7 +9,7 @@
 # - une seule NOUVELLE erreur critique (absente de la baseline) bloque, quelle que soit la moyenne.
 #   Les types d'erreur critiques sont listés par suite dans `critical_outcomes`.
 
-version: gates-v6
+version: gates-v7
 repetitions: 3  # Un run gate répète chaque item 3 fois (stabilité, intervalles).
 
 suites:
@@ -175,7 +175,7 @@ suites:
         source: "plan : ≤ 10 % de verdicts changeants sur 3 répétitions"
     critical_outcomes: [invented_fact, credit_without_ack]
 
-  # Banque d'exercices de langue (2 novembre 2026, gates-v6). Ce gate ne conditionne pas une
+  # Banque d'exercices de langue (2 novembre 2026, gates-v7). Ce gate ne conditionne pas une
   # mise en production mais l'entrée d'un lot dans la banque : `python -m ari.exercises_cli
   # import` refuse un lot si aucun rapport passé de cette suite ne correspond à ses prompts et à
   # son modèle de contrôle (backend/src/ari/evals/exercises/gate.py). Valeurs initiales, à

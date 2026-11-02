@@ -40,6 +40,11 @@ def require_passing_gate(report: Report, batch: ExerciseBatch) -> None:
             f"mesuré avec {report.versions.scorer}, le lot a été fait avec {expected_scorer} "
             "(grille ou contrôles mécaniques changés)"
         )
+    if batch.config_sha256 is None or batch.config_sha256 != report.config.sha256:
+        refuse(
+            "le fichier de configuration des modèles du lot n'est pas celui qui a été mesuré "
+            "(routes, effort ou limites changés, ou lot sans empreinte de configuration)"
+        )
     for role, stage in (("solver", batch.solver), ("judge", batch.judge)):
         measured = report.versions.prompts.get(role)
         if measured is None or measured.sha256 != stage.prompt_hash:

@@ -24,7 +24,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from ari.application.exercise_batch import ExerciseBatch
-from ari.application.exercise_schemas import BlindSolveSchema, JudgeSchema
+from ari.application.exercise_schemas import RUBRIC_VERSION, BlindSolveSchema, JudgeSchema
 from ari.application.ports.exercises import ExerciseBank
 from ari.application.services.exercise_bank import (
     CheckOutcome,
@@ -36,11 +36,12 @@ from ari.application.services.exercise_bank import (
     solver_accepts,
 )
 from ari.config import PROJECT_ROOT, Settings
-from ari.domain.errors import AriError, InvalidStateError
+from ari.domain.errors import AriError, InvalidStateError, NotFoundError
 from ari.domain.language_exercises import (
     EXERCISE_CATEGORIES,
     EXERCISE_FORMATS,
     EXERCISE_LEVELS,
+    MECHANICAL_CHECKS_VERSION,
     ExerciseCandidate,
     LanguageExercise,
 )
@@ -103,6 +104,36 @@ def parse_spec(text: str) -> tuple[ExerciseSpec, int]:
     return ExerciseSpec(level, category, fmt), int(count)
 
 
+def _check_against_bank(exercises: list[LanguageExercise], bank: ExerciseBank) -> int:
+    """How many exercises of the batch are already in the bank; raises on a clash.
+
+    A clash is a correct sentence that the bank holds under another exercise, or that the batch
+    holds twice: the write would refuse it, after the exercises before it were already written.
+    """
+    taken = bank.dedup_keys()
+    seen: set[str] = set()
+    present = 0
+    for exercise in exercises:
+        key = exercise.dedup_key()
+        if key in seen:
+            raise InvalidStateError(
+                f"Lot refusé : la phrase correcte de {exercise.exercise_id} "
+                "est deux fois dans le lot"
+            )
+        seen.add(key)
+        if key not in taken:
+            continue
+        try:
+            bank.get(exercise.exercise_id)
+        except NotFoundError:
+            raise InvalidStateError(
+                f"Lot refusé : la phrase correcte de {exercise.exercise_id} est déjà dans la "
+                "banque sous un autre exercice"
+            ) from None
+        present += 1
+    return present
+
+
 def import_batch(
     batch: ExerciseBatch, bank: ExerciseBank, *, gate_report_path: Path, dry_run: bool = False
 ) -> dict[str, Any]:
@@ -116,6 +147,14 @@ def import_batch(
         raise InvalidStateError("Lot refusé : le contrôle et l'auteur sont le même modèle")
     if (batch.judge.provider, batch.judge.model) == (batch.author.provider, batch.author.model):
         raise InvalidStateError("Lot refusé : le juge et l'auteur sont le même modèle")
+    if (batch.rubric_version, batch.mechanical_checks_version) != (
+        RUBRIC_VERSION,
+        MECHANICAL_CHECKS_VERSION,
+    ):
+        raise InvalidStateError(
+            f"Lot refusé : fait avec {batch.rubric_version} et {batch.mechanical_checks_version}, "
+            f"ce code applique {RUBRIC_VERSION} et {MECHANICAL_CHECKS_VERSION}"
+        )
     gate_report = read_report(gate_report_path)
     require_passing_gate(gate_report, batch)
     report: dict[str, Any] = {"lot": batch.batch_id, "nouveaux": 0, "deja_presents": 0}
@@ -134,8 +173,12 @@ def import_batch(
                 f"Lot refusé : les verdicts de {entry.exercise_id} ne l'approuvent pas"
             )
         prepared.append((exercise, solved, judged))
+    # Refuse the whole batch before writing anything when one sentence is already taken by
+    # another exercise, so that a refusal never leaves half a batch in the bank.
+    present = _check_against_bank([exercise for exercise, _, _ in prepared], bank)
     if dry_run:
-        report["a_importer"] = len(prepared)
+        report["a_importer"] = len(prepared) - present
+        report["deja_presents"] = present
         return report
     provenance = {
         "batch_id": batch.batch_id,
@@ -151,20 +194,26 @@ def import_batch(
         },
         "imported_at": utc_now().isoformat(),
     }
-    for exercise, solved, judged in prepared:
-        outcome = CheckOutcome(True, "accepted", (), solved, judged)
-        added = bank.add(
-            exercise,
-            batch_id=batch.batch_id,
-            provenance=provenance,
-            reviews=reviews_of(outcome, batch.solver, batch.judge),
-        )
-        report["nouveaux" if added else "deja_presents"] += 1
+    added = bank.add_many(
+        [
+            (
+                exercise,
+                reviews_of(
+                    CheckOutcome(True, "accepted", (), solved, judged), batch.solver, batch.judge
+                ),
+            )
+            for exercise, solved, judged in prepared
+        ],
+        batch_id=batch.batch_id,
+        provenance=provenance,
+    )
+    report["nouveaux"] = sum(added)
+    report["deja_presents"] = len(added) - sum(added)
     return report
 
 
 async def generate(args: argparse.Namespace) -> dict[str, Any]:
-    config, _ = exercise_models.load_config(args.config)
+    config, config_sha256 = exercise_models.load_config(args.config)
     prompts = exercise_models.load_prompts(config)
     provider = exercise_models.build_provider(config, live=args.live)
     requests = [parse_spec(text) for text in args.spec]
@@ -198,6 +247,7 @@ async def generate(args: argparse.Namespace) -> dict[str, Any]:
         for remaining in _chunks(count)
     ]
     batch = await factory.run(f"batch-{utc_now():%Y%m%d%H%M%S}-{new_id()[:8]}", split, avoid=avoid)
+    batch = batch.model_copy(update={"config_sha256": config_sha256})
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(batch.model_dump_json(indent=2) + "\n", encoding="utf-8")
     rejected: dict[str, int] = {}

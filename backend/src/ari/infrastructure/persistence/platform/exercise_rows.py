@@ -15,6 +15,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Identity,
     Integer,
     String,
@@ -24,22 +25,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ari.infrastructure.persistence.platform.base import Base
-
-# Every column but the three of the withdrawal: the trigger refuses a change to any of them.
-EXERCISE_CONTENT_COLUMNS = (
-    "id",
-    "content_hash",
-    "dedup_key",
-    "schema_version",
-    "level",
-    "category",
-    "skill",
-    "format",
-    "payload",
-    "batch_id",
-    "provenance",
-    "created_at",
-)
 
 
 class LanguageExerciseRow(Base):
@@ -60,7 +45,9 @@ class LanguageExerciseRow(Base):
         ),
         CheckConstraint("status IN ('active', 'withdrawn')", name="ck_language_exercise_status"),
         CheckConstraint(
-            "(status = 'withdrawn') = (withdrawn_at IS NOT NULL AND withdrawn_reason IS NOT NULL)",
+            "(status = 'withdrawn' AND withdrawn_at IS NOT NULL AND withdrawn_reason IS NOT NULL"
+            " AND withdrawn_reason <> '')"
+            " OR (status = 'active' AND withdrawn_at IS NULL AND withdrawn_reason IS NULL)",
             name="ck_language_exercise_withdrawal",
         ),
     )
@@ -113,11 +100,16 @@ class LanguageDrillRow(Base):
     __tablename__ = "language_drills"
     __table_args__ = (
         UniqueConstraint("learner_id", "request_id", name="uq_language_drill_request"),
+        # The hash must be the one of the exercise answered: the version the learner saw.
+        ForeignKeyConstraint(
+            ["exercise_id", "exercise_hash"],
+            ["language_exercises.id", "language_exercises.content_hash"],
+        ),
     )
     id: Mapped[str] = mapped_column(String, primary_key=True)
     learner_id: Mapped[str] = mapped_column(ForeignKey("learners.id"), index=True)
     request_id: Mapped[str] = mapped_column(String)
-    exercise_id: Mapped[str] = mapped_column(ForeignKey("language_exercises.id"), index=True)
+    exercise_id: Mapped[str] = mapped_column(String, index=True)
     exercise_hash: Mapped[str] = mapped_column(String(64))
     level: Mapped[str] = mapped_column(String)
     category: Mapped[str] = mapped_column(String)

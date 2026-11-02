@@ -40,7 +40,8 @@ written only by the back-office CLI. No backfill; the voice a session was drawn 
 `sessions.voice_stack_config`. Its downgrade drops the column and the forced voices.
 `0007_language_exercises` adds three tables and touches nothing existing: `language_exercises` (the
 bank; triggers refuse any change to a content column and any DELETE, and a withdrawn row is final),
-`language_exercise_reviews` and `language_drills` (both append-only). No backfill. Its downgrade drops
+`language_exercise_reviews` and `language_drills` (both append-only; a drill's hash is tied to the
+exercise's by a composite foreign key). No backfill. Its downgrade drops
 the three tables and the checks and answers they hold: a rollback right after the upgrade only.
 Row locks (`SELECT ... FOR UPDATE`, or `FOR SHARE` when a session
 pins a published scenario) serialise workflow mutations.

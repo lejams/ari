@@ -67,43 +67,64 @@ class SqlExerciseBank:
         provenance: dict[str, Any],
         reviews: Sequence[ExerciseReview],
     ) -> bool:
-        exercise = LanguageExercise.model_validate_json(exercise.model_dump_json())
+        return self.add_many([(exercise, reviews)], batch_id=batch_id, provenance=provenance)[0]
+
+    def add_many(
+        self,
+        items: Sequence[tuple[LanguageExercise, Sequence[ExerciseReview]]],
+        *,
+        batch_id: str,
+        provenance: dict[str, Any],
+    ) -> list[bool]:
+        """All or nothing: one transaction for the whole batch."""
+        checked = [(LanguageExercise.model_validate_json(e.model_dump_json()), r) for e, r in items]
         try:
             with Session(self.engine) as db, db.begin():
-                existing = db.get(LanguageExerciseRow, exercise.exercise_id)
-                if existing is not None:
-                    return False  # Same content, same id: already in the bank.
-                clash = db.scalar(
-                    select(LanguageExerciseRow.id).where(
-                        LanguageExerciseRow.dedup_key == exercise.dedup_key()
-                    )
-                )
-                if clash is not None:
-                    raise InvalidStateError(
-                        f"Cette phrase correcte est déjà dans la banque ({clash})"
-                    )
-                db.add(
-                    LanguageExerciseRow(
-                        id=exercise.exercise_id,
-                        content_hash=exercise.content_hash,
-                        dedup_key=exercise.dedup_key(),
-                        schema_version=exercise.schema_version,
-                        level=exercise.level,
-                        category=exercise.category,
-                        skill=exercise.skill,
-                        format=exercise.format,
-                        payload=exercise.model_dump(mode="json"),
-                        batch_id=batch_id,
-                        provenance=provenance,
-                        created_at=utc_now(),
-                        status="active",
-                    )
-                )
-                db.flush()
-                for review in reviews:
-                    db.add(_review_row(exercise.exercise_id, review))
+                return [
+                    self._add_in(db, exercise, reviews, batch_id, provenance)
+                    for exercise, reviews in checked
+                ]
         except IntegrityError as exc:
             raise InvalidStateError(f"Exercice refusé par la base : {exc.orig}") from exc
+
+    @staticmethod
+    def _add_in(
+        db: Session,
+        exercise: LanguageExercise,
+        reviews: Sequence[ExerciseReview],
+        batch_id: str,
+        provenance: dict[str, Any],
+    ) -> bool:
+        existing = db.get(LanguageExerciseRow, exercise.exercise_id)
+        if existing is not None:
+            return False  # Same content, same id: already in the bank.
+        clash = db.scalar(
+            select(LanguageExerciseRow.id).where(
+                LanguageExerciseRow.dedup_key == exercise.dedup_key()
+            )
+        )
+        if clash is not None:
+            raise InvalidStateError(f"Cette phrase correcte est déjà dans la banque ({clash})")
+        db.add(
+            LanguageExerciseRow(
+                id=exercise.exercise_id,
+                content_hash=exercise.content_hash,
+                dedup_key=exercise.dedup_key(),
+                schema_version=exercise.schema_version,
+                level=exercise.level,
+                category=exercise.category,
+                skill=exercise.skill,
+                format=exercise.format,
+                payload=exercise.model_dump(mode="json"),
+                batch_id=batch_id,
+                provenance=provenance,
+                created_at=utc_now(),
+                status="active",
+            )
+        )
+        db.flush()
+        for review in reviews:
+            db.add(_review_row(exercise.exercise_id, review))
         return True
 
     def get(self, exercise_id: str) -> StoredExercise:

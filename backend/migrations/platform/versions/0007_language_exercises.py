@@ -24,12 +24,17 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 from ari.infrastructure.persistence import ddl
-from ari.infrastructure.persistence.platform.exercise_rows import EXERCISE_CONTENT_COLUMNS
 
 revision: str = "0007_language_exercises"
 down_revision: str | Sequence[str] | None = "0006_learner_tts_provider"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+
+# Only the three columns of the withdrawal may change. The list names what is allowed, not what
+# is protected: a column added later is immutable until a migration says otherwise.
+_MUTABLE = "ARRAY['status', 'withdrawn_reason', 'withdrawn_at']"
+_CONTENT_CHANGED = f"(to_jsonb(OLD) - {_MUTABLE}) IS DISTINCT FROM (to_jsonb(NEW) - {_MUTABLE})"
 
 
 def upgrade() -> None:
@@ -64,7 +69,9 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint("status IN ('active', 'withdrawn')", name="ck_language_exercise_status"),
         sa.CheckConstraint(
-            "(status = 'withdrawn') = (withdrawn_at IS NOT NULL AND withdrawn_reason IS NOT NULL)",
+            "(status = 'withdrawn' AND withdrawn_at IS NOT NULL AND withdrawn_reason IS NOT NULL"
+            " AND withdrawn_reason <> '')"
+            " OR (status = 'active' AND withdrawn_at IS NULL AND withdrawn_reason IS NULL)",
             name="ck_language_exercise_withdrawal",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_language_exercises")),
@@ -114,9 +121,10 @@ def upgrade() -> None:
         sa.Column("chosen_index", sa.Integer(), nullable=False),
         sa.Column("correct", sa.Boolean(), nullable=False),
         sa.Column("answered_at", sa.DateTime(timezone=True), nullable=False),
+        # The hash must be the one of the exercise answered: the version the learner saw.
         sa.ForeignKeyConstraint(
-            ["exercise_id"],
-            ["language_exercises.id"],
+            ["exercise_id", "exercise_hash"],
+            ["language_exercises.id", "language_exercises.content_hash"],
             name=op.f("fk_language_drills_exercise_id_language_exercises"),
         ),
         sa.ForeignKeyConstraint(
@@ -133,7 +141,7 @@ def upgrade() -> None:
         "UPDATE",
         "language_exercises",
         "Immutable language exercise",
-        when=ddl.changed(EXERCISE_CONTENT_COLUMNS),
+        when=_CONTENT_CHANGED,
     )
     # A withdrawn exercise is final: not reinstated, not given another reason.
     ddl.create_immutable_trigger(

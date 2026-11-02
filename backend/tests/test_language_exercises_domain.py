@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from typing import Any
 
@@ -98,6 +99,9 @@ def test_the_same_correct_sentence_is_the_same_exercise() -> None:
         ({"stem": "Haben Sie die Tablette heute schon genommen?"}, "blank_count"),
         ({"stem": "Haben Sie ___ Tablette ___ schon genommen?"}, "blank_count"),
         ({"distractors": ["___", "das"]}, "blank_in_option"),
+        ({"stem": "Haben Sie ____ Tablette heute schon genommen?"}, "blank_count"),  # Four.
+        ({"stem": "Haben Sie ___ Tablette heute schon _ genommen?"}, "blank_count"),
+        ({"distractors": ["de\u00adn", "das"]}, "unexpected_characters"),  # Soft hyphen.
         ({"stem": "Zu kurz ___"}, "stem_length"),
         ({"explanation_fr": "Court."}, "explanation_length"),
         ({"stem": "Haben Sie ___ Tablette <b>schon</b> genommen?"}, "markup_or_link"),
@@ -116,6 +120,14 @@ def test_each_mechanical_check_names_its_problem(
             candidate(CLOZE, **changes)
         return
     assert issue in mechanical_issues(candidate(CLOZE, **changes))
+
+
+def test_a_trailing_newline_is_not_an_allowed_character() -> None:
+    raw = candidate(CLOZE).model_dump(mode="json")
+    padded = ExerciseCandidate.model_validate_json(
+        json.dumps({**raw, "options": [o + "\n" for o in raw["options"]]})
+    )
+    assert "unexpected_characters" in mechanical_issues(padded)
 
 
 def test_a_correction_needs_something_to_correct_and_close_options() -> None:
