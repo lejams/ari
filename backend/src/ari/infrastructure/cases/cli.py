@@ -50,6 +50,9 @@ def _parser() -> argparse.ArgumentParser:
         "placement", help="Registre du test de niveau: import, revue linguistique, publication"
     )
     placement_sub = placement.add_subparsers(dest="placement_command", required=True)
+    placement_sub.add_parser(
+        "list", help="Jeux du registre et leur statut (ce que le serveur sert)"
+    )
     placement_import = placement_sub.add_parser("import")
     placement_import.add_argument("file", type=Path)
     placement_import.add_argument("--validate-only", action="store_true")
@@ -77,6 +80,8 @@ def _placement(args: argparse.Namespace) -> dict[str, Any]:
         report["ecriture"] = not args.validate_only
         return report
     store = PlacementStore(_store(args.database_url).engine)
+    if args.placement_command == "list":
+        return {"jeux": store.list_sets()}
     if args.placement_command == "review":
         review = PlacementReview.model_validate_json(
             json.dumps(read_yaml(args.file.read_text(encoding="utf-8")))

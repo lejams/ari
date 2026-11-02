@@ -330,7 +330,7 @@ def build_container(settings: Settings) -> Container:
         settings.prompt_directory / "fact_attribution_v1.txt", "fact-attribution-v1"
     )
     speaking_prompt = load_prompt(
-        settings.prompt_directory / "placement_speaking_v1.txt", "placement-speaking-v1"
+        settings.prompt_directory / "placement_speaking_v2.txt", "placement-speaking-v2"
     )
     voice_stack = _voice_stack(settings)
     training_voices = _training_voices(settings)

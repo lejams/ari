@@ -197,7 +197,7 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   assert.equal(nodes.get("placement-later").hidden, false, "a profile without an estimate may take the test later");
   const item = { id: "q1", kind: "mcq", stem: "?", options: ["a", "b"] };
   const active = { id: "a1", status: "active", phase: "mcq", language: "de-DE", progress: { mcq_answered: 0, mcq_max: 8 }, current_item: item };
-  const result = { band: "A2", vocab_grammar_level: "A2", listening_level: "A2", speaking_level: null, speaking_counted: false, mcq_answered: 8, listening_answered: 4, speaking_answered: 0 };
+  const result = { band: "A2", vocab_grammar_level: "A2", listening_level: "A2", speaking_level: null, speaking_counted: false, mcq_answered: 8, listening_answered: 4, speaking_answered: 0, weak_points: [{ category: "case", signals: ["written"], written_answered: 3, written_wrong: 2, spoken_errors: 0, examples: [] }] };
   const completed = { ...active, status: "completed", phase: "completed", current_item: null, result, speaking_feedback: [] };
   const fach = { id: "fachbegriffe-5", day_offset: 5, kind: "fachbegriffe", minutes: 10, state: "today", rationale: "r", recommended: { kind: "practice", title: "Organe" } };
   Object.assign(responses, { "/api/health": { provider_mode: "fake" }, "/api/placement/attempts": active, "/api/placement/attempts/a1/answers": completed });
@@ -211,6 +211,7 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   const after = calls.slice(calls.indexOf("/api/placement/attempts/a1/answers"));
   assert.ok(after.includes("/api/profile") && after.includes("/api/program"), `profile and programme read again: ${after}`);
   assert.equal(nodes.get("placement-result").hidden, false);
+  assert.equal(nodes.get("placement-weak").children.length, 3, "a title, a help line and one card per weak point");
   assert.match(nodes.get("placement-next").children[0].textContent, /Prochaine étape : Fachbegriffe · Organe/);
   assert.equal(nodes.get("placement-home").classList.contains("primary"), false, "one primary action on the result");
 }

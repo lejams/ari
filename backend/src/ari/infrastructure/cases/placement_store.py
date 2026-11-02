@@ -107,6 +107,54 @@ class PlacementStore:
         preferred = [row for row in rows if language is None or row.language == language]
         return self._set((preferred or rows)[-1])
 
+    def list_sets(self) -> list[dict[str, Any]]:
+        """Every set of the registry with its status: what the server actually serves."""
+        with Session(self.engine) as db:
+            rows = db.scalars(
+                select(PlacementSetRow).order_by(PlacementSetRow.id, PlacementSetRow.version)
+            ).all()
+            return [
+                {
+                    "id": row.id,
+                    "version": row.version,
+                    "status": row.status,
+                    "language": row.language,
+                    "set_hash": row.content_hash,
+                    "schema_version": row.payload.get("schema_version"),
+                }
+                for row in rows
+            ]
+
+    def record_item_report(
+        self,
+        set_id: str,
+        version: str,
+        *,
+        item_id: str,
+        learner_id: str,
+        attempt_id: str,
+        note: str,
+    ) -> None:
+        """A learner flags an item as wrong: kept in the audit trail, reviewed by the owner."""
+        with Session(self.engine) as db, db.begin():
+            row = self._row(db, set_id, version)
+            db.add(
+                PlacementEventRow(
+                    id=new_id(),
+                    set_id=row.id,
+                    set_version=row.version,
+                    payload={
+                        "action": "item_report",
+                        "item_id": item_id,
+                        "learner_id": learner_id,
+                        "attempt_id": attempt_id,
+                        "note": note,
+                        "set_hash": row.content_hash,
+                        "at": utc_now().isoformat(),
+                    },
+                )
+            )
+
     def _blockers(self, db: Session, row: PlacementSetRow) -> list[str]:
         blockers = []
         placement_set = self._set(row)

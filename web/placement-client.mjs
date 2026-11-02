@@ -4,6 +4,9 @@
 export const LEVEL_LABELS = { A1: "niveau élémentaire, découverte de la langue", A2: "niveau élémentaire, échanges simples du quotidien", B1: "niveau indépendant, seuil", B2: "niveau indépendant, avancé", C1: "niveau expérimenté, autonomie", C2: "niveau expérimenté, maîtrise" };
 export const PHASE_LABELS = { mcq: "Vocabulaire et grammaire", listening: "Compréhension orale", speaking: "Expression orale", completed: "Terminé" };
 
+// Closed list of the placement categories, in the learner's words.
+export const CATEGORY_LABELS = { gender: "Genre des noms (der, die, das)", case: "Cas (Nominativ, Akkusativ, Dativ, Genitiv)", verb_form: "Formes verbales (temps, participes, verbes à particule)", word_order: "Ordre des mots", word_choice: "Choix du mot ou de la préposition", register: "Registre (Sie / du, formules de politesse)" };
+
 export class PlacementClient {
   constructor(api, storage = globalThis.sessionStorage, uuid = () => globalThis.crypto.randomUUID()) {
     this.api = api; this.storage = storage; this.uuid = uuid; this.profileId = null;
@@ -49,6 +52,10 @@ export class PlacementClient {
     this.storage.removeItem(key);
     return result;
   }
+  // A learner flags a question that looks wrong; the owner reviews the report.
+  report(attempt, itemId, note = "") {
+    return this.api(`/api/placement/attempts/${encodeURIComponent(attempt.id)}/report`, { method: "POST", body: JSON.stringify({ item_id: itemId, note }) });
+  }
   finish(attempt) { return this.api(`/api/placement/attempts/${encodeURIComponent(attempt.id)}/finish`, { method: "POST" }); }
   audioUrl(attempt, itemId) { return `/api/placement/attempts/${encodeURIComponent(attempt.id)}/items/${encodeURIComponent(itemId)}/audio`; }
 }
@@ -63,4 +70,14 @@ export function describeResult(result) {
       : "Expression orale : non évaluée",
   ];
   return parts.join(" · ");
+}
+
+// One line per weak point, from what the application computed (never from free text).
+export function describeWeakPoints(result) {
+  return (result?.weak_points || []).map(point => {
+    const parts = [];
+    if (point.signals.includes("written")) parts.push(`${point.written_wrong} réponse${point.written_wrong > 1 ? "s" : ""} fausse${point.written_wrong > 1 ? "s" : ""} sur ${point.written_answered} questions`);
+    if (point.signals.includes("spoken")) parts.push(`${point.spoken_errors} erreurs à l’oral`);
+    return { category: point.category, label: CATEGORY_LABELS[point.category] || point.category, evidence: parts.join(" · "), examples: point.examples || [] };
+  });
 }

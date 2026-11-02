@@ -21,7 +21,7 @@ from ari.application.ports.llm import LLMProvider
 from ari.application.prompting import VersionedPrompt, load_prompt
 from ari.application.services.costing import PricingTable
 
-Role = Literal["patient", "evaluation"]
+Role = Literal["patient", "evaluation", "placement_speaking"]
 Task = Literal["patient", "evaluation", "fact_attribution"]
 PROMPT_ID = re.compile(r"^[a-z][a-z0-9-]*-v\d+$")
 

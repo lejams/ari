@@ -116,6 +116,25 @@ docker compose --profile serve run --rm backoffice \
 
 Ouvrir le lien d'invitation imprimé (`https://<domaine back-office>/#/invitation/…`).
 
+### Publier le test de niveau allemand
+
+Sans jeu publié, l'apprenant voit « Aucun test de niveau publié ». Les scripts de déploiement n'en
+publient aucun : à faire une fois (et à chaque nouvelle version du jeu), depuis `/opt/ari`. Le
+dossier `cases/` est dans l'image ; les commandes écrivent dans la base plateforme et ne migrent rien.
+
+```sh
+CLI="docker compose --profile serve exec app python -m ari.infrastructure.cases.cli placement"
+$CLI list    # ce que le registre contient et ce qui est publié (ce que le serveur sert)
+$CLI import cases/placement/ari_placement_de.v2.yaml
+# La revue du juge LLM est enregistrée sur le hash exact du jeu (docs/PLACEMENT_REVIEW.md).
+$CLI review cases/placement/ari_placement_de.v2.review.yaml
+$CLI publish ari-placement-de 2 --actor "Ismail"
+```
+
+Publier une version retire la précédente du même identifiant. Un jeu modifié (même d'un caractère)
+est une autre version : il faut une nouvelle revue. Les signalements d'erreurs des apprenants sont
+des événements `item_report` de la table `placement_events` (base plateforme).
+
 ## 7. Vérifications de mise en service
 
 Dans l'ordre :
