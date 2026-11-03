@@ -145,7 +145,7 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   fausse acceptation 0, contrôles mécaniques 1,0, fausse rejection 0,143 (2 sur 14, seuil 0,25).** Les
   deux refus étaient fondés (d13 : sujet en tête défendable après une conditionnelle sans « wenn » ;
   d09 : explication muette sur les mauvaises options, énoncé en « Du » face à des options en « Sie »).
-  Avant toute mesure du holdout, d13 est remplacé, et les explications de d09 et h09 couvrent les
+  Avant toute mesure du holdout, d13 est remplacé par un cas de discours indirect (C1), et les explications de d09 et h09 couvrent les
   mauvaises options. Quatre remarques de la revue Codex avaient déjà fait remplacer des distracteurs
   défendables.
 - Métrique principale : **taux de fausse acceptation** (`false_accept_rate`), l'exercice défectueux
