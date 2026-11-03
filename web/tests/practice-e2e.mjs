@@ -269,6 +269,9 @@ try {
   await page.locator("[data-theme-toggle]").click();
   assert.equal(await theme(), "light");
   await page.evaluate(() => localStorage.removeItem("ari-theme"));
+  // perform() drops a hash change while the page is still loading after the reload: wait until it is idle.
+  await page.locator("#home:not([hidden])").waitFor();
+  await page.locator("#main[aria-busy=false]").waitFor();
   await page.goto(base + "/app#cases");
   await page.locator("#cases:not([hidden])").waitFor();
   assert.equal(await page.locator("#voice-cases article").count(), 1);
