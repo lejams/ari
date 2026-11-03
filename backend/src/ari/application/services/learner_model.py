@@ -1,8 +1,10 @@
 """The learner model: computed on demand from deterministic signals, never stored.
 
 Level (declared, estimated), lexicon state, anamnesis coverage per section over the last
-comparable sessions, required items missed, empathy verdict counts, recent activity and the
-exam horizon. LLM prose never enters this model; verdicts appear only as counts.
+comparable sessions, required items missed, empathy verdict counts, recent activity, the
+exam horizon and, since v2, the language profile (the categories of the learner's recent language
+errors and the focus of the next drill). LLM prose never enters this model; verdicts and errors
+appear only as counts.
 """
 
 from __future__ import annotations
@@ -14,12 +16,21 @@ from typing import Any
 
 from ari.application.ports.repository import SessionRepository
 from ari.application.services.lexicon import LexiconService
+from ari.domain.language_drill import LanguageDrill, LanguageProfile, language_profile
 from ari.domain.models import ConversationSession, LearningMode, SessionStatus
 from ari.domain.placement import LEVELS
 from ari.domain.practice import PracticeRun
 
 RECENT_SESSIONS = 5
-LEARNER_MODEL_VERSION = "learner-model-v1"
+NO_LANGUAGE_PROFILE = LanguageProfile(
+    sessions_considered=0,
+    errors_by_category={},
+    recurring=(),
+    focus=None,
+    focus_errors=0,
+    drill_items=0,
+)
+LEARNER_MODEL_VERSION = "learner-model-v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +73,7 @@ class LearnerModel:
     land: str | None = None  # The Land the learner prepares for; recommendations favour it.
     # The day the profile was created: the programme plans nothing before it.
     started_on: date | None = None
+    language: LanguageProfile = NO_LANGUAGE_PROFILE
 
     @property
     def level_reference(self) -> str | None:
@@ -103,6 +115,14 @@ class LearnerModel:
             },
             "required_missed_sessions": self.required_missed_sessions,
             "empathy": dict(self.empathy_counts),
+            "language": {
+                "sessions_considered": self.language.sessions_considered,
+                "errors_by_category": dict(self.language.errors_by_category),
+                "recurring": list(self.language.recurring),
+                "focus": self.language.focus,
+                "focus_errors": self.language.focus_errors,
+                "drill_items": self.language.drill_items,
+            },
             "last_7_days": {
                 "voice_training": self.voice_training_7d,
                 "voice_exam": self.voice_exam_7d,
@@ -122,7 +142,11 @@ class LearnerModelService:
         self._lexicon = lexicon
 
     def compute(
-        self, learner_id: str, runs: tuple[PracticeRun, ...], now: datetime
+        self,
+        learner_id: str,
+        runs: tuple[PracticeRun, ...],
+        now: datetime,
+        drills: tuple[LanguageDrill, ...] = (),
     ) -> LearnerModel:
         learner = self._repository.get_learner(learner_id)
         details = learner.details
@@ -212,6 +236,9 @@ class LearnerModelService:
             lexicon_acquired=len(overview.acquired),
             lexicon_maintenance_due=len(overview.due_maintenance),
             land=details.land.value if details.land else None,
+            language=language_profile(
+                sessions, frozenset(i for drill in drills for i in drill.matched_item_ids)
+            ),
         )
 
 

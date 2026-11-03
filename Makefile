@@ -89,6 +89,8 @@ test-web:
 	$(NODE) --check web/practice-ui.mjs
 	$(NODE) --check web/lexicon-client.mjs
 	$(NODE) --check web/placement-client.mjs
+	$(NODE) --check web/language-drill-client.mjs
+	$(NODE) web/tests/language-drill-client.test.mjs
 	$(NODE) --check web/pcm-recorder.mjs
 	$(NODE) web/tests/pcm-recorder.test.mjs
 	$(NODE) web/tests/practice-client.test.mjs

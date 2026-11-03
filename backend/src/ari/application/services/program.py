@@ -1,4 +1,4 @@
-"""Weekly programme, program-rules-v3: a policy recomputed on every read, never a stored plan.
+"""Weekly programme, program-rules-v4: a policy recomputed on every read, never a stored plan.
 
 The week runs Monday to Sunday. Slots are derived from the learner model; volume is
 bounded by the declared minutes per day; recommendations score published content by
@@ -9,6 +9,11 @@ completed since Monday.
 Since v3, a week the learner joined midway starts on the day the profile was created:
 earlier days hold no slot and no budget, a slot kind whose every day fell before it is
 moved to that first day, and `next` prefers today or a later day over a missed slot.
+
+Since v4, a learner whose recent sessions show a recurring language error (two or more of one
+category, with at least one replayable quote not yet matched) gets `language_drill` slots on one
+axis, the category of that focus: the remediation drill "Votre phrase". Nothing is planned when no
+error is established.
 """
 
 from __future__ import annotations
@@ -19,12 +24,13 @@ from typing import Any
 
 from ari.application.services.learner_model import LearnerModel
 from ari.application.services.practice import content_summary
+from ari.domain.language_drill import CATEGORY_LABELS
 from ari.domain.models import MedicalCase
 from ari.domain.placement import LEVELS, level_index
 from ari.domain.practice import PracticeContent
 from ari.domain.text import normalize_answer
 
-PROGRAM_RULES_VERSION = "program-rules-v3"
+PROGRAM_RULES_VERSION = "program-rules-v4"
 EXAM_PHASE_WEEKS = 8
 RECENCY_DAYS = 14
 
@@ -33,7 +39,10 @@ LEXICON_MINUTES = 8
 FACHBEGRIFFE_MINUTES = 10
 ARZT_ARZT_MINUTES = 15
 FEEDBACK_MINUTES = 10
-PLACEMENT_MINUTES = 15
+PLACEMENT_MINUTES = 10  # The B1 to C1 placement test takes about ten minutes.
+DRILL_MINUTES_PER_ITEM = 2  # A drill of five phrases takes about ten minutes.
+DRILL_MINUTES_MIN = 4
+DRILL_DAYS = (2, 5)
 
 PHASE_MESSAGES = {
     "positionnement": (
@@ -68,6 +77,7 @@ class Slot:
     day_offset: int
     kind: (
         str  # lexicon_review | lexicon_maintenance | fachbegriffe | arzt_arzt | voice_* | placement
+        # | language_drill
     )
     minutes: int
     priority: int  # lower is kept first when the budget is tight
@@ -234,6 +244,25 @@ def plan_week(
                 3,
                 "Session en conditions d'examen pour mesurer l'écart.",
                 _case_ref(case, "exam"),
+            )
+
+    language = model.language
+    if phase in {"fondations", "anamnese", "examen"} and language.focus and language.drill_items:
+        label = CATEGORY_LABELS[language.focus]
+        for day in DRILL_DAYS:
+            add(
+                day,
+                "language_drill",
+                max(DRILL_MINUTES_MIN, DRILL_MINUTES_PER_ITEM * language.drill_items),
+                3,
+                f"Reprendre vos erreurs sur {label} : {language.focus_errors} dans vos "
+                f"{language.sessions_considered} dernières séances.",
+                {
+                    "kind": "language_drill",
+                    "category": language.focus,
+                    "label": label,
+                    "items": language.drill_items,
+                },
             )
 
     fach_days = {

@@ -38,6 +38,9 @@ def completed_since_week_start(
         if kind in completed:
             by_day = {t.date(): t for t in completed[kind]}
             completed[kind] = sorted(by_day.values())
+    for drill in services.language_drills.repository.list(learner_id):
+        if drill.status == "completed" and drill.ended_at and drill.ended_at >= start:
+            completed.setdefault("language_drill", []).append(drill.ended_at)
     for attempt in services.placement.attempts.list(learner_id):
         if attempt.status == "completed" and attempt.ended_at and attempt.ended_at >= start:
             completed.setdefault("placement", []).append(attempt.ended_at)
@@ -53,7 +56,8 @@ def program_router(services: Container) -> APIRouter:
         learner_id = request.state.learner_id
         now = datetime.now(UTC)
         runs = services.practice.repository.list(learner_id)
-        model = models.compute(learner_id, runs, now)
+        drills = services.language_drills.repository.list(learner_id)
+        model = models.compute(learner_id, runs, now, drills)
         week = plan_week(
             model,
             services.cases.list(),

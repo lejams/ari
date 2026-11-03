@@ -39,8 +39,9 @@ from ari.application.ports.evaluator import EvaluationOutcome
 from ari.application.ports.llm import LLMProvider
 from ari.application.schemas import LANGUAGE_ERROR_CATEGORIES, EvaluationOutputSchema
 from ari.application.services.evaluation import LLMBackedEvaluator
+from ari.application.services.language_errors import spans, words
 from ari.domain.clinical import AnamnesisSectionId
-from ari.domain.models import CEFRLevel, MedicalCase
+from ari.domain.models import CEFRLevel, EvidenceObservation, MedicalCase
 from ari.evals.metrics import Counts, Ratio, precision_recall, suffixes
 from ari.evals.scorers import CallRecord, EvalItem, ItemScore, Reliability, RunContext
 from ari.evals.scorers.transcripts import (
@@ -91,9 +92,29 @@ class LanguageItem(EvalItem):
     truth: LanguageTruth
 
 
+def restores_utterance(
+    observation: EvidenceObservation, learner_text: str, correct: str
+) -> bool | None:
+    """Whether applying the evaluator's correction to the learner's turn gives the injected truth.
+
+    The remediation drill (`language-drill-v1`) takes that correction as the key of an exercise,
+    so it matters beyond finding the error. None when the evaluation holds no separate quote and
+    correction (before `session-evaluation-v5`). Words, not characters: case, punctuation and
+    ß/ss do not count, like everywhere in `language_errors.py`.
+    """
+    if not (observation.quote and observation.correction):
+        return None
+    tokens, wanted = words(learner_text), words(correct)
+    fixed = words(observation.correction)
+    return any(
+        tokens[:start] + fixed + tokens[end:] == wanted
+        for start, end in spans(observation.quote, learner_text)
+    )
+
+
 class EvaluationLanguageSuite:
     name: str = "evaluation-language"
-    scorer_version: str = "evaluation-language-scorer-v2"
+    scorer_version: str = "evaluation-language-scorer-v3"
     prompt_roles: tuple[str, ...] = ("evaluation",)
 
     def output_schemas(self, patient_engine: str) -> tuple[type[BaseModel], ...]:
@@ -168,6 +189,11 @@ class EvaluationLanguageSuite:
                 matched.append(match)
                 count(f"lang.tp.{category}")
                 verdict = "correct"
+                turn = next(t for t in language.turns if t.sequence == match.turn)
+                restored = restores_utterance(observation, turn.doctor, match.correct)
+                if restored is not None:
+                    count("corr.measured")
+                    count("corr.restored", float(restored))
             elif cited & switch_turns:
                 count("lang.neutral")
                 verdict = "neutral_code_switch"
@@ -281,6 +307,9 @@ class EvaluationLanguageSuite:
             Ratio("language_location.precision", ("loc.reported_hit",), ("loc.reported",)),
             Ratio("language_location.recall", ("loc.found",), ("loc.injected",)),
             Ratio("category_accuracy_given_located", ("loc.category_right",), ("loc.found",)),
+            # Report only, no threshold: how often the correction of a found error restores what
+            # the learner meant to say. The remediation drill relies on it.
+            Ratio("language_correction.restored", ("corr.restored",), ("corr.measured",)),
             Ratio("stt_false_error_rate", ("stt.blamed",), ("stt.turns",)),
             Ratio("evidence_hallucination_rate", ("lang.hallucinated",), ("lang.reported",)),
             Ratio("category_confusion_rate", ("lang.confused",), ("lang.reported",)),

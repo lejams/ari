@@ -35,7 +35,7 @@ creates a local profile, then practises with published, versioned clinical conte
   *estimated* level per skill and an overall band stored as `estimated_level`. Its
   content is a separate registry bundle (`ari-placement-bundle-v1`) with one linguistic
   review; see `docs/CLINICAL_CASES.md`.
-- **Weekly programme** (`program-rules-v3`): a learner model is computed on every read
+- **Weekly programme** (`program-rules-v4`): a learner model is computed on every read
   from deterministic signals only (reference level, lexicon due words, section coverage
   over the last sessions, required items missed, empathy verdict counts, recent
   activity, exam horizon) and turned into this week's slots, bounded by the declared
@@ -45,7 +45,12 @@ creates a local profile, then practises with published, versioned clinical conte
   sections and recency. Nothing is stored: the plan is recomputed, done slots are matched
   against what was completed since Monday. A week joined midway starts on the day the
   profile was created (no earlier slot, no earlier budget), and the next step prefers today
-  or a later day over a missed slot.
+  or a later day over a missed slot. A recurring language error (two or more of one
+  category in the last sessions) plans a remediation drill on that one category.
+- **Remediation drill "Votre phrase"** (`language-drill-v1`): the learner's own quoted
+  errors, replayed. Nothing is generated: the evaluation keeps each error's quote and
+  correction (`session-evaluation-v5`), the code compares the learner's answer with the
+  correction and never counts a miss as a failure. Stored in `language_drill_runs`.
 - **Progression by axis** (`progress-axes-v1`): anamnesis structure as a heatmap of
   sections by session, empathy verdicts over time, recurring language error categories
   (the evaluator tags each error with a closed category), lexicon acquired versus active,
@@ -220,6 +225,9 @@ a turn. `POST /api/sessions/{id}/end` is idempotent and drains the voice connect
 - `GET /api/placement`, `POST /api/placement/attempts`, `GET /api/placement/attempts/{id}`,
   `POST .../answers`, `GET .../items/{item_id}/audio` (WAV), `POST .../speaking/{item_id}`
   (PCM16 24 kHz body, `X-Event-Id` header; `text/plain` in fake mode), `POST .../finish`
+- `GET /api/language-drill`, `POST /api/language-drill/drills`,
+  `GET /api/language-drill/drills/{id}`, `POST .../answers` (idempotent per `event_id`),
+  `POST .../finish`
 - `GET /api/cases` (each case carries the `land` and `city` of its gold protocol),
   `GET /api/cases/summary` (published cases per Land and the share this learner worked),
   `GET /api/reference/laender` (the closed list of the sixteen Länder)
