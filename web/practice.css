@@ -1,4 +1,4 @@
-@import url("/tokens.css?v=20261103e");
+@import url("/tokens.css?v=20261103f");
 :root{font:15px/1.5 var(--font-sans);color:var(--fg);background:var(--bg)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
@@ -352,6 +352,8 @@ h1 .mut,.home-head h1 .mut{color:var(--fg-faint);font-weight:500}
 .week .dh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;width:100%}
 .week .dh b{font-size:13px}.week .dh span{font:500 11px var(--font-mono);color:var(--fg-faint)}
 .blk{border-radius:var(--radius);padding:8px 9px;font-size:12px;border-left:2px solid;background:var(--bg-soft);text-align:left;width:100%}
+button.blk{display:block;min-height:0;font-weight:400;border-top:0;border-right:0;border-bottom:0;cursor:pointer}
+button.blk:hover{filter:brightness(.97);border-color:inherit}
 .blk .m{font:500 10px var(--font-mono);color:var(--fg-faint);display:block}
 .blk.l{border-color:var(--accent);background:var(--accent-soft)}
 .blk.c{border-color:var(--violet);background:var(--violet-soft)}

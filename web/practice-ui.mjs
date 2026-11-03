@@ -605,8 +605,14 @@ function renderProgramme(program) {
       col.append(rest);
     } else for (const slot of slots) {
       const kind = slot.kind.startsWith('lexicon') ? 'l' : slot.kind.startsWith('voice') ? 'c' : slot.kind === 'arzt_arzt' ? 'c' : 'e';
-      const blk = node('div', undefined, `blk ${kind}${slot.state === 'done' ? ' done' : ''}`);
-      blk.append(node('span', `${slot.minutes} min${slot.state === 'done' ? ' · fait' : ''}`, 'm'), document.createTextNode(SLOT_LABELS[slot.kind] || slot.kind));
+      const done = slot.state === 'done';
+      const blk = node(done ? 'div' : 'button', undefined, `blk ${kind}${done ? ' done' : ''}`);
+      if (!done) {
+        blk.type = 'button';
+        blk.setAttribute('aria-label', slotButtonLabel(slot));
+        blk.addEventListener('click', () => perform(() => runSlot(slot)));
+      }
+      blk.append(node('span', `${slot.minutes} min${done ? ' · fait' : ''}`, 'm'), document.createTextNode(SLOT_LABELS[slot.kind] || slot.kind));
       col.append(blk);
     }
     return col;
