@@ -272,6 +272,11 @@ try {
   // perform() drops a hash change while the page is still loading after the reload: wait until it is idle.
   await page.locator("#home:not([hidden])").waitFor();
   await page.locator("#main[aria-busy=false]").waitFor();
+  // Icon-only rail between 761 and 1100 px: the links keep their accessible names.
+  await page.setViewportSize({width: 900, height: 860});
+  for (const name of ["Aujourd'hui", "Consultation", "Examen", "Progression", "Lexique", "Bilan"])
+    assert.equal(await page.locator(".sidebar nav").getByRole("link", {name}).count(), 1, `rail link ${name}`);
+  await page.setViewportSize({width: 1280, height: 860});
   await page.goto(base + "/app#cases");
   await page.locator("#cases:not([hidden])").waitFor();
   assert.equal(await page.locator("#voice-cases article").count(), 1);
