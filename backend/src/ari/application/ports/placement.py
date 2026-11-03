@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from ari.domain.placement import PlacementAttempt, PlacementSetVersion
@@ -47,3 +48,27 @@ class PlacementAttemptRepository(Protocol):
     def finish(
         self, attempt_id: str, learner_id: str, result: dict[str, Any]
     ) -> PlacementAttempt: ...
+
+
+@dataclass(frozen=True, slots=True)
+class StoredAudio:
+    """The recorded audio of a listening item: PCM16 mono, with where it comes from."""
+
+    pcm16: bytes
+    sample_rate: int
+    voice: str  # "<provider>:<voice id>"
+    model: str
+
+
+class PlacementAudioStore(Protocol):
+    """Audio recorded once per set hash and item; the latest voice of an item is the one played."""
+
+    def get(self, set_hash: str, item_id: str) -> StoredAudio | None: ...
+
+    def has(self, set_hash: str, item_id: str, voice: str) -> bool: ...
+
+    def put(
+        self, set_id: str, version: str, set_hash: str, item_id: str, audio: StoredAudio
+    ) -> bool:
+        """Write once; False (nothing written) when this voice already has this item."""
+        ...

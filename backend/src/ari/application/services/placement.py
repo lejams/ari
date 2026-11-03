@@ -17,7 +17,11 @@ from typing import Any
 
 from ari.application.contracts import ExecutionContext, TranscriptionConfig
 from ari.application.ports.llm import LLMProvider
-from ari.application.ports.placement import PlacementAttemptRepository, PlacementCatalog
+from ari.application.ports.placement import (
+    PlacementAttemptRepository,
+    PlacementAudioStore,
+    PlacementCatalog,
+)
 from ari.application.ports.repository import SessionRepository
 from ari.application.ports.stt import UtteranceTranscriber
 from ari.application.ports.tts import StreamingTTSProvider
@@ -70,9 +74,11 @@ class PlacementService:
         *,
         feedback_language: str,
         sample_rate: int,
+        audio_store: PlacementAudioStore | None = None,
         clock: Callable[[], datetime] = utc_now,
     ) -> None:
         self.store = store
+        self._audio_store = audio_store
         self.attempts = attempts
         self._learners = learners
         self._transcriber = transcriber
@@ -499,6 +505,16 @@ class PlacementService:
             raise NotFoundError("Item d'écoute indisponible")
         placement_set = self._pinned_set(attempt)
         item = self._listening(placement_set, item_id)
+        # A recording made for this exact set always wins and is read each time, so a recording
+        # made while the server runs (or a newer voice) is played at once, by every worker; only
+        # the on-demand synthesis is kept in memory.
+        recorded = (
+            self._audio_store.get(placement_set.content_hash, item_id)
+            if self._audio_store is not None
+            else None
+        )
+        if recorded is not None and recorded.sample_rate == self._sample_rate:
+            return recorded.pcm16
         key = (placement_set.content_hash, item_id)
         cached = self._audio_cache.get(key)
         if cached is not None:
