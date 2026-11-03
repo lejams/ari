@@ -133,12 +133,18 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   déterministe (le seul modèle appelé est celui des contrôles testés).
 - Métrique principale : **taux de fausse acceptation** (`false_accept_rate`), l'exercice défectueux
   qui passe. Seuils de `gates.yaml` (`gates-v7`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
-  (valeur initiale, à recalibrer après la première mesure), contrôles mécaniques 1,0, verdicts
+  (valeur initiale, à recalibrer après la première mesure ; première mesure sur le dev du 3 novembre 2026, run 41660638291 : fausse acceptation 0, contrôles mécaniques 1,0, structure 100 % après retry, mais fausse rejection 0,625, donc gate non passé), contrôles mécaniques 1,0, verdicts
   changeants ≤ 10 %, structure exploitable ≥ 99,5 %. `false_accept` est une erreur critique : une
   seule nouvelle occurrence bloque.
 - Workflow `Evals of the exercise checks` (`.github/workflows/evals-exercises.yml`, manuel, facturé,
   `main`, environnement `evals`, secrets `ARI_OPENAI_API_KEY` et `ARI_ANTHROPIC_API_KEY`). Artefact
   `exercise-gate`.
+- Sur le split dev, le workflow ajoute un **diagnostic** au log et au résumé (`python -m ari.evals
+  diagnose <rapport>`) : pour chaque exercice juste refusé, l'étape qui l'a refusé (contrôle
+  mécanique, résolveur à l'aveugle, juge strict), la raison (autre option choisie, plusieurs réponses
+  acceptables, décor jugé absurde, critère de la grille en échec avec la raison du juge), et les
+  fausses acceptations. Il sert à comprendre un taux de fausse rejection trop haut avant de
+  toucher un prompt ; le holdout n'en a pas, son contenu reste hors des rapports.
 - `import` exige ce rapport (`--gate-report`) et refuse s'il ne correspond pas au lot : rapport pas
   du holdout, pas en mode gate, pas sur de vrais modèles, gate pas passé, **ou prompt, modèle de
   contrôle, grille, contrôles mécaniques ou fichier de configuration différents de ceux qui ont fait

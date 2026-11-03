@@ -126,6 +126,7 @@ def _parser() -> argparse.ArgumentParser:
         "diagnose", help="items en échec ou instables d'un rapport du split dev"
     )
     diagnose_cmd.add_argument("report", type=Path)
+    diagnose_cmd.add_argument("--datasets-dir", type=Path, default=DEFAULT_DATASETS)
 
     fingerprint_cmd = commands.add_parser(
         "fingerprint", help="empreinte IA d'un checkout (prompts, modèles, routage)"
@@ -346,7 +347,21 @@ def _compare(args: argparse.Namespace) -> int:
 
 
 def _diagnose(args: argparse.Namespace) -> int:
-    print(diagnosis_text(read_report(args.report)))
+    report = read_report(args.report)
+    if report.suite.startswith("language-exercises"):
+        from ari.evals.exercises.dataset import load_dataset as load_exercise_dataset
+        from ari.evals.exercises.diagnosis import exercise_diagnosis_text
+
+        items = None
+        if report.split == "dev" and not report.gate_mode:
+            try:  # An older report did not record the key: read it in the dataset it measured.
+                dataset = load_exercise_dataset(args.datasets_dir, report.dataset.ref.split("@")[1])
+                items = {i.id: i for i in dataset.read_split("dev", gate=False)}
+            except (DatasetError, IndexError):
+                items = None
+        print(exercise_diagnosis_text(report, items))
+    else:
+        print(diagnosis_text(report))
     return 0
 
 

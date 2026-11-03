@@ -54,6 +54,12 @@ jobs:
             echo "- False acceptance rate: \`$(jq -r '.metrics.false_accept_rate' exercise-gate/report.json)\`"
             echo "- False rejection rate: \`$(jq -r '.metrics.false_reject_rate' exercise-gate/report.json)\`"
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Say why the checks refused valid exercises (dev only)
+        if: always() && inputs.split == 'dev'
+        run: |
+          test -f exercise-gate/report.json || exit 0
+          PYTHONPATH=backend/src .venv/bin/python -m ari.evals diagnose exercise-gate/report.json | tee exercise-diagnosis.txt
+          { echo; echo '#### Diagnostic'; echo '```'; cat exercise-diagnosis.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: exercise-gate, path: exercise-gate, if-no-files-found: ignore, retention-days: 90}
