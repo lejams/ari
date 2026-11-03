@@ -34,11 +34,35 @@ function setCrumb(name) {
   crumb.dataset.view = name;
   crumb.textContent = viewLabel(name);
 }
+function examDaysLeft(examDateIso, todayIso) {
+  if (!examDateIso) return null;
+  const exam = new Date(`${examDateIso}T00:00:00`);
+  const today = new Date(`${(todayIso || new Date().toISOString().slice(0, 10))}T00:00:00`);
+  if (Number.isNaN(exam.getTime()) || Number.isNaN(today.getTime())) return null;
+  return Math.max(0, Math.round((exam - today) / 86400000));
+}
+function renderSidefootCountdown(examDateIso, todayIso) {
+  const sideDays = document.getElementById('sidefoot-days');
+  const sideNote = document.getElementById('sidefoot-note');
+  if (!sideDays || !sideNote) return;
+  const days = examDaysLeft(examDateIso, todayIso);
+  if (days !== null) {
+    sideDays.textContent = String(days);
+    sideNote.textContent = `Examen prévu le ${new Date(`${examDateIso}T00:00:00`).toLocaleDateString('fr-FR')}.`;
+  } else {
+    sideDays.textContent = '—';
+    sideNote.innerHTML = 'Examen prévu le <span class="ph">[date à saisir]</span>.';
+  }
+}
 function refreshSideUser() {
   const box = document.getElementById('side-user');
   if (!box) return;
   const details = client.profile?.details;
-  if (!details) { box.hidden = true; return; }
+  if (!details) {
+    box.hidden = true;
+    renderSidefootCountdown(null);
+    return;
+  }
   box.hidden = false;
   const specialty = details.specialty || '';
   const initials = specialty.slice(0, 2).toUpperCase() || 'AR';
@@ -46,6 +70,7 @@ function refreshSideUser() {
   document.getElementById('side-name').textContent = specialty || 'Profil ARI';
   const level = details.estimated_level || details.declared_level;
   document.getElementById('side-level').textContent = level ? `Niveau ${level}` : 'Niveau non mesuré';
+  renderSidefootCountdown(details.exam_date || null);
 }
 
 const client = new PracticeClient();
@@ -431,13 +456,6 @@ function renderSessionPlan(program) {
     plan.append(step);
   }
 }
-function examDaysLeft(examDateIso, todayIso) {
-  if (!examDateIso) return null;
-  const exam = new Date(`${examDateIso}T00:00:00`);
-  const today = new Date(`${(todayIso || new Date().toISOString().slice(0, 10))}T00:00:00`);
-  if (Number.isNaN(exam.getTime()) || Number.isNaN(today.getTime())) return null;
-  return Math.max(0, Math.round((exam - today) / 86400000));
-}
 function renderFspCard(program) {
   const model = program.model, details = client.profile?.details || {}, next = program.week.next;
   const examDate = model.exam?.date || details.exam_date || null;
@@ -455,17 +473,7 @@ function renderFspCard(program) {
     $('fsp-note').innerHTML = 'Indiquez une date d’examen dans votre profil. Seuil FSP <span class="ph">[à définir]</span>.';
   }
   $('fsp-slots').textContent = String(program.week.slots.length).padStart(2, '0');
-  const sideDays = $('sidefoot-days');
-  const sideNote = $('sidefoot-note');
-  if (sideDays && sideNote) {
-    if (days !== null) {
-      sideDays.textContent = String(days);
-      sideNote.textContent = `Examen prévu le ${new Date(`${examDate}T00:00:00`).toLocaleDateString('fr-FR')}.`;
-    } else {
-      sideDays.textContent = '—';
-      sideNote.innerHTML = 'Examen prévu le <span class="ph">[date à saisir]</span>.';
-    }
-  }
+  renderSidefootCountdown(examDate, program.week?.today);
   const box = $('fsp-next');
   if (!next) { box.hidden = true; return; }
   box.hidden = false;
