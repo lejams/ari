@@ -1,0 +1,94 @@
+"""Why the checks removed the exercises they removed, for reading a dev run in a log.
+
+The report keeps, for the dev split, each exercise's truth, the stage that decided and what the
+blind solver and the judge said. A false rejection (a valid exercise removed) costs a generation,
+not a learner, but a rate above the threshold needs a cause before any prompt is touched: this
+tells whether the solver, the judge (and which criterion) or a mechanical check is too strict.
+The holdout keeps its content out of reports and has nothing to show.
+"""
+
+from __future__ import annotations
+
+from collections import Counter
+from typing import Any
+
+from ari.evals.report import Report
+
+SHOWN = 40
+
+
+def rejection_reasons(detail: dict[str, Any]) -> list[str]:
+    """The reasons the checks removed one exercise, each a short code."""
+    stage = detail.get("stage")
+    issues: list[str] = list(detail.get("issues") or [])
+    if stage == "mechanical":
+        return [f"mechanical:{issue}" for issue in issues] or ["mechanical"]
+    if stage == "rubric_judge":
+        return [f"judge:{issue}" for issue in issues] or ["judge"]
+    if stage == "blind_solver":
+        if issues:
+            return [f"solver:{issue}" for issue in issues]
+        solver = detail.get("solver") or {}
+        key = detail.get("key_index")
+        reasons = []
+        if solver.get("chosen_index") != key:
+            reasons.append("solver:chose_another_option")
+        elif solver.get("acceptable_indices") != [key]:
+            reasons.append("solver:sees_several_acceptable_options")
+        if solver.get("medically_plausible") is False:
+            reasons.append("solver:medically_implausible")
+        return reasons or ["solver"]
+    return [str(stage)] if stage else ["unusable"]
+
+
+def _explanation(detail: dict[str, Any]) -> str:
+    judge = detail.get("judge") or {}
+    failing = [
+        f"{v['criterion']} : {str(v['reason'])[:160]}"
+        for v in judge.get("verdicts", [])
+        if not v.get("passed")
+    ]
+    if failing:
+        return " | ".join(failing)
+    return str((detail.get("solver") or {}).get("comment", ""))[:200]
+
+
+def exercise_diagnosis_text(report: Report) -> str:
+    if report.gate_mode or report.split != "dev":
+        return "Diagnostic : réservé au split dev ; le holdout garde son contenu hors des rapports."
+    counts: Counter[str] = Counter()
+    stages: Counter[str] = Counter()
+    lines: list[str] = []
+    valid = rejected = 0
+    for item in report.items:
+        for run in item.runs:
+            detail = run.detail or {}
+            truth = detail.get("truth") or {}
+            if not truth.get("valid"):
+                if detail.get("accepted"):
+                    lines.append(
+                        f"- FAUSSE ACCEPTATION {item.item_id} ({truth.get('defect')}) : "
+                        f"{str(detail.get('stem', ''))[:90]}"
+                    )
+                continue
+            valid += 1
+            if detail.get("accepted"):
+                continue
+            rejected += 1
+            reasons = rejection_reasons(detail)
+            stages[str(detail.get("stage"))] += 1
+            counts.update(reasons)
+            if rejected <= SHOWN:
+                lines.append(
+                    f"- {item.item_id} ({item.family}) [{', '.join(reasons)}] "
+                    f"« {str(detail.get('stem', ''))[:90]} » : {_explanation(detail)}"
+                )
+    head = [
+        f"Diagnostic de {report.suite} ({report.split}) : "
+        f"{rejected} exercice(s) juste(s) refusé(s) sur {valid}",
+        "Par étape : " + (", ".join(f"{s} {n}" for s, n in stages.most_common()) or "aucune"),
+        "Par raison : " + (", ".join(f"{r} {n}" for r, n in counts.most_common()) or "aucune"),
+    ]
+    if rejected > SHOWN:
+        lines.append(f"… {rejected - SHOWN} autre(s) refus non détaillé(s)")
+    return "\n".join([*head, *lines])

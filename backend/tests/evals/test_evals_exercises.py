@@ -20,12 +20,13 @@ from exercise_scripts import (
 from scripted import DATASETS, GATES, PRICING
 
 from ari.application.exercise_batch import ExerciseBatch, StageInfo
-from ari.application.exercise_schemas import RUBRIC_VERSION
+from ari.application.exercise_schemas import RUBRIC_CRITERIA, RUBRIC_VERSION
 from ari.config import PROJECT_ROOT
 from ari.domain.language_exercises import MECHANICAL_CHECKS_VERSION
 from ari.evals import gates as gate_rules
 from ari.evals.__main__ import main
 from ari.evals.exercises.dataset import MECHANICAL_DEFECTS, load_dataset
+from ari.evals.exercises.diagnosis import exercise_diagnosis_text
 from ari.evals.exercises.gate import GateRefusedError, require_passing_gate
 from ari.evals.exercises.runner import ExerciseRunRequest, run_exercises, scorer_version
 from ari.evals.manifest import DatasetError, HoldoutAccessError
@@ -164,6 +165,63 @@ async def test_a_checker_that_accepts_everything_fails_the_gate_with_critical_er
     assert any(c.endswith(":false_accept") for c in gated.critical_errors)
     assert {c.metric for c in gated.gate.checks if c.status == "failed"} >= {"false_accept_rate"}
     assert gated.gate.new_critical_errors
+
+
+def solving_with_a_twin(keys: dict[str, int]) -> Any:
+    def respond(request: Any, payload: dict[str, Any]) -> dict[str, Any]:
+        key = keys[request.context.case_hash]
+        twin = (key + 1) % len(payload["options"])
+        return {
+            "chosen_index": key,
+            "acceptable_indices": [key, twin],
+            "medically_plausible": True,
+            "comment": "scripted",
+        }
+
+    return respond
+
+
+async def test_the_diagnosis_says_which_stage_and_which_criterion_refuses_valid_exercises() -> None:
+    dataset = load_dataset(DATASETS, "1")
+    solver, _ = oracle_for(dataset, "dev", strict=True)
+    criterion = RUBRIC_CRITERIA[0]
+    provider = ScriptedModels(
+        author=lambda r, p: {}, solver=solver, judge=judge_passes(failing=(criterion,))
+    )
+    report = await run_exercises(request(provider, split="dev", repetitions=1))
+    text = exercise_diagnosis_text(report)
+    valid = sum(i.truth.valid for i in dataset.read_split("dev", gate=True))
+    assert f"{valid} exercice(s) juste(s) refusé(s) sur {valid}" in text
+    assert f"Par raison : judge:{criterion} {valid}" in text
+    assert f"{criterion} : scripted" in text  # The judge's own reason is shown.
+    # A solver that picks another option is told apart from one that sees several answers.
+    keys = {
+        i.candidate.content_hash: i.candidate.answer_index
+        for i in dataset.read_split("dev", gate=True)
+    }  # type: ignore[arg-type]
+
+    def another(request: Any, payload: dict[str, Any]) -> dict[str, Any]:
+        chosen = (keys[request.context.case_hash] + 1) % len(payload["options"])
+        return {
+            "chosen_index": chosen,
+            "acceptable_indices": [chosen],
+            "medically_plausible": True,
+            "comment": "scripted",
+        }
+
+    other = ScriptedModels(author=lambda r, p: {}, solver=another, judge=judge_passes())
+    assert "solver:chose_another_option" in exercise_diagnosis_text(
+        await run_exercises(request(other, split="dev", repetitions=1))
+    )
+    several = ScriptedModels(
+        author=lambda r, p: {}, solver=solve_as(also=[1]), judge=judge_passes()
+    )
+    assert "solver:sees_several_acceptable_options" in exercise_diagnosis_text(
+        await run_exercises(request(several, split="dev", repetitions=1))
+    )
+    plain = ScriptedModels(author=lambda r, p: {}, solver=solve_as(), judge=judge_passes())
+    holdout = await run_exercises(request(plain))
+    assert "réservé au split dev" in exercise_diagnosis_text(holdout)
 
 
 async def test_a_gate_run_repeats_each_item_at_least_three_times() -> None:

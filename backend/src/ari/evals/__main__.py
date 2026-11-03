@@ -346,7 +346,13 @@ def _compare(args: argparse.Namespace) -> int:
 
 
 def _diagnose(args: argparse.Namespace) -> int:
-    print(diagnosis_text(read_report(args.report)))
+    report = read_report(args.report)
+    if report.suite.startswith("language-exercises"):
+        from ari.evals.exercises.diagnosis import exercise_diagnosis_text
+
+        print(exercise_diagnosis_text(report))
+    else:
+        print(diagnosis_text(report))
     return 0
 
 

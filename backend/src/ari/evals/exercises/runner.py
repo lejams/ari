@@ -289,6 +289,8 @@ async def _run_once(request: ExerciseRunRequest, item: ExerciseItem, repetition:
         if request.split == "holdout"
         else {
             "truth": item.truth.model_dump(mode="json"),
+            "key_index": item.candidate.answer_index,
+            "stem": item.candidate.stem,
             "accepted": outcome.accepted if outcome else None,
             "stage": outcome.stage if outcome else None,
             "issues": list(outcome.issues) if outcome else [],
