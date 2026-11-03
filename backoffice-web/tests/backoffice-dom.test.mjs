@@ -109,7 +109,14 @@ const scenarioReport = {
   reviews: [], markdown: "# Revue locale ARI",
   bundle: {cases: [{id: "FSP-BY-P-cccccccc-000", version: "1", title: "Fall: Thoraxschmerz", location: {land: "Bayern"}, facts: [{id: "a01"}, {id: "a02"}]}], scenarios: [{id: "FSP-BY-P-cccccccc-000-arzt_patient", version: "1", phase: "arzt_patient"}]},
 };
+const exerciseSummary = {id: "lx-1", level: "B1", category: "gender", skill: "grammar", format: "cloze", status: "active", setting: "Notaufnahme", stem: "Der Arzt untersucht ___ Patientin.", batch_id: "b1", created_at: "2026-11-03T10:00:00Z", withdrawn_reason: null};
+const exerciseCounts = {status: {active: 1}, level: {B1: 1}, category: {gender: 1}, skill: {grammar: 1}, format: {cloze: 1}};
+const exerciseDetail = {...exerciseSummary, context_fr: "Aux urgences.", instruction_fr: "Choisissez l'article.", options: ["die", "der", "das", "den"], answer_index: 0, correct_sentence: "Der Arzt untersucht die Patientin.", explanation_fr: "Patientin est féminin.", provenance: {author: {model: "gpt-6-luna"}},
+  reviews: [{kind: "blind_solver", name: "anthropic:claude-sonnet-5-5@exercise-solver-v1", decision: "approve", payload: {}, created_at: "2026-11-03T10:00:00Z"}]};
 const responses = {
+  "/api/exercises?limit=50": {items: [exerciseSummary], total: 1, limit: 50, offset: 0, counts: exerciseCounts},
+  "/api/exercises?level=B1&limit=50": {items: [exerciseSummary], total: 1, limit: 50, offset: 0, counts: exerciseCounts},
+  "/api/exercises/lx-1": exerciseDetail,
   "/api/gold/P-cccccccc-000": gold,
   "/api/gold/P-cccccccc-000/bundle-drafts": {items: [draft], total: 1, jobs: [{id: "job-1", status: "queued", attempts: 0, last_error: null, request: draft.request, created_at: "2026-09-20T00:00:00Z"}], available_phases: ["arzt_patient", "arzt_arzt", "fachbegriffe"], next_revision: 2},
   "/api/registry/scenarios?status=draft_unvalidated": {items: [{id: "FSP-BY-P-cccccccc-000-arzt_patient", version: "1", status: "draft_unvalidated", phase: "arzt_patient", case_id: "FSP-BY-P-cccccccc-000", case_version: "1", case_hash: "f".repeat(64), scenario_hash: "1".repeat(64), title: "Fall: Thoraxschmerz", land: "Bayern", language: "de-DE"}], total: 1},
@@ -156,10 +163,40 @@ async function load(hash, {signedIn = true, roles = me.roles} = {}) {
   assert.equal(nodes.get("login").hidden, false, "signed out visitors land on the login page");
   assert.equal(nodes.get("sidebar").hidden, true);
 }
-for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"], [`#/documents/${"c".repeat(64)}`, "document"], ["#/review", "review"], ["#/protocols/P-cccccccc-000", "protocol"], ["#/gold", "gold"], ["#/gold/P-cccccccc-000", "gold-detail"], ["#/registry", "registry"], ["#/registry/FSP-BY-P-cccccccc-000-arzt_patient/1", "scenario"], ["#/costs", "costs"], ["#/accounts", "accounts"]]) {
+for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"], [`#/documents/${"c".repeat(64)}`, "document"], ["#/review", "review"], ["#/protocols/P-cccccccc-000", "protocol"], ["#/gold", "gold"], ["#/gold/P-cccccccc-000", "gold-detail"], ["#/registry", "registry"], ["#/registry/FSP-BY-P-cccccccc-000-arzt_patient/1", "scenario"], ["#/exercises", "exercises"], ["#/exercises/lx-1", "exercise"], ["#/costs", "costs"], ["#/accounts", "accounts"]]) {
   const {nodes} = await load(hash);
   assert.equal(nodes.get("error").hidden, true, `${hash}: ${nodes.get("error-text").textContent}`);
   assert.equal(nodes.get(section).hidden, false, `${hash} shows ${section}`);
+}
+{
+  const {nodes, calls} = await load("#/exercises");
+  assert.ok(calls.includes("/api/exercises?limit=50"), "the list opens unfiltered, one page at a time");
+  assert.equal(nodes.get("exercises-table").children.length, 2, "a header row and one exercise");
+  assert.match(nodes.get("exercises-total").textContent, /^1 exercice\(s\) correspondent aux filtres/);
+  assert.equal(nodes.get("exercises-empty").hidden, true);
+  assert.deepEqual(nodes.get("exercises-level").children.map(o => o.textContent), ["Tous les niveaux", "B1 (1)", "B2 (0)", "C1 (0)"], "each filter shows how many exercises it holds");
+  assert.equal(nodes.get("exercises-prev").disabled, true);
+  assert.equal(nodes.get("exercises-next").disabled, true);
+  nodes.get("exercises-level").value = "B1";
+  await nodes.get("exercises-level").onchange();
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.ok(calls.includes("/api/exercises?level=B1&limit=50"), "choosing a level filters on the server");
+  assert.equal(nodes.get("exercises-level").value, "B1", "the choice survives the redraw of the options");
+}
+{
+  const {nodes} = await load("#/exercises/lx-1");
+  assert.equal(nodes.get("exercise-title").textContent, "lx-1");
+  assert.equal(nodes.get("exercise-stem").children[0].textContent, "Der Arzt untersucht ___ Patientin.");
+  const options = nodes.get("exercise-options").children;
+  assert.equal(options.length, 4);
+  assert.match(options[0].textContent, /die {2}← réponse attendue/);
+  assert.equal(options[1].textContent, "der", "only the key is marked");
+  assert.equal(nodes.get("exercise-withdraw").hidden, false, "the owner can withdraw an active exercise");
+  assert.equal(nodes.get("exercise-reviews").children.length, 2);
+}
+{
+  const {nodes} = await load("#/exercises/lx-1", {roles: ["linguistic_reviewer"]});
+  assert.equal(nodes.get("exercise-withdraw").hidden, true, "a reviewer reads, never withdraws");
 }
 {
   const {nodes} = await load("#/");

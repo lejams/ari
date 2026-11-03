@@ -115,6 +115,9 @@ Les clés `ARI_OPENAI_API_KEY` et `ARI_ANTHROPIC_API_KEY` doivent être dans l'e
 sans clé sur un fournisseur simulé : elle ne mesure rien de l'allemand, et un lot simulé est **refusé
 à l'import**.
 
+Les exercices se consultent dans l'onglet **Exercices** du back-office (filtres par niveau,
+catégorie, compétence, format et statut ; retrait par le propriétaire), voir `docs/BACKOFFICE.md`.
+
 ## 5. Le gate : aucun lot n'entre sans mesure
 
 Question posée par le propriétaire (2 novembre 2026) : faut-il un workflow d'évaluation pour valider

@@ -15,6 +15,7 @@ from ari.backoffice_api.routes_admin import admin_router
 from ari.backoffice_api.routes_auth import auth_router
 from ari.backoffice_api.routes_bundles import bundles_router
 from ari.backoffice_api.routes_documents import documents_router
+from ari.backoffice_api.routes_exercises import exercises_router
 from ari.backoffice_api.routes_protocols import protocols_router
 from ari.config import Settings, get_settings
 from ari.content.domain.errors import ConflictError
@@ -41,6 +42,7 @@ def create_backoffice_app(
     app.include_router(protocols_router(services))
     app.include_router(bundles_router(services))
     app.include_router(admin_router(services))
+    app.include_router(exercises_router(services))
     app.add_middleware(
         BackofficeAuthMiddleware, auth=services.auth, origin=services.settings.backoffice_origin
     )

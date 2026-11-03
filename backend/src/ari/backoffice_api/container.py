@@ -14,6 +14,7 @@ from ari.infrastructure.persistence.content.accounts import SqlAccountStore
 from ari.infrastructure.persistence.costs import CostReport
 from ari.infrastructure.persistence.platform.engine import create_platform_engine
 from ari.infrastructure.persistence.platform.evaluation_accounts import EvaluationAccounts
+from ari.infrastructure.persistence.platform.exercises import SqlExerciseBank
 from ari.infrastructure.persistence.platform.voice_providers import VoiceProviders
 
 
@@ -27,6 +28,9 @@ class Backoffice:
     costs: CostReport  # Recorded call costs of both databases, for the owner.
     evaluation_accounts: EvaluationAccounts  # Learners marked by an administrator (CLI only).
     voice_providers: VoiceProviders  # Forced training voice per learner (CLI only).
+    exercises: (
+        SqlExerciseBank  # The bank of language exercises: read by all, withdrawn by the owner.
+    )
 
 
 def build_backoffice(settings: Settings, *, llm: LLMProvider | None = None) -> Backoffice:
@@ -49,4 +53,5 @@ def build_backoffice(settings: Settings, *, llm: LLMProvider | None = None) -> B
         costs=costs,
         evaluation_accounts=EvaluationAccounts(platform_engine),
         voice_providers=VoiceProviders(platform_engine),
+        exercises=SqlExerciseBank(platform_engine),
     )

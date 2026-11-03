@@ -39,6 +39,24 @@ class ExerciseBank(Protocol):
         self, *, level: str | None = None, category: str | None = None
     ) -> tuple[StoredExercise, ...]: ...
 
+    def search(
+        self,
+        *,
+        status: str | None = None,
+        level: str | None = None,
+        category: str | None = None,
+        skill: str | None = None,
+        format: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[tuple[StoredExercise, ...], int]:
+        """Exercises matching every given filter, newest first, and the total that match."""
+        ...
+
+    def counts(self) -> dict[str, dict[str, int]]:
+        """Exercises per value of status, level, category, skill and format."""
+        ...
+
     def withdraw(self, exercise_id: str, *, reason: str, actor: str) -> None: ...
 
     def add_review(self, exercise_id: str, review: ExerciseReview) -> None: ...

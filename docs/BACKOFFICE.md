@@ -63,6 +63,17 @@ Désactiver un compte révoque ses sessions.
    pour le propriétaire, **Publier aux apprenants** (actif quand la liste des blocages est
    vide) ou **Retirer**. Deux approbations par deux comptes distincts sur le contenu exact sont
    nécessaires ; le même compte ne peut pas donner les deux.
+7. **Exercices** : la banque d'exercices de langue (`docs/LANGUAGE_EXERCISES.md`), lisible par
+   tous les comptes. Filtres par niveau (B1 à C1), catégorie (genre, cas, forme verbale, ordre des
+   mots, choix du mot, registre), compétence (grammaire, vocabulaire, registre), format (texte à
+   trou, phrase à corriger, choix de registre) et statut, chacun avec le nombre d'exercices qu'il
+   contient ; liste paginée par 50, les plus récents d'abord. La page d'un exercice montre
+   l'énoncé, les quatre options avec la bonne réponse marquée, l'explication donnée à l'apprenant,
+   les décisions de chaque vérification (résolution à l'aveugle, juge strict) et la provenance
+   (modèles, versions, lot). Le propriétaire peut **retirer** un exercice avec un motif : c'est
+   définitif et tracé dans les vérifications. La page ne crée ni ne modifie rien : un exercice
+   entre par la ligne de commande, après un rapport de gate. Elle ne montre pas les cas tirés des
+   protocoles gold, qui sont dans le Registre.
 
 Ce que le serveur refuse quoi qu'affiche l'interface : approuver avec des points ouverts,
 décider sur une version qui n'est plus la courante, modifier un protocole gold, rejeté ou

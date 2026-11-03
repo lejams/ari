@@ -73,3 +73,7 @@ class RegistryReviewRequest(ApiModel):
     review_type: Literal["clinical", "linguistic"]
     decision: Literal["approve", "request_changes", "reject"]
     notes: Annotated[str, Field(min_length=1, max_length=4000)]
+
+
+class WithdrawExerciseRequest(ApiModel):
+    reason: Annotated[str, Field(min_length=3, max_length=500)]
