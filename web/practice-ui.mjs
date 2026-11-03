@@ -8,6 +8,7 @@ import {initLocale, viewLabel} from './i18n.mjs';
 
 const VIEW_AURAS = {
   home: [65, 40, '58%', '-22%', '-14%', '46%'],
+  programme: [40, 300, '66%', '-24%', '-12%', '52%'],
   cases: [254, 230, '-18%', '34%', '66%', '-20%'],
   exam: [254, 230, '-18%', '34%', '66%', '-20%'],
   history: [300, 280, '62%', '-26%', '82%', '38%'],
@@ -53,7 +54,7 @@ const placement = new PlacementClient((path, options) => client.api(path, option
 let reviewQueue = [], reviewTotal = 0, reviewEntry = null;
 let placementAttempt = null, placementListens = 0, recorder = null, recordedAudio = null, recordTimer = null, providerMode = 'fake';
 const $ = id => document.getElementById(id);
-const views = ['onboarding', 'home', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress', 'placement'];
+const views = ['onboarding', 'home', 'programme', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress', 'placement'];
 const fields = ['goal', 'land', 'date', 'minutes', 'situation', 'specialty', 'level', 'certificate-level', 'certificate-issuer', 'certificate-date'];
 // What the onboarding form sends to the profile; land, goal and dates are server-side now.
 function profileDetails() {
@@ -373,6 +374,212 @@ function renderWeek(program) {
   $('week-days').replaceChildren(...weekPills.map(pill => { const item = node('div', undefined, 'week-pill-item'); item.setAttribute('role', 'listitem'); item.append(pill); return item; }));
   renderWeekDay(todayOffset);
 }
+function renderHomeGreeting(program) {
+  const week = program.week, model = program.model, next = week.next;
+  const today = new Date(week.today + 'T12:00:00');
+  const dayLabel = today.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const phase = PHASE_LABELS_FR[week.phase] || week.phase;
+  $('home-eyebrow-text').textContent = `${dayLabel} · ${phase}`;
+  const minutesToday = week.slots.filter(slot => slot.day_offset === todayOffset(week)).reduce((n, s) => n + s.minutes, 0);
+  if (next) {
+    const mut = node('span', slotTitle(next), 'mut');
+    $('home-title').replaceChildren(document.createTextNode('Bonjour. '), mut);
+    $('home-sub').textContent = minutesToday
+      ? `Séance du jour : ${minutesToday} minutes prévues · niveau ${model.level.reference || 'non estimé'}.`
+      : `Prochaine étape · niveau ${model.level.reference || 'non estimé'}.`;
+  } else {
+    $('home-title').textContent = 'Semaine accomplie.';
+    $('home-sub').textContent = 'Tous les créneaux prévus sont faits. Le programme se recalcule lundi.';
+  }
+}
+function todayOffset(week) {
+  return Math.max(0, Math.round((new Date(week.today + 'T00:00:00') - new Date(week.week_start + 'T00:00:00')) / 86400000));
+}
+function formatClock(minutesFromEight) {
+  const total = 8 * 60 + minutesFromEight;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+function renderSessionPlan(program) {
+  const week = program.week;
+  const todaySlots = week.slots.filter(slot => slot.day_offset === todayOffset(week));
+  const plan = $('session-plan');
+  if (!plan) return;
+  plan.replaceChildren();
+  $('plan-count').textContent = todaySlots.length ? `${todaySlots.filter(s => s.state === 'done').length} / ${todaySlots.length}` : '0';
+  if (!todaySlots.length) {
+    $('plan-window').textContent = '';
+    plan.append(node('p', 'Rien de prévu aujourd’hui dans votre programme.', 'help'));
+    return;
+  }
+  const total = todaySlots.reduce((n, s) => n + s.minutes, 0);
+  $('plan-window').textContent = `${formatClock(0)} → ${formatClock(total)}`;
+  let cursor = 0;
+  for (const slot of todaySlots) {
+    const isNow = slot.state === 'today' || slot === week.next;
+    const step = node('div', undefined, `step${slot.state === 'done' ? ' done' : isNow ? ' now' : ''}`);
+    step.append(node('span', formatClock(cursor), 't'), node('span', undefined, 'dot'));
+    cursor += slot.minutes;
+    const body = node('div');
+    body.append(node('div', slotTitle(slot), 'ti'), node('div', `${slot.minutes} min${slot.rationale ? ` · ${slot.rationale}` : ''}`, 'de'));
+    step.append(body);
+    if (slot.state === 'done') step.append(node('span', 'fait', 'tag g'));
+    else if (isNow) {
+      const go = actionButton('Démarrer →', () => runSlot(slot), true);
+      go.style.padding = '6px 12px';
+      step.append(go);
+    } else step.append(node('span', 'à venir', 'tag'));
+    plan.append(step);
+  }
+}
+function renderFspCard(program) {
+  const model = program.model, details = client.profile?.details || {}, next = program.week.next;
+  const weeks = model.exam?.weeks_left;
+  if (weeks !== null && weeks !== undefined) {
+    $('fsp-days').textContent = String(Math.max(0, Math.round(weeks * 7)));
+    $('fsp-weeks').textContent = String(weeks).padStart(2, '0');
+    $('fsp-tag').textContent = weeks <= 2 ? 'Échéance proche' : 'Préparation';
+    $('fsp-note').textContent = details.exam_date
+      ? `Examen prévu le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}.`
+      : 'Horizon dérivé de votre profil.';
+  } else {
+    $('fsp-days').textContent = '—';
+    $('fsp-weeks').textContent = '—';
+    $('fsp-tag').textContent = 'Date à saisir';
+    $('fsp-note').innerHTML = 'Indiquez une date d’examen dans votre profil. Seuil FSP <span class="ph">[à définir]</span>.';
+  }
+  $('fsp-slots').textContent = String(program.week.slots.length).padStart(2, '0');
+  const sideDays = $('sidefoot-days');
+  const sideNote = $('sidefoot-note');
+  if (sideDays && sideNote) {
+    if (weeks !== null && weeks !== undefined) {
+      sideDays.textContent = String(Math.max(0, Math.round(weeks * 7)));
+      sideNote.textContent = details.exam_date
+        ? `Examen prévu le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}.`
+        : 'Horizon dérivé de votre profil.';
+    } else {
+      sideDays.textContent = '—';
+      sideNote.innerHTML = 'Examen prévu le <span class="ph">[date à saisir]</span>.';
+    }
+  }
+  const box = $('fsp-next');
+  if (!next) { box.hidden = true; return; }
+  box.hidden = false;
+  $('fsp-next-title').textContent = slotTitle(next);
+  $('fsp-next-tag').textContent = `${next.minutes} min`;
+  const rec = next.recommended;
+  const voiceCase = next.kind === 'voice_training' && rec?.kind === 'voice' ? voiceCases.find(c => c.id === rec.id && c.version === rec.version) : null;
+  $('fsp-next-ic').textContent = (voiceCase?.title || slotTitle(next)).slice(0, 2).toUpperCase();
+  if (voiceCase?.opening_statement) {
+    $('fsp-next-quote').textContent = `„${voiceCase.opening_statement}“`;
+    $('fsp-next-quote').hidden = false;
+  } else {
+    $('fsp-next-quote').textContent = '';
+    $('fsp-next-quote').hidden = true;
+  }
+}
+function renderHomeAxes(axes) {
+  const host = $('home-axes');
+  if (!host) return;
+  host.replaceChildren();
+  if (!axes) {
+    host.append(node('p', 'Passez quelques sessions pour voir vos axes ici.', 'help'));
+    return;
+  }
+  const rows = [
+    ['Anamnèse', Math.round((axes.structure?.averages ? Object.values(axes.structure.averages).reduce((a, b) => a + b, 0) / Math.max(1, Object.keys(axes.structure.averages).length) : 0) * 100), false],
+    ['Communication', Math.round((axes.communication?.acknowledged_rate ?? 0) * 100), true],
+    ['Lexique', axes.lexicon ? Math.min(100, Math.round((axes.lexicon.acquired / Math.max(1, axes.lexicon.active + axes.lexicon.acquired)) * 100)) : 0, false],
+    ['Rythme', axes.regularity?.weeks?.length ? Math.min(100, (axes.regularity.weeks.at(-1)?.voice_sessions || 0) * 25) : 0, true],
+  ];
+  for (const [label, value, violet] of rows) {
+    const ax = node('div', undefined, 'ax');
+    const bar = node('span', undefined, 'bar');
+    const fill = node('i', undefined, violet ? 'vi' : '');
+    fill.dataset.w = String(value);
+    bar.append(fill, (() => {
+      const t = node('span', undefined, 'thr');
+      if (typeof t.style?.setProperty === 'function') t.style.setProperty('--thr', '65%');
+      else if (t.style) t.style['--thr'] = '65%';
+      return t;
+    })());
+    ax.append(node('span', label, 'n'), bar, node('span', String(value), 'val'));
+    host.append(ax);
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { fill.style.width = value + '%'; });
+    else fill.style.width = value + '%';
+  }
+}
+async function renderHomeDashboard(program) {
+  renderHomeGreeting(program);
+  renderSessionPlan(program);
+  renderFspCard(program);
+  let overview = null, progression = null;
+  try { overview = await lexicon.overview(); } catch { overview = null; }
+  try { progression = await client.api('/api/progression'); } catch { progression = null; }
+  const axes = progression?.axes;
+  const due = overview?.due_count ?? 0;
+  const active = overview?.active_count ?? 0;
+  $('kpi-lexicon').replaceChildren(document.createTextNode(String(due)), (() => { const s = node('small', due ? 'à revoir' : 'à jour'); return s; })());
+  $('kpi-lexicon-note').textContent = active ? `${active} dans « À travailler »` : 'Ouvrez le lexique après une consultation';
+  const sessions = axes?.sessions_completed ?? historyItems.length;
+  const examCount = historyItems.filter(item => item.mode === 'exam').length;
+  $('kpi-sessions').replaceChildren(document.createTextNode(String(sessions)), (() => { const s = node('small', 'réalisées'); return s; })());
+  $('kpi-sessions-note').textContent = examCount ? `dont ${examCount} en mode Examen` : 'Entraînement et Examen confondus';
+  const weeks = axes?.regularity?.weeks || [];
+  const streakWeeks = [...weeks].reverse().findIndex(w => !(w.voice_sessions || w.practice_runs));
+  const streak = streakWeeks === -1 ? weeks.length : streakWeeks;
+  $('kpi-streak').replaceChildren(document.createTextNode(String(streak || '—')), (() => { const s = node('small', streak ? 'sem. actives' : 'pas encore'); return s; })());
+  const bar = $('kpi-streak-bar');
+  bar.replaceChildren(...Array.from({ length: 7 }, (_, i) => node('i', undefined, i < Math.min(7, streak) ? (i === Math.min(6, streak - 1) ? 'on today' : 'on') : '')));
+  renderHomeAxes(axes);
+}
+function renderProgramme(program) {
+  weekProgram = program;
+  const week = program.week, model = program.model;
+  $('programme-sub').textContent = `${PHASE_LABELS_FR[week.phase] || week.phase} · niveau ${model.level.reference || 'non estimé'} · ${week.planned_minutes} / ${week.budget_minutes} min`;
+  const phases = [
+    ['positionnement', 'Positionnement'],
+    ['fondations', 'Fondations'],
+    ['anamnese', 'Cas cliniques'],
+    ['examen', 'Conditions d’examen'],
+  ];
+  const order = phases.map(([id]) => id);
+  const current = order.indexOf(week.phase);
+  $('programme-phase').replaceChildren(...phases.map(([id, label], i) => {
+    const el = node('div', undefined, i < current ? 'past' : i === current ? 'on' : '');
+    el.append(node('span', `PHASE ${i + 1}`, 'k'), node('b', label));
+    return el;
+  }));
+  const start = new Date(week.week_start + 'T00:00:00');
+  const startOffset = week.starts_on ? Math.max(0, Math.round((new Date(week.starts_on + 'T00:00:00') - start) / 86400000)) : 0;
+  const todayOffset = Math.max(0, Math.round((new Date(week.today + 'T00:00:00') - start) / 86400000));
+  $('programme-week').replaceChildren(...DAY_LETTERS.map((letter, offset) => {
+    const day = new Date(start); day.setDate(start.getDate() + offset);
+    const slots = week.slots.filter(slot => slot.day_offset === offset);
+    const col = node('div', undefined, `day${offset === todayOffset ? ' today' : ''}`);
+    const dh = node('div', undefined, 'dh');
+    dh.append(node('b', day.toLocaleDateString('fr-FR', { weekday: 'short' })), node('span', day.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })));
+    col.append(dh);
+    if (offset < startOffset) {
+      col.append(node('div', 'avant inscription', 'blk rest'));
+    } else if (!slots.length) {
+      const rest = node('div', undefined, 'blk rest');
+      rest.append(node('span', '', 'm'), document.createTextNode('Repos'));
+      col.append(rest);
+    } else for (const slot of slots) {
+      const kind = slot.kind.startsWith('lexicon') ? 'l' : slot.kind.startsWith('voice') ? 'c' : slot.kind === 'arzt_arzt' ? 'c' : 'e';
+      const blk = node('div', undefined, `blk ${kind}${slot.state === 'done' ? ' done' : ''}`);
+      blk.append(node('span', `${slot.minutes} min${slot.state === 'done' ? ' · fait' : ''}`, 'm'), document.createTextNode(SLOT_LABELS[slot.kind] || slot.kind));
+      col.append(blk);
+    }
+    return col;
+  }));
+}
+async function showProgramme() {
+  if (!client.profile) return home();
+  const program = await client.api('/api/program');
+  renderProgramme(program);
+  view('programme');
+}
 async function home() {
   if (!client.profile) { restoreDraft(); view('onboarding', false); return; }
   await loadCatalog(); historyItems = (await client.api('/api/history')).items;
@@ -386,6 +593,7 @@ async function home() {
   const program = await client.api('/api/program');
   renderHero(program);
   renderWeek(program);
+  await renderHomeDashboard(program);
   view('home');
 }
 async function showCases() {
@@ -753,7 +961,7 @@ async function toggleRecording() {
 }
 async function navigate(name) {
   if(!client.profile)return home();
-  const routes={home,cases:showCases,exam:showExam,vocab:showVocab,history:showHistory,progress:showProgress,placement:showPlacement,warmup:()=>selected?view('warmup'):showCases()};
+  const routes={home,programme:showProgramme,cases:showCases,exam:showExam,vocab:showVocab,history:showHistory,progress:showProgress,placement:showPlacement,warmup:()=>selected?view('warmup'):showCases()};
   await (routes[name]||home)();
 }
 async function route() { const match=location.hash.match(/^#practice\/([A-Za-z0-9_.-]+)$/);if(client.profile&&match)return showRun(await client.getRun(match[1]));return navigate(location.hash.slice(1)||'home'); }

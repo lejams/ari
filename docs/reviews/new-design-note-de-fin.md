@@ -13,8 +13,10 @@ Branche : `new_design` (depuis `main`). Pas de fusion ni de déploiement.
 
 ### App apprenant (`web/index.html`, `practice.css`, `i18n.mjs`, `fonts.css`, `tokens.css`)
 - Chrome aligné sur `09-app.html` : sidebar Pouls, labels Aujourd’hui / Consultation / Bilan / Lexique / Progression / Programme / Examen, topbar, auras par vue, FR/EN/DE.
-- Données réelles (`/api/program`, cas, lexique, progression) — aucun KPI inventé ; le seuil reste un placeholder de config.
-- IDs et flux DOM inchangés pour les tests ; e2e mis à jour (Geist, Lexique, Bilan).
+- **Layout Aujourd’hui** fidèle à la maquette : salutation + sous-titre, bandeau KPI (série / lexique / consultations / seuil), grille `g-dash` (plan de séance en timeline + compte à rebours FSP + axes), semaine compacte et parcours en bas.
+- **Vue Programme** dédiée (`#programme`) : phases du parcours + grille hebdomadaire à 7 colonnes alimentée par `/api/program`.
+- Données réelles (`/api/program`, cas, lexique, progression, historique) — aucun KPI inventé ; le seuil reste un placeholder de config.
+- Contrats DOM conservés (`#recommendation`, `#week-days`) pour les tests.
 - Polices auto-hébergées (Geist, JetBrains Mono) — pas d’appel tiers sur les pages authentifiées.
 - Connexion et page vocale rétargetées sur le même système de tokens.
 
@@ -44,6 +46,7 @@ Qualité : `make test-web`, `make test-backoffice-web`, `make lint`, `make test-
 | Landing « Une journée » | `/opt/cursor/artifacts/screenshots/landing-journee.png` |
 | Connexion | `/opt/cursor/artifacts/screenshots/login.png` |
 | App Aujourd’hui | `/opt/cursor/artifacts/screenshots/app-aujourdhui.png` |
+| App Programme | `/opt/cursor/artifacts/screenshots/app-programme.png` |
 | App Consultation | `/opt/cursor/artifacts/screenshots/app-consultation.png` |
 | App Lexique | `/opt/cursor/artifacts/screenshots/app-lexique.png` |
 | App Progression | `/opt/cursor/artifacts/screenshots/app-progression.png` |
@@ -59,5 +62,5 @@ Qualité : `make test-web`, `make test-backoffice-web`, `make lint`, `make test-
 3. **Arztbrief / Confrère** dans la maquette app : présents en navigation illustrative ; en production, Arztbrief hors périmètre, confrère = exercices Arzt–Arzt dans Consultation.
 4. **Landing** : Google Fonts (Geist / JetBrains) conservés car la page publique ne peut pas charger d’assets locaux hors `/app`.
 5. **Back-office** : Google Fonts (même contrainte d’origine différente) ; passage éventuel à des woff2 auto-hébergés dans `backoffice-web/fonts/`.
-6. **Compte à rebours FSP** de la maquette : non branché (dépend de la date d’examen du profil ; pas de stats inventées sur l’accueil).
+6. **Compte à rebours FSP** : branché sur `model.exam.weeks_left` / date d’examen du profil ; affiche « — » et `[date à saisir]` tant que la date manque — pas de stats inventées.
 7. **Mode sombre landing** : retiré au profit de la maquette claire validée.

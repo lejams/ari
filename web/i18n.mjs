@@ -17,7 +17,7 @@ const STRINGS = {
     resume: 'Reprendre la séance',
     skip: 'Aller au contenu',
     brand_sub: 'Allemand médical',
-    sidefoot: 'Votre pratique, un jour à la fois. Un entraînement, pas une certification.',
+    sidefoot: 'Un entraînement, pas une certification.',
   },
   en: {
     nav_home: 'Today',
@@ -56,9 +56,9 @@ const STRINGS = {
 };
 
 const VIEW_LABELS = {
-  fr: { home: "Aujourd'hui", cases: 'Consultation', exam: 'Examen', progress: 'Progression', vocab: 'Lexique', history: 'Bilan', placement: 'Test de niveau', onboarding: 'Profil', warmup: 'Échauffement', exercise: 'Exercice' },
-  en: { home: 'Today', cases: 'Consultation', exam: 'Exam', progress: 'Progress', vocab: 'Lexicon', history: 'Review', placement: 'Placement', onboarding: 'Profile', warmup: 'Warm-up', exercise: 'Exercise' },
-  de: { home: 'Heute', cases: 'Konsultation', exam: 'Prüfung', progress: 'Fortschritt', vocab: 'Lexikon', history: 'Bilanz', placement: 'Einstufung', onboarding: 'Profil', warmup: 'Aufwärmen', exercise: 'Übung' },
+  fr: { home: "Aujourd'hui", cases: 'Consultation', exam: 'Examen', progress: 'Progression', vocab: 'Lexique', history: 'Bilan', placement: 'Test de niveau', onboarding: 'Profil', warmup: 'Échauffement', exercise: 'Exercice', programme: 'Programme' },
+  en: { home: 'Today', cases: 'Consultation', exam: 'Exam', progress: 'Progress', vocab: 'Lexicon', history: 'Review', placement: 'Placement', onboarding: 'Profile', warmup: 'Warm-up', exercise: 'Exercise', programme: 'Programme' },
+  de: { home: 'Heute', cases: 'Konsultation', exam: 'Prüfung', progress: 'Fortschritt', vocab: 'Lexikon', history: 'Bilanz', placement: 'Einstufung', onboarding: 'Profil', warmup: 'Aufwärmen', exercise: 'Übung', programme: 'Programm' },
 };
 
 let locale = 'fr';

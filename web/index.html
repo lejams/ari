@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#ffffff">
 <title>ARI — Votre pratique</title>
 <link rel="preload" href="/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/fonts.css?v=20261103a">
-<link rel="stylesheet" href="/practice.css?v=20261103a">
+<link rel="stylesheet" href="/fonts.css?v=20261103c">
+<link rel="stylesheet" href="/practice.css?v=20261103c">
 </head>
 <body>
 <a class="skip" href="#main" data-i18n="skip">Aller au contenu</a>
@@ -22,11 +22,15 @@
     <a href="#vocab" data-view="vocab"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="13" height="16" rx="2"/><path d="M8 4v16M20 7v13"/></svg><span data-i18n="nav_vocab">Lexique</span></a>
     <div class="nlabel" data-i18n="nav_suivi">Suivi</div>
     <a href="#progress" data-view="progress"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span data-i18n="nav_progress">Progression</span></a>
-    <a href="#home" data-view="home" data-scroll="week-plan"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span data-i18n="nav_programme">Programme</span></a>
+    <a href="#programme" data-view="programme"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span data-i18n="nav_programme">Programme</span></a>
     <div class="nlabel" data-i18n="nav_pratique">Pratique</div>
     <a href="#exam" data-view="exam"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-i18n="nav_exam">Examen</span></a>
   </nav>
-  <p class="sidefoot"><span class="k">FSP</span><br><span data-i18n="sidefoot">Votre pratique, un jour à la fois. Un entraînement, pas une certification.</span></p>
+  <div class="sidefoot">
+    <div class="k">FSP · préparation</div>
+    <div class="v"><span id="sidefoot-days">—</span> jours</div>
+    <div class="s" id="sidefoot-note">Examen prévu le <span class="ph">[date à saisir]</span>.</div>
+  </div>
   <div class="side-user" id="side-user" hidden>
     <div class="av" id="side-av">·</div>
     <div><div class="n" id="side-name"></div><div class="e" id="side-level"></div></div>
@@ -72,10 +76,53 @@
     </form>
   </section>
   <section id="home" hidden>
-    <article id="recommendation" class="hero card"></article>
-    <article id="week-plan" class="card week-card" aria-labelledby="week-title"><div class="row between"><div><h2 id="week-title">Cette semaine</h2><p id="week-phase" class="help"></p></div><span id="week-budget" class="help"></span></div><div id="week-days" class="week-strip" role="list"></div><p id="week-joined" class="help" hidden>Les jours d’avant votre inscription ne comptent pas.</p><div id="week-day-detail" class="week-day-detail"></div><details class="week-more"><summary>Pourquoi ce programme ?</summary><p id="week-message"></p><p id="week-limitations" class="help"></p></details></article>
+    <div class="head home-head"><div><div class="eyebrow" id="home-eyebrow"><span class="d"></span><span id="home-eyebrow-text">Aujourd’hui</span></div><h1 id="home-title">Bonjour.</h1><p class="sub" id="home-sub"></p></div></div>
+    <div class="kpis" id="home-kpis" aria-label="Indicateurs du jour">
+      <div class="card kpi"><div class="k">Série en cours</div><div class="v" id="kpi-streak">—</div><div class="streak" id="kpi-streak-bar" aria-hidden="true"></div></div>
+      <div class="card kpi"><div class="k">Cartes à revoir</div><div class="v" id="kpi-lexicon">—</div><div class="s" id="kpi-lexicon-note"></div></div>
+      <div class="card kpi"><div class="k">Consultations</div><div class="v" id="kpi-sessions">—</div><div class="s" id="kpi-sessions-note"></div></div>
+      <div class="card kpi"><div class="k">Seuil de réussite</div><div class="v"><span class="ph">[x/y]</span></div><div class="s">Seuil FSP <span class="ph">[à définir]</span></div></div>
+    </div>
+    <div class="grid g-dash">
+      <div class="card plan-card">
+        <div class="card-h"><h2>Plan de la séance</h2><span class="tag a" id="plan-count"></span><div class="sp"></div><span class="mono plan-time" id="plan-window"></span></div>
+        <div class="tl" id="session-plan"></div>
+        <article id="recommendation" class="hero card recommend"></article>
+      </div>
+      <div class="grid dash-side">
+        <div class="card hero-card" id="fsp-card">
+          <div class="card-h"><h2>Compte à rebours FSP</h2><div class="sp"></div><span class="tag v" id="fsp-tag">Préparation</span></div>
+          <div class="cd" id="fsp-cd">
+            <div><b id="fsp-days">—</b><span>JOURS</span></div>
+            <div><b id="fsp-weeks">—</b><span>SEMAINES</span></div>
+            <div><b id="fsp-slots">—</b><span>CRÉNEAUX SEMAINE</span></div>
+          </div>
+          <div class="pt" id="fsp-next" hidden>
+            <div class="ic" id="fsp-next-ic">·</div>
+            <div class="pt-body"><div class="pt-title" id="fsp-next-title"></div><div class="pt-quote" id="fsp-next-quote" lang="de"></div></div>
+            <span class="tag a" id="fsp-next-tag"></span>
+          </div>
+          <p class="note" id="fsp-note">Indiquez une date d’examen dans votre profil pour activer le compte à rebours. Aucune statistique inventée.</p>
+        </div>
+        <div class="card">
+          <div class="card-h"><h2>Vos axes</h2><div class="sp"></div><a class="linkish" href="#progress" data-view="progress">Détail →</a></div>
+          <div class="axes" id="home-axes"></div>
+          <div class="note">Valeurs issues de votre progression. Le trait vertical marque le seuil <span class="ph">[à définir]</span>.</div>
+        </div>
+      </div>
+    </div>
+    <article id="week-plan" class="card week-card" aria-labelledby="week-title"><div class="row between"><div><h2 id="week-title">Cette semaine</h2><p id="week-phase" class="help"></p></div><div class="row wrap"><span id="week-budget" class="help"></span><a class="linkish" href="#programme" data-view="programme">Programme →</a></div></div><div id="week-days" class="week-strip" role="list"></div><p id="week-joined" class="help" hidden>Les jours d’avant votre inscription ne comptent pas.</p><div id="week-day-detail" class="week-day-detail"></div><details class="week-more"><summary>Pourquoi ce programme ?</summary><p id="week-message"></p><p id="week-limitations" class="help"></p></details></article>
     <div class="grid"><article class="quiet-card"><h2>Une autre conversation ?</h2><p>Retrouvez les cas et exercices disponibles.</p><button data-view="cases">Explorer la bibliothèque →</button></article><article class="quiet-card"><h2>Votre parcours</h2><p id="profile-goal"></p><p id="local-profile-summary" class="help"></p><div class="row wrap"><button id="placement-cta" data-view="placement">Passer le test de niveau</button><button id="edit-profile">Modifier mes préférences</button><button id="logout">Se déconnecter</button></div></article></div>
     <details class="card profile-settings"><summary>Mon objectif CECRL</summary><form id="goal-form"><label for="goal-target">Objectif personnel ARI</label><select id="goal-target"><option>B2</option><option>C1</option></select><button>Enregistrer l’objectif</button></form></details>
+  </section>
+  <section id="programme" hidden>
+    <div class="head"><div><div class="eyebrow"><span class="d"></span><span>Programme</span></div><h1>Cette semaine.</h1><p class="sub" id="programme-sub">Le programme s’ajuste après chaque bilan.</p></div><div class="sp"></div><button type="button" class="secondary" data-view="home">← Aujourd’hui</button></div>
+    <div class="phase" id="programme-phase" aria-label="Phases du parcours"></div>
+    <div class="week" id="programme-week"></div>
+    <p class="note">Durée du programme et répartition indicatives <span class="ph">[à définir]</span>. Les créneaux ci-dessous viennent de votre programme réel.</p>
+    <article class="card week-card" aria-labelledby="programme-week-title" hidden>
+      <h2 id="programme-week-title" class="sr-only">Détail hebdomadaire</h2>
+    </article>
   </section>
   <section id="placement" hidden>
     <div class="pagehead"><p class="eyebrow">Test de niveau</p><h1 id="placement-title">Où en est votre allemand ?</h1><p id="placement-description"></p></div>
@@ -120,6 +167,6 @@
 </div>
 </div>
 <nav class="bottomnav" aria-label="Navigation mobile"><a href="#home" data-view="home" data-i18n="nav_home">Aujourd'hui</a><a href="#cases" data-view="cases" data-i18n="nav_cases">Consultation</a><a href="#exam" data-view="exam" data-i18n="nav_exam">Examen</a><a href="#progress" data-view="progress" data-i18n="nav_progress">Progression</a><a href="#vocab" data-view="vocab" data-i18n="nav_vocab">Lexique</a><a href="#history" data-view="history" data-i18n="nav_history">Bilan</a></nav>
-<script type="module" src="/practice-ui.mjs?v=20261103a"></script>
+<script type="module" src="/practice-ui.mjs?v=20261103c"></script>
 </body>
 </html>
