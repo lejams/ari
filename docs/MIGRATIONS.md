@@ -43,6 +43,12 @@ bank; triggers refuse any change to a content column and any DELETE, and a withd
 `language_exercise_reviews` and `language_drills` (both append-only; a drill's hash is tied to the
 exercise's by a composite foreign key). No backfill. Its downgrade drops
 the three tables and the checks and answers they hold: a rollback right after the upgrade only.
+`0008_language_drill_runs` adds one table, `language_drill_runs` (`language-drill-v1`: the learner's own
+quoted errors frozen at creation as `items`, the `answers` appended under a row lock, unique
+`(learner_id, request_id)`, and a partial unique index `uq_language_drill_one_active` keeps one
+unfinished drill per learner). It touches nothing that exists, backfills nothing, and an image that
+predates it keeps working during a deploy. Its downgrade drops the table, so the record of which
+drills were done, but no evaluation.
 Row locks (`SELECT ... FOR UPDATE`, or `FOR SHARE` when a session
 pins a published scenario) serialise workflow mutations.
 

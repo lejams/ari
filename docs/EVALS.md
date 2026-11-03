@@ -342,7 +342,7 @@ mesures. Le diagnostic, exemple par exemple :
   et une remarque neutre comptée comme un changement.
 
 Réponse, en trois couches, sans toucher aux seuils du plan :
-1. **Mesure** (`evaluation-language-scorer-v2`, jeu `evaluation-language@2`) : la précision par
+1. **Mesure** (`evaluation-language-scorer-v2` (v3 depuis la remédiation : ajoute `language_correction.restored`, sans seuil), jeu `evaluation-language@2`) : la précision par
    catégorie n'existe que pour les catégories que le jeu injecte (les faux signalements d'une autre
    catégorie pèsent sur `language_overall.precision`) ; un même passage n'est rapporté qu'une fois (par l'évaluateur, pas par le scorer, pour ne pas
    masquer un second passage fautif) ; la

@@ -10,9 +10,15 @@ from ari.domain.models import ConversationSession, MedicalCase
 from ari.domain.practice import PracticeRun
 
 # v3 and v4 add qualitative fields (code switches, empathy) and deterministic extras
-# (section coverage); the criteria and their scoring method are unchanged, so all compare.
+# (section coverage); v5 keeps the quote and its correction of each language error. The criteria
+# and their scoring method are unchanged, so all compare.
 COMPARABLE_EVALUATION_SCHEMAS = frozenset(
-    {"session-evaluation-v2", "session-evaluation-v3", "session-evaluation-v4"}
+    {
+        "session-evaluation-v2",
+        "session-evaluation-v3",
+        "session-evaluation-v4",
+        "session-evaluation-v5",
+    }
 )
 
 

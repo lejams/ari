@@ -161,10 +161,10 @@ tentative, note facultative de 500 caractères) enregistre un événement `item_
 d'audit du jeu (`placement_events`, sans migration), avec le hash du jeu. Le propriétaire le relit ;
 une correction est une nouvelle version du jeu.
 
-### Programme hebdomadaire (`program-rules-v3`)
+### Programme hebdomadaire (`program-rules-v4`)
 
 Le programme n'est pas du contenu et n'est jamais stocké : il est recalculé à chaque
-lecture à partir du modèle apprenant (`learner-model-v1`, signaux déterministes
+lecture à partir du modèle apprenant (`learner-model-v2`, signaux déterministes
 uniquement). Le scénario influence la recommandation par trois champs déjà revus :
 `cefr` (un cas au plus un niveau au-dessus du niveau de référence est proposé),
 `terminology` (recouvrement avec les mots dus du carnet) et `anamnesis_sections`
@@ -176,6 +176,27 @@ Depuis `program-rules-v3` (action 13), une semaine commencée en cours de route 
 création du profil : les jours précédents n'ont ni créneau ni budget, un type de créneau dont
 tous les jours tombaient avant est reporté une fois sur ce premier jour, et la prochaine étape
 préfère un créneau du jour ou à venir à un créneau manqué.
+Depuis `program-rules-v4`, un apprenant dont les cinq dernières séances terminées montrent au
+moins deux erreurs d'une même catégorie (`gender`, `case`, `verb_form`, `word_order`,
+`word_choice`, `register` ; `other` ne fixe jamais l'axe), avec au moins une citation rejouable
+qu'aucun exercice précédent n'a réussie, reçoit des créneaux `language_drill` les mercredi et
+samedi, sur un seul axe : la catégorie la plus fréquente, à égalité la plus récente. Aucun
+créneau n'est planifié sans erreur établie, ni avant le niveau B1 (aucune consultation n'a pu
+produire d'erreur). Le profil de langue du modèle apprenant donne le nombre d'erreurs par
+catégorie, les catégories récurrentes, l'axe et le nombre de phrases disponibles.
+
+### Remédiation « Votre phrase » (`language-drill-v1`)
+
+Rien n'est généré. L'évaluation (`session-evaluation-v5`) garde, pour chaque erreur de langue,
+la citation de l'apprenant et la correction proposée, vérifiées par `verify_language_errors`
+(la citation doit figurer dans un tour cité). Un exercice reprend jusqu'à cinq citations de
+l'axe, la plus récente d'abord, sans celles qu'un exercice précédent a déjà réussies. L'apprenant
+les redit correctement ; le code compare sa réponse à la correction (casse, espaces et
+ponctuation finale mis à part). Une réponse différente est « non reconnue », jamais un échec :
+une autre forme correcte peut exister, la correction est montrée et l'apprenant se situe. La
+justesse des corrections de l'évaluateur n'est pas encore mesurée par `ari.evals`. Les erreurs des
+sessions antérieures à `session-evaluation-v5` n'ont pas de citation séparée : elles comptent dans
+le profil mais ne sont pas rejouées.
 
 ### Progression par axes (`progress-axes-v1`)
 

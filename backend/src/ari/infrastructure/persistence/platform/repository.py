@@ -1038,6 +1038,8 @@ class SqlSessionRepository:
                         tuple(item["evidence_turn_sequences"]) if isinstance(item, dict) else ()
                     ),
                     category=item.get("category") if isinstance(item, dict) else None,
+                    quote=item.get("quote") if isinstance(item, dict) else None,
+                    correction=item.get("correction") if isinstance(item, dict) else None,
                 )
                 for item in value[key]
             )

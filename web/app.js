@@ -838,7 +838,7 @@ function fillList(id, items) {
   );
 }
 
-const COMPARABLE_EVALUATIONS = new Set(["session-evaluation-v2", "session-evaluation-v3", "session-evaluation-v4"]);
+const COMPARABLE_EVALUATIONS = new Set(["session-evaluation-v2", "session-evaluation-v3", "session-evaluation-v4", "session-evaluation-v5"]);
 const VOCABULARY_KIND_LABELS = { missing: "mot manquant", misused: "mal employé", well_used: "bien employé" };
 const ERROR_CATEGORY_LABELS = { gender: "Genre", case: "Cas et déclinaison", verb_form: "Forme verbale", word_order: "Ordre des mots", word_choice: "Choix du mot", register: "Registre", other: "Autre" };
 const EMPATHY_LABELS = {

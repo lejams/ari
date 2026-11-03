@@ -60,7 +60,10 @@ const program = {
   model: { level: { reference: "B1" }, exam: { weeks_left: null } },
   week: {
     phase: "fondations", message: "m", limitations: "l", week_start: "2026-09-14", today: "2026-09-17", planned_minutes: 60, budget_minutes: 210,
-    slots: [{ id: "lexicon_review-3", day_offset: 3, kind: "lexicon_review", minutes: 8, state: "today", rationale: "r", recommended: null }],
+    slots: [
+      { id: "lexicon_review-3", day_offset: 3, kind: "lexicon_review", minutes: 8, state: "today", rationale: "r", recommended: null },
+      { id: "language_drill-5", day_offset: 5, kind: "language_drill", minutes: 10, state: "todo", rationale: "Reprendre vos erreurs sur les cas : 4 dans vos 3 dernières séances.", recommended: { kind: "language_drill", category: "case", label: "les cas", items: 5 } },
+    ],
     next: { id: "lexicon_review-3", kind: "lexicon_review", rationale: "r", recommended: null, minutes: 8, state: "today" },
   },
 };
@@ -81,6 +84,7 @@ const progression = {
     level: { history: [{ attempt_id: "a", date: "2026-09-16T00:00:00Z", band: "B1", vocab_grammar: "B1", listening: "B1", speaking: "A2", speaking_counted: false }], state: "estimated" },
   },
 };
+const drillOverview = { available: true, focus_category: "case", focus_label: "les cas", focus_errors: 4, items: 5, sessions_considered: 3, active_drill_id: null, limitations: "l" };
 const placement = { available: true, set: { description_fr: "d" }, limitations: "l", latest: null, declared_level: "B1" };
 const laender = ["Baden-Württemberg", "Bayern", "Berlin"];
 const voiceCase = { id: "CASE", version: "1", title: "Fall", public_summary: "s", opening_statement: "Ich habe Schmerzen in der Brust.", language: "de-DE", land: "Bayern", city: null, cefr: "B2", educational_target: { exam: "FSP", phase: "arzt_patient", duration_minutes: 10 } };
@@ -88,7 +92,7 @@ const casesSummary = { learner_land: "Bayern", laender: [{ land: "Bayern", cases
 const responses = {
   "/api/profile": profile, "/api/program": program, "/api/exercises": { items: [] }, "/api/cases": [voiceCase],
   "/api/reference/laender": laender, "/api/cases/summary": casesSummary,
-  "/api/history": { items: [] }, "/api/lexicon": lexicon, "/api/usage/exams": { used: 1, quota: 2, remaining: 1, renews_on: "2026-11-01" }, "/api/progression": progression, "/api/placement": placement,
+  "/api/history": { items: [] }, "/api/lexicon": lexicon, "/api/usage/exams": { used: 1, quota: 2, remaining: 1, renews_on: "2026-11-01" }, "/api/progression": progression, "/api/placement": placement, "/api/language-drill": drillOverview,
 };
 
 async function load(hash) {
@@ -104,7 +108,7 @@ async function load(hash) {
   return { nodes, calls };
 }
 
-for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#history", "#exam"]) {
+for (const hash of ["#home", "#vocab", "#progress", "#placement", "#drill", "#cases", "#history", "#exam"]) {
   const { nodes } = await load(hash);
   assert.equal(nodes.get("error").hidden, true, `${hash}: ${nodes.get("error-text").textContent}`);
   const section = nodes.get(hash.slice(1));
@@ -214,6 +218,46 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#cases", "#hi
   assert.equal(nodes.get("placement-weak").children.length, 3, "a title, a help line and one card per weak point");
   assert.match(nodes.get("placement-next").children[0].textContent, /Prochaine étape : Fachbegriffe · Organe/);
   assert.equal(nodes.get("placement-home").classList.contains("primary"), false, "one primary action on the result");
+}
+{
+  // The remediation drill: a quote first, the correction only after the answer, no failure wording.
+  const { nodes, calls } = await load("#drill");
+  assert.equal(nodes.get("drill-begin").hidden, false);
+  assert.match(nodes.get("drill-status").textContent, /5 phrases à reprendre sur les cas \(4 erreurs dans vos 3 dernières séances\)/);
+  const base = { id: "d1", status: "active", focus_label: "les cas", progress: { answered: 0, total: 2 }, result: null };
+  const first = { id: "i1", category: "case", quote: "mit der Arzt", answered: false };
+  const second = { id: "i2", category: "case", quote: "für die Schmerz", answered: false };
+  const started = { ...base, items: [first, second], current_item_id: "i1" };
+  const afterFirst = { ...base, progress: { answered: 1, total: 2 }, current_item_id: "i2", items: [{ ...first, answered: true, correction: "mit dem Arzt", note: "« mit der Arzt » → « mit dem Arzt » : datif", your_answer: "mit den Arzt", outcome: "not_matched" }, second] };
+  const afterSecond = { ...base, status: "completed", progress: { answered: 2, total: 2 }, current_item_id: null, result: { matched: 1, answered: 2, total: 2 }, items: [afterFirst.items[0], { ...second, answered: true, correction: "für den Schmerz", note: "n", your_answer: "für den Schmerz", outcome: "matched" }] };
+  Object.assign(responses, { "/api/language-drill/drills": started, "/api/language-drill/drills/d1/answers": afterFirst, "/api/language-drill/drills/d1/finish": afterSecond });
+  nodes.get("drill-begin").onclick();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(nodes.get("error").hidden, true, nodes.get("error-text").textContent);
+  assert.equal(nodes.get("drill-run").hidden, false);
+  assert.equal(nodes.get("drill-quote").textContent, "mit der Arzt");
+  assert.equal(nodes.get("drill-feedback").hidden, true, "the correction is hidden before the answer");
+  nodes.get("drill-answer").value = "mit den Arzt";
+  nodes.get("drill-form").onsubmit({ preventDefault() {} });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(nodes.get("error").hidden, true, nodes.get("error-text").textContent);
+  assert.equal(nodes.get("drill-feedback").hidden, false);
+  assert.equal(nodes.get("drill-correction").textContent, "mit dem Arzt");
+  assert.doesNotMatch(nodes.get("drill-outcome").textContent, /faux|erreur|échec/i);
+  assert.equal(nodes.get("drill-next").textContent, "Phrase suivante →");
+  nodes.get("drill-next").onclick();
+  assert.equal(nodes.get("drill-quote").textContent, "für die Schmerz");
+  responses["/api/language-drill/drills/d1/answers"] = { ...afterSecond, status: "active", result: null };
+  nodes.get("drill-answer").value = "für den Schmerz";
+  nodes.get("drill-form").onsubmit({ preventDefault() {} });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(nodes.get("drill-next").textContent, "Voir le bilan →");
+  nodes.get("drill-next").onclick();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(nodes.get("error").hidden, true, nodes.get("error-text").textContent);
+  assert.equal(nodes.get("drill-result").hidden, false);
+  assert.match(nodes.get("drill-result-text").textContent, /1 phrase sur 2 reprise/);
+  assert.ok(calls.includes("/api/language-drill/drills/d1/finish"));
 }
 {
   // Declared B1, estimated A2, joined on Wednesday: home names both levels and greys the days before.

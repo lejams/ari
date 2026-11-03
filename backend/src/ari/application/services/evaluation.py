@@ -32,7 +32,7 @@ from ari.domain.models import (
 
 # v3 added code switches and candidate kinds; v4 adds section coverage, empathy judgements
 # and next actions. Deterministic criteria and their scoring method are unchanged from v2.
-EVALUATION_SCHEMA_VERSION = "session-evaluation-v4"
+EVALUATION_SCHEMA_VERSION = "session-evaluation-v5"
 
 
 def empathy_triggers(session: ConversationSession, case: MedicalCase) -> list[dict[str, Any]]:
@@ -258,6 +258,8 @@ class LLMBackedEvaluator:
                     f"« {item.quote} » → « {item.correction} » : {item.text}",
                     tuple(item.evidence_turn_sequences),
                     item.category,
+                    item.quote,
+                    item.correction,
                 )
                 for item in language_errors
             ),

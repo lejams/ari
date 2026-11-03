@@ -17,6 +17,7 @@ from ari.application.services.accounts import LearnerAuth
 from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
 from ari.application.services.exam_session import CHAIN_EXAM_STACK_ID, ExamPatient, ExamVoices
+from ari.application.services.language_drill import LanguageDrillService
 from ari.application.services.lexicon import LexiconService
 from ari.application.services.patient import PatientSimulator
 from ari.application.services.placement import PlacementService
@@ -33,6 +34,7 @@ from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.placement_store import PlacementStore
 from ari.infrastructure.cases.practice_catalog import PublishedPracticeCatalog
 from ari.infrastructure.persistence.platform.accounts import SqlLearnerAccountStore
+from ari.infrastructure.persistence.platform.language_drill import SqlLanguageDrillRepository
 from ari.infrastructure.persistence.platform.lexicon import SqlLexiconRepository
 from ari.infrastructure.persistence.platform.placement import SqlPlacementRepository
 from ari.infrastructure.persistence.platform.practice import SqlPracticeRepository
@@ -69,6 +71,7 @@ class Container:
     attributor: FactAttributor
     lexicon: LexiconService
     placement: PlacementService
+    language_drills: LanguageDrillService
     email: EmailSender
     auth: LearnerAuth
     usage_guard: UsageGuard
@@ -460,6 +463,9 @@ def build_container(settings: Settings) -> Container:
         attributor=FactAttributor(llm, attribution_prompt),
         lexicon=lexicon,
         placement=placement,
+        language_drills=LanguageDrillService(
+            SqlLanguageDrillRepository(repository.engine), repository
+        ),
         email=email,
         auth=auth,
         usage_guard=UsageGuard(

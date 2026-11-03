@@ -24,6 +24,7 @@ from ari.application.services.program import (
 )
 from ari.container import Container
 from ari.domain.geography import Land
+from ari.domain.language_drill import LanguageProfile
 from ari.domain.models import CEFRLevel, LearnerDetails
 
 TODAY = date(2026, 9, 17)  # a Thursday
@@ -144,7 +145,7 @@ def test_slot_states_and_done_matching(published_container: Container) -> None:
     assert [s["state"] for s in voice] == ["done", "todo"]
     # Today's slot comes before Tuesday's missed review.
     assert week["next"]["kind"] == "lexicon_review" and week["next"]["state"] == "today"
-    assert week["version"] == PROGRAM_RULES_VERSION == "program-rules-v3"
+    assert week["version"] == PROGRAM_RULES_VERSION == "program-rules-v4"
 
     # A missed slot is still offered once nothing is left today or later.
     sunday = TODAY + timedelta(days=3)
@@ -313,3 +314,101 @@ def test_program_api_reflects_profile_lexicon_and_activity(database_url: str) ->
 def test_details_defaults_keep_the_programme_computable(level: str) -> None:
     details = LearnerDetails(declared_level=CEFRLevel(level))
     assert details.minutes_per_day == 30 and details.estimated_level is None
+
+
+def drill_profile(**overrides: object) -> LanguageProfile:
+    base = LanguageProfile(
+        sessions_considered=3,
+        errors_by_category={"case": 4, "gender": 1},
+        recurring=("case",),
+        focus="case",
+        focus_errors=4,
+        drill_items=5,
+    )
+    return replace(base, **overrides)  # type: ignore[arg-type]
+
+
+def test_a_recurring_language_error_plans_a_drill_on_one_axis(
+    published_container: Container,
+) -> None:
+    cases = published_container.cases.list()
+    week = plan_week(
+        model(declared_level="B1", minutes_per_day=60, language=drill_profile()),
+        cases,
+        (),
+        TODAY,
+        completed={},
+    )
+    assert week["version"] == PROGRAM_RULES_VERSION == "program-rules-v4"
+    drills = [s for s in week["slots"] if s["kind"] == "language_drill"]
+    assert [s["day_offset"] for s in drills] == [2, 5]
+    assert drills[0]["minutes"] == 10
+    assert drills[0]["recommended"] == {
+        "kind": "language_drill",
+        "category": "case",
+        "label": "les cas",
+        "items": 5,
+    }
+    # One axis, and the rationale states the facts it rests on.
+    assert "4 dans vos 3 dernières séances" in drills[0]["rationale"]
+    assert "les cas" in drills[0]["rationale"] and "genre" not in drills[0]["rationale"]
+
+    # A completed drill since Monday marks the first slot done.
+    done = plan_week(
+        model(declared_level="B1", minutes_per_day=60, language=drill_profile()),
+        cases,
+        (),
+        TODAY,
+        completed={"language_drill": [NOW]},
+    )
+    states = [s["state"] for s in done["slots"] if s["kind"] == "language_drill"]
+    assert states == ["done", "todo"]
+
+
+def test_no_drill_without_an_established_error_or_before_the_consultations(
+    published_container: Container,
+) -> None:
+    cases = published_container.cases.list()
+    nothing = plan_week(
+        model(declared_level="B1", minutes_per_day=60), cases, (), TODAY, completed={}
+    )
+    assert not any(s["kind"] == "language_drill" for s in nothing["slots"])
+    # No consultation can have produced errors before a level exists or below B1.
+    for level in (None, "A2"):
+        week = plan_week(
+            model(declared_level=level, minutes_per_day=60, language=drill_profile()),
+            cases,
+            (),
+            TODAY,
+            completed={},
+        )
+        assert not any(s["kind"] == "language_drill" for s in week["slots"])
+
+
+def test_a_short_drill_is_planned_for_the_minutes_it_takes(published_container: Container) -> None:
+    cases = published_container.cases.list()
+    week = plan_week(
+        model(declared_level="B1", minutes_per_day=60, language=drill_profile(drill_items=1)),
+        cases,
+        (),
+        TODAY,
+        completed={},
+    )
+    assert {s["minutes"] for s in week["slots"] if s["kind"] == "language_drill"} == {4}
+
+
+def test_a_tight_budget_drops_the_drill_before_the_consultations(
+    published_container: Container,
+) -> None:
+    cases = published_container.cases.list()
+    week = plan_week(
+        model(declared_level="B1", minutes_per_day=15, language=drill_profile()),
+        cases,
+        (),
+        TODAY,
+        completed={},
+    )
+    kept = {s["kind"] for s in week["slots"]}
+    assert "voice_training" in kept or "lexicon_review" in kept
+    assert week["planned_minutes"] <= week["budget_minutes"]
+    assert any(slot_id.startswith("language_drill") for slot_id in week["trimmed_slot_ids"])

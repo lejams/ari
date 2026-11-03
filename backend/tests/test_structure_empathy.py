@@ -243,7 +243,7 @@ async def test_evaluation_judges_empathy_and_reports_structure(database_url: str
 
     ignored = await run("Haben Sie Fieber?")
     assert ignored.evaluation is not None
-    assert ignored.evaluation.schema_version == "session-evaluation-v4"
+    assert ignored.evaluation.schema_version == "session-evaluation-v5"
     moment = ignored.evaluation.empathy[0]
     assert (moment["verdict"], moment["trigger_turn"], moment["response_turn"]) == ("ignored", 1, 2)
     assert moment["evidence_turn_sequences"] == [2]

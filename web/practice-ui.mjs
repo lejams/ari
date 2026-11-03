@@ -1,6 +1,7 @@
 import {PracticeClient, phaseLabel, stateLabel, dimensionText, modeLabel} from './practice-client.mjs';
 import {LexiconClient, RATINGS, lexiconStateLabel, ratingLabel, sourceLabel} from './lexicon-client.mjs';
 import {PlacementClient, LEVEL_LABELS, PHASE_LABELS, describeResult, describeWeakPoints} from './placement-client.mjs';
+import {LanguageDrillClient, outcomeText, resultText} from './language-drill-client.mjs';
 import {PcmRecorder} from './pcm-recorder.mjs';
 import {completedDayKeys, lastLocalDays, localDayKey, scrollDelta} from './calendar.mjs';
 import {clearFieldErrorOnInput, microphoneErrorMessage, validateFields} from './errors.mjs';
@@ -8,10 +9,12 @@ import {clearFieldErrorOnInput, microphoneErrorMessage, validateFields} from './
 const client = new PracticeClient();
 const lexicon = new LexiconClient((path, options) => client.api(path, options));
 const placement = new PlacementClient((path, options) => client.api(path, options));
+const drills = new LanguageDrillClient((path, options) => client.api(path, options));
+let drill = null;
 let reviewQueue = [], reviewTotal = 0, reviewEntry = null;
 let placementAttempt = null, placementListens = 0, recorder = null, recordedAudio = null, recordTimer = null, providerMode = 'fake';
 const $ = id => document.getElementById(id);
-const views = ['onboarding', 'home', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress', 'placement'];
+const views = ['onboarding', 'home', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress', 'placement', 'drill'];
 const fields = ['goal', 'land', 'date', 'minutes', 'situation', 'specialty', 'level', 'certificate-level', 'certificate-issuer', 'certificate-date'];
 // What the onboarding form sends to the profile; land, goal and dates are server-side now.
 function profileDetails() {
@@ -220,20 +223,22 @@ function renderCalendar() {
 }
 
 // ----- weekly programme -----------------------------------------------------------------
-const SLOT_LABELS = {lexicon_review: 'Réviser mon carnet', lexicon_maintenance: 'Entretien du carnet', fachbegriffe: 'Fachbegriffe', arzt_arzt: 'Arzt–Arzt', voice_training: 'Consultation · Entraînement', voice_exam: 'Consultation · Examen', placement: 'Test de niveau'};
+const SLOT_LABELS = {lexicon_review: 'Réviser mon carnet', lexicon_maintenance: 'Entretien du carnet', fachbegriffe: 'Fachbegriffe', arzt_arzt: 'Arzt–Arzt', voice_training: 'Consultation · Entraînement', voice_exam: 'Consultation · Examen', placement: 'Test de niveau', language_drill: 'Vos erreurs rejouées'};
 const SLOT_STATES = {done: '✓', today: '○', todo: '·', missed: '—'};
 const PHASE_LABELS_FR = {positionnement: 'Positionnement', prerequis: 'Prérequis', fondations: 'Fondations', anamnese: 'Anamnèse', examen: 'Examen'};
 function slotTitle(slot) {
   const rec = slot.recommended;
+  if (slot.kind === 'language_drill') return rec?.label ? `${SLOT_LABELS[slot.kind]} · ${rec.label}` : SLOT_LABELS[slot.kind];
   return rec ? `${SLOT_LABELS[slot.kind]} · ${rec.title}` : SLOT_LABELS[slot.kind] || slot.kind;
 }
 function slotButtonLabel(slot) {
-  return {lexicon_review: 'Réviser →', lexicon_maintenance: 'Entretenir →', placement: 'Passer le test →', voice_training: 'Préparer la consultation →', voice_exam: 'Commencer en Examen →', fachbegriffe: 'Faire l’exercice →', arzt_arzt: 'Faire l’exercice →'}[slot.kind] || 'Commencer →';
+  return {lexicon_review: 'Réviser →', lexicon_maintenance: 'Entretenir →', placement: 'Passer le test →', voice_training: 'Préparer la consultation →', voice_exam: 'Commencer en Examen →', fachbegriffe: 'Faire l’exercice →', arzt_arzt: 'Faire l’exercice →', language_drill: 'Reprendre mes phrases →'}[slot.kind] || 'Commencer →';
 }
 async function runSlot(slot) {
   const rec = slot.recommended;
   if (slot.kind === 'lexicon_review' || slot.kind === 'lexicon_maintenance') return showVocab();
   if (slot.kind === 'placement') return showPlacement();
+  if (slot.kind === 'language_drill') return showDrill();
   if (rec?.kind === 'voice') {
     await loadCatalog();
     const item = voiceCases.find(c => c.id === rec.id && c.version === rec.version) || rec;
@@ -297,7 +302,7 @@ function renderWeekDay(offset) {
   if (!slots.length) { detail.append(node('p', 'Rien de prévu ce jour-là.', 'help')); return; }
   for (const slot of slots) {
     const row = node('div', undefined, 'slot-row'); row.dataset.state = slot.state;
-    row.append(node('span', SLOT_STATES[slot.state] || '·', 'slot-state'), node('strong', SLOT_LABELS[slot.kind] || slot.kind), node('span', `${slot.minutes} min${slot.recommended?.title ? ` · ${slot.recommended.title}` : ''}`, 'slot-note'));
+    row.append(node('span', SLOT_STATES[slot.state] || '·', 'slot-state'), node('strong', SLOT_LABELS[slot.kind] || slot.kind), node('span', `${slot.minutes} min${slot.recommended?.title || slot.recommended?.label ? ` · ${slot.recommended.title || slot.recommended.label}` : ''}`, 'slot-note'));
     if (slot.state !== 'done') row.append(actionButton(slotButtonLabel(slot), () => runSlot(slot)));
     detail.append(row);
   }
@@ -703,9 +708,68 @@ async function toggleRecording() {
   $('placement-record-status').textContent = seconds < 1 ? 'Enregistrement trop court, réessayez.' : `${seconds} s enregistrées. Envoyez, ou réenregistrez.`;
   $('placement-send').disabled = seconds < 1;
 }
+// ----- remediation drill: the learner's own errors, replayed ---------------------------------
+async function showDrill() {
+  drills.profileId = client.profile.id;
+  const overview = await drills.overview();
+  $('drill-intro').textContent = 'ARI reprend quelques phrases que vous avez dites lors de vos dernières séances et vous demande de les redire correctement.';
+  $('drill-limitations').textContent = overview.limitations;
+  $('drill-start').hidden = false; $('drill-run').hidden = true; $('drill-result').hidden = true;
+  $('drill-begin').hidden = !overview.available;
+  $('drill-resume').hidden = !overview.active_drill_id;
+  $('drill-status').textContent = overview.active_drill_id ? 'Un exercice est en cours.'
+    : overview.available ? `${overview.items} phrase${overview.items > 1 ? 's' : ''} à reprendre sur ${overview.focus_label} (${overview.focus_errors} erreurs dans vos ${overview.sessions_considered} dernières séances). Environ ${Math.max(4, 2 * overview.items)} minutes.`
+    : 'Rien à reprendre pour le moment : faites une séance d’entraînement, ARI analysera ce que vous avez dit et repérera les erreurs qui reviennent.';
+  drill = null;
+  view('drill');
+}
+async function startDrill(resume = false) {
+  const overview = await drills.overview();
+  drill = resume && overview.active_drill_id ? await drills.get(overview.active_drill_id) : await drills.start();
+  if (drill.status === 'active' && !drill.current_item_id) { drill = await drills.finish(drill); await drillStep(); }
+  renderDrill(drill);
+}
+function renderDrill(current, feedbackFor = null) {
+  drill = current;
+  $('drill-start').hidden = true;
+  if (current.status === 'completed') return renderDrillResult(current);
+  $('drill-run').hidden = false; $('drill-result').hidden = true;
+  const shown = feedbackFor ? current.items.find(item => item.id === feedbackFor) : current.items.find(item => item.id === current.current_item_id);
+  if (!shown) return;
+  const index = current.items.indexOf(shown);
+  $('drill-progress').textContent = `${current.focus_label[0].toUpperCase()}${current.focus_label.slice(1)} · phrase ${index + 1} / ${current.progress.total}`;
+  $('drill-quote').textContent = shown.quote;
+  $('drill-form').hidden = Boolean(feedbackFor);
+  $('drill-feedback').hidden = !feedbackFor;
+  if (feedbackFor) {
+    $('drill-outcome').textContent = outcomeText(shown.outcome);
+    $('drill-correction').textContent = shown.correction;
+    $('drill-note').textContent = shown.note;
+    $('drill-next').textContent = index + 1 < current.progress.total ? 'Phrase suivante →' : 'Voir le bilan →';
+    $('drill-next').focus();
+  } else { $('drill-answer').value = ''; $('drill-answer').focus(); }
+  $('drill-stop').hidden = current.progress.answered === 0;
+}
+function renderDrillResult(current) {
+  $('drill-run').hidden = true; $('drill-result').hidden = false;
+  $('drill-result-text').textContent = resultText(current.result);
+  $('drill-result-items').replaceChildren(...current.items.filter(item => item.answered).map(item => {
+    const card = node('article', undefined, 'card');
+    const said = node('p', `Vous : ${item.your_answer}`); said.lang = 'de';
+    const fixed = node('p', `Corrigé : ${item.correction}`); fixed.lang = 'de';
+    card.append(said, fixed);
+    return card;
+  }));
+}
+async function drillStep() {
+  await client.restoreProfile();
+  let after = null;
+  try { after = (await client.api('/api/program')).week.next; } catch { after = null; }
+  $('drill-after').replaceChildren(...(after && after.kind !== 'language_drill' ? [actionButton(`Prochaine étape : ${slotTitle(after)} →`, () => runSlot(after), true)] : []));
+}
 async function navigate(name) {
   if(!client.profile)return home();
-  const routes={home,cases:showCases,exam:showExam,vocab:showVocab,history:showHistory,progress:showProgress,placement:showPlacement,warmup:()=>selected?view('warmup'):showCases()};
+  const routes={home,cases:showCases,exam:showExam,vocab:showVocab,history:showHistory,progress:showProgress,placement:showPlacement,drill:showDrill,warmup:()=>selected?view('warmup'):showCases()};
   await (routes[name]||home)();
 }
 async function route() { const match=location.hash.match(/^#practice\/([A-Za-z0-9_.-]+)$/);if(client.profile&&match)return showRun(await client.getRun(match[1]));return navigate(location.hash.slice(1)||'home'); }
@@ -721,6 +785,11 @@ $('edit-profile').onclick=()=>{restoreDraft();history.replaceState(null,'','#onb
 $('logout').onclick=()=>perform(async()=>{await client.api('/api/auth/logout',{method:'POST'});location.assign('/');});
 $('case-search').oninput=renderCatalog;$('case-filter').onchange=renderCatalog;$('case-land').onchange=()=>{$('case-land').dataset.touched='1';renderCatalog();};document.querySelectorAll('[name=mode]').forEach(input=>input.onchange=renderCatalog);
 $('warmup-start').onclick=()=>perform(startSelected);
+$('drill-begin').onclick=()=>perform(()=>startDrill(false));
+$('drill-resume').onclick=()=>perform(()=>startDrill(true));
+$('drill-form').onsubmit=event=>{event.preventDefault();const current=drill,item=current.items.find(i=>i.id===current.current_item_id),text=$('drill-answer').value;if(!item||!text.trim()){$('notice').textContent='Écrivez votre phrase avant de vérifier.';return;}perform(async()=>renderDrill(await drills.answer(current,item.id,text),item.id));};
+$('drill-next').onclick=()=>{const current=drill;if(current.progress.answered>=current.progress.total)perform(async()=>{const done=await drills.finish(current);await drillStep();renderDrill(done);});else renderDrill(current);};
+$('drill-stop').onclick=()=>{const current=drill;perform(async()=>{const done=await drills.finish(current);await drillStep();renderDrill(done);});};
 $('placement-start').onclick=()=>perform(()=>startPlacement(false));
 $('placement-resume').onclick=()=>perform(()=>startPlacement(true));
 $('placement-report').onclick=()=>{const attempt=placementAttempt;if(!attempt?.current_item)return;perform(async()=>{await placement.report(attempt,attempt.current_item.id,'');$('notice').textContent='Merci : cette question sera relue.';});};
