@@ -21,6 +21,8 @@
   --violet-soft:#f4ecff;
   --violet-line:#dcc3ff;
   --violet-grad:#c79bff;
+  --violet-text:#7c2fd6;
+  --good-text:#1a7a48;
   --good:#269e5f;
   --good-soft:#e9f6ef;
   --good-line:#bfe5cf;
@@ -43,6 +45,8 @@
   --aura-l:.88;
   --aura-c:.11;
   --aura-opacity:.55;
+  --aura-opacity-lg:.85;
+  --track:#ececea;
   --heat-0:#f6e3e3;
   --heat-1:#f5ead6;
   --heat-2:#ecefd8;
@@ -87,6 +91,8 @@
   --violet-soft:rgba(185,162,255,.14);
   --violet-line:rgba(185,162,255,.4);
   --violet-grad:#d9ccff;
+  --violet-text:#b9a2ff;
+  --good-text:#4ccf8e;
   --good:#4ccf8e;
   --good-soft:rgba(76,207,142,.14);
   --good-line:rgba(76,207,142,.4);
@@ -108,7 +114,9 @@
   --av-2:#4a3a7a;
   --aura-l:.62;
   --aura-c:.19;
-  --aura-opacity:.42;
+  --aura-opacity:.8;
+  --aura-opacity-lg:.95;
+  --track:rgba(255,255,255,.12);
   --heat-0:rgba(255,138,92,.28);
   --heat-1:rgba(240,178,84,.26);
   --heat-2:rgba(200,210,110,.22);
@@ -145,6 +153,8 @@
     --violet-soft:rgba(185,162,255,.14);
     --violet-line:rgba(185,162,255,.4);
     --violet-grad:#d9ccff;
+    --violet-text:#b9a2ff;
+    --good-text:#4ccf8e;
     --good:#4ccf8e;
     --good-soft:rgba(76,207,142,.14);
     --good-line:rgba(76,207,142,.4);
@@ -166,7 +176,9 @@
     --av-2:#4a3a7a;
     --aura-l:.62;
     --aura-c:.19;
-    --aura-opacity:.42;
+    --aura-opacity:.8;
+    --aura-opacity-lg:.95;
+    --track:rgba(255,255,255,.12);
     --heat-0:rgba(255,138,92,.28);
     --heat-1:rgba(240,178,84,.26);
     --heat-2:rgba(200,210,110,.22);
@@ -176,3 +188,11 @@
     --surface:var(--card-solid);
   }
 }
+
+/* Light / dark switch, shared by the landing, sign-in, app and voice pages. */
+.theme-toggle{display:inline-grid;place-items:center;width:36px;height:36px;min-height:36px;padding:0;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--card-soft);color:var(--fg);cursor:pointer}
+.theme-toggle:hover{border-color:var(--fg-muted);background:var(--card-soft)}
+.theme-toggle svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.theme-toggle .i-sun{display:none}
+.theme-toggle[aria-pressed=true] .i-sun{display:block}
+.theme-toggle[aria-pressed=true] .i-moon{display:none}
