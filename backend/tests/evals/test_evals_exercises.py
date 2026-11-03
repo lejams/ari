@@ -224,6 +224,51 @@ async def test_the_diagnosis_says_which_stage_and_which_criterion_refuses_valid_
     assert "réservé au split dev" in exercise_diagnosis_text(holdout)
 
 
+async def test_the_diagnosis_leaves_provider_failures_out_of_the_refusals() -> None:
+    dataset = load_dataset(DATASETS, "1")
+    solver, _ = oracle_for(dataset, "dev", strict=True)
+    provider = ScriptedModels(
+        author=lambda r, p: {}, solver=solver, judge=judge_passes(failing=(RUBRIC_CRITERIA[0],))
+    )
+    report = await run_exercises(request(provider, split="dev", repetitions=1))
+    valid_ids = {i.id for i in dataset.read_split("dev", gate=True) if i.truth.valid}  # type: ignore[arg-type]
+    broken = next(e for e in report.items if e.item_id in valid_ids)
+    failed = broken.runs[0].model_copy(update={"usable": False, "errors": ["boom"]})
+    items = [
+        e.model_copy(update={"runs": [failed]}) if e.item_id == broken.item_id else e
+        for e in report.items
+    ]
+    text = exercise_diagnosis_text(report.model_copy(update={"items": items}))
+    assert f"{len(valid_ids) - 1} exercice(s) juste(s) refusé(s) sur {len(valid_ids) - 1}" in text
+    assert "sans réponse exploitable (hors décompte) : 1, 1 x boom" in text
+
+
+async def test_a_report_without_the_key_is_completed_from_the_dataset_not_guessed() -> None:
+    dataset = load_dataset(DATASETS, "1")
+    keys = {
+        i.candidate.content_hash: i.candidate.answer_index
+        for i in dataset.read_split("dev", gate=True)  # type: ignore[arg-type]
+    }
+    provider = ScriptedModels(
+        author=lambda r, p: {}, solver=solving_with_a_twin(keys), judge=judge_passes()
+    )
+    report = await run_exercises(request(provider, split="dev", repetitions=1))
+
+    def without_key(entry: Any) -> Any:  # What a report written before the key was recorded holds.
+        runs = []
+        for run in entry.runs:
+            detail = {k: v for k, v in (run.detail or {}).items() if k not in {"key_index", "stem"}}
+            runs.append(run.model_copy(update={"detail": detail}))
+        return entry.model_copy(update={"runs": runs})
+
+    old = report.model_copy(update={"items": [without_key(e) for e in report.items]})
+    assert "solver:cause_unknown_without_the_key" in exercise_diagnosis_text(old)
+    by_id = {i.id: i for i in dataset.read_split("dev", gate=True)}  # type: ignore[arg-type]
+    completed = exercise_diagnosis_text(old, by_id)
+    assert "solver:sees_several_acceptable_options" in completed
+    assert "cause_unknown" not in completed
+
+
 async def test_a_gate_run_repeats_each_item_at_least_three_times() -> None:
     provider = ScriptedModels(author=lambda r, p: {}, solver=solve_as(), judge=judge_passes())
     report = await run_exercises(request(provider, repetitions=2))

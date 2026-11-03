@@ -10,8 +10,10 @@ The holdout keeps its content out of reports and has nothing to show.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from typing import Any
 
+from ari.evals.exercises.dataset import ExerciseItem
 from ari.evals.report import Report
 
 SHOWN = 40
@@ -30,6 +32,8 @@ def rejection_reasons(detail: dict[str, Any]) -> list[str]:
             return [f"solver:{issue}" for issue in issues]
         solver = detail.get("solver") or {}
         key = detail.get("key_index")
+        if key is None:  # A report from before the key was recorded, and no dataset to read it in.
+            return ["solver:cause_unknown_without_the_key"]
         reasons = []
         if solver.get("chosen_index") != key:
             reasons.append("solver:chose_another_option")
@@ -53,16 +57,26 @@ def _explanation(detail: dict[str, Any]) -> str:
     return str((detail.get("solver") or {}).get("comment", ""))[:200]
 
 
-def exercise_diagnosis_text(report: Report) -> str:
+def exercise_diagnosis_text(report: Report, items: Mapping[str, ExerciseItem] | None = None) -> str:
+    """`items` (the dataset's dev items by id) completes a report written before the key and the
+    stem were recorded in it."""
     if report.gate_mode or report.split != "dev":
         return "Diagnostic : réservé au split dev ; le holdout garde son contenu hors des rapports."
     counts: Counter[str] = Counter()
     stages: Counter[str] = Counter()
     lines: list[str] = []
     valid = rejected = 0
+    unusable: Counter[str] = Counter()
     for item in report.items:
+        known = items.get(item.item_id) if items else None
         for run in item.runs:
-            detail = run.detail or {}
+            detail = dict(run.detail or {})
+            if known is not None:
+                detail.setdefault("key_index", known.candidate.answer_index)
+                detail.setdefault("stem", known.candidate.stem)
+            if not run.usable:  # No answer even after a retry: neither accepted nor refused.
+                unusable[(run.errors[-1][:160] if run.errors else "sans détail")] += 1
+                continue
             truth = detail.get("truth") or {}
             if not truth.get("valid"):
                 if detail.get("accepted"):
@@ -89,6 +103,12 @@ def exercise_diagnosis_text(report: Report) -> str:
         "Par étape : " + (", ".join(f"{s} {n}" for s, n in stages.most_common()) or "aucune"),
         "Par raison : " + (", ".join(f"{r} {n}" for r, n in counts.most_common()) or "aucune"),
     ]
+    if unusable:
+        causes = " | ".join(f"{n} x {text}" for text, n in unusable.most_common(3))
+        head.append(
+            "Passages sans réponse exploitable (hors décompte) : "
+            f"{sum(unusable.values())}, {causes}"
+        )
     if rejected > SHOWN:
         lines.append(f"… {rejected - SHOWN} autre(s) refus non détaillé(s)")
     return "\n".join([*head, *lines])
