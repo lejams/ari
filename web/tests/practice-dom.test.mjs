@@ -35,12 +35,16 @@ function installDom(hash) {
   const radios = { source: { value: "self", checked: true }, mode: { value: "training", checked: true } };
   globalThis.document = {
     body: new Element("body"),
+    documentElement: { lang: "fr" },
     getElementById: id => nodes.get(id) ?? null,
     querySelector: selector => (selector.includes("[name=source]") ? radios.source : selector.includes("[name=mode]") ? radios.mode : selector.includes("[name=placement-option]") ? { value: "0" } : null),
     querySelectorAll: () => [],
     createElement: tag => new Element("", tag.toUpperCase()),
     createTextNode: text => ({ textContent: text }),
+    dispatchEvent: () => true,
   };
+  globalThis.CustomEvent = class CustomEvent { constructor(type, init) { this.type = type; this.detail = init?.detail; } };
+  globalThis.matchMedia = () => ({ matches: true });
   globalThis.window = globalThis;
   globalThis.location = { hash, search: "", href: "http://test/", protocol: "http:", host: "test" };
   globalThis.history = { replaceState() {} };

@@ -4,6 +4,48 @@ import {PlacementClient, LEVEL_LABELS, PHASE_LABELS, describeResult, describeWea
 import {PcmRecorder} from './pcm-recorder.mjs';
 import {completedDayKeys, lastLocalDays, localDayKey, scrollDelta} from './calendar.mjs';
 import {clearFieldErrorOnInput, microphoneErrorMessage, validateFields} from './errors.mjs';
+import {initLocale, viewLabel} from './i18n.mjs';
+
+const VIEW_AURAS = {
+  home: [65, 40, '58%', '-22%', '-14%', '46%'],
+  cases: [254, 230, '-18%', '34%', '66%', '-20%'],
+  exam: [254, 230, '-18%', '34%', '66%', '-20%'],
+  history: [300, 280, '62%', '-26%', '82%', '38%'],
+  vocab: [195, 172, '30%', '-26%', '78%', '40%'],
+  progress: [195, 300, '-10%', '20%', '72%', '6%'],
+  placement: [40, 300, '66%', '-24%', '-12%', '52%'],
+  onboarding: [210, 40, '10%', '-20%', '70%', '50%'],
+  warmup: [254, 230, '-18%', '34%', '66%', '-20%'],
+  exercise: [300, 280, '62%', '-26%', '82%', '38%'],
+};
+function setAura(name) {
+  const aura = document.getElementById('aura');
+  if (!aura?.style) return;
+  const values = VIEW_AURAS[name] || VIEW_AURAS.home;
+  [ '--h1', '--h2', '--x1', '--y1', '--x2', '--y2' ].forEach((key, index) => {
+    if (typeof aura.style.setProperty === 'function') aura.style.setProperty(key, values[index]);
+    else aura.style[key] = values[index];
+  });
+}
+function setCrumb(name) {
+  const crumb = document.getElementById('crumb-view');
+  if (!crumb) return;
+  crumb.dataset.view = name;
+  crumb.textContent = viewLabel(name);
+}
+function refreshSideUser() {
+  const box = document.getElementById('side-user');
+  if (!box) return;
+  const details = client.profile?.details;
+  if (!details) { box.hidden = true; return; }
+  box.hidden = false;
+  const specialty = details.specialty || '';
+  const initials = specialty.slice(0, 2).toUpperCase() || 'AR';
+  document.getElementById('side-av').textContent = initials;
+  document.getElementById('side-name').textContent = specialty || 'Profil ARI';
+  const level = details.estimated_level || details.declared_level;
+  document.getElementById('side-level').textContent = level ? `Niveau ${level}` : 'Niveau non mesuré';
+}
 
 const client = new PracticeClient();
 const lexicon = new LexiconClient((path, options) => client.api(path, options));
@@ -106,9 +148,15 @@ function view(name, changeHash = true) {
   for (const id of views) $(id).hidden = id !== name;
   // No profile yet: the navigation would only lead back to onboarding.
   document.body.classList.toggle('onboarding-active', name === 'onboarding' && !client.profile);
-  document.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-current', button.dataset.view === name ? 'page' : 'false'));
+  document.querySelectorAll('[data-view]').forEach(button => {
+    const current = button.dataset.view === name && !button.dataset.scroll;
+    button.setAttribute('aria-current', current ? 'page' : 'false');
+  });
   if (name !== 'exercise') document.body.classList.remove('exam-active');
   if (changeHash && !['onboarding', 'exercise'].includes(name)) history.replaceState(null, '', '#' + name);
+  setAura(name);
+  setCrumb(name);
+  refreshSideUser();
   window.scrollTo({top: 0, behavior: 'instant'});
 }
 async function perform(action) {
@@ -739,7 +787,24 @@ $('vocab-add-form').onsubmit=event=>{event.preventDefault();if(!validateFields([
 $('answer-form').onsubmit=event=>{event.preventDefault();const run=currentRun,text=$('answer').value;perform(async()=>showRun(await client.answer(run,text)));};
 for(const action of ['pause','resume','finish'])$(action).onclick=()=>{const run=currentRun;perform(async()=>showRun(await client.action(run,action)));};
 // Navigation entries are links (a real href, aria-current): the click routes in place of following them.
-for(const button of document.querySelectorAll('[data-view]'))button.onclick=event=>{event.preventDefault();perform(()=>navigate(button.dataset.view));};
+for (const button of document.querySelectorAll('[data-view]')) {
+  button.onclick = event => {
+    event.preventDefault();
+    const target = button.dataset.view;
+    const scrollId = button.dataset.scroll;
+    perform(async () => {
+      await navigate(target);
+      if (scrollId) {
+        const el = document.getElementById(scrollId);
+        if (el) {
+          const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+          el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+        }
+      }
+    });
+  };
+}
+initLocale();
 window.addEventListener('hashchange',()=>perform(route));
 window.addEventListener('resize',()=>{if(!$('progress').hidden){const selected=$('daytrack').querySelector('[aria-pressed=true]');selected?.scrollIntoView({block:'nearest',inline:'nearest'});}});
 window.addEventListener('focus',()=>{const today=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});if($('today-label').textContent!==today){$('today-label').textContent=today;if(!$('progress').hidden)renderCalendar();}});

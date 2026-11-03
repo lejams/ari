@@ -2,757 +2,478 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="ARI prépare les médecins étrangers à la Fachsprachprüfung : consultations vocales, présentation au confrère, lexique et programme.">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ARI Allemand médical</title>
-<meta name="description" content="ARI, entraînement à l'allemand médical pour médecins francophones préparant la FSP.">
-<link rel="icon" href="data:,">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;1,8..60,400&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --btn-bg:#525bd4; --btn-bg-hover:#4049bd; --btn-ink:#fff;
-    --violet:#525bd4;
-    --navy:#172b45; --on-navy:#fff; --navy-muted:#d4d9e3; --navy-eyebrow:#bcc4ff;
-    --paper:#f5f5f2; --surface:#fff; --surface-2:#fafafb;
-    --lav:#eeeffb; --lav-2:#e9eafd; --final:#e7e8fa;
-    --ink:#172b45; --muted:#4d5b6b; --line:#d9dde5; --line-2:#cfd5e2;
-    --good:#16634f; --good-bg:#e9f5ef; --good-line:#2f806c;
-    --bad:#8f3131; --bad-bg:#fff0f0; --bad-line:#a94848;
-    --shadow:0 22px 48px rgb(23 43 69 / .13);
-    --nav-bg:rgb(245 245 242 / .92);
-    --radius:20px; --max:1180px;
-    --sans:"Atkinson Hyperlegible Next","Atkinson Hyperlegible",ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
-  }
-  /* La page s'ouvre toujours en clair. Le mode sombre est un choix du visiteur (bouton dans l'en-tête). */
-  body.ari-dark{
-    color-scheme:dark;
-    --btn-bg:#8f97f5; --btn-bg-hover:#aab0f8; --btn-ink:#101a2c;
-    --violet:#a7adf9;
-    --navy:#0e1a2d; --on-navy:#eef0f6; --navy-muted:#bcc5d6; --navy-eyebrow:#b3baff;
-    --paper:#172538; --surface:#1e2f47; --surface-2:#1a2a40;
-    --lav:#26365a; --lav-2:#1f2e4c; --final:#1f2e4c;
-    --ink:#eef0f6; --muted:#b4bdcd; --line:#304462; --line-2:#3f5577;
-    --good:#7fd8b8; --good-bg:#153329; --good-line:#43a283;
-    --bad:#f4aeae; --bad-bg:#3a2128; --bad-line:#c06a6a;
-    --shadow:0 22px 48px rgb(4 10 20 / .45);
-    --nav-bg:rgb(23 37 56 / .92);
-  }
-  body{transition:background-color .25s,color .25s}
+:root{--bg:#fff;--bg-soft:#fafafa;--bg-sunk:#f4f4f3;--line:#e8e8e6;--line-strong:#d4d4d2;--fg:#0a0a0a;--fg-muted:#6b6b6b;--fg-faint:#9a9a98;--accent:#0070d5;--accent-soft:#e8f3ff;--accent-line:#abd1ff;--good:#269e5f;--warn:#dc932e;--radius-sm:4px;--radius:6px;--radius-lg:10px;--container:1200px;--font-sans:"Geist",ui-sans-serif,system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
+.container{max-width:var(--container);margin:0 auto;padding:0 28px;position:relative;z-index:1}
+.btn{border-radius:var(--radius);white-space:nowrap;border:1px solid transparent;align-items:center;gap:8px;padding:11px 18px;font-size:14px;font-weight:500;transition:all .15s;display:inline-flex;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}.btn-primary:hover{background:#262626}
+.btn-secondary{border-color:var(--line-strong);background:rgba(255,255,255,.6)}.btn-secondary:hover{border-color:var(--fg-muted)}
+.btn-lg{padding:14px 24px;font-size:15px}.btn .arr{transition:transform .15s}.btn:hover .arr{transform:translateX(3px)}
+/* nav */
+.nav{z-index:50;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);position:sticky;top:0}
+.nav-inner{max-width:var(--container);align-items:center;gap:32px;height:60px;margin:0 auto;padding:0 28px;display:flex}
+.nav-logo{align-items:center;gap:9px;font-size:15px;font-weight:600;display:flex;letter-spacing:-.01em}.nav-logo svg{width:24px;height:24px;color:var(--fg)}
+.nav-links{display:flex;gap:4px;margin-left:16px}.nav-link{color:var(--fg-muted);border-radius:var(--radius);padding:6px 12px;font-size:14px}.nav-link:hover{color:var(--fg);background:var(--bg-sunk)}
+.nav-spacer{flex:1}.nav-cta{display:flex;gap:10px;align-items:center}.nav .btn{padding:8px 14px}
+/* hero */
+.hero{isolation:isolate;padding:104px 0 104px;position:relative;overflow:hidden;min-height:calc(100vh - 60px);display:flex;align-items:center}
+.pulse-bg{position:absolute;inset:0;z-index:0;pointer-events:none;-webkit-mask-image:radial-gradient(62% 52% at 50% 42%,rgba(0,0,0,.08) 0 30%,#000 80%);mask-image:radial-gradient(62% 52% at 50% 42%,rgba(0,0,0,.08) 0 30%,#000 80%)}
+.pulse-bg canvas{position:absolute;inset:0;width:100%;height:100%}
+.pulse-bg .glow{filter:blur(14px);opacity:.35}
+.pulse-bg .sharp{opacity:.5}
+.hero-grid-lines{position:absolute;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:40px 40px;opacity:.35;-webkit-mask-image:radial-gradient(70% 60% at 50% 50%,#000,transparent 75%);mask-image:radial-gradient(70% 60% at 50% 50%,#000,transparent 75%)}
+.hero-copy{text-align:center;display:flex;flex-direction:column;align-items:center;max-width:760px;margin:0 auto}
+.hero h1{letter-spacing:-.03em;text-wrap:balance;max-width:18ch;margin:0 0 22px;font-size:clamp(40px,4.6vw,60px);font-weight:500;line-height:1.04}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero-sub{color:var(--fg-muted);text-wrap:pretty;max-width:620px;margin:0 0 36px;font-size:19px;line-height:1.5}
+.hero-cta{gap:10px;display:flex;flex-wrap:wrap;justify-content:center}
+.hero-meta{margin-top:48px;display:flex;gap:28px;flex-wrap:wrap;justify-content:center;font:12px var(--font-mono);color:var(--fg-faint);letter-spacing:.04em;text-transform:uppercase}
+.hero-meta span{display:inline-flex;gap:8px;align-items:center}.hero-meta i{width:5px;height:5px;background:var(--accent);border-radius:50%;opacity:.6}
+/* reveal */
+.fade{opacity:0;transform:translateY(14px);transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .8s cubic-bezier(.2,.7,.2,1)}.fade.in{opacity:1;transform:none}
+.hero .fade{transition-delay:calc(var(--d,0)*90ms)}
+/* sections */
+.section{border-top:1px solid var(--line);padding:96px 0;position:relative;overflow:clip}
+.section.soft{background:var(--bg-soft)}
+.section-eyebrow{font:12px var(--font-mono);letter-spacing:.04em;color:var(--fg-muted);text-transform:uppercase;align-items:center;gap:10px;margin-bottom:22px;display:flex}
+.section-eyebrow .num{color:var(--accent);border:1px solid var(--accent-line);background:var(--accent-soft);border-radius:var(--radius-sm);padding:1px 6px}
+.section-title{letter-spacing:-.02em;max-width:720px;margin:0 0 14px;font-size:44px;font-weight:500;line-height:1.08;text-wrap:balance}
+.section-lead{color:var(--fg-muted);max-width:620px;margin:0 0 36px;font-size:18px;line-height:1.5}
+.sub{margin-top:72px}.sub-label{font:12px var(--font-mono);color:var(--fg-faint);letter-spacing:.04em;margin-bottom:10px}
+.sub h3{font-size:28px;font-weight:500;letter-spacing:-.015em;margin:0 0 10px;max-width:680px;line-height:1.15}
+.sub p.l{color:var(--fg-muted);max-width:620px;margin:0 0 28px;font-size:16px}
+.ph{font-family:var(--font-mono);color:var(--warn);background:#fdf4e8;border:1px dashed #efc890;border-radius:var(--radius-sm);padding:0 5px;font-size:.85em;white-space:nowrap}
+/* cases */
+.cases{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.case{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg);display:flex;flex-direction:column;overflow:hidden;transition:border-color .2s,transform .2s}
+.case:hover{border-color:var(--line-strong);transform:translateY(-2px)}
+.case-head{padding:22px 22px 16px}.case-tag{font:11px var(--font-mono);color:var(--fg-faint);letter-spacing:.06em;text-transform:uppercase}
+.case h4{font-size:19px;font-weight:500;margin:8px 0 4px;letter-spacing:-.01em}.case .d{color:var(--fg-muted);font-size:14px;margin:0}
+.case-rows{border-top:1px dashed var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}
+.case-row{display:grid;grid-template-columns:110px 1fr;gap:10px;font-size:13px}.case-row .k{font:11px var(--font-mono);color:var(--fg-faint);padding-top:2px;letter-spacing:.03em}
+.case-foot{margin-top:auto;border-top:1px solid var(--line);background:var(--bg-soft);padding:16px 22px;display:flex;align-items:baseline;gap:10px}
+.case-foot .big{font:500 26px var(--font-mono);letter-spacing:-.02em}.case-foot .big.red{color:#c2410c}.case-foot .s{font-size:12px;color:var(--fg-muted)}
+/* bob */
+.bob-grid{grid-template-columns:repeat(3,1fr);gap:16px;display:grid}
+.bob-col{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg-soft);flex-direction:column;gap:14px;min-height:220px;padding:24px;display:flex}
+.bob-bracket{font:500 12px var(--font-mono);letter-spacing:.04em;color:var(--fg)}.bob-bracket span{color:var(--accent)}
+.bob-desc{color:var(--fg-muted);margin:0;font-size:14px;line-height:1.55}
+.bob-pills{border-top:1px dashed var(--line);flex-direction:column;gap:6px;margin-top:auto;padding-top:14px;display:flex}
+.bob-pill{background:var(--bg);border:1px solid var(--line);border-radius:6px;align-items:center;gap:8px;padding:8px 10px;font-size:12px;display:flex}
+.bob-pill .k{font:11px var(--font-mono);color:var(--fg-faint)}.bob-pill .v{font-weight:500;margin-left:auto}
+/* day / scrollytelling */
+.day-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap}
+.day-clock{font:12px var(--font-mono);color:var(--fg-faint);border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:var(--bg)}
+.day{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:64px;margin-top:40px;position:relative}
+.rail{position:absolute;left:43px;top:0;bottom:0;width:1px;background:var(--line)}
+.rail-fill{position:absolute;left:0;top:0;width:1px;background:var(--accent);height:0;transition:height .2s linear;box-shadow:0 0 8px var(--accent)}
+.steps{position:relative}
+.step{min-height:72vh;display:flex;flex-direction:column;justify-content:center;padding:24px 0 24px 0;position:relative}
+.step-time{display:flex;align-items:center;gap:14px;font:500 13px var(--font-mono);color:var(--fg-faint);margin-bottom:16px;transition:color .3s}
+.step-time .node{width:88px;display:flex;justify-content:center}
+.step-time .node i{width:11px;height:11px;border-radius:50%;background:var(--bg);border:1px solid var(--line-strong);transition:all .3s;display:block}
+.step.on .step-time{color:var(--accent)}.step.on .step-time .node i{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 5px var(--accent-soft)}
+.step-body{padding-left:102px;opacity:.35;transition:opacity .4s}.step.on .step-body{opacity:1}
+.step-kicker{font:11px var(--font-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--fg-muted);margin-bottom:8px}
+.step h3{font-size:26px;font-weight:500;letter-spacing:-.015em;margin:0 0 10px;line-height:1.15}
+.step p{color:var(--fg-muted);margin:0 0 14px;font-size:15.5px}
+.step-chips{display:flex;flex-wrap:wrap;gap:6px}.chip{font:11px var(--font-mono);border:1px solid var(--line);border-radius:999px;padding:3px 9px;color:var(--fg-muted);background:var(--bg)}
+.stage-wrap{position:relative}
+.stage{position:sticky;top:96px;height:calc(100vh - 140px);max-height:560px;min-height:460px}
+.screen{position:absolute;inset:0;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg);box-shadow:0 1px 0 rgba(0,0,0,.02),0 24px 60px -24px rgba(10,30,60,.18);overflow:hidden;display:flex;flex-direction:column;opacity:0;transform:translateY(18px) scale(.985);transition:opacity .55s,transform .55s cubic-bezier(.2,.7,.2,1);pointer-events:none}
+.screen.on{opacity:1;transform:none;pointer-events:auto}
+.scr-bar{height:42px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--bg-soft);font:11.5px var(--font-mono);color:var(--fg-muted);flex:none}
+.scr-bar .dots{display:flex;gap:5px}.scr-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--line-strong)}
+.scr-bar .t{margin-left:6px}.scr-bar .r{margin-left:auto;color:var(--fg-faint)}
+.scr-body{flex:1;padding:24px;position:relative;display:flex;flex-direction:column;gap:14px;min-height:0}
+.lbl{font:11px var(--font-mono);color:var(--fg-faint);letter-spacing:.04em;text-transform:uppercase}
+/* m1 srs */
+.srs-meta{display:flex;justify-content:space-between}
+.flip{perspective:1000px;flex:1;min-height:200px}
+.flip-in{position:relative;width:100%;height:100%;transition:transform .9s cubic-bezier(.3,.7,.2,1);transform-style:preserve-3d}
+.screen.on .flip-in{transform:rotateY(180deg);transition-delay:1.1s}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:20px}
+.face.back{transform:rotateY(180deg);background:var(--bg)}
+.face .w{font-size:34px;font-weight:500;letter-spacing:-.02em}.face .w .art{color:var(--accent)}
+.face .g{font:12px var(--font-mono);color:var(--fg-faint)}.face .ex{font-size:14px;color:var(--fg-muted);max-width:36ch}
+.srs-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.srs-btns span{border:1px solid var(--line);border-radius:var(--radius);padding:9px 0;text-align:center;font-size:13px;background:var(--bg)}
+.srs-btns span small{display:block;font:10px var(--font-mono);color:var(--fg-faint)}
+.screen.on .srs-btns .pick{animation:press .5s 2.6s both}
+@keyframes press{0%{}40%{transform:scale(.96);background:var(--accent-soft);border-color:var(--accent-line)}100%{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}}
+.prog{height:4px;background:var(--bg-sunk);border-radius:4px;overflow:hidden}.prog i{display:block;height:100%;width:20%;background:var(--accent);transition:width 1s 2.9s}.screen.on .prog i{width:32%}
+/* m2 remediation */
+.err{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;background:var(--bg-soft);font-size:15px}
+.err .src{font:11px var(--font-mono);color:var(--fg-faint);margin-bottom:6px}
+.err s{color:#c2410c;text-decoration-thickness:1.5px}.err ins{text-decoration:none;color:var(--good);font-weight:500;opacity:0;transition:opacity .4s .9s}.screen.on .err ins{opacity:1}
+.axis{display:flex;gap:8px;align-items:center;font-size:13px}.axis .chip.on{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
+.ex-list{display:flex;flex-direction:column;gap:8px}
+.exr{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;font-size:14px;opacity:0;transform:translateX(10px);transition:all .5s}
+.screen.on .exr{opacity:1;transform:none}.screen.on .exr:nth-child(1){transition-delay:1.3s}.screen.on .exr:nth-child(2){transition-delay:1.6s}.screen.on .exr:nth-child(3){transition-delay:1.9s}
+.exr .n{font:11px var(--font-mono);color:var(--fg-faint)}.gap{display:inline-block;min-width:40px;border-bottom:1.5px solid var(--accent-line);text-align:center;color:var(--accent);font-weight:500}
+.ok{font:11px var(--font-mono);color:var(--good)}
+/* m3 consultation */
+.call{display:grid;grid-template-columns:1fr;gap:14px;flex:1;min-height:0}
+.call-top{display:flex;align-items:center;gap:12px}
+.avatar{width:38px;height:38px;border-radius:50%;background:var(--accent-soft);border:1px solid var(--accent-line);display:grid;place-items:center;font:500 13px var(--font-mono);color:var(--accent)}
+.call-top .who{font-size:14px;font-weight:500}.call-top .who small{display:block;font:11px var(--font-mono);color:var(--fg-faint);font-weight:400}
+.live{margin-left:auto;font:11px var(--font-mono);color:#c2410c;display:flex;align-items:center;gap:6px}.live i{width:7px;height:7px;border-radius:50%;background:#e5484d;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+.voice{height:64px;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-soft);position:relative;overflow:hidden}.voice canvas{width:100%;height:100%;display:block}
+.tx{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:9px;font-size:14px;min-height:0;-webkit-mask-image:linear-gradient(transparent,#000 18%);mask-image:linear-gradient(transparent,#000 18%);justify-content:flex-end}
+.line{display:grid;grid-template-columns:62px 1fr;gap:10px;opacity:0;transform:translateY(6px);transition:all .4s}
+.line.show{opacity:1;transform:none}.line .s{font:11px var(--font-mono);color:var(--fg-faint);padding-top:2px}.line.pt .s{color:var(--accent)}
+.line .flag{display:inline-block;margin-left:6px;font:10.5px var(--font-mono);color:var(--good);border:1px solid #bfe3cf;background:#effaf3;border-radius:999px;padding:0 6px}
+.line .flag.w{color:#a86414;border-color:#f1d2a6;background:#fdf6ea}
+/* m4 arzt-arzt */
+.pres{display:flex;flex-direction:column;gap:7px}
+.pi{display:grid;grid-template-columns:20px 130px 1fr;gap:10px;align-items:start;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius);font-size:13.5px;background:var(--bg)}
+.pi .ck{width:16px;height:16px;border-radius:4px;border:1px solid var(--line-strong);display:grid;place-items:center;margin-top:1px;transition:all .3s}
+.pi .ck svg{width:10px;height:10px;opacity:0;transition:opacity .3s}
+.pi.done .ck{background:var(--accent);border-color:var(--accent)}.pi.done .ck svg{opacity:1}
+.pi .k{font:11.5px var(--font-mono);color:var(--fg-muted);padding-top:1px}.pi .v{color:var(--fg)}
+.quest{border:1px dashed var(--accent-line);background:var(--accent-soft);border-radius:var(--radius);padding:11px 14px;font-size:13.5px;color:#0b4f91;opacity:0;transition:opacity .5s 3.4s}.screen.on .quest{opacity:1}
+/* m5 bilan */
+.bil-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi{border:1px solid var(--line);border-radius:var(--radius);padding:14px;background:var(--bg-soft)}.kpi .v{font:500 20px var(--font-mono);margin-top:6px;letter-spacing:-.01em}
+.bars{display:flex;flex-direction:column;gap:10px}
+.bar{display:grid;grid-template-columns:150px 1fr 54px;gap:10px;align-items:center;font-size:13px}
+.bar .tr{height:6px;background:var(--bg-sunk);border-radius:6px;overflow:hidden}.bar .tr i{display:block;height:100%;width:0;background:var(--accent);border-radius:6px;transition:width 1.1s cubic-bezier(.2,.7,.2,1)}
+.screen.on .bar .tr i{width:var(--w)}.bar .val{text-align:right}
+.next{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:14px}
+.next b{font-weight:500}
+.mock-m{display:none}
+/* how */
+.how{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg);overflow:hidden}
+.how-i{padding:26px 22px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:10px;min-height:250px}.how-i:last-child{border-right:0}
+.how-n{width:28px;height:28px;border-radius:var(--radius);border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--accent);font:500 13px var(--font-mono);display:grid;place-items:center}
+.how-k{font:11px var(--font-mono);color:var(--fg-faint);letter-spacing:.05em;text-transform:uppercase;margin-top:6px}
+.how-i h4{margin:0;font-size:18px;font-weight:500;letter-spacing:-.01em}.how-i p{margin:0;color:var(--fg-muted);font-size:14px}
+.how-i .tag{margin-top:auto;font:11px var(--font-mono);color:var(--fg-muted);border-top:1px dashed var(--line);padding-top:12px}
+/* eval table */
+.evt{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--bg)}
+.evr{display:grid;grid-template-columns:1.1fr 1.6fr .9fr;border-top:1px solid var(--line);font-size:14px}.evr:first-child{border-top:0;background:var(--bg-soft);font:11px var(--font-mono);color:var(--fg-faint);letter-spacing:.05em;text-transform:uppercase}
+.evr>div{padding:14px 18px}.evr>div+div{border-left:1px solid var(--line)}
+.st{font:11.5px var(--font-mono);display:inline-flex;gap:6px;align-items:center}.st i{width:7px;height:7px;border-radius:50%}
+.st.g{color:var(--good)}.st.g i{background:var(--good)}.st.w{color:#a86414}.st.w i{background:var(--warn)}.st.n{color:var(--fg-faint)}.st.n i{background:var(--line-strong)}
+/* cta */
+.final{text-align:center;padding:140px 0}.final .section-title{margin:0 auto 14px;font-size:52px}.final .section-lead{margin:0 auto 32px}
+.footer{border-top:1px solid var(--line);padding:32px 0;font-size:13px;color:var(--fg-muted)}
+.footer .container{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center}.footer .mono{font-size:11px;color:var(--fg-faint)}
+.sec-aura{z-index:0;pointer-events:none;opacity:.85;filter:blur(62px) saturate(1.25);position:absolute;inset:0;overflow:hidden;-webkit-mask-image:radial-gradient(130% 100% at 50% 48%,transparent 0 16%,#000 66%);mask-image:radial-gradient(130% 100% at 50% 48%,transparent 0 16%,#000 66%)}
+.sec-blob{will-change:transform;border-radius:50%;position:absolute}
+.sec-blob-1{width:48vw;height:48vw;left:var(--x1,-6%);top:var(--y1,-16%);background:radial-gradient(circle at 50% 50%,oklch(.88 .11 var(--h1)/.95),transparent 70%);animation:secFloatA 30s ease-in-out infinite alternate}
+.sec-blob-2{width:42vw;height:42vw;left:var(--x2,65%);top:var(--y2,70%);background:radial-gradient(circle at 50% 50%,oklch(.89 .1 var(--h2)/.92),transparent 70%);animation:secFloatB 37s ease-in-out infinite alternate}
+@keyframes secFloatA{0%{transform:translate(0) scale(1)}to{transform:translate(13%,15%) scale(1.16)}}
+@keyframes secFloatB{0%{transform:translate(0) scale(1.06)}to{transform:translate(-13%,-13%) scale(.92)}}
+/* responsive */
+@media (max-width:860px){.section{padding:64px 0}}
+@media (max-width:980px){
+ .nav-links{display:none}.cases,.bob-grid{grid-template-columns:1fr}.how{grid-template-columns:1fr 1fr}.how-i:nth-child(2){border-right:0}.how-i:nth-child(-n+2){border-bottom:1px solid var(--line)}
+ .day{grid-template-columns:1fr;gap:0}.stage-wrap{display:none}.mock-m{display:block;position:relative;height:440px;margin-top:22px}.mock-m .screen{position:absolute}
+ .step{min-height:auto;padding:40px 0}.step-body{padding-left:40px;opacity:1}.rail{left:5px}.step-time .node{width:11px}.step-time{gap:28px}
+}
+@media (max-width:640px){.hide-m{display:none}
+ .container,.nav-inner{padding:0 18px}.nav-inner{gap:12px}.nav .btn-secondary{display:none}
+ .hero{padding:72px 0 96px;min-height:auto}.hero-sub{font-size:17px}
+ .section{padding:64px 0}.section-title{font-size:32px}.final .section-title{font-size:36px}.sub h3{font-size:23px}
+ .how{grid-template-columns:1fr}.how-i{border-right:0!important;border-bottom:1px solid var(--line);min-height:0}.how-i:last-child{border-bottom:0}
+ .evr{grid-template-columns:1fr}.evr>div+div{border-left:0;padding-top:0}.evr:first-child{display:none}.evr>div:first-child{font-weight:500}
+ .step-body{padding-left:30px}.step-time{gap:19px}.step h3{font-size:22px}
+ .bar{grid-template-columns:110px 1fr 44px}.pi{grid-template-columns:20px 1fr}.pi .v{grid-column:2}
+ .scr-body{padding:16px}.face .w{font-size:28px}.hero-meta{gap:14px}
+}
 
-  *{box-sizing:border-box}
-  html{scroll-behavior:smooth;scroll-padding-top:96px}
-  body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 var(--sans)}
-  button,a,input,textarea{font:inherit;color:inherit}
-  button{cursor:pointer}
-  a{text-decoration:none}
-  h1,h2,h3,h4,p{margin:0}
-  h1,h2,h3,h4{font-weight:700;line-height:1.1;letter-spacing:-.02em;text-wrap:balance}
-  p{color:var(--muted)}
-  strong{color:var(--ink)}
-  :focus-visible{outline:3px solid var(--violet);outline-offset:3px;border-radius:6px}
+.lang{display:flex;border:1px solid var(--line);border-radius:var(--radius);padding:2px;background:var(--bg-soft);margin-right:8px}
+.lang button{border:0;background:none;font:500 11.5px var(--font-mono);padding:3px 8px;border-radius:4px;color:var(--fg-muted);cursor:pointer}
+.lang button.on{background:var(--bg);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+#questions .evr{grid-template-columns:1.1fr 2.5fr}
+#questions .evr>div:last-child{display:none}
+@media (max-width:640px){#questions .evr{grid-template-columns:1fr}#questions .evr>div:last-child{display:none}.lang{display:none}}
 
-  .skip{position:absolute;top:-80px;left:14px;background:var(--surface);padding:10px 14px;z-index:50;border-radius:8px;font-weight:700}
-  .skip:focus{top:12px}
-  .wrap{max-width:var(--max);margin:auto;padding-inline:32px}
-  .section{padding-block:96px}
-  .eyebrow{font-size:13px;color:var(--violet);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
-  .serif{font-family:var(--serif);font-weight:400;font-style:italic;letter-spacing:-.01em}
-
-  .button{min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:11px 18px;border:1px solid transparent;font-weight:700;font-size:15px;transition:background-color .15s,transform .15s,border-color .15s}
-  .button:hover{transform:translateY(-1px)}
-  .primary{background:var(--btn-bg);color:var(--btn-ink)}
-  .primary:hover{background:var(--btn-bg-hover)}
-  .secondary{background:var(--surface);border-color:var(--line-2);color:var(--ink)}
-  .secondary:hover{background:var(--lav)}
-  .button:disabled{cursor:default;color:var(--muted);background:var(--surface-2);border-color:var(--line);transform:none}
-  .ghost{min-height:40px;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-2);background:var(--surface);border-radius:99px;padding:6px 13px;font-size:13px;font-weight:700;color:var(--ink);transition:background-color .15s}
-  .ghost:hover{background:var(--lav)}
-  .ghost[aria-pressed="true"]{background:var(--lav);border-color:var(--violet);color:var(--violet)}
-  .ghost .dot{width:9px;height:9px;border-radius:50%;border:2px solid currentColor}
-  .ghost[aria-pressed="true"] .dot{background:currentColor}
-
-  /* Navigation */
-  .nav{height:80px;border-bottom:1px solid var(--line);background:var(--nav-bg);backdrop-filter:blur(14px);position:sticky;top:env(safe-area-inset-top,0px);z-index:10}
-  .navin{height:100%;display:flex;align-items:center;justify-content:space-between;gap:24px}
-  .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:25px;letter-spacing:-.05em;line-height:.9}
-  .mark{width:30px;height:30px;background:var(--btn-bg);color:var(--btn-ink);border-radius:8px;display:grid;place-items:center;transform:rotate(-8deg);font-size:19px;transition:transform .3s}
-  .logo:hover .mark{transform:rotate(0)}
-  .logo small{display:block;font-size:9px;letter-spacing:.1em;color:var(--muted);font-weight:700;margin-top:4px}
-  .navlinks{display:flex;gap:28px;font-size:14px;font-weight:700;color:var(--muted)}
-  .navlinks a{padding:8px 0;border-bottom:2px solid transparent;transition:color .15s,border-color .15s}
-  .navlinks a:hover{color:var(--ink);border-bottom-color:var(--violet)}
-  .navcta{min-height:42px;padding:8px 14px}
-  .menu{display:none;width:44px;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:20px;color:var(--ink)}
-  .navactions{display:flex;align-items:center;gap:10px}
-  .theme{min-height:42px;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);border-radius:99px;padding:4px 12px 4px 5px;font-size:13px;font-weight:700;transition:background-color .15s}
-  .theme:hover{background:var(--lav)}
-  .theme .knob{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--lav);color:var(--violet);font-size:16px;line-height:1}
-
-  /* Hero */
-  .hero{padding-block:56px 68px;background:linear-gradient(115deg,var(--paper) 53%,var(--lav-2) 53%)}
-  .herogrid{display:grid;grid-template-columns:1.12fr .88fr;gap:40px;align-items:center}
-  .herogrid>*{min-width:0}
-  .badge{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--line-2);background:var(--surface);border-radius:99px;padding:7px 12px;font-size:13px;font-weight:700;color:var(--muted);line-height:1.5}
-  .badge::before{content:"";width:7px;height:7px;background:var(--violet);border-radius:50%}
-  .hero h1{font-size:clamp(40px,4.4vw,58px);max-width:640px;margin:18px 0}
-  .hero h1 em{display:block;color:var(--violet);font-style:normal}
-  .intro{max-width:540px;font-size:18px;line-height:1.65}
-  .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
-  .hero-note{font-size:13px;margin-top:14px}
-
-  .product{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
-  .product-top{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}
-  .product-body{padding:22px}
-  .case-label{font-size:12px;color:var(--violet);font-weight:800;text-transform:uppercase;letter-spacing:.08em}
-  .product h2{font-size:25px;margin:7px 0 16px}
-  .turn{border-left:3px solid var(--violet);padding:11px 14px;background:var(--lav);border-radius:0 10px 10px 0;margin:10px 0}
-  .turn b,.line b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.07em}
-  .turn b{color:var(--ink)}
-  .turn p{font-size:15px;margin-top:3px;color:var(--ink)}
-  .tr{font-size:14px!important;color:var(--muted)!important;font-style:italic;margin-top:4px}
-  .reprise{border-top:1px solid var(--line);margin-top:16px;padding-top:14px;font-size:14px;color:var(--muted)}
-  .reprise strong{color:var(--good)}
-
-  /* Demo */
-  .heading{max-width:720px;margin-bottom:42px}
-  .heading h2{font-size:clamp(32px,4.1vw,52px);margin:14px 0}
-  .heading p{font-size:18px}
-  .demo-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,.7fr);gap:24px;align-items:start}
-  .demo-card,.commentary{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
-  .demo-card{padding:25px}
-  .demo-tools{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-  .demo-tools span{font-size:13px;color:var(--muted)}
-  .tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-  .tabs button{min-height:46px;border:0;border-radius:9px;background:transparent;padding:8px 10px;font-weight:700;font-size:14px;color:var(--muted);transition:background-color .15s,color .15s}
-  .tabs button:hover{color:var(--ink)}
-  .tabs button[aria-selected="true"]{background:var(--lav);color:var(--violet)}
-  .tabs button.done::after{content:" ✓";color:var(--good)}
-  .stepbar{height:4px;background:var(--line);border-radius:4px;margin-top:12px;overflow:hidden}
-  .stepbar i{display:block;height:100%;width:var(--p,25%);background:var(--violet);border-radius:4px;transition:width .35s ease}
-  .tabpanel{padding-top:24px;min-height:370px}
-  .stepmeta{font-size:13px;font-weight:800;color:var(--violet);text-transform:uppercase;letter-spacing:.08em}
-  .tabpanel h3{font-size:26px;margin:7px 0 18px}
-  .transcript{display:grid;gap:10px}
-  .line{border:1px solid var(--line);border-radius:10px;padding:11px 13px}
-  .line b{color:var(--violet)}
-  .line p{font-size:15px;color:var(--ink)}
-  .line.flag{border-color:var(--bad-line);background:var(--bad-bg)}
-  .line.flag b::after{content:" · à retravailler";color:var(--bad);text-transform:none;letter-spacing:0;font-weight:700}
-  .explain{display:grid;gap:10px;padding:17px;background:var(--lav);border-radius:12px}
-  .explain p{font-size:15px}
-  .quote{font-size:18px;color:var(--ink);padding:14px;border-left:3px solid var(--violet);background:var(--surface-2);margin:14px 0;border-radius:0 8px 8px 0}
-  .explain .quote{margin:0}
-  .terms{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
-  .term{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
-  .term strong{font-size:17px;display:block}
-  .term span{font-size:14px;color:var(--muted)}
-  .answers{display:grid;gap:10px}
-  .answer{min-height:54px;text-align:left;padding:11px 14px;background:var(--surface);border:1px solid var(--line-2);border-radius:10px;font-size:15px;color:var(--ink);transition:border-color .15s,background-color .15s}
-  .answer:hover{border-color:var(--violet)}
-  .answer[aria-pressed="true"]{border-width:2px;padding:10px 13px}
-  .answer.correct{border-color:var(--good-line);background:var(--good-bg)}
-  .answer.wrong{border-color:var(--bad-line);background:var(--bad-bg)}
-  .feedback{padding:11px 13px;border-radius:9px;margin-top:12px;font-size:14px;background:var(--lav);color:var(--ink)}
-  .feedback.good{background:var(--good-bg);color:var(--ink)}
-  .feedback.bad{background:var(--bad-bg);color:var(--ink)}
-  .own{margin-top:20px;padding-top:18px;border-top:1px solid var(--line);display:grid;gap:8px}
-  .own label{font-weight:700;font-size:15px}
-  .own .hint{font-size:13px}
-  .own textarea{width:100%;min-height:84px;resize:vertical;border:1px solid var(--line-2);border-radius:10px;padding:11px 13px;background:var(--surface);color:var(--ink);font-size:15px;line-height:1.5}
-  .own textarea:focus-visible{outline-offset:0}
-  .own-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  .lexicon{margin-top:18px;border-top:1px solid var(--line);padding-top:14px;font-size:14px;line-height:1.9}
-  .lexicon dl{display:grid;grid-template-columns:max-content 1fr;gap:2px 14px;margin:6px 0 0}
-  .lexicon dt{font-weight:700;color:var(--ink)}
-  .lexicon dd{margin:0;color:var(--muted)}
-  .pager{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:17px;margin-top:20px}
-  .pager span{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .commentary{padding:23px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 100px)}
-  .commentary h3{font-size:22px;margin:11px 0}
-  .commentary p{font-size:15px}
-  .commentary ul{padding-left:18px;color:var(--muted);font-size:15px;margin:14px 0 0}
-  .commentary li+li{margin-top:8px}
-  .commentary li.now{color:var(--ink);font-weight:700}
-  .demo-disclosure{font-size:13px!important;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
-
-  /* Loop */
-  .loop{background:var(--lav)}
-  .loop-grid{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line-2);border-left:1px solid var(--line-2);margin:0;padding:0;list-style:none}
-  .loop-card{padding:27px 22px;border-right:1px solid var(--line-2);border-bottom:1px solid var(--line-2);min-height:190px;position:relative}
-  .loop-card+ .loop-card::before{content:"→";position:absolute;left:-11px;top:24px;width:22px;height:22px;display:grid;place-items:center;background:var(--lav);color:var(--violet);font-weight:800;font-size:14px}
-  .loop-no{font-size:13px;color:var(--violet);font-weight:800;font-variant-numeric:tabular-nums}
-  .loop-card h3{font-size:24px;margin:26px 0 9px}
-  .loop-card p{font-size:15px}
-
-  /* Progress */
-  .progress{background:var(--navy);color:var(--on-navy);padding-top:95px}
-  .progress .heading h2{color:var(--on-navy)}
-  .progress .heading p{color:var(--navy-muted)}
-  .progress .eyebrow{color:var(--navy-eyebrow)}
-  .progress :focus-visible{outline-color:var(--navy-eyebrow)}
-  .workspace{background:var(--surface);color:var(--ink);border-radius:18px 18px 0 0;overflow:hidden}
-  .workspace :focus-visible{outline-color:var(--violet)}
-  .workspace-head{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:16px;font-size:14px;flex-wrap:wrap}
-  .fake{font-size:12px;color:var(--muted)}
-  .workspace-body{display:grid;grid-template-columns:200px 1fr;min-height:360px}
-  .workspace-tabs{background:var(--surface-2);border-right:1px solid var(--line);padding:16px;display:grid;align-content:start;gap:4px}
-  .workspace-tabs button{width:100%;min-height:44px;text-align:left;border:0;background:transparent;border-radius:8px;padding:9px 11px;font-weight:700;font-size:15px;color:var(--muted)}
-  .workspace-tabs button:hover{color:var(--ink)}
-  .workspace-tabs button[aria-selected="true"]{background:var(--lav);color:var(--violet)}
-  .workspace-tabs .count{font-size:12px;font-weight:700;margin-left:6px;padding:1px 7px;border-radius:99px;background:var(--line);color:var(--ink);font-variant-numeric:tabular-nums}
-  .workspace-main{padding:28px}
-  .workspace-main:focus-visible{outline-offset:-3px}
-  .workspace-main h3{font-size:28px}
-  .workspace-main>p{font-size:15px;margin-top:7px}
-  .cards{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:21px}
-  .smallcard{padding:18px;border:1px solid var(--line);border-radius:12px}
-  .smallcard h4{font-size:18px;margin:7px 0}
-  .smallcard p{font-size:14px}
-  .notes{list-style:none;padding:0;margin:21px 0 0;border-top:1px solid var(--line)}
-  .notes li{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);font-size:15px}
-  .notes li strong{font-weight:700}
-  .notes li span{color:var(--muted)}
-  .notes .tag{font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;background:var(--lav);color:var(--violet);white-space:nowrap}
-  .notes .tag.new{background:var(--good-bg);color:var(--good)}
-  .flash{margin-top:18px;padding:16px;border:1px dashed var(--line-2);border-radius:12px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-  .flash p{font-size:15px;color:var(--ink)}
-  .card-answer{font-size:17px!important;font-weight:700;color:var(--good)!important;width:100%}
-  .plan{list-style:none;padding:0;margin:21px 0 0;display:grid;gap:10px}
-  .plan label{display:flex;gap:12px;align-items:flex-start;padding:13px 15px;border:1px solid var(--line);border-radius:11px;cursor:pointer;transition:background-color .15s,border-color .15s}
-  .plan label:hover{border-color:var(--line-2)}
-  .plan input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--violet);flex:none}
-  .plan input:checked+span{text-decoration:line-through;color:var(--muted)}
-  .plan span small{display:block;text-decoration:none;font-size:13px;color:var(--muted)}
-  .meter{display:flex;align-items:center;gap:12px;margin-top:18px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .meter .stepbar{flex:1;margin:0;max-width:240px}
-
-  /* FAQ */
-  .faq-grid{display:grid;grid-template-columns:.7fr 1.3fr;gap:70px}
-  .faq-grid h2{font-size:43px;margin-top:14px}
-  .faq-list{border-top:1px solid var(--line)}
-  details{border-bottom:1px solid var(--line)}
-  summary{cursor:pointer;list-style:none;padding:20px 32px 20px 0;font-weight:700;position:relative;color:var(--ink)}
-  summary::-webkit-details-marker{display:none}
-  summary::after{content:"+";position:absolute;right:4px;top:14px;color:var(--violet);font-size:24px;font-weight:400;transition:transform .2s}
-  details[open] summary::after{transform:rotate(45deg)}
-  details p{padding:0 32px 20px 0;font-size:15px}
-  .global-note{margin-top:25px;padding:15px 17px;border-left:3px solid var(--violet);background:var(--lav);color:var(--muted);font-size:14px;border-radius:0 8px 8px 0}
-
-  /* Final */
-  .final{padding-block:95px;text-align:center;background:var(--final)}
-  .final h2{font-size:clamp(36px,5vw,60px);margin:15px auto;max-width:700px}
-  .final h2 em{font-style:normal;color:var(--violet)}
-  .final p{max-width:500px;margin:0 auto 24px}
-  .footer{padding-block:30px;background:var(--paper);border-top:1px solid var(--line)}
-  .footerin{display:flex;justify-content:space-between;gap:20px;align-items:center}
-  .footer p{font-size:13px}
-  .footer small{font-size:12px;color:var(--muted)}
-
-  /* Motion, only when the viewer allows it */
-  @keyframes turnIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-  @keyframes panelIn{from{opacity:.2;transform:translateX(10px)}to{opacity:1;transform:none}}
-  @keyframes pop{0%{transform:scale(.98)}60%{transform:scale(1.01)}100%{transform:none}}
-  @keyframes rise{from{opacity:.3;transform:translateY(26px)}to{opacity:1;transform:none}}
-  @media (prefers-reduced-motion:no-preference){
-    .product .turn,.product .reprise{animation:turnIn .5s ease both}
-    .product .turn:nth-of-type(1){animation-delay:.15s}
-    .product .turn:nth-of-type(2){animation-delay:.45s}
-    .product .reprise{animation-delay:.75s}
-    .tabpanel:not([hidden]),.workspace-main>div:not([hidden]){animation:panelIn .28s ease both}
-    .feedback.good,.feedback.bad{animation:pop .3s ease}
-    @supports (animation-timeline:view()){
-      .rise{animation:rise linear both;animation-timeline:view();animation-range:entry 0% entry 45%}
-    }
-  }
-  @media (prefers-reduced-motion:reduce){
-    html{scroll-behavior:auto}
-    *,*::before,*::after{transition:none!important;animation:none!important}
-  }
-
-  /* Responsive */
-  @media (max-width:860px){
-    .wrap{padding-inline:20px}
-    .navlinks{display:none}
-    .menu{display:block}
-    .nav.open .navlinks{position:absolute;display:flex;flex-direction:column;gap:2px;left:0;right:0;top:80px;padding:12px 20px;background:var(--paper);border-bottom:1px solid var(--line)}
-    .nav.open .navlinks a{padding:12px 0}
-    .nav .navcta{display:none}
-    .hero{padding-block:44px 60px;background:linear-gradient(160deg,var(--paper) 62%,var(--lav-2) 62%)}
-    .herogrid,.demo-layout,.faq-grid{grid-template-columns:1fr;gap:30px}
-    .product{max-width:600px}
-    .commentary{position:static}
-    .section{padding-block:70px}
-    .loop-grid{grid-template-columns:1fr 1fr}
-    .loop-card:nth-child(3)::before{display:none}
-    .progress{padding-top:70px}
-    .workspace-body{grid-template-columns:1fr}
-    .workspace-tabs{display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:10px}
-    .workspace-tabs button{flex:1;min-width:max-content;text-align:center}
-    .faq-grid h2{font-size:36px}
-    .footerin{align-items:start;flex-direction:column}
-  }
-  @media (max-width:600px){
-    body{font-size:16px}
-    .logo{font-size:22px}
-    .hero h1{font-size:clamp(32px,9.5vw,42px)}
-    .intro{font-size:17px}
-    .actions .button{width:100%}
-    .badge{font-size:12px}
-    .tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
-    .demo-card{padding:17px}
-    .tabpanel{min-height:0}
-    .tabpanel h3{font-size:22px;overflow-wrap:break-word}
-    .terms{grid-template-columns:1fr}
-    .loop-grid,.cards{grid-template-columns:1fr}
-    .loop-card{min-height:0;padding:22px}
-    .loop-card::before{display:none}
-    .loop-card h3{margin-top:14px}
-    .workspace-main{padding:20px}
-    .notes li{grid-template-columns:1fr auto}
-    .notes li span{grid-column:1}
-    .notes .tag{grid-row:1;grid-column:2}
-    .pager{flex-wrap:wrap}
-    .pager .button{flex:1}
-    .pager span{order:-1;width:100%;text-align:center}
-    .final{padding-block:70px}
-  }
-  @media (max-width:430px){
-    #theme-label{display:none}
-    .theme{padding:4px}
-  }
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.fade{opacity:1;transform:none}}
 </style>
 </head>
 <body>
-<a class="skip" href="#main">Aller au contenu</a>
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><mask id="mB"><rect width="32" height="32" fill="#000"/><rect x="1.5" y="1.5" width="29" height="29" rx="8.5" fill="#fff"/></mask><path d="M3.6 16.2h5.6l2.1-5.8 3.3 11.4 2.4-5.6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="19.4" y="12.7" width="2.2" height="7" rx="1.1" fill="currentColor"/><rect x="22.4" y="9.7" width="2.2" height="13" rx="1.1" fill="currentColor"/><rect x="25.4" y="11.7" width="2.2" height="9" rx="1.1" fill="currentColor"/></symbol>
+<symbol id="ck" viewBox="0 0 10 10"><path d="M2 5.2 4.1 7.3 8 2.8" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol></defs></svg>
 
-<header class="nav" id="site-nav">
-  <div class="wrap navin">
-    <a class="logo" href="#main" aria-label="ARI, retour au début"><span class="mark" aria-hidden="true">A</span><span>ARI<small>ALLEMAND MÉDICAL</small></span></a>
-    <nav class="navlinks" id="navigation" aria-label="Navigation principale">
-      <a href="#seance">Une séance</a>
-      <a href="#boucle">La méthode</a>
-      <a href="#progression">Votre progression</a>
-      <a href="#questions">Questions</a>
-    </nav>
-    <div class="navactions">
-      <button class="theme" id="theme-toggle" type="button" aria-pressed="false"><span class="knob" aria-hidden="true">☾</span><span id="theme-label">Mode sombre</span></button>
-      <a class="button primary navcta" href="/app">Commencer</a>
-      <button class="menu" id="menu" type="button" aria-expanded="false" aria-controls="navigation" aria-label="Ouvrir le menu">☰</button>
-    </div>
-  </div>
+<nav class="nav"><div class="nav-inner">
+ <a class="nav-logo" href="#"><svg><use href="#logo"/></svg>ARI</a>
+ <div class="nav-links"><a class="nav-link" href="#constat">Pourquoi ARI</a><a class="nav-link" href="#journee">Une journée</a><a class="nav-link" href="#methode">Méthode</a><a class="nav-link" href="#evaluation">Évaluation</a></div>
+ <div class="nav-spacer"></div>
+ <div class="lang" role="group" aria-label="Langue"><button type="button" class="on" data-lang="fr">FR</button><button type="button" data-lang="en">EN</button><button type="button" data-lang="de">DE</button></div>
+ <div class="nav-cta"><a class="btn btn-secondary" href="/app">Test de positionnement</a><a class="btn btn-primary" href="/app">Commencer <span class="arr">→</span></a></div>
+</div></nav>
+
+<header class="hero">
+ <div class="hero-grid-lines"></div>
+ <div class="pulse-bg" id="heroPulse"><canvas class="glow"></canvas><canvas class="sharp"></canvas></div>
+ <div class="container"><div class="hero-copy">
+  <h1 class="fade" style="--d:1">L’allemand médical, <em>consultation après consultation.</em></h1>
+  <p class="hero-sub fade" style="--d:2">ARI prépare les médecins étrangers à la Fachsprachprüfung : de vraies consultations vocales avec un patient IA, la présentation au confrère, le lexique en répétition espacée, et un programme qui part de vos propres erreurs.</p>
+  <div class="hero-cta fade" style="--d:3"><a class="btn btn-primary btn-lg" href="/app">Commencer mon entraînement <span class="arr">→</span></a><a class="btn btn-secondary btn-lg" href="#journee">Voir une journée type</a></div>
+  <div class="hero-meta fade" style="--d:4"><span><i></i>Arzt–Patient en voix</span><span><i></i>Arzt–Arzt-Gespräch</span><span><i></i>Fachbegriffe</span><span><i></i>Niveau B1 minimum</span></div>
+ </div></div>
 </header>
 
-<main id="main" tabindex="-1">
-
-  <section class="hero">
-    <div class="wrap herogrid">
-      <div>
-        <span class="badge">Médecins francophones · Préparation FSP</span>
-        <h1>La médecine, vous la connaissez. <em>Entraînez-vous à l’exprimer en allemand.</em></h1>
-        <p class="intro">Un patient simulé, un retour concret et des exercices ciblés pour transformer ce que vous savez déjà en formulations utiles au lit du patient.</p>
-        <div class="actions">
-          <a class="button primary" href="/app">Commencer mon entraînement</a>
-          <a class="button secondary" href="#seance">Découvrir une séance</a>
-        </div>
-        <p class="hero-note">Aperçu illustratif</p>
-      </div>
-      <aside class="product" aria-label="Aperçu d’une reprise de cas">
-        <div class="product-top">
-          <strong>Une séance ARI</strong>
-          <button class="ghost" type="button" data-translate aria-pressed="false"><span class="dot" aria-hidden="true"></span>Traduction FR</button>
-        </div>
-        <div class="product-body">
-          <p class="case-label">Douleurs abdominales</p>
-          <h2>Préciser la chronologie</h2>
-          <div class="turn"><b>Patient</b><p lang="de">Seit gestern Abend. Die Schmerzen kommen und gehen. Dazwischen bin ich schmerzfrei.</p><p class="tr" data-tr hidden>Depuis hier soir. Les douleurs vont et viennent. Entre-temps, je n’ai pas mal.</p></div>
-          <div class="turn"><b>Médecin</b><p lang="de">Sind die Schmerzen seit gestern Abend durchgehend da?</p><p class="tr" data-tr hidden>Les douleurs sont-elles présentes en continu depuis hier soir ?</p></div>
-          <p class="reprise"><strong>Reprise concrète</strong><br>La question fait préciser un caractère continu, alors que le patient a déjà décrit des épisodes.</p>
-        </div>
-      </aside>
-    </div>
-  </section>
-
-  <section class="section" id="seance">
-    <div class="wrap">
-      <header class="heading rise">
-        <p class="eyebrow">Une démonstration textuelle</p>
-        <h2>Une difficulté précise.<br><span class="serif">Une façon de progresser.</span></h2>
-        <p>Suivez un même cas, de l’échange à la prochaine séance : <strong>préciser la chronologie d’une douleur abdominale.</strong></p>
-      </header>
-      <div class="demo-layout">
-        <div class="demo-card">
-          <div class="demo-tools">
-            <span>Cas · Douleurs abdominales</span>
-            <button class="ghost" type="button" data-translate aria-pressed="false"><span class="dot" aria-hidden="true"></span>Traduction FR</button>
-          </div>
-          <div class="tabs" role="tablist" aria-label="Étapes de la démonstration">
-            <button type="button" id="tab-1" role="tab" aria-selected="true" aria-controls="panel-1" tabindex="0">1. Échange</button>
-            <button type="button" id="tab-2" role="tab" aria-selected="false" aria-controls="panel-2" tabindex="-1">2. Comprendre</button>
-            <button type="button" id="tab-3" role="tab" aria-selected="false" aria-controls="panel-3" tabindex="-1">3. Reformuler</button>
-            <button type="button" id="tab-4" role="tab" aria-selected="false" aria-controls="panel-4" tabindex="-1">4. Reprendre</button>
-          </div>
-          <div class="stepbar" aria-hidden="true"><i id="stepbar"></i></div>
-
-          <section class="tabpanel" id="panel-1" role="tabpanel" tabindex="0" aria-labelledby="tab-1">
-            <p class="stepmeta">Étape 1 · Transcript</p>
-            <h3>Écouter ce qui a déjà été dit</h3>
-            <div class="transcript">
-              <div class="line"><b>Médecin</b><p lang="de">Seit wann haben Sie die Bauchschmerzen?</p><p class="tr" data-tr hidden>Depuis quand avez-vous mal au ventre ?</p></div>
-              <div class="line"><b>Patient</b><p lang="de">Seit gestern Abend. Die Schmerzen kommen und gehen. Dazwischen bin ich schmerzfrei.</p><p class="tr" data-tr hidden>Depuis hier soir. Les douleurs vont et viennent. Entre-temps, je n’ai pas mal.</p></div>
-              <div class="line flag"><b>Médecin</b><p lang="de">Sind die Schmerzen seit gestern Abend durchgehend da?</p><p class="tr" data-tr hidden>Les douleurs sont-elles présentes en continu depuis hier soir ?</p></div>
-              <div class="line"><b>Patient</b><p lang="de">Nein, sie kommen und gehen.</p><p class="tr" data-tr hidden>Non, elles vont et viennent.</p></div>
-            </div>
-          </section>
-
-          <section class="tabpanel" id="panel-2" role="tabpanel" tabindex="0" aria-labelledby="tab-2" hidden>
-            <p class="stepmeta">Étape 2 · Un point précis</p>
-            <h3>Début et évolution ne se confondent pas</h3>
-            <p class="quote" lang="de">Sind die Schmerzen seit gestern Abend <strong>durchgehend</strong> da?</p>
-            <div class="explain">
-              <p>La question est grammaticalement correcte, mais <span lang="de">durchgehend</span> fait préciser un caractère continu alors que le patient a déjà décrit des épisodes. Reformuler ces deux informations montre au patient que vous avez compris ce qu’il décrit.</p>
-            </div>
-            <div class="terms">
-              <div class="term"><strong lang="de">der Beginn</strong><span>le début : « seit gestern Abend »</span></div>
-              <div class="term"><strong lang="de">der Verlauf</strong><span>l’évolution : « kommen und gehen »</span></div>
-            </div>
-          </section>
-
-          <section class="tabpanel" id="panel-3" role="tabpanel" tabindex="0" aria-labelledby="tab-3" hidden>
-            <p class="stepmeta">Étape 3 · Réessayer</p>
-            <h3>Quelle reformulation reprend fidèlement le patient ?</h3>
-            <div class="answers" role="group" aria-label="Choisissez une formulation">
-              <button class="answer" type="button" aria-pressed="false" data-answer="good" lang="de">Wenn ich Sie richtig verstehe, treten die Schmerzen seit gestern Abend immer wieder auf. Dazwischen sind Sie schmerzfrei. Stimmt das?</button>
-              <button class="answer" type="button" aria-pressed="false" data-answer="bad" lang="de">Die Schmerzen sind also seit gestern Abend ohne Unterbrechung da, richtig?</button>
-            </div>
-            <p class="feedback" id="answer-feedback" aria-live="polite">Choisissez une formulation. Vous pouvez réessayer à tout moment.</p>
-
-            <form class="own" id="own-form" novalidate>
-              <label for="own-text">Ou écrivez votre propre reformulation</label>
-              <p class="hint" id="own-hint">Reprenez le début et l’évolution, puis vérifiez auprès du patient. Vérification simple par mots-clés, à titre illustratif.</p>
-              <textarea id="own-text" lang="de" spellcheck="true" aria-describedby="own-hint own-feedback" placeholder="Wenn ich Sie richtig verstehe, …"></textarea>
-              <div class="own-row">
-                <button class="button secondary" type="submit">Vérifier ma phrase</button>
-                <button class="ghost" type="button" id="own-example">Insérer un début de phrase</button>
-              </div>
-              <p class="feedback" id="own-feedback" aria-live="polite" hidden></p>
-            </form>
-
-            <div class="lexicon">
-              <strong>Lexique utile</strong>
-              <dl>
-                <dt lang="de">auftreten</dt><dd>survenir</dd>
-                <dt lang="de">durchgehend</dt><dd>en continu</dd>
-                <dt lang="de">schmerzfrei</dt><dd>sans douleur</dd>
-                <dt lang="de">immer wieder auftreten</dt><dd>survenir à répétition</dd>
-              </dl>
-            </div>
-          </section>
-
-          <section class="tabpanel" id="panel-4" role="tabpanel" tabindex="0" aria-labelledby="tab-4" hidden>
-            <p class="stepmeta">Étape 4 · Prochaine séance</p>
-            <h3>Reprendre le même cas avec un objectif net</h3>
-            <div class="explain">
-              <p><strong>Objectif :</strong> reformuler le début et l’évolution, puis demander la durée des épisodes.</p>
-              <p class="quote" lang="de">Wie lange dauert eine solche Schmerzepisode ungefähr?</p>
-              <p class="tr" data-tr hidden>Combien de temps dure environ un tel épisode douloureux ?</p>
-              <p>À retenir : <span lang="de">« seit gestern »</span> indique un début, pas une douleur continue.</p>
-            </div>
-            <div class="own-row" style="margin-top:16px">
-              <button class="button secondary" type="button" id="save-note" aria-pressed="false">Ajouter la question au carnet</button>
-              <span class="fake" id="save-status" aria-live="polite"></span>
-            </div>
-          </section>
-
-          <div class="pager">
-            <button class="button secondary" id="prev-step" type="button">Précédent</button>
-            <span id="step-status" aria-live="polite">Étape 1 sur 4</span>
-            <button class="button primary" id="next-step" type="button">Suivant</button>
-          </div>
-        </div>
-
-        <aside class="commentary">
-          <p class="eyebrow">Un retour qui vous sert</p>
-          <h3>Vous savez quoi retravailler.</h3>
-          <p>Une question peut être correcte en allemand sans reprendre exactement ce que dit le patient.</p>
-          <ul id="coach-list">
-            <li data-step="0 1">Repérez l’information à mieux écouter.</li>
-            <li data-step="2">Essayez une reformulation plus fidèle.</li>
-            <li data-step="3">Gardez les mots utiles pour la prochaine fois.</li>
-          </ul>
-          <p class="demo-disclosure">Démonstration textuelle illustrative.</p>
-        </aside>
-      </div>
-    </div>
-  </section>
-
-  <section class="section loop" id="boucle">
-    <div class="wrap">
-      <header class="heading rise">
-        <p class="eyebrow">La boucle d’apprentissage</p>
-        <h2>Pratiquer, comprendre, retravailler, puis progresser.</h2>
-        <p>Chaque étape sert la suivante, sans vous faire repartir de zéro.</p>
-      </header>
-      <ol class="loop-grid rise">
-        <li class="loop-card"><p class="loop-no">01</p><h3>Pratiquer</h3><p>Mettre vos connaissances en mots dans une situation médicale.</p></li>
-        <li class="loop-card"><p class="loop-no">02</p><h3>Comprendre</h3><p>Relier un retour précis à la formulation qui l’a déclenché.</p></li>
-        <li class="loop-card"><p class="loop-no">03</p><h3>Retravailler</h3><p>Revoir une difficulté avec un exercice court et ciblé.</p></li>
-        <li class="loop-card"><p class="loop-no">04</p><h3>Progresser</h3><p>Retrouver une prochaine action claire et les notions à garder.</p></li>
-      </ol>
-    </div>
-  </section>
-
-  <section class="progress" id="progression">
-    <div class="wrap">
-      <header class="heading rise">
-        <p class="eyebrow">Votre suivi</p>
-        <h2>Vous ne repartez plus de zéro.</h2>
-        <p>Retrouvez votre dernier échange, les formulations à revoir et une prochaine action claire. Votre pratique laisse une trace utile.</p>
-      </header>
-      <div class="workspace">
-        <div class="workspace-head"><strong>Votre espace ARI</strong><span class="fake">Aperçu illustratif · données fictives</span></div>
-        <div class="workspace-body">
-          <div class="workspace-tabs" role="tablist" aria-label="Aperçu du suivi" aria-orientation="vertical">
-            <button id="view-overview" role="tab" aria-selected="true" aria-controls="pane-overview" type="button">Vue d’ensemble</button>
-            <button id="view-notebook" role="tab" aria-selected="false" aria-controls="pane-notebook" type="button" tabindex="-1">Carnet <span class="count" id="note-count">2</span></button>
-            <button id="view-plan" role="tab" aria-selected="false" aria-controls="pane-plan" type="button" tabindex="-1">Programme</button>
-          </div>
-          <div class="workspace-main">
-            <div id="pane-overview" role="tabpanel" tabindex="0" aria-labelledby="view-overview">
-              <h3>Reprenez le fil de votre entraînement.</h3>
-              <p>Une difficulté repérée : début et évolution.</p>
-              <div class="cards">
-                <article class="smallcard"><span class="fake">Dernier échange</span><h4>Douleurs abdominales</h4><p>Reprise : distinguer le début des symptômes et leur évolution.</p></article>
-                <article class="smallcard"><span class="fake">Prochaine séance</span><h4>Reformuler, puis demander la durée</h4><p lang="de">Wie lange dauert eine solche Schmerzepisode ungefähr?</p></article>
-              </div>
-            </div>
-            <div id="pane-notebook" role="tabpanel" tabindex="0" aria-labelledby="view-notebook" hidden>
-              <h3>Votre carnet garde les formulations utiles.</h3>
-              <p>Les expressions issues de vos séances, prêtes à être réutilisées.</p>
-              <ul class="notes" id="notes">
-                <li><strong lang="de">immer wieder auftreten</strong><span>survenir à répétition</span><em class="tag">Notion</em></li>
-                <li><strong lang="de">Wenn ich Sie richtig verstehe, …</strong><span>Si je vous comprends bien, …</span><em class="tag">Reformulation</em></li>
-                <li id="note-new" hidden><strong lang="de">Wie lange dauert eine solche Schmerzepisode ungefähr?</strong><span>Durée d’un épisode</span><em class="tag new">Ajouté</em></li>
-              </ul>
-              <div class="flash">
-                <p>Carte de révision : « en continu » en allemand ?</p>
-                <button class="ghost" id="reveal-answer" type="button" aria-expanded="false" aria-controls="card-answer">Voir la réponse</button>
-                <p class="card-answer" id="card-answer" lang="de" hidden>durchgehend</p>
-              </div>
-            </div>
-            <div id="pane-plan" role="tabpanel" tabindex="0" aria-labelledby="view-plan" hidden>
-              <h3>Trois actions pour la semaine.</h3>
-              <p>Cochez ce qui est fait. Rien n’est enregistré, c’est un aperçu.</p>
-              <ul class="plan">
-                <li><label for="plan-1"><input type="checkbox" id="plan-1" checked><span>Reprendre le cas « Douleurs abdominales »<small>Training · environ 12 min</small></span></label></li>
-                <li><label for="plan-2"><input type="checkbox" id="plan-2"><span>Revoir 5 cartes du carnet<small>Révision · environ 5 min</small></span></label></li>
-                <li><label for="plan-3"><input type="checkbox" id="plan-3"><span>Nouveau cas : douleur thoracique<small>Training · environ 15 min</small></span></label></li>
-              </ul>
-              <div class="meter"><div class="stepbar" aria-hidden="true"><i id="plan-bar" style="--p:33%"></i></div><span id="plan-status" aria-live="polite">1 action sur 3</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="questions">
-    <div class="wrap faq-grid">
-      <header><p class="eyebrow">Questions</p><h2>Avant de prendre la parole.</h2></header>
-      <div>
-        <div class="faq-list">
-          <details><summary>À qui s’adresse ARI ?</summary><p>ARI s’adresse aux médecins francophones qui préparent la Fachsprachprüfung et souhaitent pratiquer l’allemand médical.</p></details>
-          <details><summary>Quelle différence entre Training et Exam ?</summary><p>En Training, vous activez le micro à votre rythme, avec transcript et lexique à disposition. En Exam, après un démarrage explicite, le micro reste ouvert en temps réel ; le transcript est masqué et aucune aide lexicale n’est affichée. Ce mode d’entraînement ne constitue pas une simulation complète de l’examen officiel.</p></details>
-          <details><summary>Quelles activités peut-on travailler ?</summary><p>L’anamnèse se pratique à la voix. Les activités Arzt–Arzt et Fachbegriffe sont des exercices texte, selon le cas. L’Arztbrief et l’évaluation de la prononciation ne font pas partie du périmètre présenté.</p></details>
-          <details><summary>Comment le suivi assure-t-il la continuité ?</summary><p>Le carnet, les retours et le programme permettent de retrouver les notions utiles et une prochaine action issue de la pratique.</p></details>
-        </div>
-        <p class="global-note">Les aperçus de cette page sont illustratifs et utilisent des données fictives. Aucun microphone ni audio n’est activé sur cette page. ARI est en développement.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="final">
-    <div class="wrap rise">
-      <p class="eyebrow">ARI · Allemand médical</p>
-      <h2>La prochaine fois, <em>trouvez vos mots.</em></h2>
-      <p>Commencez par une conversation. Repartez avec un point précis à travailler pour la suivante.</p>
-      <a class="button primary" href="/app">Commencer mon entraînement</a>
-    </div>
-  </section>
-</main>
-
-<footer class="footer">
-  <div class="wrap footerin">
-    <a class="logo" href="#main" aria-label="ARI, retour au début"><span class="mark" aria-hidden="true">A</span><span>ARI<small>ALLEMAND MÉDICAL</small></span></a>
-    <p>La médecine, vous la connaissez. Entraînez-vous à l’exprimer.</p>
-    <small>© 2026 ARI</small>
+<section class="section" id="constat">
+ <div class="sec-aura" aria-hidden="true" style="--h1:65;--h2:40;--x1:58%;--y1:-22%;--x2:-14%;--y2:46%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+ <div class="container">
+  <div class="section-eyebrow fade"><span class="num">01</span>Pourquoi ARI</div>
+  <h2 class="section-title fade">Parler allemand ne suffit pas. Il faut parler allemand <em style="font-style:normal;color:var(--accent)">comme un médecin</em>.</h2>
+  <p class="section-lead fade">La FSP n’évalue pas une grammaire de manuel. Elle évalue une anamnèse menée en allemand, une lettre médicale, et une présentation structurée devant un confrère — en temps limité, face à un examinateur.</p>
+  <div class="sub-label fade">1.1 · Les trois épreuves</div>
+  <div class="cases">
+   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 1</div><h4>Arzt–Patient-Gespräch</h4><p class="d">Anamnèse avec un patient simulé</p></div>
+    <div class="case-rows"><div class="case-row"><span class="k">ce qui piège</span><span>Registre patient, questions ouvertes, reformulation</span></div><div class="case-row"><span class="k">ce qui coûte</span><span>Une allergie ou une dose mal comprise</span></div></div>
+    <div class="case-foot"><span class="big">Oral</span><span class="s">en face à face, sans support</span></div></article>
+   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 2</div><h4>Arztbrief / Dokumentation</h4><p class="d">Rédaction de la lettre médicale</p></div>
+    <div class="case-rows"><div class="case-row"><span class="k">ce qui piège</span><span>Nominalisation, passif, orthographe</span></div><div class="case-row"><span class="k">ce qui coûte</span><span>Un fait de l’anamnèse oublié ou déformé</span></div></div>
+    <div class="case-foot"><span class="big">Écrit</span><span class="s">à partir de la consultation</span></div></article>
+   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 3</div><h4>Arzt–Arzt-Gespräch</h4><p class="d">Présentation du cas au confrère</p></div>
+    <div class="case-rows"><div class="case-row"><span class="k">ce qui piège</span><span>Structure, Fachsprache, questions de l’examinateur</span></div><div class="case-row"><span class="k">ce qui coûte</span><span>Une présentation sans fil conducteur</span></div></div>
+    <div class="case-foot"><span class="big">Oral</span><span class="s">entre médecins</span></div></article>
   </div>
-</footer>
+  <div class="sub fade"><div class="sub-label">1.2 · Comment on s’y prépare aujourd’hui</div>
+   <h3>Des cours de groupe, des PDF de Redemittel, et très peu de pratique réelle.</h3>
+   <p class="l">Le problème n’est pas le manque de contenu. C’est le manque de répétitions parlées, corrigées, et reliées à vos erreurs.</p>
+   <div class="bob-grid">
+    <div class="bob-col"><div class="bob-bracket">[ <span>1.</span> Cours de groupe ]</div><p class="bob-desc">Utiles pour la grammaire, mais on parle quelques minutes par séance, rarement en situation clinique.</p><div class="bob-pills"><div class="bob-pill"><span class="k">temps de parole</span><span class="v">limité</span></div><div class="bob-pill"><span class="k">coût</span><span class="v ph">[à sourcer]</span></div></div></div>
+    <div class="bob-col"><div class="bob-bracket">[ <span>2.</span> Listes et Redemittel ]</div><p class="bob-desc">On apprend des phrases par cœur. On ne sait pas si on les comprend quand le patient répond autrement.</p><div class="bob-pills"><div class="bob-pill"><span class="k">feedback</span><span class="v">aucun</span></div><div class="bob-pill"><span class="k">oral</span><span class="v">non</span></div></div></div>
+    <div class="bob-col"><div class="bob-bracket">[ <span>3.</span> Simulations entre candidats ]</div><p class="bob-desc">Précieuses, mais difficiles à organiser, et personne ne corrige vraiment le genre, le cas ou le registre.</p><div class="bob-pills"><div class="bob-pill"><span class="k">régularité</span><span class="v">variable</span></div><div class="bob-pill"><span class="k">correction</span><span class="v">partielle</span></div></div></div>
+   </div></div>
+ </div>
+</section>
+
+<section class="section soft" id="journee">
+ <div class="sec-aura" aria-hidden="true" style="--h1:254;--h2:230;--x1:-18%;--y1:34%;--x2:66%;--y2:-20%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+ <div class="container">
+  <div class="day-head"><div><div class="section-eyebrow fade"><span class="num">02</span>Une journée avec ARI</div>
+   <h2 class="section-title fade">Une séance, un axe, un vrai patient à écouter.</h2>
+   <p class="section-lead fade" style="margin-bottom:0">Suivez Samira, médecin en préparation de la FSP, sur une séance d’environ 40 minutes avant sa garde. Faites défiler.</p></div>
+   <div class="day-clock fade">Exemple illustratif · séance type</div></div>
+  <div class="day">
+   <div class="steps" id="steps"><div class="rail"><div class="rail-fill" id="railFill"></div></div>
+    <div class="step" data-s="0"><div class="step-time"><span class="node"><i></i></span>07:40 · 5 min</div><div class="step-body"><div class="step-kicker">2.1 · Échauffement</div><h3>Le lexique revient au bon moment.</h3><p>Répétition espacée sur les Fachbegriffe : chaque carte revient juste avant d’être oubliée, avec son article et une phrase clinique.</p><div class="step-chips"><span class="chip">Fachbegriffe</span><span class="chip">article + pluriel</span><span class="chip">répétition espacée</span></div><div class="mock-m"></div></div></div>
+    <div class="step" data-s="1"><div class="step-time"><span class="node"><i></i></span>07:45 · 10–15 min</div><div class="step-body"><div class="step-kicker">2.2 · Travail ciblé</div><h3>Un seul axe : celui de vos erreurs.</h3><p>Hier, Samira a dit « der Patientin ». Aujourd’hui, ARI ouvre l’axe <b>genre</b> avec des exercices tirés de son propre lexique. Un axe par jour, jamais trois.</p><div class="step-chips"><span class="chip">genre</span><span class="chip">cas</span><span class="chip">conjugaison</span><span class="chip">registre</span></div><div class="mock-m"></div></div></div>
+    <div class="step" data-s="2"><div class="step-time"><span class="node"><i></i></span>08:00 · 15–20 min</div><div class="step-body"><div class="step-kicker">2.3 · Consultation vocale</div><h3>Herr Weber a mal à la poitrine. Menez l’anamnèse.</h3><p>Une consultation Arzt–Patient en voix, en temps réel. Le patient IA répond, hésite, se contredit parfois — comme à l’examen. Les faits clés sont repérés au fil de l’échange.</p><div class="step-chips"><span class="chip">micro ouvert</span><span class="chip">transcription</span><span class="chip">faits du cas</span></div><div class="mock-m"></div></div></div>
+    <div class="step" data-s="3"><div class="step-time"><span class="node"><i></i></span>08:20 · 5 min</div><div class="step-body"><div class="step-kicker">2.4 · Arzt–Arzt-Gespräch</div><h3>Présentez le cas au confrère.</h3><p>Samira présente Herr Weber à l’Oberarzt : structure, Fachsprache, puis une question de relance. Ce qui manque à la présentation apparaît immédiatement.</p><div class="step-chips"><span class="chip">présentation structurée</span><span class="chip">Fachsprache</span><span class="chip">relance</span></div><div class="mock-m"></div></div></div>
+    <div class="step" data-s="4"><div class="step-time"><span class="node"><i></i></span>08:25 · 2 min</div><div class="step-body"><div class="step-kicker">2.5 · Bilan</div><h3>Ce qui a été travaillé, ce qui vient demain.</h3><p>Un bilan court : l’axe du jour, les faits du cas recueillis, les erreurs à reconfirmer, et l’objectif de la prochaine séance. Rien de plus.</p><div class="step-chips"><span class="chip">axe du jour</span><span class="chip">à reconfirmer</span><span class="chip">prochaine séance</span></div><div class="mock-m"></div></div></div>
+   </div>
+   <div class="stage-wrap"><div class="stage" id="stage">
+    <!-- 1 SRS -->
+    <div class="screen" data-m="0"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · lexique</span><span class="r">07:40</span></div>
+     <div class="scr-body"><div class="srs-meta"><span class="lbl">Répétition du jour</span><span class="lbl">Kardiologie</span></div><div class="prog"><i></i></div>
+      <div class="flip"><div class="flip-in"><div class="face"><span class="g">Que signifie…</span><div class="w">Brustschmerzen</div><span class="g">nom · pluriel</span></div>
+       <div class="face back"><span class="g">douleurs thoraciques</span><div class="w"><span class="art">die</span> Brustschmerzen</div><span class="ex">« Seit wann haben Sie die Brustschmerzen? »</span></div></div></div>
+      <div class="srs-btns"><span>Encore<small>&lt;1 min</small></span><span>Difficile<small>bientôt</small></span><span class="pick">Bien<small>plus tard</small></span><span>Facile<small>bien plus tard</small></span></div></div></div>
+    <!-- 2 remediation -->
+    <div class="screen" data-m="1"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · axe du jour</span><span class="r">07:45</span></div>
+     <div class="scr-body"><div class="axis"><span class="lbl" style="margin-right:4px">Axe</span><span class="chip on">genre</span><span class="chip">cas</span><span class="chip">verbe</span><span class="chip">registre</span></div>
+      <div class="err"><div class="src">Relevé dans votre consultation d’hier</div>« Ich habe <s>der</s> <ins>die</ins> Patientin nach Allergien gefragt. »</div>
+      <div class="lbl">3 exercices tirés de votre lexique</div>
+      <div class="ex-list"><div class="exr"><span class="n">01</span><span><span class="gap">die</span> Anamnese erheben</span><span class="ok">✓ juste</span></div><div class="exr"><span class="n">02</span><span><span class="gap">das</span> Medikament absetzen</span><span class="ok">✓ juste</span></div><div class="exr"><span class="n">03</span><span>nach <span class="gap">der</span> Untersuchung</span><span class="ok">✓ datif</span></div></div></div></div>
+    <!-- 3 consultation -->
+    <div class="screen" data-m="2"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · Arzt–Patient</span><span class="r" id="callTimer">00:00</span></div>
+     <div class="scr-body"><div class="call"><div class="call-top"><div class="avatar">HW</div><div class="who">Herr Weber, 58 J.<small>patient simulé · Notaufnahme</small></div><div class="live"><i></i>EN DIRECT</div></div>
+      <div class="voice"><canvas class="vc"></canvas></div>
+      <div class="tx"></div></div></div></div>
+    <!-- 4 arzt-arzt -->
+    <div class="screen" data-m="3"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · Arzt–Arzt</span><span class="r">08:20</span></div>
+     <div class="scr-body"><div class="lbl">Structure de la présentation</div>
+      <div class="pres"><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Patient</span><span class="v">Herr Weber, 58 Jahre</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Leitsymptom</span><span class="v">Thoraxschmerzen seit 2 Stunden</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Vorerkrankungen</span><span class="v">arterielle Hypertonie</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Medikation</span><span class="v">Metoprolol 47,5 mg</span></div><div class="pi miss"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Allergien</span><span class="v" style="color:#a86414">non mentionnée — Penicillin</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Verdacht</span><span class="v">akutes Koronarsyndrom</span></div></div>
+      <div class="quest"><span class="lbl" style="color:#0b4f91">Oberarzt</span><br>« Welche Diagnostik würden Sie als Nächstes veranlassen? »</div></div></div>
+    <!-- 5 bilan -->
+    <div class="screen" data-m="4"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · bilan de séance</span><span class="r">08:25</span></div>
+     <div class="scr-body"><div class="bil-grid"><div class="kpi"><div class="lbl">Axe travaillé</div><div class="v">genre</div></div><div class="kpi"><div class="lbl">Durée</div><div class="v">~40 min</div></div></div>
+      <div class="lbl">Rubrique · exemple de démonstration</div>
+      <div class="bars"><div class="bar"><span>Recueil des faits</span><span class="tr"><i style="--w:72%"></i></span><span class="val ph">[x/y]</span></div><div class="bar"><span>Communication</span><span class="tr"><i style="--w:64%"></i></span><span class="val ph">[x/y]</span></div><div class="bar"><span>Présentation</span><span class="tr"><i style="--w:55%"></i></span><span class="val ph">[x/y]</span></div></div>
+      <div class="next"><span><span class="lbl">À reconfirmer</span><br>Allergien in der Übergabe nennen</span><span class="st w"><i></i>recheck</span></div>
+      <div class="next" style="border-color:var(--accent-line);background:var(--accent-soft)"><span><span class="lbl" style="color:var(--accent)">Prochaine séance</span><br><b>Axe : cas (Akkusativ / Dativ)</b> · Arztbrief Herr Weber</span><span class="mono" style="font-size:12px;color:var(--accent)">demain →</span></div></div></div>
+   </div></div>
+  </div>
+ </div>
+</section>
+
+<section class="section" id="methode">
+ <div class="sec-aura" aria-hidden="true" style="--h1:195;--h2:172;--x1:30%;--y1:-26%;--x2:78%;--y2:40%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+ <div class="container">
+  <div class="section-eyebrow fade"><span class="num">03</span>Méthode</div>
+  <h2 class="section-title fade">De votre niveau d’aujourd’hui au jour de l’examen.</h2>
+  <p class="section-lead fade">Quatre étapes, et un principe : tout le contenu médical vient de cas relus. L’IA reformule et corrige, elle n’invente pas la médecine.</p>
+  <div class="how fade" id="positionnement">
+   <div class="how-i"><span class="how-n">1</span><span class="how-k">Positionnement</span><h4>Test de niveau</h4><p>Un test court situe votre allemand. ARI demande un niveau B1 minimum pour démarrer.</p><span class="tag">entrée · B1 minimum</span></div>
+   <div class="how-i"><span class="how-n">2</span><span class="how-k">Programme</span><h4>Plan hebdomadaire</h4><p>Des séances courtes, un axe à la fois, ajustées chaque semaine selon ce que vous réussissez et ratez.</p><span class="tag">rythme · hebdomadaire</span></div>
+   <div class="how-i"><span class="how-n">3</span><span class="how-k">Pratique</span><h4>Consultations et confrère</h4><p>Arzt–Patient en voix, Arzt–Arzt, lexique : toujours sur des cas cliniques relus par des médecins.</p><span class="tag">cas · relus</span></div>
+   <div class="how-i"><span class="how-n">4</span><span class="how-k">Preuve</span><h4>Épreuves blanches</h4><p>À intervalles réguliers, une simulation complète qui ne sert qu’à mesurer où vous en êtes.</p><span class="tag">mesure · examen blanc</span></div>
+  </div>
+ </div>
+</section>
+
+<section class="section soft" id="evaluation">
+ <div class="sec-aura" aria-hidden="true" style="--h1:300;--h2:280;--x1:62%;--y1:-26%;--x2:82%;--y2:38%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+ <div class="container">
+  <div class="section-eyebrow fade"><span class="num">04</span>Évaluation</div>
+  <h2 class="section-title fade">Ce que nous mesurons, et ce que nous ne prétendons pas mesurer.</h2>
+  <p class="section-lead fade">Un outil de préparation honnête dit ses limites. Voici l’état de chaque dimension.</p>
+  <div class="evt fade">
+   <div class="evr"><div>Dimension</div><div>Comment</div><div>Statut</div></div>
+   <div class="evr"><div>Recueil des faits du cas</div><div>Faits attendus comparés à ce que vous avez obtenu du patient</div><div><span class="st g"><i></i>mesuré</span></div></div>
+   <div class="evr"><div>Grammaire en situation</div><div>Genre, cas, verbe, ordre des mots, registre — relevés dans vos réponses</div><div><span class="st g"><i></i>mesuré</span></div></div>
+   <div class="evr"><div>Présentation au confrère</div><div>Structure et éléments clés de la présentation</div><div><span class="st g"><i></i>mesuré</span></div></div>
+   <div class="evr"><div>Lettre médicale (Arztbrief)</div><div>Rédaction à partir de la consultation</div><div><span class="st w"><i></i>en préparation</span></div></div>
+   <div class="evr"><div>Orthographe</div><div>Exige un chemin écrit séparé de la voix</div><div><span class="st w"><i></i>en préparation</span></div></div>
+   <div class="evr"><div>Prononciation</div><div>Pas encore évaluée</div><div><span class="st n"><i></i>non mesuré</span></div></div>
+  </div>
+ </div>
+</section>
+
+
+<section class="section soft" id="questions">
+ <div class="sec-aura" aria-hidden="true" style="--h1:210;--h2:40;--x1:10%;--y1:-20%;--x2:70%;--y2:50%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+ <div class="container">
+  <div class="section-eyebrow fade"><span class="num">05</span>Questions</div>
+  <h2 class="section-title fade">Avant de prendre la parole.</h2>
+  <p class="section-lead fade">Ce que ARI fait aujourd’hui, et ce qu’il ne prétend pas faire.</p>
+  <div class="evt fade">
+   <div class="evr"><div>Question</div><div>Réponse</div><div></div></div>
+   <div class="evr"><div>À qui s’adresse ARI&nbsp;?</div><div>Aux médecins qui préparent la Fachsprachprüfung et veulent pratiquer l’allemand médical en situation.</div><div></div></div>
+   <div class="evr"><div>Training et Exam&nbsp;?</div><div>En Training, vous activez le micro à votre rythme, avec transcript et lexique. En Exam, le micro reste ouvert ; transcript et aides sont masqués. Ce mode d’entraînement n’est pas l’examen officiel.</div><div></div></div>
+   <div class="evr"><div>Quelles activités&nbsp;?</div><div>Anamnèse à la voix ; Arzt–Arzt et Fachbegriffe en texte. Arztbrief et évaluation de la prononciation ne font pas encore partie du périmètre présenté.</div><div></div></div>
+   <div class="evr"><div>Continuité&nbsp;?</div><div>Le carnet, les retours et le programme permettent de retrouver les notions utiles et une prochaine action issue de la pratique.</div><div></div></div>
+  </div>
+  <p class="section-lead fade" style="margin-top:28px;font-size:14px">Les aperçus de cette page sont illustratifs et utilisent des données fictives ou des seuils non arrêtés (<span class="ph">[à définir]</span>). Aucun microphone ni audio n’est activé ici. ARI est en développement.</p>
+ </div>
+</section>
+
+<section class="section final" id="acces">
+ <div class="sec-aura" aria-hidden="true" style="--h1:195;--h2:300;--x1:-10%;--y1:20%;--x2:72%;--y2:6%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+ <div class="container">
+  <div class="section-eyebrow fade" style="justify-content:center"><span class="num">06</span>Commencer</div>
+  <h2 class="section-title fade">Votre prochaine consultation peut être en allemand.</h2>
+  <p class="section-lead fade">Créez votre profil et commencez par le test de positionnement, ou explorez une journée type.</p>
+  <div class="hero-cta fade"><a class="btn btn-primary btn-lg" href="/app">Commencer mon entraînement <span class="arr">→</span></a><a class="btn btn-secondary btn-lg" href="#questions">Questions fréquentes</a></div>
+ </div>
+</section>
+
+<footer class="footer"><div class="container"><a class="nav-logo" href="#"><svg><use href="#logo"/></svg>ARI</a><span>Préparation à la Fachsprachprüfung pour médecins étrangers.</span><span class="mono">© 2026 ARI</span></div></footer>
 
 <script>
-'use strict';
-const byId = id => document.getElementById(id);
-
-/* Clair / sombre : clair par défaut, choix mémorisé pour ce visiteur */
-const themeBtn = byId('theme-toggle');
-function setTheme(dark, save){
-  document.body.classList.toggle('ari-dark', dark);
-  themeBtn.setAttribute('aria-pressed', String(dark));
-  themeBtn.querySelector('.knob').textContent = dark ? '☀' : '☾';
-  byId('theme-label').textContent = dark ? 'Mode clair' : 'Mode sombre';
-  themeBtn.setAttribute('aria-label', dark ? 'Passer en mode clair' : 'Passer en mode sombre');
-  if (save) { try { localStorage.setItem('ari-theme', dark ? 'dark' : 'light'); } catch (e) {} }
+(()=>{
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* ---------- ECG engine ---------- */
+function rng(s){return()=>(s=(s*16807)%2147483647)/2147483647}
+function makeSignal(seed){
+ const r=rng(seed);const beats=[];let x=0;
+ function extend(to){while(x<to){const voice=r()<.28;const rr=voice?380+r()*70:250+r()*70;beats.push({x,voice,amp:.85+r()*.25,ph:r()*6});x+=rr}}
+ const g=(u,c,w,a)=>a*Math.exp(-((u-c)*(u-c))/(2*w*w));
+ function y(px){extend(px+800);
+  // binary search last beat <= px
+  let lo=0,hi=beats.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(beats[m].x<=px+120)lo=m;else hi=m-1}
+  let v=0;for(let i=Math.max(0,lo-1);i<=lo;i++){const b=beats[i];const u=px-b.x;
+   v+=g(u,-58,11,.11)+g(u,-9,3.2,-.13)+g(u,0,3.6,b.amp)+g(u,9,3.6,-.28)+g(u,62,20,.26);
+   if(b.voice&&u>105&&u<300){const t=(u-105)/195;const env=Math.sin(Math.PI*t)**1.4;
+    v+=env*.32*(Math.sin(u*.42+b.ph)*.6+Math.sin(u*.97+b.ph*2)*.3+Math.sin(u*.21)*.25)}}
+  return v}
+ return {y,beats}}
+function Pulse(el,o){
+ /* Monitor sweep: the trace draws itself left→right, a soft glowing head leads,
+    the drawn part fades behind it; once across, the trace dissolves and a new sweep starts. */
+ const cs=el.querySelectorAll('canvas');const ctxs=[...cs].map(c=>c.getContext('2d'));
+ const sig=makeSignal(o.seed||7);const r=rng((o.seed||7)*31);let W=0,H=0,dpr=1,vis=true;
+ const L=o.line,SWEEP=o.sweep||9000,TRAIL=o.trail||.55,GAP=o.gap||1400;
+ let t0=0,dur=SWEEP,shift=0,state='sweep',fadeT=0;
+ function size(){dpr=Math.min(devicePixelRatio||1,2);W=el.clientWidth;H=el.clientHeight;cs.forEach((c,i)=>{const d=i==0?.5:dpr;c.width=W*d;c.height=H*d;ctxs[i].setTransform(d,0,0,d,0,0)})}
+ size();addEventListener('resize',size);
+ function newSweep(t){t0=t;dur=SWEEP*(.9+r()*.2);shift+=W+300+r()*400;state='sweep'}
+ function draw(p,fade){ // p: head progress 0..1, fade: global multiplier
+  const head=W*p,base=H*L.y,amp=Math.min(H*L.amp,220),tw=W*TRAIL;
+  ctxs.forEach((c,i)=>{c.clearRect(0,0,W,H);c.lineWidth=i==0?L.w*3:L.w;c.lineJoin=c.lineCap='round';
+   const step=3;let px=0,py=base-sig.y(shift)*amp;
+   for(let x=step;x<=head;x+=step){const yy=base-sig.y(x+shift)*amp;
+    const k=Math.max(0,1-(head-x)/tw);if(k>0){c.strokeStyle=`rgba(0,112,213,${L.a*k*k*fade})`;c.beginPath();c.moveTo(px,py);c.lineTo(x,yy);c.stroke()}
+    px=x;py=yy}
+   if(fade>0&&p<1){const yy=base-sig.y(head+shift)*amp;
+    if(i==1){c.fillStyle=`rgba(0,112,213,${.45*fade})`;c.beginPath();c.arc(head,yy,2.2,0,7);c.fill()}
+    else{const rg=c.createRadialGradient(head,yy,0,head,yy,50);rg.addColorStop(0,`rgba(0,112,213,${L.a*.35*fade})`);rg.addColorStop(1,'rgba(0,112,213,0)');c.fillStyle=rg;c.fillRect(head-50,yy-50,100,100)}}
+  })}
+ function loop(t){if(!t0)newSweep(t);
+  if(state=='sweep'){const p=(t-t0)/dur;if(p>=1){state='fade';fadeT=t}else if(vis)draw(p,1)}
+  if(state=='fade'){const f=(t-fadeT)/GAP;if(f>=1)newSweep(t);else if(vis)draw(.999,1-f)}
+  requestAnimationFrame(loop)}
+ if(RM){TRAILstatic()}else{new IntersectionObserver(e=>{vis=e[0].isIntersecting}).observe(el);requestAnimationFrame(loop)}
+ function TRAILstatic(){const base=H*L.y,amp=Math.min(H*L.amp,220);ctxs.forEach((c,i)=>{c.clearRect(0,0,W,H);c.lineWidth=i==0?L.w*3:L.w;c.strokeStyle=`rgba(0,112,213,${L.a*.5})`;c.beginPath();for(let x=0;x<=W;x+=2){const yy=base-sig.y(x+200)*amp;x?c.lineTo(x,yy):c.moveTo(x,yy)}c.stroke()})}
 }
-let savedTheme = null;
-try { savedTheme = localStorage.getItem('ari-theme'); } catch (e) {}
-setTheme(savedTheme === 'dark', false);
-themeBtn.addEventListener('click', () => setTheme(!document.body.classList.contains('ari-dark'), true));
 
-/* Traductions FR : deux boutons synchronisés */
-const trButtons = [...document.querySelectorAll('[data-translate]')];
-function setTranslations(on){
-  document.querySelectorAll('[data-tr]').forEach(el => { el.hidden = !on; });
-  trButtons.forEach(b => b.setAttribute('aria-pressed', String(on)));
+const I18N={
+fr:{navPourquoi:'Pourquoi ARI',navJournee:'Une journée',navMethode:'Méthode',navEval:'Évaluation',ctaTest:'Test de positionnement',ctaStart:'Commencer',heroCta:'Commencer mon entraînement',heroSee:'Voir une journée type',faqCta:'Questions fréquentes'},
+en:{navPourquoi:'Why ARI',navJournee:'A day',navMethode:'Method',navEval:'Evaluation',ctaTest:'Placement test',ctaStart:'Get started',heroCta:'Start training',heroSee:'See a typical day',faqCta:'FAQ'},
+de:{navPourquoi:'Warum ARI',navJournee:'Ein Tag',navMethode:'Methode',navEval:'Bewertung',ctaTest:'Einstufungstest',ctaStart:'Starten',heroCta:'Training starten',heroSee:'Typischen Tag ansehen',faqCta:'Häufige Fragen'}
+};
+function applyLang(code){
+ const d=I18N[code]||I18N.fr; document.documentElement.lang=code;
+ const links=document.querySelectorAll('.nav-link');
+ if(links[0])links[0].textContent=d.navPourquoi; if(links[1])links[1].textContent=d.navJournee;
+ if(links[2])links[2].textContent=d.navMethode; if(links[3])links[3].textContent=d.navEval;
+ const navCta=document.querySelectorAll('.nav-cta .btn'); if(navCta[0])navCta[0].textContent=d.ctaTest; if(navCta[1]){navCta[1].innerHTML=d.ctaStart+' <span class="arr">→</span>';}
+ document.querySelectorAll('.hero-cta .btn-primary, .final .btn-primary').forEach(b=>{b.innerHTML=d.heroCta+' <span class="arr">→</span>';});
+ document.querySelectorAll('.hero-cta .btn-secondary').forEach(b=>{if(b.getAttribute('href')==='#journee')b.textContent=d.heroSee; if(b.getAttribute('href')==='#questions')b.textContent=d.faqCta;});
+ document.querySelectorAll('.lang button').forEach(b=>b.classList.toggle('on',b.dataset.lang===code));
+ try{localStorage.setItem('ari-lang',code)}catch(e){}
 }
-trButtons.forEach(b => b.addEventListener('click', () => setTranslations(b.getAttribute('aria-pressed') !== 'true')));
+document.querySelectorAll('.lang button').forEach(b=>b.addEventListener('click',()=>applyLang(b.dataset.lang)));
+try{const saved=localStorage.getItem('ari-lang'); if(saved&&I18N[saved])applyLang(saved)}catch(e){}
 
-/* Étapes de la démonstration */
-const tabs = [...document.querySelectorAll('#seance [role="tab"]')];
-const coach = [...document.querySelectorAll('#coach-list li')];
-const visited = new Set([0]);
-let activeStep = 0;
-function selectStep(index, focus){
-  activeStep = (index + tabs.length) % tabs.length;
-  visited.add(activeStep);
-  tabs.forEach((tab, i) => {
-    const on = i === activeStep;
-    tab.setAttribute('aria-selected', String(on));
-    tab.tabIndex = on ? 0 : -1;
-    tab.classList.toggle('done', visited.has(i) && !on && i < activeStep);
-    byId(tab.getAttribute('aria-controls')).hidden = !on;
-  });
-  coach.forEach(li => li.classList.toggle('now', li.dataset.step.split(' ').includes(String(activeStep))));
-  byId('stepbar').style.setProperty('--p', `${(activeStep + 1) / tabs.length * 100}%`);
-  byId('step-status').textContent = `Étape ${activeStep + 1} sur ${tabs.length}`;
-  byId('prev-step').disabled = activeStep === 0;
-  byId('next-step').textContent = activeStep === tabs.length - 1 ? 'Revoir l’échange' : 'Suivant';
-  if (focus) tabs[activeStep].focus();
+Pulse(document.getElementById('heroPulse'),{seed:11,sweep:9000,trail:.55,gap:1400,line:{y:.62,amp:.16,w:1.3,a:.5}});
+
+/* ---------- reveal ---------- */
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
+document.querySelectorAll('.fade').forEach(e=>io.observe(e));
+requestAnimationFrame(()=>document.querySelectorAll('.hero .fade').forEach(e=>e.classList.add('in')));
+
+/* ---------- day scrollytelling ---------- */
+const steps=[...document.querySelectorAll('.step')];const screens=[...document.querySelectorAll('#stage .screen')];
+steps.forEach((s,i)=>{const c=screens[i].cloneNode(true);c.removeAttribute('id');s.querySelector('.mock-m').appendChild(c)});
+const allScreens=i=>document.querySelectorAll(`.screen[data-m="${i}"]`);
+let cur=-1;const timers=new WeakMap();
+function activate(i){if(i===cur)return;cur=i;steps.forEach((s,k)=>s.classList.toggle('on',k===i));
+ screens.forEach((s,k)=>s.classList.toggle('on',k===i));
+ if(innerWidth>980)startMock(i,screens[i])}
+const mobIO=new IntersectionObserver(es=>es.forEach(e=>{const s=e.target;if(e.isIntersecting&&!s.classList.contains('on')){s.classList.add('on');startMock(+s.dataset.m,s)}}),{threshold:.45});
+document.querySelectorAll('.mock-m .screen').forEach(s=>mobIO.observe(s));
+const stepsEl=document.getElementById('steps'),rail=document.getElementById('railFill');
+function onScroll(){const mid=innerHeight*.5;let best=0;steps.forEach((s,i)=>{if(s.getBoundingClientRect().top<mid)best=i});
+ if(innerWidth>980)activate(best);else steps.forEach(s=>{const r=s.getBoundingClientRect();if(r.top<innerHeight*.7)s.classList.add('on')});
+ const r=stepsEl.getBoundingClientRect();rail.style.height=Math.max(0,Math.min(r.height,mid-r.top))+'px'}
+addEventListener('scroll',onScroll,{passive:true});addEventListener('resize',onScroll);onScroll();
+
+/* mock animations */
+
+function startMock(i,scr){
+ (timers.get(scr)||[]).forEach(clearTimeout);const T=[];timers.set(scr,T);
+ if(i===2){const tx=scr.querySelector('.tx');tx.innerHTML='';
+  const L=[['Ärztin','pt0','Guten Morgen, Herr Weber. Was führt Sie heute zu uns?'],['Patient','','Ich habe seit heute früh so einen Druck auf der Brust…'],['Ärztin','pt0','Seit wann genau? Strahlen die Schmerzen irgendwohin aus?'],['Patient','','Seit etwa zwei Stunden. In den linken Arm, glaube ich.','Leitsymptom ✓'],['Ärztin','pt0','Haben Sie Allergien gegen Medikamente?'],['Patient','','Ja… gegen Penicillin.','Allergie ✓'],['Ärztin','pt0','Nehmen Sie regelmäßig Medikamente ein?'],['Patient','','Metoprolol, 47,5 Milligramm, morgens.','Dosis ✓']];
+  L.forEach((l,k)=>T.push(setTimeout(()=>{const d=document.createElement('div');d.className='line'+(l[1]?' pt':'');d.innerHTML=`<span class="s">${l[0]}</span><span>${l[2]}${l[3]?` <span class="flag">${l[3]}</span>`:''}</span>`;tx.appendChild(d);while(tx.children.length>6)tx.firstChild.remove();requestAnimationFrame(()=>d.classList.add('show'))},RM?0:400+k*1500)));
+  voice(scr)}
+ if(i===3){const items=scr.querySelectorAll('.pi');items.forEach(p=>p.classList.remove('done'));items.forEach((p,k)=>{if(!p.classList.contains('miss'))T.push(setTimeout(()=>p.classList.add('done'),RM?0:500+k*450))})}
 }
-tabs.forEach((tab, i) => {
-  tab.addEventListener('click', () => selectStep(i, false));
-  tab.addEventListener('keydown', e => {
-    const map = {ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1};
-    if (e.key in map){ e.preventDefault(); selectStep(map[e.key], true); }
-  });
-});
-byId('prev-step').addEventListener('click', () => selectStep(activeStep - 1, true));
-byId('next-step').addEventListener('click', () => selectStep(activeStep === tabs.length - 1 ? 0 : activeStep + 1, true));
-selectStep(0, false);
-
-/* Étape 3 : choix de formulation */
-const answers = [...document.querySelectorAll('[data-answer]')];
-answers.forEach(button => button.addEventListener('click', () => {
-  const good = button.dataset.answer === 'good';
-  answers.forEach(item => { item.classList.remove('correct', 'wrong'); item.setAttribute('aria-pressed', String(item === button)); });
-  button.classList.add(good ? 'correct' : 'wrong');
-  const fb = byId('answer-feedback');
-  fb.className = 'feedback';
-  void fb.offsetWidth;
-  fb.className = `feedback ${good ? 'good' : 'bad'}`;
-  fb.textContent = good
-    ? 'Bonne reformulation : elle conserve les épisodes et les moments sans douleur décrits par le patient, puis vérifie.'
-    : 'Cette formulation transforme les épisodes en douleur continue. Réessayez avec celle qui reprend « kommen und gehen ».';
-}));
-
-/* Étape 3 : reformulation libre (vérification par mots-clés) */
-const ownText = byId('own-text'), ownFb = byId('own-feedback');
-byId('own-example').addEventListener('click', () => {
-  if (!ownText.value.trim()) ownText.value = 'Wenn ich Sie richtig verstehe, ';
-  ownText.focus();
-  ownText.setSelectionRange(ownText.value.length, ownText.value.length);
-});
-byId('own-form').addEventListener('submit', e => {
-  e.preventDefault();
-  const s = ownText.value.toLowerCase().replace(/\s+/g, ' ').trim();
-  const continuous = ['durchgehend', 'ständig', 'ohne unterbrechung', 'dauerhaft', 'kontinuierlich', 'die ganze zeit', 'andauernd'];
-  const episodes = ['immer wieder', 'kommen und gehen', 'kommen und wieder gehen', 'phasenweise', 'zwischendurch', 'dazwischen', 'schmerzfrei', 'episod', 'anfallsartig', 'ab und zu', 'in schüben'];
-  const check = ['stimmt das', 'richtig', 'habe ich sie', 'verstehe ich', 'ist das so', 'korrekt'];
-  let cls = 'bad', msg;
-  const hitBad = continuous.find(w => s.includes(w));
-  if (!s) msg = 'Écrivez une phrase en allemand avant de vérifier.';
-  else if (hitBad) msg = `« ${hitBad} » suggère une douleur continue. Le patient décrit des épisodes : essayez « immer wieder » ou « kommen und gehen ».`;
-  else if (episodes.some(w => s.includes(w))) {
-    cls = 'good';
-    msg = check.some(w => s.includes(w))
-      ? 'Très bien : vous reprenez les épisodes et vous vérifiez auprès du patient.'
-      : 'Vous reprenez bien les épisodes. Ajoutez une question de vérification, par exemple « Stimmt das? ».';
-  } else msg = 'L’idée d’épisodes n’apparaît pas encore. Reprenez les mots du patient, par exemple « immer wieder » ou « schmerzfrei ».';
-  ownFb.hidden = false;
-  ownFb.className = 'feedback';
-  void ownFb.offsetWidth;
-  ownFb.className = `feedback ${cls}`;
-  ownFb.textContent = msg;
-});
-
-/* Étape 4 : ajouter au carnet, relié à l'espace de suivi */
-const saveBtn = byId('save-note');
-saveBtn.addEventListener('click', () => {
-  const on = saveBtn.getAttribute('aria-pressed') !== 'true';
-  saveBtn.setAttribute('aria-pressed', String(on));
-  saveBtn.textContent = on ? 'Retirer du carnet' : 'Ajouter la question au carnet';
-  byId('note-new').hidden = !on;
-  byId('note-count').textContent = on ? '3' : '2';
-  byId('save-status').textContent = on ? 'Ajoutée au carnet, visible dans « Votre progression ».' : 'Retirée du carnet.';
-});
-
-/* Espace de suivi : onglets verticaux */
-const viewTabs = [...document.querySelectorAll('.workspace-tabs [role="tab"]')];
-function selectView(index, focus){
-  const sel = (index + viewTabs.length) % viewTabs.length;
-  viewTabs.forEach((tab, i) => {
-    const on = i === sel;
-    tab.setAttribute('aria-selected', String(on));
-    tab.tabIndex = on ? 0 : -1;
-    byId(tab.getAttribute('aria-controls')).hidden = !on;
-  });
-  if (focus) viewTabs[sel].focus();
-}
-viewTabs.forEach((tab, i) => {
-  tab.addEventListener('click', () => selectView(i, false));
-  tab.addEventListener('keydown', e => {
-    const map = {ArrowDown: i + 1, ArrowRight: i + 1, ArrowUp: i - 1, ArrowLeft: i - 1, Home: 0, End: viewTabs.length - 1};
-    if (e.key in map){ e.preventDefault(); selectView(map[e.key], true); }
-  });
-});
-const reveal = byId('reveal-answer');
-reveal.addEventListener('click', () => {
-  const a = byId('card-answer');
-  a.hidden = !a.hidden;
-  reveal.setAttribute('aria-expanded', String(!a.hidden));
-  reveal.textContent = a.hidden ? 'Voir la réponse' : 'Masquer la réponse';
-});
-const planBoxes = [...document.querySelectorAll('.plan input')];
-function updatePlan(){
-  const n = planBoxes.filter(b => b.checked).length;
-  byId('plan-bar').style.setProperty('--p', `${n / planBoxes.length * 100}%`);
-  byId('plan-status').textContent = n === planBoxes.length ? 'Semaine terminée, 3 actions sur 3' : `${n} action${n > 1 ? 's' : ''} sur ${planBoxes.length}`;
-}
-planBoxes.forEach(b => b.addEventListener('change', updatePlan));
-updatePlan();
-
-/* Menu mobile */
-const menu = byId('menu'), nav = byId('site-nav');
-function closeMenu(){ nav.classList.remove('open'); menu.setAttribute('aria-expanded', 'false'); menu.setAttribute('aria-label', 'Ouvrir le menu'); }
-menu.addEventListener('click', () => {
-  const open = menu.getAttribute('aria-expanded') !== 'true';
-  nav.classList.toggle('open', open);
-  menu.setAttribute('aria-expanded', String(open));
-  menu.setAttribute('aria-label', open ? 'Fermer le menu' : 'Ouvrir le menu');
-});
-document.querySelectorAll('.navlinks a').forEach(a => a.addEventListener('click', closeMenu));
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && menu.getAttribute('aria-expanded') === 'true'){ closeMenu(); menu.focus(); } });
-
+function voice(scr){const c=scr.querySelector('.vc');const ctx=c.getContext('2d');const timer=scr.querySelector('#callTimer')||scr.querySelector('.scr-bar .r');const t0=performance.now();
+ if(c._run)return;c._run=1;const sig=makeSignal(5);let off=0;
+ function f(t){const w=c.clientWidth,h=c.clientHeight;if(!w){requestAnimationFrame(f);return}const d=Math.min(devicePixelRatio,2);if(c.width!==w*d){c.width=w*d;c.height=h*d}ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,w,h);
+  off+=1.6;ctx.strokeStyle='#0070d5';ctx.lineWidth=1.5;ctx.beginPath();
+  for(let x=0;x<w;x+=1.5){const y=h/2-sig.y(x+off)*h*.36;x?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.stroke();
+  const s=Math.floor((t-t0)/1000);timer.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  if(!RM)requestAnimationFrame(f)}requestAnimationFrame(f)}
+})();
 </script>
 </body>
 </html>
