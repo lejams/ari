@@ -213,7 +213,7 @@ DEV_BASES: list[Base] = [
         "C1",
         "verb_form",
         "cloze",
-        stem="Die gestern ___ Patientin liegt jetzt auf der Überwachungsstation.",
+        stem="Die gestern ___ Patientin, bei der der Eingriff gut verlief, liegt jetzt auf der Überwachungsstation.",
         key="operierte",
         distractors=["operiert", "operierende"],
         explanation_fr="Le participe passé employé comme adjectif prend la terminaison de l'adjectif : « die operierte Patientin ».",
