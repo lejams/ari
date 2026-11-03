@@ -8,6 +8,7 @@ import {initLocale, viewLabel} from './i18n.mjs';
 
 const VIEW_AURAS = {
   home: [65, 40, '58%', '-22%', '-14%', '46%'],
+  programme: [40, 300, '66%', '-24%', '-12%', '52%'],
   cases: [254, 230, '-18%', '34%', '66%', '-20%'],
   exam: [254, 230, '-18%', '34%', '66%', '-20%'],
   history: [300, 280, '62%', '-26%', '82%', '38%'],
@@ -33,11 +34,35 @@ function setCrumb(name) {
   crumb.dataset.view = name;
   crumb.textContent = viewLabel(name);
 }
+function examDaysLeft(examDateIso, todayIso) {
+  if (!examDateIso) return null;
+  const exam = new Date(`${examDateIso}T00:00:00`);
+  const today = new Date(`${(todayIso || new Date().toISOString().slice(0, 10))}T00:00:00`);
+  if (Number.isNaN(exam.getTime()) || Number.isNaN(today.getTime())) return null;
+  return Math.max(0, Math.round((exam - today) / 86400000));
+}
+function renderSidefootCountdown(examDateIso, todayIso) {
+  const sideDays = document.getElementById('sidefoot-days');
+  const sideNote = document.getElementById('sidefoot-note');
+  if (!sideDays || !sideNote) return;
+  const days = examDaysLeft(examDateIso, todayIso);
+  if (days !== null) {
+    sideDays.textContent = String(days);
+    sideNote.textContent = `Examen prévu le ${new Date(`${examDateIso}T00:00:00`).toLocaleDateString('fr-FR')}.`;
+  } else {
+    sideDays.textContent = '—';
+    sideNote.innerHTML = 'Examen prévu le <span class="ph">[date à saisir]</span>.';
+  }
+}
 function refreshSideUser() {
   const box = document.getElementById('side-user');
   if (!box) return;
   const details = client.profile?.details;
-  if (!details) { box.hidden = true; return; }
+  if (!details) {
+    box.hidden = true;
+    renderSidefootCountdown(null);
+    return;
+  }
   box.hidden = false;
   const specialty = details.specialty || '';
   const initials = specialty.slice(0, 2).toUpperCase() || 'AR';
@@ -45,6 +70,7 @@ function refreshSideUser() {
   document.getElementById('side-name').textContent = specialty || 'Profil ARI';
   const level = details.estimated_level || details.declared_level;
   document.getElementById('side-level').textContent = level ? `Niveau ${level}` : 'Niveau non mesuré';
+  renderSidefootCountdown(details.exam_date || null);
 }
 
 const client = new PracticeClient();
@@ -53,7 +79,7 @@ const placement = new PlacementClient((path, options) => client.api(path, option
 let reviewQueue = [], reviewTotal = 0, reviewEntry = null;
 let placementAttempt = null, placementListens = 0, recorder = null, recordedAudio = null, recordTimer = null, providerMode = 'fake';
 const $ = id => document.getElementById(id);
-const views = ['onboarding', 'home', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress', 'placement'];
+const views = ['onboarding', 'home', 'programme', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress', 'placement'];
 const fields = ['goal', 'land', 'date', 'minutes', 'situation', 'specialty', 'level', 'certificate-level', 'certificate-issuer', 'certificate-date'];
 // What the onboarding form sends to the profile; land, goal and dates are server-side now.
 function profileDetails() {
@@ -373,6 +399,234 @@ function renderWeek(program) {
   $('week-days').replaceChildren(...weekPills.map(pill => { const item = node('div', undefined, 'week-pill-item'); item.setAttribute('role', 'listitem'); item.append(pill); return item; }));
   renderWeekDay(todayOffset);
 }
+function renderHomeGreeting(program) {
+  const week = program.week, model = program.model, next = week.next;
+  const today = new Date(week.today + 'T12:00:00');
+  const dayLabel = today.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const phase = PHASE_LABELS_FR[week.phase] || week.phase;
+  $('home-eyebrow-text').textContent = `${dayLabel} · ${phase}`;
+  const minutesToday = week.slots.filter(slot => slot.day_offset === todayOffset(week)).reduce((n, s) => n + s.minutes, 0);
+  if (next) {
+    const mut = node('span', slotTitle(next), 'mut');
+    $('home-title').replaceChildren(document.createTextNode('Bonjour. '), mut);
+    $('home-sub').textContent = minutesToday
+      ? `Séance du jour : ${minutesToday} minutes prévues · niveau ${model.level.reference || 'non estimé'}.`
+      : `Prochaine étape · niveau ${model.level.reference || 'non estimé'}.`;
+  } else {
+    $('home-title').textContent = 'Semaine accomplie.';
+    $('home-sub').textContent = 'Tous les créneaux prévus sont faits. Le programme se recalcule lundi.';
+  }
+}
+function todayOffset(week) {
+  return Math.max(0, Math.round((new Date(week.today + 'T00:00:00') - new Date(week.week_start + 'T00:00:00')) / 86400000));
+}
+function formatClock(minutesFromEight) {
+  const total = 8 * 60 + minutesFromEight;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+function renderSessionPlan(program) {
+  const week = program.week;
+  const todaySlots = week.slots.filter(slot => slot.day_offset === todayOffset(week));
+  const plan = $('session-plan');
+  if (!plan) return;
+  plan.replaceChildren();
+  $('plan-count').textContent = todaySlots.length ? `${todaySlots.filter(s => s.state === 'done').length} / ${todaySlots.length}` : '0';
+  if (!todaySlots.length) {
+    $('plan-window').textContent = '';
+    plan.append(node('p', 'Rien de prévu aujourd’hui dans votre programme.', 'help'));
+    return;
+  }
+  const total = todaySlots.reduce((n, s) => n + s.minutes, 0);
+  $('plan-window').textContent = `${formatClock(0)} → ${formatClock(total)}`;
+  let cursor = 0;
+  for (const slot of todaySlots) {
+    const isNow = slot.state === 'today' || slot === week.next;
+    const step = node('div', undefined, `step${slot.state === 'done' ? ' done' : isNow ? ' now' : ''}`);
+    step.append(node('span', formatClock(cursor), 't'), node('span', undefined, 'dot'));
+    cursor += slot.minutes;
+    const body = node('div');
+    body.append(node('div', slotTitle(slot), 'ti'), node('div', `${slot.minutes} min${slot.rationale ? ` · ${slot.rationale}` : ''}`, 'de'));
+    step.append(body);
+    if (slot.state === 'done') step.append(node('span', 'fait', 'tag g'));
+    else if (isNow) {
+      const go = actionButton('Démarrer →', () => runSlot(slot), true);
+      go.style.padding = '6px 12px';
+      step.append(go);
+    } else step.append(node('span', 'à venir', 'tag'));
+    plan.append(step);
+  }
+}
+function renderFspCard(program) {
+  const model = program.model, details = client.profile?.details || {}, next = program.week.next;
+  const examDate = model.exam?.date || details.exam_date || null;
+  const weeks = model.exam?.weeks_left;
+  const days = examDaysLeft(examDate, program.week?.today);
+  if (days !== null) {
+    $('fsp-days').textContent = String(days);
+    $('fsp-weeks').textContent = weeks !== null && weeks !== undefined ? String(weeks).padStart(2, '0') : String(Math.floor(days / 7)).padStart(2, '0');
+    $('fsp-tag').textContent = days <= 14 ? 'Échéance proche' : 'Préparation';
+    $('fsp-note').textContent = `Examen prévu le ${new Date(`${examDate}T00:00:00`).toLocaleDateString('fr-FR')}.`;
+  } else {
+    $('fsp-days').textContent = '—';
+    $('fsp-weeks').textContent = '—';
+    $('fsp-tag').textContent = 'Date à saisir';
+    $('fsp-note').innerHTML = 'Indiquez une date d’examen dans votre profil. Seuil FSP <span class="ph">[à définir]</span>.';
+  }
+  $('fsp-slots').textContent = String(program.week.slots.length).padStart(2, '0');
+  renderSidefootCountdown(examDate, program.week?.today);
+  const box = $('fsp-next');
+  if (!next) { box.hidden = true; return; }
+  box.hidden = false;
+  $('fsp-next-title').textContent = slotTitle(next);
+  $('fsp-next-tag').textContent = `${next.minutes} min`;
+  const rec = next.recommended;
+  const voiceCase = next.kind === 'voice_training' && rec?.kind === 'voice' ? voiceCases.find(c => c.id === rec.id && c.version === rec.version) : null;
+  $('fsp-next-ic').textContent = (voiceCase?.title || slotTitle(next)).slice(0, 2).toUpperCase();
+  if (voiceCase?.opening_statement) {
+    $('fsp-next-quote').textContent = `„${voiceCase.opening_statement}“`;
+    $('fsp-next-quote').hidden = false;
+  } else {
+    $('fsp-next-quote').textContent = '';
+    $('fsp-next-quote').hidden = true;
+  }
+}
+function structureAxisPercent(averages) {
+  if (!averages) return null;
+  const measured = Object.values(averages).filter(value => typeof value === 'number' && Number.isFinite(value));
+  if (!measured.length) return null;
+  return Math.round((measured.reduce((a, b) => a + b, 0) / measured.length) * 100);
+}
+function renderHomeAxes(axes) {
+  const host = $('home-axes');
+  if (!host) return;
+  host.replaceChildren();
+  if (!axes) {
+    host.append(node('p', 'Passez quelques sessions pour voir vos axes ici.', 'help'));
+    return;
+  }
+  const structure = structureAxisPercent(axes.structure?.averages);
+  const communication = typeof axes.communication?.acknowledged_rate === 'number'
+    ? Math.round(axes.communication.acknowledged_rate * 100)
+    : null;
+  const rows = [
+    ['Anamnèse', structure, false],
+    ['Communication', communication, true],
+    ['Lexique', axes.lexicon ? Math.min(100, Math.round((axes.lexicon.acquired / Math.max(1, axes.lexicon.active + axes.lexicon.acquired)) * 100)) : null, false],
+    ['Rythme', axes.regularity?.weeks?.length ? Math.min(100, (axes.regularity.weeks.at(-1)?.voice_sessions || 0) * 25) : null, true],
+  ];
+  for (const [label, value, violet] of rows) {
+    const ax = node('div', undefined, 'ax');
+    const bar = node('span', undefined, 'bar');
+    const fill = node('i', undefined, violet ? 'vi' : '');
+    const width = value === null ? 0 : value;
+    fill.dataset.w = String(width);
+    bar.append(fill);
+    ax.append(node('span', label, 'n'), bar, node('span', value === null ? '—' : String(value), 'val'));
+    host.append(ax);
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { fill.style.width = width + '%'; });
+    else fill.style.width = width + '%';
+  }
+}
+async function renderHomeDashboard(program) {
+  renderHomeGreeting(program);
+  renderSessionPlan(program);
+  renderFspCard(program);
+  let overview = null, progression = null;
+  try { overview = await lexicon.overview(); } catch { overview = null; }
+  try { progression = await client.api('/api/progression'); } catch { progression = null; }
+  const axes = progression?.axes;
+  if (!overview) {
+    $('kpi-lexicon').replaceChildren(document.createTextNode('—'), (() => { const s = node('small', 'indisponible'); return s; })());
+    $('kpi-lexicon-note').textContent = 'Le carnet n’a pas pu être chargé. Réessayez.';
+  } else {
+    const activeDue = overview.due_count ?? 0;
+    const maintenanceDue = overview.maintenance_due_count ?? 0;
+    const due = activeDue + maintenanceDue;
+    const active = overview.active_count ?? 0;
+    $('kpi-lexicon').replaceChildren(document.createTextNode(String(due)), (() => { const s = node('small', due ? 'à revoir' : 'à jour'); return s; })());
+    $('kpi-lexicon-note').textContent = due
+      ? [activeDue ? `${activeDue} actives` : '', maintenanceDue ? `${maintenanceDue} en entretien` : '', active ? `${active} dans « À travailler »` : ''].filter(Boolean).join(' · ')
+      : (active ? `${active} dans « À travailler »` : 'Ouvrez le lexique après une consultation');
+  }
+  // Same population as axes.sessions_completed: completed, evaluated voice sessions only.
+  const completedVoice = historyItems.filter(item => item.kind === 'voice' && item.status === 'completed' && item.has_feedback);
+  if (!axes) {
+    $('kpi-sessions').replaceChildren(document.createTextNode('—'), (() => { const s = node('small', 'indisponible'); return s; })());
+    $('kpi-sessions-note').textContent = 'La progression n’a pas pu être chargée. Réessayez.';
+    $('kpi-streak').replaceChildren(document.createTextNode('—'), (() => { const s = node('small', 'indisponible'); return s; })());
+    $('kpi-streak-bar').replaceChildren(...Array.from({ length: 7 }, () => node('i', undefined, '')));
+  } else {
+    const sessions = axes.sessions_completed ?? completedVoice.length;
+    const examCount = completedVoice.filter(item => item.mode === 'exam').length;
+    $('kpi-sessions').replaceChildren(document.createTextNode(String(sessions)), (() => { const s = node('small', 'réalisées'); return s; })());
+    $('kpi-sessions-note').textContent = examCount ? `dont ${examCount} en mode Examen` : 'Entraînement et Examen confondus';
+    const weeks = axes.regularity?.weeks || [];
+    // regularity.weeks is a fixed trailing window: if every week is active, streak is only a lower bound.
+    const inactiveAt = [...weeks].reverse().findIndex(w => !(w.voice_sessions || w.practice_runs));
+    const truncated = inactiveAt === -1 && weeks.length > 0;
+    const streak = truncated ? weeks.length : Math.max(0, inactiveAt);
+    const streakLabel = streak ? (truncated ? `${streak}+` : String(streak)) : '—';
+    $('kpi-streak').replaceChildren(document.createTextNode(streakLabel), (() => { const s = node('small', streak ? 'sem. actives' : 'pas encore'); return s; })());
+    $('kpi-streak-bar').replaceChildren(...Array.from({ length: 7 }, (_, i) => node('i', undefined, i < Math.min(7, streak) ? (i === Math.min(6, streak - 1) ? 'on today' : 'on') : '')));
+  }
+  renderHomeAxes(axes);
+}
+function renderProgramme(program) {
+  weekProgram = program;
+  const week = program.week, model = program.model;
+  $('programme-sub').textContent = `${PHASE_LABELS_FR[week.phase] || week.phase} · niveau ${model.level.reference || 'non estimé'} · ${week.planned_minutes} / ${week.budget_minutes} min`;
+  // Same sequence as program.phase_for: below-B1 learners land on prerequis.
+  const phases = [
+    ['positionnement', 'Positionnement'],
+    ['prerequis', 'Prérequis'],
+    ['fondations', 'Fondations'],
+    ['anamnese', 'Cas cliniques'],
+    ['examen', 'Conditions d’examen'],
+  ];
+  const order = phases.map(([id]) => id);
+  const current = order.indexOf(week.phase);
+  $('programme-phase').replaceChildren(...phases.map(([id, label], i) => {
+    const el = node('div', undefined, current < 0 ? '' : i < current ? 'past' : i === current ? 'on' : '');
+    el.append(node('span', `PHASE ${i + 1}`, 'k'), node('b', label));
+    return el;
+  }));
+  const start = new Date(week.week_start + 'T00:00:00');
+  const startOffset = week.starts_on ? Math.max(0, Math.round((new Date(week.starts_on + 'T00:00:00') - start) / 86400000)) : 0;
+  const todayOffset = Math.max(0, Math.round((new Date(week.today + 'T00:00:00') - start) / 86400000));
+  $('programme-week').replaceChildren(...DAY_LETTERS.map((letter, offset) => {
+    const day = new Date(start); day.setDate(start.getDate() + offset);
+    const slots = week.slots.filter(slot => slot.day_offset === offset);
+    const col = node('div', undefined, `day${offset === todayOffset ? ' today' : ''}`);
+    const dh = node('div', undefined, 'dh');
+    dh.append(node('b', day.toLocaleDateString('fr-FR', { weekday: 'short' })), node('span', day.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })));
+    col.append(dh);
+    if (offset < startOffset) {
+      col.append(node('div', 'avant inscription', 'blk rest'));
+    } else if (!slots.length) {
+      const rest = node('div', undefined, 'blk rest');
+      rest.append(node('span', '', 'm'), document.createTextNode('Repos'));
+      col.append(rest);
+    } else for (const slot of slots) {
+      const kind = slot.kind.startsWith('lexicon') ? 'l' : slot.kind.startsWith('voice') ? 'c' : slot.kind === 'arzt_arzt' ? 'c' : 'e';
+      const done = slot.state === 'done';
+      const blk = node(done ? 'div' : 'button', undefined, `blk ${kind}${done ? ' done' : ''}`);
+      if (!done) {
+        blk.type = 'button';
+        blk.setAttribute('aria-label', slotButtonLabel(slot));
+        blk.addEventListener('click', () => perform(() => runSlot(slot)));
+      }
+      blk.append(node('span', `${slot.minutes} min${done ? ' · fait' : ''}`, 'm'), document.createTextNode(SLOT_LABELS[slot.kind] || slot.kind));
+      col.append(blk);
+    }
+    return col;
+  }));
+}
+async function showProgramme() {
+  if (!client.profile) return home();
+  const program = await client.api('/api/program');
+  renderProgramme(program);
+  view('programme');
+}
 async function home() {
   if (!client.profile) { restoreDraft(); view('onboarding', false); return; }
   await loadCatalog(); historyItems = (await client.api('/api/history')).items;
@@ -386,6 +640,7 @@ async function home() {
   const program = await client.api('/api/program');
   renderHero(program);
   renderWeek(program);
+  await renderHomeDashboard(program);
   view('home');
 }
 async function showCases() {
@@ -753,7 +1008,7 @@ async function toggleRecording() {
 }
 async function navigate(name) {
   if(!client.profile)return home();
-  const routes={home,cases:showCases,exam:showExam,vocab:showVocab,history:showHistory,progress:showProgress,placement:showPlacement,warmup:()=>selected?view('warmup'):showCases()};
+  const routes={home,programme:showProgramme,cases:showCases,exam:showExam,vocab:showVocab,history:showHistory,progress:showProgress,placement:showPlacement,warmup:()=>selected?view('warmup'):showCases()};
   await (routes[name]||home)();
 }
 async function route() { const match=location.hash.match(/^#practice\/([A-Za-z0-9_.-]+)$/);if(client.profile&&match)return showRun(await client.getRun(match[1]));return navigate(location.hash.slice(1)||'home'); }
