@@ -298,7 +298,14 @@ function fillExerciseFilter(kind, allLabel, counts) {
   select.value = chosen;
 }
 async function showExercises() {
-  const data = await client.exercises({...exerciseFilters(), limit: EXERCISE_PAGE, offset: exerciseOffset});
+  // A filter changed while the request ran is discarded by perform() (one action at a time) but stays
+  // selected: ask again until the answer shown is the one for what is selected now.
+  let data;
+  for (;;) {
+    const asked = JSON.stringify([exerciseFilters(), exerciseOffset]);
+    data = await client.exercises({...exerciseFilters(), limit: EXERCISE_PAGE, offset: exerciseOffset});
+    if (asked === JSON.stringify([exerciseFilters(), exerciseOffset])) break;
+  }
   for (const [kind, allLabel] of EXERCISE_FILTERS) fillExerciseFilter(kind, allLabel, data.counts[kind] || {});
   table($('exercises-table'), ['Type', 'Niveau', 'Catégorie', 'Compétence', 'Énoncé', 'Statut', ''], data.items.map(item => [exerciseLabel('type', item.type), item.level || '—', item.category ? exerciseLabel('category', item.category) : '—', item.skill ? exerciseLabel('skill', item.skill) : '—', item.stem, badge(item.status), button('Ouvrir', () => { location.hash = item.kind === 'medical' ? `#/registry/${item.id}/${item.version}` : `#/exercises/${item.id}`; })]));
   const first = data.total ? data.offset + 1 : 0, last = data.offset + data.items.length;

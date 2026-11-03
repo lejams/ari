@@ -117,6 +117,7 @@ const exerciseDetail = {...exerciseSummary, context_fr: "Aux urgences.", instruc
 const responses = {
   "/api/exercises?limit=50": {items: [medicalSummary, exerciseSummary], total: 2, limit: 50, offset: 0, counts: exerciseCounts},
   "/api/exercises?type=arzt_patient&limit=50": {items: [medicalSummary], total: 1, limit: 50, offset: 0, counts: exerciseCounts},
+  "/api/exercises?level=B1&category=gender&limit=50": {items: [exerciseSummary], total: 1, limit: 50, offset: 0, counts: exerciseCounts},
   "/api/exercises?level=B1&limit=50": {items: [exerciseSummary], total: 1, limit: 50, offset: 0, counts: exerciseCounts},
   "/api/exercises/lx-1": exerciseDetail,
   "/api/gold/P-cccccccc-000": gold,
@@ -191,6 +192,14 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   await new Promise(resolve => setTimeout(resolve, 30));
   assert.ok(calls.includes("/api/exercises?level=B1&limit=50"), "choosing a level filters on the server");
   assert.equal(nodes.get("exercises-level").value, "B1", "the choice survives the redraw of the options");
+  // A second choice made while the first request runs is not lost: the page asks again for it.
+  nodes.get("exercises-level").value = "";
+  nodes.get("exercises-level").onchange();
+  nodes.get("exercises-level").value = "B1";
+  nodes.get("exercises-category").value = "gender";
+  nodes.get("exercises-category").onchange();
+  await new Promise(resolve => setTimeout(resolve, 60));
+  assert.equal(calls.at(-1), "/api/exercises?level=B1&category=gender&limit=50", "the last selection is the one shown");
 }
 {
   const {nodes} = await load("#/exercises/lx-1");
