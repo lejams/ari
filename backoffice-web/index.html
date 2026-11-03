@@ -11,6 +11,7 @@
     <button data-route="/review"><span aria-hidden="true">✎</span><span class="nav-label">Relecture</span></button>
     <button data-route="/gold"><span aria-hidden="true">★</span><span class="nav-label">Gold</span></button>
     <button data-route="/registry"><span aria-hidden="true">▣</span><span class="nav-label">Registre</span></button>
+    <button data-route="/exercises"><span aria-hidden="true">✓</span><span class="nav-label">Exercices</span></button>
     <button data-route="/costs" data-role="owner"><span aria-hidden="true">€</span><span class="nav-label">Coûts</span></button>
     <button data-route="/accounts" data-role="owner"><span aria-hidden="true">☺</span><span class="nav-label">Comptes</span></button>
   </nav>
@@ -178,6 +179,43 @@
     <details class="card"><summary>Contenu complet du bundle (DE / FR)</summary><div class="source"><pre id="scenario-bundle"></pre></div></details>
   </section>
 
+  <section id="exercises" hidden>
+    <div class="pagehead"><p class="eyebrow">Exercices de langue</p><h1>Tous les exercices.</h1><p>Deux familles, deux mécanismes. <strong>Langue</strong> (texte à trou, phrase à corriger, choix de registre) : écrits par un modèle, vérifiés par le code, un second modèle qui les résout à l’aveugle et un juge strict, puis importés par la ligne de commande après un rapport de gate. <strong>Médical</strong> (Arzt–Patient, Arzt–Arzt, Fachbegriffe) : tirés d’un protocole gold figé, relus par deux personnes dans le Registre, où un clic sur « Ouvrir » mène. Niveau, catégorie et compétence ne concernent que les exercices de langue : les choisir masque les exercices médicaux.</p></div>
+    <div class="row wrap" id="exercises-filters">
+      <label for="exercises-type" class="sr-only">Type d’exercice</label><select id="exercises-type"></select>
+      <label for="exercises-level" class="sr-only">Niveau</label><select id="exercises-level"></select>
+      <label for="exercises-category" class="sr-only">Catégorie</label><select id="exercises-category"></select>
+      <label for="exercises-skill" class="sr-only">Compétence</label><select id="exercises-skill"></select>
+      <label for="exercises-status" class="sr-only">Statut</label><select id="exercises-status"></select>
+      <button type="button" id="exercises-reset" class="link">Tout afficher</button>
+    </div>
+    <p id="exercises-total" class="help" role="status"></p>
+    <div class="tablewrap"><table id="exercises-table" class="table"></table></div>
+    <p id="exercises-empty" class="availability" hidden>Aucun exercice ne correspond à ces filtres.</p>
+    <div class="row between"><button type="button" id="exercises-prev">Précédents</button><button type="button" id="exercises-next">Suivants</button></div>
+  </section>
+
+  <section id="exercise" hidden>
+    <div class="pagehead"><p class="eyebrow" id="exercise-eyebrow"></p><h1 id="exercise-title"></h1><p id="exercise-meta" class="help"></p></div>
+    <div class="grid">
+      <article class="card"><h2>Exercice</h2>
+        <p id="exercise-context" class="help"></p><p id="exercise-instruction"></p><p id="exercise-stem" lang="de"></p>
+        <ol id="exercise-options" lang="de"></ol>
+        <p id="exercise-correct" lang="de" class="ok"></p>
+        <h2>Explication affichée à l’apprenant</h2><p id="exercise-explanation"></p>
+      </article>
+      <article class="card"><h2>Vérifications</h2><p class="help">Les décisions de chaque étape, dans l’ordre. Un retrait y laisse sa trace.</p><div class="tablewrap"><table id="exercise-reviews" class="table"></table></div>
+        <div id="exercise-withdraw" hidden>
+          <form id="exercise-withdraw-form" novalidate>
+            <label for="exercise-withdraw-reason">Motif du retrait (obligatoire, définitif)</label><textarea id="exercise-withdraw-reason" rows="2" minlength="3" maxlength="500" required></textarea>
+            <div class="form-actions"><button class="danger">Retirer cet exercice</button></div>
+          </form>
+        </div>
+      </article>
+    </div>
+    <details class="card"><summary>Provenance (modèles, versions, lot)</summary><div class="source"><pre id="exercise-provenance"></pre></div></details>
+  </section>
+
   <section id="costs" hidden>
     <div class="pagehead"><p class="eyebrow">Coûts</p><h1>Ce que coûtent les modèles.</h1><p>Chaque appel IA est chiffré à son enregistrement, à partir de la grille tarifaire versionnée. Un appel dont le prix ou l’usage manque est compté à part, jamais à zéro.</p></div>
     <div class="row wrap"><label for="costs-period" class="sr-only">Période</label><select id="costs-period"><option value="7">7 derniers jours</option><option value="30" selected>30 derniers jours</option><option value="90">90 derniers jours</option></select></div>
@@ -202,6 +240,6 @@
     <div class="tablewrap"><table id="accounts-table" class="table"></table></div>
   </section>
 </main>
-<script type="module" src="/app.mjs?v=20261024-evaluation"></script>
+<script type="module" src="/app.mjs?v=20261103-exercises"></script>
 </body>
 </html>

@@ -69,6 +69,12 @@ export class BackofficeApi {
   registryPublish(id, version) { return this.api(`/api/registry/scenarios/${encodeURIComponent(id)}/${encodeURIComponent(version)}/publish`, {method: "POST"}); }
   registryWithdraw(id, version) { return this.api(`/api/registry/scenarios/${encodeURIComponent(id)}/${encodeURIComponent(version)}/withdraw`, {method: "POST"}); }
   costs(days) { return this.api(`/api/costs?days=${encodeURIComponent(days)}`); }
+  exercises(filters = {}) {
+    const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== "" && value !== undefined && value !== null && value !== 0));
+    return this.api(`/api/exercises${query.size ? `?${query}` : ""}`);
+  }
+  exercise(id) { return this.api(`/api/exercises/${encodeURIComponent(id)}`); }
+  withdrawExercise(id, reason) { return this.api(`/api/exercises/${encodeURIComponent(id)}/withdraw`, {method: "POST", body: JSON.stringify({reason})}); }
   accounts() { return this.api("/api/accounts"); }
   createAccount(account) { return this.api("/api/accounts", {method: "POST", body: JSON.stringify(account)}); }
   deactivate(id) { return this.api(`/api/accounts/${encodeURIComponent(id)}/deactivate`, {method: "POST"}); }
@@ -78,10 +84,17 @@ export const STATUS_LABELS = {
   uploaded: "Déposé", text_extracted: "Texte extrait", segmented: "Découpé", extracted: "Extrait", failed: "En échec",
   doctor_review: "À relire", changes_requested: "Corrections demandées", doctor_approved: "À valider", gold: "Gold", rejected: "Rejeté", superseded: "Remplacé",
   pending: "En attente", too_long: "Trop long", discarded: "Écarté", queued: "En file", running: "En cours", succeeded: "Terminé", dead: "Abandonné",
-  draft: "Brouillon", invalid: "Invalide", imported: "Importé", draft_unvalidated: "À relire", published: "Publié", withdrawn: "Retiré",
+  draft: "Brouillon", invalid: "Invalide", imported: "Importé", draft_unvalidated: "À relire", published: "Publié", withdrawn: "Retiré", active: "Actif",
+};
+export const EXERCISE_LABELS = {
+  level: {B1: "B1", B2: "B2", C1: "C1"},
+  category: {gender: "Genre", case: "Cas", verb_form: "Forme verbale", word_order: "Ordre des mots", word_choice: "Choix du mot", register: "Registre"},
+  skill: {grammar: "Grammaire", vocabulary: "Vocabulaire", register: "Registre"},
+  type: {cloze: "Langue : texte à trou", correct_sentence: "Langue : phrase à corriger", register_choice: "Langue : choix de registre", arzt_patient: "Médical : Arzt–Patient", arzt_arzt: "Médical : Arzt–Arzt", fachbegriffe: "Médical : Fachbegriffe"},
+  status: {active: "Actif", draft_unvalidated: "À relire", withdrawn: "Retiré"},
 };
 export const statusLabel = status => STATUS_LABELS[status] || status;
-export const statusTone = status => ({gold: "ok", succeeded: "ok", extracted: "ok", published: "ok", imported: "ok", doctor_approved: "warn", changes_requested: "warn", too_long: "warn", draft: "warn", failed: "bad", dead: "bad", rejected: "bad", invalid: "bad", withdrawn: "bad"}[status] || "");
+export const statusTone = status => ({gold: "ok", succeeded: "ok", extracted: "ok", published: "ok", active: "ok", imported: "ok", doctor_approved: "warn", changes_requested: "warn", too_long: "warn", draft: "warn", failed: "bad", dead: "bad", rejected: "bad", invalid: "bad", withdrawn: "bad"}[status] || "");
 export const PHASE_LABELS = {arzt_patient: "Arzt–Patient", arzt_arzt: "Arzt–Arzt", fachbegriffe: "Fachbegriffe", arztbrief: "Arztbrief"};
 export const PERSONA_LABELS = {standard: "coopératif", anxious: "anxieux", talkative: "bavard", terse: "laconique"};
 export const REVIEW_TYPE_LABELS = {clinical: "clinique", linguistic: "linguistique"};

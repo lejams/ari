@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -147,6 +147,58 @@ class SqlExerciseBank:
                 query.order_by(LanguageExerciseRow.created_at, LanguageExerciseRow.id)
             )
             return tuple(_stored(row) for row in rows)
+
+    def search(
+        self,
+        *,
+        status: str | None = None,
+        level: str | None = None,
+        category: str | None = None,
+        skill: str | None = None,
+        format: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[tuple[StoredExercise, ...], int]:
+        """The exercises matching every given filter (newest first), and how many match in all."""
+        filters = [
+            column == value
+            for column, value in (
+                (LanguageExerciseRow.status, status),
+                (LanguageExerciseRow.level, level),
+                (LanguageExerciseRow.category, category),
+                (LanguageExerciseRow.skill, skill),
+                (LanguageExerciseRow.format, format),
+            )
+            if value is not None
+        ]
+        with Session(self.engine) as db:
+            total = db.scalar(select(func.count()).select_from(LanguageExerciseRow).where(*filters))
+            rows = db.scalars(
+                select(LanguageExerciseRow)
+                .where(*filters)
+                .order_by(LanguageExerciseRow.created_at.desc(), LanguageExerciseRow.id)
+                .limit(limit)
+                .offset(offset)
+            )
+            return tuple(_stored(row) for row in rows), int(total or 0)
+
+    def counts(self) -> dict[str, dict[str, int]]:
+        """How many exercises there are for each value of each filter, all statuses together."""
+        columns = {
+            "status": LanguageExerciseRow.status,
+            "level": LanguageExerciseRow.level,
+            "category": LanguageExerciseRow.category,
+            "skill": LanguageExerciseRow.skill,
+            "format": LanguageExerciseRow.format,
+        }
+        with Session(self.engine) as db:
+            return {
+                name: {
+                    str(value): int(count)
+                    for value, count in db.execute(select(column, func.count()).group_by(column))
+                }
+                for name, column in columns.items()
+            }
 
     def withdraw(self, exercise_id: str, *, reason: str, actor: str) -> None:
         if not reason.strip() or not actor.strip():

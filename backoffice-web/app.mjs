@@ -1,11 +1,11 @@
 import {ProtocolReview} from './protocol-review.mjs?v=20261015-costs';
-import {BackofficeApi, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LABELS, statusLabel, statusTone} from './api.mjs?v=20261015-costs';
+import {BackofficeApi, EXERCISE_LABELS, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LABELS, statusLabel, statusTone} from './api.mjs?v=20261103-exercises';
 
 const client = new BackofficeApi();
 const $ = id => document.getElementById(id);
-const views = ['login', 'invitation', 'dashboard', 'documents', 'document', 'review', 'protocol', 'gold', 'gold-detail', 'registry', 'scenario', 'costs', 'accounts'];
+const views = ['login', 'invitation', 'dashboard', 'documents', 'document', 'review', 'protocol', 'gold', 'gold-detail', 'registry', 'scenario', 'exercises', 'exercise', 'costs', 'accounts'];
 let lands = [], busy = false, queuedRoute = false;
-let current = {documentId: null, goldId: null, scenario: null};
+let current = {documentId: null, goldId: null, scenario: null, exercise: null};
 let documentPollTimer = null, documentRequestVersion = 0;
 
 const node = (tag, text, className) => { const element = document.createElement(tag); if (text !== undefined) element.textContent = text; if (className) element.className = className; return element; };
@@ -282,6 +282,67 @@ $('review-form').onsubmit = event => { event.preventDefault(); perform(async () 
   await showScenario(id, version);
 }); };
 // ----- costs ---------------------------------------------------------------------------------------
+// ----- language exercises ---------------------------------------------------------------------------------
+const EXERCISE_PAGE = 50;
+const EXERCISE_FILTERS = [['type', 'Tous les types'], ['level', 'Tous les niveaux'], ['category', 'Toutes les catégories'], ['skill', 'Toutes les compétences'], ['status', 'Tous les statuts']];
+const REVIEW_KIND_LABELS = {blind_solver: 'Résolution à l’aveugle', rubric_judge: 'Juge strict', human: 'Personne', learner_report: 'Signalement d’un apprenant'};
+const REVIEW_DECISION_LABELS = {approve: 'Approuvé', reject: 'Rejeté', report: 'Signalé'};
+let exerciseOffset = 0;
+const exerciseLabel = (kind, value) => EXERCISE_LABELS[kind][value] || value;
+function exerciseFilters() { return Object.fromEntries(EXERCISE_FILTERS.map(([kind]) => [kind, $(`exercises-${kind}`).value])); }
+function fillExerciseFilter(kind, allLabel, counts) {
+  const select = $(`exercises-${kind}`), chosen = select.value;
+  const all = document.createElement('option'); all.value = ''; all.textContent = allLabel;
+  const options = Object.entries(EXERCISE_LABELS[kind]).map(([value, label]) => { const option = document.createElement('option'); option.value = value; option.textContent = `${label} (${counts[value] || 0})`; return option; });
+  select.replaceChildren(all, ...options);
+  select.value = chosen;
+}
+async function showExercises() {
+  // A filter changed while the request ran is discarded by perform() (one action at a time) but stays
+  // selected: ask again until the answer shown is the one for what is selected now.
+  let data;
+  for (;;) {
+    const asked = JSON.stringify([exerciseFilters(), exerciseOffset]);
+    data = await client.exercises({...exerciseFilters(), limit: EXERCISE_PAGE, offset: exerciseOffset});
+    if (asked === JSON.stringify([exerciseFilters(), exerciseOffset])) break;
+  }
+  for (const [kind, allLabel] of EXERCISE_FILTERS) fillExerciseFilter(kind, allLabel, data.counts[kind] || {});
+  table($('exercises-table'), ['Type', 'Niveau', 'Catégorie', 'Compétence', 'Énoncé', 'Statut', ''], data.items.map(item => [exerciseLabel('type', item.type), item.level || '—', item.category ? exerciseLabel('category', item.category) : '—', item.skill ? exerciseLabel('skill', item.skill) : '—', item.stem, badge(item.status), button('Ouvrir', () => { location.hash = item.kind === 'medical' ? `#/registry/${item.id}/${item.version}` : `#/exercises/${item.id}`; })]));
+  const first = data.total ? data.offset + 1 : 0, last = data.offset + data.items.length;
+  $('exercises-total').textContent = `${data.total} exercice(s) correspondent aux filtres${data.total ? ` (affichés : ${first} à ${last})` : ''}.`;
+  $('exercises-empty').hidden = data.total > 0;
+  $('exercises-prev').disabled = data.offset <= 0;
+  $('exercises-next').disabled = last >= data.total;
+  view('exercises');
+}
+for (const [kind] of EXERCISE_FILTERS) $(`exercises-${kind}`).onchange = () => { exerciseOffset = 0; perform(showExercises); };
+$('exercises-reset').onclick = () => { for (const [kind] of EXERCISE_FILTERS) $(`exercises-${kind}`).value = ''; exerciseOffset = 0; perform(showExercises); };
+$('exercises-prev').onclick = () => { exerciseOffset = Math.max(0, exerciseOffset - EXERCISE_PAGE); perform(showExercises); };
+$('exercises-next').onclick = () => { exerciseOffset += EXERCISE_PAGE; perform(showExercises); };
+async function showExercise(id) {
+  const item = await client.exercise(id);
+  current.exercise = item.id;
+  $('exercise-eyebrow').textContent = `${item.level} · ${exerciseLabel('category', item.category)} · ${exerciseLabel('skill', item.skill)} · ${exerciseLabel('type', item.type)}`;
+  $('exercise-title').textContent = item.id;
+  $('exercise-meta').textContent = `Décor : ${item.setting} · lot ${item.batch_id} · ajouté le ${formatDate(item.created_at)}${item.status === 'withdrawn' ? ` · RETIRÉ : ${item.withdrawn_reason}` : ''}`;
+  $('exercise-context').textContent = item.context_fr;
+  $('exercise-instruction').textContent = item.instruction_fr;
+  $('exercise-stem').replaceChildren(node('strong', item.stem));
+  $('exercise-options').replaceChildren(...item.options.map((text, index) => node('li', index === item.answer_index ? `${text}  ← réponse attendue` : text, index === item.answer_index ? 'ok' : '')));
+  $('exercise-correct').textContent = `Phrase correcte : ${item.correct_sentence}`;
+  $('exercise-explanation').textContent = item.explanation_fr;
+  table($('exercise-reviews'), ['Quand', 'Étape', 'Par', 'Décision', 'Détail'], item.reviews.map(r => [formatDate(r.created_at), REVIEW_KIND_LABELS[r.kind] || r.kind, r.name, REVIEW_DECISION_LABELS[r.decision] || r.decision, JSON.stringify(r.payload).slice(0, 300)]));
+  $('exercise-provenance').textContent = JSON.stringify(item.provenance, null, 2);
+  $('exercise-withdraw').hidden = !(client.has('owner') && item.status === 'active');
+  $('exercise-withdraw-reason').value = '';
+  view('exercise');
+}
+$('exercise-withdraw-form').onsubmit = event => { event.preventDefault(); perform(async () => {
+  const reason = $('exercise-withdraw-reason').value.trim();
+  if (reason.length < 3) throw new Error('Donnez le motif du retrait (3 caractères au moins).');
+  await client.withdrawExercise(current.exercise, reason);
+  notice('Exercice retiré.'); await showExercise(current.exercise);
+}); };
 const euros = micro => (micro / 1_000_000).toLocaleString('fr-FR', {style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4});
 const UNKNOWN_LABELS = {not_computed: 'appels antérieurs à la grille', pricing: 'grille tarifaire absente', 'usage.tokens': 'jetons non rapportés', 'usage.audio_seconds': 'durée audio non rapportée', 'usage.characters': 'caractères non rapportés'};
 const unknownLabel = reason => UNKNOWN_LABELS[reason] || (reason.startsWith('price:') ? `prix manquant pour ${reason.slice(6)}` : `prix manquant (${reason})`);
@@ -336,12 +397,14 @@ async function route() {
   const protocol = path.match(/^\/protocols\/([A-Za-z0-9_.-]+)$/);
   const document_ = path.match(/^\/documents\/([a-f0-9]{64})$/);
   const gold = path.match(/^\/gold\/([A-Za-z0-9_.-]+)$/);
+  const exercise = path.match(/^\/exercises\/([A-Za-z0-9_.-]+)$/);
   const scenario = path.match(/^\/registry\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/);
   if (protocol) return showProtocol(protocol[1]);
   if (document_) return showDocument(document_[1]);
   if (gold) return showGoldDetail(gold[1]);
   if (scenario) return showScenario(scenario[1], scenario[2]);
-  const routes = {'/': showDashboard, '/documents': showDocuments, '/review': showReview, '/gold': showGold, '/registry': showRegistry, '/costs': showCosts, '/accounts': showAccounts, '/login': showDashboard};
+  if (exercise) return showExercise(exercise[1]);
+  const routes = {'/': showDashboard, '/documents': showDocuments, '/review': showReview, '/gold': showGold, '/registry': showRegistry, '/exercises': showExercises, '/costs': showCosts, '/accounts': showAccounts, '/login': showDashboard};
   return (routes[path] || showDashboard)();
 }
 for (const element of document.querySelectorAll('[data-route]')) element.onclick = () => { location.hash = `#${element.dataset.route}`; };
