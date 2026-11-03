@@ -527,12 +527,18 @@ async function renderHomeDashboard(program) {
   try { overview = await lexicon.overview(); } catch { overview = null; }
   try { progression = await client.api('/api/progression'); } catch { progression = null; }
   const axes = progression?.axes;
-  const due = overview?.due_count ?? 0;
+  const activeDue = overview?.due_count ?? 0;
+  const maintenanceDue = overview?.maintenance_due_count ?? 0;
+  const due = activeDue + maintenanceDue;
   const active = overview?.active_count ?? 0;
   $('kpi-lexicon').replaceChildren(document.createTextNode(String(due)), (() => { const s = node('small', due ? 'à revoir' : 'à jour'); return s; })());
-  $('kpi-lexicon-note').textContent = active ? `${active} dans « À travailler »` : 'Ouvrez le lexique après une consultation';
-  const sessions = axes?.sessions_completed ?? historyItems.length;
-  const examCount = historyItems.filter(item => item.mode === 'exam').length;
+  $('kpi-lexicon-note').textContent = due
+    ? [activeDue ? `${activeDue} actives` : '', maintenanceDue ? `${maintenanceDue} en entretien` : '', active ? `${active} dans « À travailler »` : ''].filter(Boolean).join(' · ')
+    : (active ? `${active} dans « À travailler »` : 'Ouvrez le lexique après une consultation');
+  // Same population as axes.sessions_completed: completed, evaluated voice sessions only.
+  const completedVoice = historyItems.filter(item => item.kind === 'voice' && item.status === 'completed' && item.has_feedback);
+  const sessions = axes?.sessions_completed ?? completedVoice.length;
+  const examCount = completedVoice.filter(item => item.mode === 'exam').length;
   $('kpi-sessions').replaceChildren(document.createTextNode(String(sessions)), (() => { const s = node('small', 'réalisées'); return s; })());
   $('kpi-sessions-note').textContent = examCount ? `dont ${examCount} en mode Examen` : 'Entraînement et Examen confondus';
   const weeks = axes?.regularity?.weeks || [];
