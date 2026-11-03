@@ -1,0 +1,40 @@
+/* ARI shared design tokens — landing (inline), app, voice, login, back-office. */
+:root{
+  --bg:#fff;
+  --bg-soft:#fafafa;
+  --bg-sunk:#f4f4f3;
+  --line:#e8e8e6;
+  --line-strong:#d4d4d2;
+  --fg:#0a0a0a;
+  --fg-muted:#6b6b6b;
+  --fg-faint:#9a9a98;
+  --accent:#0070d5;
+  --accent-soft:#e8f3ff;
+  --accent-line:#abd1ff;
+  --violet:#9f4bff;
+  --violet-soft:#f4ecff;
+  --good:#269e5f;
+  --good-soft:#e9f6ef;
+  --warn:#dc932e;
+  --warn-soft:#fdf3e4;
+  --danger:#c2410c;
+  --danger-soft:#fdf0f0;
+  --radius-sm:4px;
+  --radius:6px;
+  --radius-lg:10px;
+  --container:1200px;
+  --font-sans:"Geist",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --shadow:0 1px 0 rgba(0,0,0,.02),0 12px 40px -20px rgba(10,30,60,.16);
+  /* Aliases kept for existing class rules that still reference the Continuité names. */
+  --ink:var(--fg);
+  --muted:var(--fg-muted);
+  --faint:var(--fg-faint);
+  --surface:var(--bg);
+  --soft:var(--accent-soft);
+  --green:var(--good);
+  --greenbg:var(--good-soft);
+  --warnbg:var(--warn-soft);
+  --accent-strong:#005bb0;
+  --paper:var(--bg-soft);
+}

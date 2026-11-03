@@ -1,20 +1,53 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f5f2"><title>ARI — Votre pratique</title><link rel="preload" href="/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/fonts.css?v=20261025e"><link rel="stylesheet" href="/practice.css?v=20261025e"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>ARI — Votre pratique</title>
+<link rel="preload" href="/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/fonts.css?v=20261103f">
+<link rel="stylesheet" href="/practice.css?v=20261103f">
+</head>
 <body>
-<a class="skip" href="#main">Aller au contenu</a>
+<a class="skip" href="#main" data-i18n="skip">Aller au contenu</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="logo-pouls" viewBox="0 0 32 32"><path d="M3.6 16.2h5.6l2.1-5.8 3.3 11.4 2.4-5.6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="19.4" y="12.7" width="2.2" height="7" rx="1.1" fill="currentColor"/><rect x="22.4" y="9.7" width="2.2" height="13" rx="1.1" fill="currentColor"/><rect x="25.4" y="11.7" width="2.2" height="9" rx="1.1" fill="currentColor"/></symbol></defs></svg>
+<div class="app-shell">
 <aside class="sidebar">
-  <a class="brand" href="#home"><span class="brandmark" aria-hidden="true">A</span><span>ARI<small>Allemand médical</small></span></a>
+  <a class="brand" href="#home"><svg><use href="#logo-pouls"/></svg><span>ARI<small data-i18n="brand_sub">Allemand médical</small></span></a>
   <nav aria-label="Navigation principale">
-    <a href="#home" data-view="home">Accueil</a>
-    <a href="#cases" data-view="cases">Cas</a>
-    <a href="#exam" data-view="exam">Examen</a>
-    <a href="#progress" data-view="progress">Progression</a>
-    <a href="#vocab" data-view="vocab">Carnet</a>
-    <a href="#history" data-view="history">Historique</a>
+    <a href="#home" data-view="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav_home">Aujourd'hui</span></a>
+    <a href="#cases" data-view="cases"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span data-i18n="nav_cases">Consultation</span></a>
+    <a href="#history" data-view="history"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg><span data-i18n="nav_history">Bilan</span></a>
+    <a href="#vocab" data-view="vocab"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="13" height="16" rx="2"/><path d="M8 4v16M20 7v13"/></svg><span data-i18n="nav_vocab">Lexique</span></a>
+    <div class="nlabel" data-i18n="nav_suivi">Suivi</div>
+    <a href="#progress" data-view="progress"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span data-i18n="nav_progress">Progression</span></a>
+    <a href="#programme" data-view="programme"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span data-i18n="nav_programme">Programme</span></a>
+    <div class="nlabel" data-i18n="nav_pratique">Pratique</div>
+    <a href="#exam" data-view="exam"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-i18n="nav_exam">Examen</span></a>
   </nav>
-  <p class="sidefoot">Votre pratique, un jour à la fois.<br>Un entraînement, pas une certification.</p>
+  <div class="sidefoot">
+    <div class="k">FSP · préparation</div>
+    <div class="v"><span id="sidefoot-days">—</span> jours</div>
+    <div class="s" id="sidefoot-note">Examen prévu le <span class="ph">[date à saisir]</span>.</div>
+  </div>
+  <div class="side-user" id="side-user" hidden>
+    <div class="av" id="side-av">·</div>
+    <div><div class="n" id="side-name"></div><div class="e" id="side-level"></div></div>
+  </div>
 </aside>
+<div class="main-col">
+  <div class="sec-aura" aria-hidden="true" id="aura" style="--h1:65;--h2:40;--x1:58%;--y1:-22%;--x2:-14%;--y2:46%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+  <header class="topbar">
+    <div class="crumb">ARI / <b id="crumb-view" data-view="home">Aujourd'hui</b></div>
+    <div class="sp"></div>
+    <div class="lang-switch" role="group" aria-label="Langue">
+      <button type="button" data-lang="fr" class="on" aria-pressed="true">FR</button>
+      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      <button type="button" data-lang="de" aria-pressed="false">DE</button>
+    </div>
+    <button type="button" class="primary top-cta" id="top-resume" data-view="cases"><span data-i18n="resume">Reprendre la séance</span> →</button>
+  </header>
 <main id="main">
   <div class="topline"><a href="#home">ARI</a><span id="today-label"></span></div>
   <p id="notice" role="status" aria-live="polite"></p>
@@ -43,10 +76,53 @@
     </form>
   </section>
   <section id="home" hidden>
-    <article id="recommendation" class="hero card"></article>
-    <article id="week-plan" class="card week-card" aria-labelledby="week-title"><div class="row between"><div><h2 id="week-title">Cette semaine</h2><p id="week-phase" class="help"></p></div><span id="week-budget" class="help"></span></div><div id="week-days" class="week-strip" role="list"></div><p id="week-joined" class="help" hidden>Les jours d’avant votre inscription ne comptent pas.</p><div id="week-day-detail" class="week-day-detail"></div><details class="week-more"><summary>Pourquoi ce programme ?</summary><p id="week-message"></p><p id="week-limitations" class="help"></p></details></article>
+    <div class="head home-head"><div><div class="eyebrow" id="home-eyebrow"><span class="d"></span><span id="home-eyebrow-text">Aujourd’hui</span></div><h1 id="home-title">Bonjour.</h1><p class="sub" id="home-sub"></p></div></div>
+    <div class="kpis" id="home-kpis" aria-label="Indicateurs du jour">
+      <div class="card kpi"><div class="k">Série en cours</div><div class="v" id="kpi-streak">—</div><div class="streak" id="kpi-streak-bar" aria-hidden="true"></div></div>
+      <div class="card kpi"><div class="k">Cartes à revoir</div><div class="v" id="kpi-lexicon">—</div><div class="s" id="kpi-lexicon-note"></div></div>
+      <div class="card kpi"><div class="k">Consultations</div><div class="v" id="kpi-sessions">—</div><div class="s" id="kpi-sessions-note"></div></div>
+      <div class="card kpi"><div class="k">Seuil de réussite</div><div class="v"><span class="ph">[x/y]</span></div><div class="s">Seuil FSP <span class="ph">[à définir]</span></div></div>
+    </div>
+    <div class="grid g-dash">
+      <div class="card plan-card">
+        <div class="card-h"><h2>Plan de la séance</h2><span class="tag a" id="plan-count"></span><div class="sp"></div><span class="mono plan-time" id="plan-window"></span></div>
+        <div class="tl" id="session-plan"></div>
+        <article id="recommendation" class="hero card recommend"></article>
+      </div>
+      <div class="grid dash-side">
+        <div class="card hero-card" id="fsp-card">
+          <div class="card-h"><h2>Compte à rebours FSP</h2><div class="sp"></div><span class="tag v" id="fsp-tag">Préparation</span></div>
+          <div class="cd" id="fsp-cd">
+            <div><b id="fsp-days">—</b><span>JOURS</span></div>
+            <div><b id="fsp-weeks">—</b><span>SEMAINES</span></div>
+            <div><b id="fsp-slots">—</b><span>CRÉNEAUX SEMAINE</span></div>
+          </div>
+          <div class="pt" id="fsp-next" hidden>
+            <div class="ic" id="fsp-next-ic">·</div>
+            <div class="pt-body"><div class="pt-title" id="fsp-next-title"></div><div class="pt-quote" id="fsp-next-quote" lang="de"></div></div>
+            <span class="tag a" id="fsp-next-tag"></span>
+          </div>
+          <p class="note" id="fsp-note">Indiquez une date d’examen dans votre profil pour activer le compte à rebours. Aucune statistique inventée.</p>
+        </div>
+        <div class="card">
+          <div class="card-h"><h2>Vos axes</h2><div class="sp"></div><a class="linkish" href="#progress" data-view="progress">Détail →</a></div>
+          <div class="axes" id="home-axes"></div>
+          <div class="note">Valeurs issues de votre progression. Seuil de réussite <span class="ph">[à définir]</span> — aucun marqueur affiché tant qu’il n’est pas fixé.</div>
+        </div>
+      </div>
+    </div>
+    <article id="week-plan" class="card week-card" aria-labelledby="week-title"><div class="row between"><div><h2 id="week-title">Cette semaine</h2><p id="week-phase" class="help"></p></div><div class="row wrap"><span id="week-budget" class="help"></span><a class="linkish" href="#programme" data-view="programme">Programme →</a></div></div><div id="week-days" class="week-strip" role="list"></div><p id="week-joined" class="help" hidden>Les jours d’avant votre inscription ne comptent pas.</p><div id="week-day-detail" class="week-day-detail"></div><details class="week-more"><summary>Pourquoi ce programme ?</summary><p id="week-message"></p><p id="week-limitations" class="help"></p></details></article>
     <div class="grid"><article class="quiet-card"><h2>Une autre conversation ?</h2><p>Retrouvez les cas et exercices disponibles.</p><button data-view="cases">Explorer la bibliothèque →</button></article><article class="quiet-card"><h2>Votre parcours</h2><p id="profile-goal"></p><p id="local-profile-summary" class="help"></p><div class="row wrap"><button id="placement-cta" data-view="placement">Passer le test de niveau</button><button id="edit-profile">Modifier mes préférences</button><button id="logout">Se déconnecter</button></div></article></div>
     <details class="card profile-settings"><summary>Mon objectif CECRL</summary><form id="goal-form"><label for="goal-target">Objectif personnel ARI</label><select id="goal-target"><option>B2</option><option>C1</option></select><button>Enregistrer l’objectif</button></form></details>
+  </section>
+  <section id="programme" hidden>
+    <div class="head"><div><div class="eyebrow"><span class="d"></span><span>Programme</span></div><h1>Cette semaine.</h1><p class="sub" id="programme-sub">Le programme s’ajuste après chaque bilan.</p></div><div class="sp"></div><button type="button" class="secondary" data-view="home">← Aujourd’hui</button></div>
+    <div class="phase" id="programme-phase" aria-label="Phases du parcours"></div>
+    <div class="week" id="programme-week"></div>
+    <p class="note">Durée du programme et répartition indicatives <span class="ph">[à définir]</span>. Les créneaux ci-dessous viennent de votre programme réel.</p>
+    <article class="card week-card" aria-labelledby="programme-week-title" hidden>
+      <h2 id="programme-week-title" class="sr-only">Détail hebdomadaire</h2>
+    </article>
   </section>
   <section id="placement" hidden>
     <div class="pagehead"><p class="eyebrow">Test de niveau</p><h1 id="placement-title">Où en est votre allemand ?</h1><p id="placement-description"></p></div>
@@ -76,7 +152,7 @@
   <section id="warmup" hidden><div class="steps">Échauffement <span>—</span> Consultation <span>—</span> Feedback</div><div class="pagehead"><h1>Préparez votre échange.</h1><p id="warmup-copy"></p></div><article class="card flashcard"><span class="eyebrow">Avant de commencer</span><h2 id="warmup-title" lang="de"></h2><p>Installez-vous au calme et prenez le temps de lire les consignes.</p><p class="help">Les formulations liées au cas sont disponibles pendant l’entraînement via l’aide de la session. Aucune aide n’est affichée en Examen.</p></article><div class="form-actions between"><button data-view="cases">Retour aux cas</button><button id="warmup-start" class="primary">Commencer la session →</button></div></section>
   <section id="cases" hidden><div class="pagehead"><p class="eyebrow">Bibliothèque</p><h1>Une conversation<br>à votre portée.</h1><p>Choisissez parmi les contenus réellement disponibles.</p><p id="land-summary" class="help"></p></div><div class="form-grid"><div><label for="case-search">Rechercher un cas ou un exercice</label><input id="case-search" type="search" placeholder="Rechercher un titre…"></div><div><label for="case-filter">Type de pratique</label><select id="case-filter"><option value="all">Tous</option><option value="voice">Consultation vocale</option><option value="arzt_arzt">Arzt–Arzt</option><option value="fachbegriffe">Fachbegriffe</option></select></div><div><label for="case-land">Land</label><select id="case-land"><option value="">Tous les Länder</option></select></div></div><fieldset class="mode"><legend>Votre mode</legend><label><input type="radio" name="mode" value="training" checked> Entraînement · avec aide</label><label><input type="radio" name="mode" value="exam"> Examen · retour à la fin</label></fieldset><div id="voice-cases" class="grid"></div><div id="catalog" class="grid"></div><p id="catalog-empty" class="availability" hidden>Aucun contenu ne correspond à votre recherche.</p></section>
   <section id="exam" hidden><div class="pagehead"><p class="eyebrow">Examen · retour différé</p><h1>Un espace calme.<br>Votre allemand, seul.</h1><p>Sans aide, sous-titres ni correction pendant l’exercice. Ce mode d’entraînement ne constitue pas un examen officiel.</p><p id="exam-usage" class="help" hidden></p></div><div id="exam-quota" class="availability" role="status" hidden></div><div id="exam-cases" class="grid"></div></section>
-  <section id="vocab" hidden><div class="pagehead"><p class="eyebrow">Carnet</p><h1>Les mots à garder.</h1><p id="vocab-summary">Votre carnet se remplit à chaque session : mots manqués, termes du cas non utilisés, passages dans une autre langue.</p></div>
+  <section id="vocab" hidden><div class="pagehead"><p class="eyebrow">Lexique</p><h1>Les mots à garder.</h1><p id="vocab-summary">Votre carnet se remplit à chaque session : mots manqués, termes du cas non utilisés, passages dans une autre langue.</p></div>
     <article id="vocab-review" class="card flashcard" hidden><p class="eyebrow" id="review-progress"></p><p id="review-source" class="badge"></p><h2 id="review-front"></h2><p id="review-example" class="muted" lang="de" hidden></p><form id="review-form" novalidate><label for="review-input">Comment le dit-on en allemand ?</label><input id="review-input" lang="de" autocomplete="off" maxlength="80"><div class="form-actions"><button type="button" id="review-reveal">Voir la réponse</button><button class="primary" id="review-check">Vérifier</button></div></form><div id="review-back" hidden><h3 id="review-answer" lang="de"></h3><p id="review-verdict" class="help"></p><div id="review-ratings" class="row wrap"></div></div></article>
     <p id="vocab-empty" class="availability" hidden>Rien à revoir aujourd’hui. Terminez une session vocale ou ajoutez un mot ci-dessous.</p>
     <div class="row between wrap vocab-toolbar"><div class="tabs" role="tablist"><button type="button" id="tab-active" class="tab" role="tab" aria-selected="true" data-zone="active">À travailler</button><button type="button" id="tab-acquired" class="tab" role="tab" aria-selected="false" data-zone="acquired">Acquis</button></div><div class="row wrap"><label for="vocab-search" class="sr-only">Rechercher un mot</label><input id="vocab-search" type="search" placeholder="Rechercher…"><label for="vocab-source" class="sr-only">Filtrer par origine</label><select id="vocab-source"><option value="all">Toutes origines</option><option value="evaluation_candidate">Repéré dans un feedback</option><option value="terminology_unused">Terme du cas non utilisé</option><option value="code_switch">Dit dans une autre langue</option><option value="manual">Ajouté par vous</option></select></div></div>
@@ -86,14 +162,14 @@
     <p id="vocab-limitations" class="help"></p>
     <div id="vocab-list"></div></section>
   <section id="exercise" hidden><div class="row between"><button data-view="cases">← Retour aux cas</button><p id="exercise-meta" class="eyebrow"></p></div><h1 id="exercise-title"></h1><p id="exercise-warning" class="availability"></p><div id="exercise-context" class="card"></div><div id="answer-history"></div><div id="training-feedback" class="card" hidden></div><form id="answer-form" class="card"><p id="question-step" class="eyebrow"></p><h2 id="question" lang="de"></h2><p id="coaching"></p><label for="answer">Votre réponse en allemand</label><textarea id="answer" lang="de" required maxlength="8000" rows="4"></textarea><button class="primary">Envoyer ma réponse</button></form><div class="row wrap"><button id="pause">Mettre en pause</button><button id="resume" hidden>Reprendre</button><button id="finish">Terminer et voir le feedback</button></div><p id="finish-note" class="help"></p><div id="feedback"></div></section>
-  <section id="history" hidden><div class="pagehead"><p class="eyebrow">Vos sessions</p><h1>Retrouver un échange.</h1></div><div id="history-list"></div></section>
+  <section id="history" hidden><div class="pagehead"><p class="eyebrow">Bilan</p><h1>Retrouver un échange.</h1></div><div id="history-list"></div></section>
   <section id="progress" hidden><div class="pagehead"><p class="eyebrow">Progression</p><h1>Observez votre pratique.</h1><p id="progress-note"></p></div>
     <div id="progress-tiles" class="tiles axes" role="list"></div>
     <div class="grid">
       <article class="card axis" id="axis-structure"><h2>Structure de l’anamnèse</h2><p class="help">Couverture de chaque section, session par session. Plus la case est foncée, plus la section a été couverte.</p><div class="heatmap-wrap" role="region" tabindex="0" aria-label="Couverture des sections par session (défilement horizontal)"><table class="heatmap" id="heatmap"></table></div><p id="axis-structure-note" class="help"></p></article>
       <article class="card axis" id="axis-communication"><h2>Moments sensibles</h2><p class="help">Votre réaction quand le patient révèle quelque chose de difficile.</p><div id="empathy-timeline" class="timeline"></div><p id="axis-communication-note" class="help"></p></article>
       <article class="card axis" id="axis-language"><h2>Erreurs qui reviennent</h2><p class="help">Catégories d’erreurs sur vos cinq dernières sessions, comparées aux cinq précédentes.</p><div id="error-bars" class="bars"></div><div id="error-examples"></div></article>
-      <article class="card axis" id="axis-lexicon"><h2>Carnet</h2><div id="lexicon-axis" class="kpis"></div><button data-view="vocab">Ouvrir mon carnet →</button></article>
+      <article class="card axis" id="axis-lexicon"><h2>Lexique</h2><div id="lexicon-axis" class="kpis"></div><button data-view="vocab">Ouvrir mon lexique →</button></article>
       <article class="card axis" id="axis-level"><h2>Niveau estimé</h2><p class="help">Tests de niveau passés. Une estimation, jamais un certificat.</p><div id="level-history"></div><button data-view="placement">Refaire le test →</button></article>
       <article class="card axis" id="axis-regularity"><h2>Rythme</h2><p class="help">Sessions et minutes vocales par semaine, quatre dernières semaines.</p><div id="week-bars" class="bars"></div></article>
     </div>
@@ -101,6 +177,9 @@
     <details class="card" open><summary>Détails par contenu et par version</summary><p id="progress-series-note" class="help"></p><button data-view="history">Voir tout mon historique →</button><div id="progress-list"></div></details>
   </section>
 </main>
-<nav class="bottomnav" aria-label="Navigation mobile"><a href="#home" data-view="home">Accueil</a><a href="#cases" data-view="cases">Cas</a><a href="#exam" data-view="exam">Examen</a><a href="#progress" data-view="progress">Progrès</a><a href="#vocab" data-view="vocab">Carnet</a><a href="#history" data-view="history">Historique</a></nav>
-<script type="module" src="/practice-ui.mjs?v=20261102a"></script>
-</body></html>
+</div>
+</div>
+<nav class="bottomnav" aria-label="Navigation mobile"><a href="#home" data-view="home" data-i18n="nav_home">Aujourd'hui</a><a href="#cases" data-view="cases" data-i18n="nav_cases">Consultation</a><a href="#exam" data-view="exam" data-i18n="nav_exam">Examen</a><a href="#progress" data-view="progress" data-i18n="nav_progress">Progression</a><a href="#vocab" data-view="vocab" data-i18n="nav_vocab">Lexique</a><a href="#history" data-view="history" data-i18n="nav_history">Bilan</a></nav>
+<script type="module" src="/practice-ui.mjs?v=20261103f"></script>
+</body>
+</html>
