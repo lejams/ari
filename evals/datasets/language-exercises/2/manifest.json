@@ -50,8 +50,8 @@
     ]
   },
   "files": {
-    "dev.jsonl": "8851c9534122051944a7e095bf91350a31e110cd3ade6c56cf99140422af878a",
-    "holdout.jsonl": "6fe8358a18a38512883044cafde3823fac3363b6a15e261e4764ab9a15824ca3"
+    "dev.jsonl": "5a41abe15149308fc931ac60a09d6354590febd998d0c4e91ea49d3d09b66591",
+    "holdout.jsonl": "9aee594bcb6573ccb89231b6fcb0aa07addb779b23689ddb16c2be0f90716ca8"
   },
   "limitations": [
     "L'allemand a été écrit par l'agent et n'a pas été relu par une personne germanophone : une base peut elle-même être discutable, et un item « valide » refusé est à regarder avant de conclure que le contrôle se trompe (c'est ce qui a motivé cette version).",
