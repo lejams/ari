@@ -505,19 +505,20 @@ class PlacementService:
             raise NotFoundError("Item d'écoute indisponible")
         placement_set = self._pinned_set(attempt)
         item = self._listening(placement_set, item_id)
-        key = (placement_set.content_hash, item_id)
-        cached = self._audio_cache.get(key)
-        if cached is not None:
-            return cached
-        # Recorded once for this exact set; synthesised on demand only when none is stored.
+        # A recording made for this exact set always wins and is read each time, so a recording
+        # made while the server runs (or a newer voice) is played at once, by every worker; only
+        # the on-demand synthesis is kept in memory.
         recorded = (
             self._audio_store.get(placement_set.content_hash, item_id)
             if self._audio_store is not None
             else None
         )
         if recorded is not None and recorded.sample_rate == self._sample_rate:
-            self._audio_cache[key] = recorded.pcm16
             return recorded.pcm16
+        key = (placement_set.content_hash, item_id)
+        cached = self._audio_cache.get(key)
+        if cached is not None:
+            return cached
         context = ExecutionContext(
             session_id=attempt.id,
             operation="placement_tts",

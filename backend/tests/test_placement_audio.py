@@ -122,6 +122,35 @@ def test_an_item_without_a_recording_is_still_synthesised_on_demand(
         assert response.status_code == 200 and len(voice.spoken) == 1
 
 
+def test_a_recording_made_while_the_server_runs_is_played_at_once(v2_container: Container) -> None:
+    placement_set = german_bundle().sets[0]
+    voice = CountingTTS()
+    v2_container.placement._tts = voice
+    store = SqlPlacementAudioStore(v2_container.repository.engine)
+    with TestClient(create_app(v2_container)) as client:
+        attempt = _to_listening(client)
+        item = attempt["current_item"]
+        url = f"/api/placement/attempts/{attempt['id']}/items/{item['id']}/audio"
+        assert _frames(client.get(url).content) != TONE and len(voice.spoken) == 1
+        store.put(
+            placement_set.id,
+            placement_set.version,
+            placement_set.content_hash,
+            item["id"],
+            _stored(),
+        )
+        assert _frames(client.get(url).content) == TONE  # no restart, no redeployment
+        store.put(
+            placement_set.id,
+            placement_set.version,
+            placement_set.content_hash,
+            item["id"],
+            StoredAudio(b"\x02\x00" * 4800, 24_000, "elevenlabs:newer", "eleven_v4_turbo"),
+        )
+        assert _frames(client.get(url).content) == b"\x02\x00" * 4800  # the latest voice
+        assert len(voice.spoken) == 1
+
+
 def test_a_recording_at_another_sample_rate_is_not_played(v2_container: Container) -> None:
     placement_set = german_bundle().sets[0]
     voice = CountingTTS()
