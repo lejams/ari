@@ -527,26 +527,37 @@ async function renderHomeDashboard(program) {
   try { overview = await lexicon.overview(); } catch { overview = null; }
   try { progression = await client.api('/api/progression'); } catch { progression = null; }
   const axes = progression?.axes;
-  const activeDue = overview?.due_count ?? 0;
-  const maintenanceDue = overview?.maintenance_due_count ?? 0;
-  const due = activeDue + maintenanceDue;
-  const active = overview?.active_count ?? 0;
-  $('kpi-lexicon').replaceChildren(document.createTextNode(String(due)), (() => { const s = node('small', due ? 'à revoir' : 'à jour'); return s; })());
-  $('kpi-lexicon-note').textContent = due
-    ? [activeDue ? `${activeDue} actives` : '', maintenanceDue ? `${maintenanceDue} en entretien` : '', active ? `${active} dans « À travailler »` : ''].filter(Boolean).join(' · ')
-    : (active ? `${active} dans « À travailler »` : 'Ouvrez le lexique après une consultation');
+  if (!overview) {
+    $('kpi-lexicon').replaceChildren(document.createTextNode('—'), (() => { const s = node('small', 'indisponible'); return s; })());
+    $('kpi-lexicon-note').textContent = 'Le carnet n’a pas pu être chargé. Réessayez.';
+  } else {
+    const activeDue = overview.due_count ?? 0;
+    const maintenanceDue = overview.maintenance_due_count ?? 0;
+    const due = activeDue + maintenanceDue;
+    const active = overview.active_count ?? 0;
+    $('kpi-lexicon').replaceChildren(document.createTextNode(String(due)), (() => { const s = node('small', due ? 'à revoir' : 'à jour'); return s; })());
+    $('kpi-lexicon-note').textContent = due
+      ? [activeDue ? `${activeDue} actives` : '', maintenanceDue ? `${maintenanceDue} en entretien` : '', active ? `${active} dans « À travailler »` : ''].filter(Boolean).join(' · ')
+      : (active ? `${active} dans « À travailler »` : 'Ouvrez le lexique après une consultation');
+  }
   // Same population as axes.sessions_completed: completed, evaluated voice sessions only.
   const completedVoice = historyItems.filter(item => item.kind === 'voice' && item.status === 'completed' && item.has_feedback);
-  const sessions = axes?.sessions_completed ?? completedVoice.length;
-  const examCount = completedVoice.filter(item => item.mode === 'exam').length;
-  $('kpi-sessions').replaceChildren(document.createTextNode(String(sessions)), (() => { const s = node('small', 'réalisées'); return s; })());
-  $('kpi-sessions-note').textContent = examCount ? `dont ${examCount} en mode Examen` : 'Entraînement et Examen confondus';
-  const weeks = axes?.regularity?.weeks || [];
-  const streakWeeks = [...weeks].reverse().findIndex(w => !(w.voice_sessions || w.practice_runs));
-  const streak = streakWeeks === -1 ? weeks.length : streakWeeks;
-  $('kpi-streak').replaceChildren(document.createTextNode(String(streak || '—')), (() => { const s = node('small', streak ? 'sem. actives' : 'pas encore'); return s; })());
-  const bar = $('kpi-streak-bar');
-  bar.replaceChildren(...Array.from({ length: 7 }, (_, i) => node('i', undefined, i < Math.min(7, streak) ? (i === Math.min(6, streak - 1) ? 'on today' : 'on') : '')));
+  if (!axes) {
+    $('kpi-sessions').replaceChildren(document.createTextNode('—'), (() => { const s = node('small', 'indisponible'); return s; })());
+    $('kpi-sessions-note').textContent = 'La progression n’a pas pu être chargée. Réessayez.';
+    $('kpi-streak').replaceChildren(document.createTextNode('—'), (() => { const s = node('small', 'indisponible'); return s; })());
+    $('kpi-streak-bar').replaceChildren(...Array.from({ length: 7 }, () => node('i', undefined, '')));
+  } else {
+    const sessions = axes.sessions_completed ?? completedVoice.length;
+    const examCount = completedVoice.filter(item => item.mode === 'exam').length;
+    $('kpi-sessions').replaceChildren(document.createTextNode(String(sessions)), (() => { const s = node('small', 'réalisées'); return s; })());
+    $('kpi-sessions-note').textContent = examCount ? `dont ${examCount} en mode Examen` : 'Entraînement et Examen confondus';
+    const weeks = axes.regularity?.weeks || [];
+    const streakWeeks = [...weeks].reverse().findIndex(w => !(w.voice_sessions || w.practice_runs));
+    const streak = streakWeeks === -1 ? weeks.length : streakWeeks;
+    $('kpi-streak').replaceChildren(document.createTextNode(String(streak || '—')), (() => { const s = node('small', streak ? 'sem. actives' : 'pas encore'); return s; })());
+    $('kpi-streak-bar').replaceChildren(...Array.from({ length: 7 }, (_, i) => node('i', undefined, i < Math.min(7, streak) ? (i === Math.min(6, streak - 1) ? 'on today' : 'on') : '')));
+  }
   renderHomeAxes(axes);
 }
 function renderProgramme(program) {
