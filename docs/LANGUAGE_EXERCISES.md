@@ -131,8 +131,19 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   fausse, mauvaise catégorie, mauvais niveau, options en double, format cassé) plus 4 exercices au décor
   médical absurde ; 70 items en dev, 69 en holdout, familles disjointes. Le scorer est du code
   déterministe (le seul modèle appelé est celui des contrôles testés).
+- **Version `@2` (3 novembre 2026), suite par défaut.** La première mesure sur de vrais modèles
+  (dev, run 41660638291) a refusé 5 des 8 exercices justes (0,625 contre 0,25 admis). Le diagnostic des
+  refus (`ari.evals diagnose`) attribue presque tous les refus à des défauts
+  réels des exercices justes écrits à la main : niveau mal étiqueté, option ambiguë, contexte
+  insuffisant. Le juge et les seuils ne changent pas ; ce sont les exercices justes du jeu de mesure
+  qui sont réécrits : 14 par jeu au lieu de 8, niveaux B1 à C1 corrigés, familles neuves, **holdout
+  neuf** (celui de `@1` n'a jamais été lancé mais ses refus ont été lus). Constructeur :
+  `evals/datasets/build_language_exercises_v2.py`. `gates-v8` : mêmes seuils, nouveau bloc
+  `language-exercises@2`. Procédure : mesure sur le dev, lecture du diagnostic, puis le holdout une
+  seule fois en mode gate si les refus à tort passent sous 25 %. Toute modification d'un critère de la
+  grille reste une décision du propriétaire.
 - Métrique principale : **taux de fausse acceptation** (`false_accept_rate`), l'exercice défectueux
-  qui passe. Seuils de `gates.yaml` (`gates-v7`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
+  qui passe. Seuils de `gates.yaml` (`gates-v8`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
   (valeur initiale, à recalibrer après la première mesure ; première mesure sur le dev du 3 novembre 2026, run 41660638291 : fausse acceptation 0, contrôles mécaniques 1,0, structure 100 % après retry, mais fausse rejection 0,625, donc gate non passé), contrôles mécaniques 1,0, verdicts
   changeants ≤ 10 %, structure exploitable ≥ 99,5 %. `false_accept` est une erreur critique : une
   seule nouvelle occurrence bloque.

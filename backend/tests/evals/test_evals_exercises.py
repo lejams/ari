@@ -35,6 +35,7 @@ from ari.infrastructure.exercises.models import ExerciseConfigError, load_config
 
 CONFIGS = PROJECT_ROOT / "evals" / "configs" / "exercises"
 BUILDER = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v1.py"
+BUILDER_V2 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v2.py"
 SUITE = "language-exercises@1"
 
 
@@ -47,6 +48,50 @@ def test_the_committed_dataset_is_what_the_builder_makes(tmp_path: Path) -> None
     committed = DATASETS / "language-exercises" / "1"
     for name in ("manifest.json", "dev.jsonl", "holdout.jsonl"):
         assert (tmp_path / name).read_bytes() == (committed / name).read_bytes(), name
+
+
+def test_the_second_version_of_the_dataset_is_what_its_builder_makes(tmp_path: Path) -> None:
+    spec = importlib.util.spec_from_file_location("build_language_exercises_v2", BUILDER_V2)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.build(tmp_path)
+    committed = DATASETS / "language-exercises" / "2"
+    for name in ("manifest.json", "dev.jsonl", "holdout.jsonl"):
+        assert (tmp_path / name).read_bytes() == (committed / name).read_bytes(), name
+
+
+def test_the_second_version_keeps_every_defect_and_has_more_good_exercises_in_new_families() -> (
+    None
+):
+    v1, v2 = load_dataset(DATASETS, "1"), load_dataset(DATASETS, "2")
+    assert v2.ref == "language-exercises@2" and v2.manifest.synthetic
+    families_v1 = {f for split in v1.manifest.splits.values() for f in split}
+    families_v2 = {f for split in v2.manifest.splits.values() for f in split}
+    assert families_v1.isdisjoint(families_v2)  # Nothing of the burned holdout comes back.
+    for split in ("dev", "holdout"):
+        items = v2.read_split(split, gate=True)  # type: ignore[arg-type]
+        assert sum(i.truth.valid for i in items) == 14
+        assert {i.truth.defect for i in items} >= {
+            "wrong_key",
+            "two_correct",
+            "no_correct",
+            "bad_explanation",
+            "wrong_category",
+            "level_mismatch",
+            "medical_absurd",
+        } | MECHANICAL_DEFECTS
+    stems = {
+        i.candidate.stem
+        for split in ("dev", "holdout")
+        for i in v2.read_split(split, gate=True)  # type: ignore[arg-type]
+    }
+    old = {
+        i.candidate.stem
+        for split in ("dev", "holdout")
+        for i in v1.read_split(split, gate=True)  # type: ignore[arg-type]
+    }
+    assert stems.isdisjoint(old)
 
 
 def test_the_dataset_is_split_by_family_and_every_defect_is_present_in_both_splits() -> None:
@@ -93,7 +138,8 @@ def test_the_fake_configuration_runs_the_chain_without_a_key_and_measures_nothin
     out = tmp_path / "report.json"
     assert main(["exercises", "--config", str(CONFIGS / "fake.yaml"), "--out", str(out)]) == 0
     report = read_report(out)
-    assert report.suite == SUITE and report.config.provider == "fake" and not report.gate_mode
+    assert report.suite == "language-exercises@2"  # The default suite is the latest version.
+    assert report.config.provider == "fake" and not report.gate_mode
     assert report.metrics["mechanical_catch_rate"] == 1.0
     assert report.metrics["structured_after_retry"] == 1.0
     assert report.versions.scorer == scorer_version()
@@ -120,10 +166,12 @@ def test_the_production_like_configuration_is_valid_and_its_prompts_exist() -> N
         load_config(PROJECT_ROOT / "evals" / "gates.yaml")
 
 
-def request(provider: Any, *, split: str = "holdout", repetitions: int = 3) -> ExerciseRunRequest:
+def request(
+    provider: Any, *, split: str = "holdout", repetitions: int = 3, version: str = "1"
+) -> ExerciseRunRequest:
     config = live_config()
     return ExerciseRunRequest(
-        dataset=load_dataset(DATASETS, "1"),
+        dataset=load_dataset(DATASETS, version),
         split=split,  # type: ignore[arg-type]
         gate_mode=split == "holdout",
         config=config,
@@ -149,6 +197,16 @@ async def test_a_perfect_checker_passes_the_gate_with_nothing_wrong_accepted() -
     assert report.cost.total_micro_eur is not None and report.cost.total_micro_eur > 0
     # The mechanical defects cost no call: only the other items reach a model.
     assert report.metrics["false_accept_rate.bad_format"] == 0.0
+
+
+async def test_a_perfect_checker_passes_the_gate_on_the_second_version_too() -> None:
+    dataset = load_dataset(DATASETS, "2")
+    solver, judge = oracle_for(dataset, "holdout", strict=True)
+    provider = ScriptedModels(author=lambda r, p: {}, solver=solver, judge=judge)
+    report = await run_exercises(request(provider, version="2"))
+    assert report.suite == "language-exercises@2"
+    assert report.gate is not None and report.gate.status == "passed", report.gate
+    assert report.metrics["false_reject_rate"] == 0.0 and report.critical_errors == []
 
 
 async def test_a_checker_that_accepts_everything_fails_the_gate_with_critical_errors() -> None:
