@@ -107,6 +107,15 @@ class SqlLanguageDrillRepository:
             )
             return self._read(row) if row else None
 
+    def _active(self, learner_id: str) -> LanguageDrill | None:
+        with Session(self.engine) as db:
+            row = db.scalar(
+                select(LanguageDrillRow).where(
+                    LanguageDrillRow.learner_id == learner_id, LanguageDrillRow.status == "active"
+                )
+            )
+            return self._read(row) if row else None
+
     def list(self, learner_id: str) -> tuple[LanguageDrill, ...]:
         with Session(self.engine) as db:
             rows = db.scalars(
@@ -139,7 +148,11 @@ class SqlLanguageDrillRepository:
                     )
                 )
         except IntegrityError:
-            concurrent = self.find_request(drill.learner_id, drill.request_id)
+            # Lost a race: the same request, or another tab that started a drill for this learner
+            # first (one unfinished drill per learner). Either way the winner is the answer.
+            concurrent = self.find_request(drill.learner_id, drill.request_id) or self._active(
+                drill.learner_id
+            )
             if concurrent:
                 return concurrent
             raise

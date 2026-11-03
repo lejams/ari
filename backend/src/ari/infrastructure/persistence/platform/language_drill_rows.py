@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +17,13 @@ class LanguageDrillRow(Base):
         CheckConstraint("status IN ('active','completed')", name="ck_language_drill_status"),
         CheckConstraint(
             "(status = 'completed') = (ended_at IS NOT NULL)", name="ck_language_drill_ended"
+        ),
+        # One unfinished drill per learner, whatever the number of tabs that started one.
+        Index(
+            "uq_language_drill_one_active",
+            "learner_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
         ),
     )
     id: Mapped[str] = mapped_column(String, primary_key=True)

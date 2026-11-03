@@ -10,7 +10,10 @@ class LanguageDrillRepository(Protocol):
 
     def list(self, learner_id: str) -> tuple[LanguageDrill, ...]: ...
 
-    def create(self, drill: LanguageDrill) -> LanguageDrill: ...
+    def create(self, drill: LanguageDrill) -> LanguageDrill:
+        """Stores a new drill; returns the existing one when the request, or an unfinished drill of
+        the same learner, already won (one unfinished drill per learner)."""
+        ...
 
     def append_answer(
         self, drill_id: str, learner_id: str, answer: DrillAnswer

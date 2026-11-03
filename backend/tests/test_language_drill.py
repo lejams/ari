@@ -14,7 +14,9 @@ from ari.api.app import create_app
 from ari.container import Container
 from ari.domain.language_drill import (
     DRILL_ITEMS,
+    DrillAnswer,
     DrillItem,
+    LanguageDrill,
     check_answer,
     drill_candidates,
     item_id,
@@ -317,3 +319,36 @@ def test_a_session_without_any_structured_error_gives_no_drill(database_url: str
     publish_with_simulated_reviews(container.cases.store, synthetic_bundle())
     learner = container.orchestrator.create_learner(CEFRLevel.B1)
     assert container.language_drills.overview(learner.id)["available"] is False
+
+
+def test_two_tabs_cannot_start_two_unfinished_drills(database_url: str) -> None:
+    container = build_test_container(database_url)
+    learner = container.orchestrator.create_learner(CEFRLevel.B1)
+    repository = container.language_drills.repository
+    item = DrillItem(
+        id="i1", session_id="s1", category="case", quote="q", correction="c", note="", turns=(1,)
+    )
+
+    def drill(identifier: str, request_id: str) -> LanguageDrill:
+        return LanguageDrill(
+            id=identifier,
+            learner_id=learner.id,
+            request_id=request_id,
+            focus_category="case",
+            items=(item,),
+        )
+
+    first = repository.create(drill("d1", "tab-1"))
+    # Another tab read an empty list before the first insert: it gets the winner, not a second row.
+    second = repository.create(drill("d2", "tab-2"))
+    assert second.id == first.id == "d1"
+    assert [d.id for d in repository.list(learner.id)] == ["d1"]
+
+    # A finished drill frees the slot for the next one.
+    repository.append_answer(
+        "d1", learner.id, DrillAnswer("e1", "i1", "c", "matched", first.created_at)
+    )
+    repository.finish("d1", learner.id)
+    third = repository.create(drill("d3", "tab-3"))
+    assert third.id == "d3"
+    assert sorted(d.id for d in repository.list(learner.id)) == ["d1", "d3"]
