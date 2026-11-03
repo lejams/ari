@@ -561,9 +561,12 @@ async function renderHomeDashboard(program) {
     $('kpi-sessions').replaceChildren(document.createTextNode(String(sessions)), (() => { const s = node('small', 'réalisées'); return s; })());
     $('kpi-sessions-note').textContent = examCount ? `dont ${examCount} en mode Examen` : 'Entraînement et Examen confondus';
     const weeks = axes.regularity?.weeks || [];
-    const streakWeeks = [...weeks].reverse().findIndex(w => !(w.voice_sessions || w.practice_runs));
-    const streak = streakWeeks === -1 ? weeks.length : streakWeeks;
-    $('kpi-streak').replaceChildren(document.createTextNode(String(streak || '—')), (() => { const s = node('small', streak ? 'sem. actives' : 'pas encore'); return s; })());
+    // regularity.weeks is a fixed trailing window: if every week is active, streak is only a lower bound.
+    const inactiveAt = [...weeks].reverse().findIndex(w => !(w.voice_sessions || w.practice_runs));
+    const truncated = inactiveAt === -1 && weeks.length > 0;
+    const streak = truncated ? weeks.length : Math.max(0, inactiveAt);
+    const streakLabel = streak ? (truncated ? `${streak}+` : String(streak)) : '—';
+    $('kpi-streak').replaceChildren(document.createTextNode(streakLabel), (() => { const s = node('small', streak ? 'sem. actives' : 'pas encore'); return s; })());
     $('kpi-streak-bar').replaceChildren(...Array.from({ length: 7 }, (_, i) => node('i', undefined, i < Math.min(7, streak) ? (i === Math.min(6, streak - 1) ? 'on today' : 'on') : '')));
   }
   renderHomeAxes(axes);
