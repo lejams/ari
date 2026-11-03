@@ -109,12 +109,14 @@ const scenarioReport = {
   reviews: [], markdown: "# Revue locale ARI",
   bundle: {cases: [{id: "FSP-BY-P-cccccccc-000", version: "1", title: "Fall: Thoraxschmerz", location: {land: "Bayern"}, facts: [{id: "a01"}, {id: "a02"}]}], scenarios: [{id: "FSP-BY-P-cccccccc-000-arzt_patient", version: "1", phase: "arzt_patient"}]},
 };
-const exerciseSummary = {id: "lx-1", level: "B1", category: "gender", skill: "grammar", format: "cloze", status: "active", setting: "Notaufnahme", stem: "Der Arzt untersucht ___ Patientin.", batch_id: "b1", created_at: "2026-11-03T10:00:00Z", withdrawn_reason: null};
-const exerciseCounts = {status: {active: 1}, level: {B1: 1}, category: {gender: 1}, skill: {grammar: 1}, format: {cloze: 1}};
+const exerciseSummary = {id: "lx-1", level: "B1", category: "gender", skill: "grammar", kind: "language", version: null, type: "cloze", status: "active", setting: "Notaufnahme", stem: "Der Arzt untersucht ___ Patientin.", batch_id: "b1", created_at: "2026-11-03T10:00:00Z", withdrawn_reason: null};
+const medicalSummary = {id: "FSP-BY-P-cccccccc-000-arzt_patient", kind: "medical", version: "1", type: "arzt_patient", level: null, category: null, skill: null, status: "draft_unvalidated", setting: "Bayern", stem: "Fall: Thoraxschmerz", batch_id: null, created_at: null, withdrawn_reason: null};
+const exerciseCounts = {status: {active: 1, draft_unvalidated: 1}, level: {B1: 1}, category: {gender: 1}, skill: {grammar: 1}, type: {cloze: 1, arzt_patient: 1}};
 const exerciseDetail = {...exerciseSummary, context_fr: "Aux urgences.", instruction_fr: "Choisissez l'article.", options: ["die", "der", "das", "den"], answer_index: 0, correct_sentence: "Der Arzt untersucht die Patientin.", explanation_fr: "Patientin est féminin.", provenance: {author: {model: "gpt-6-luna"}},
   reviews: [{kind: "blind_solver", name: "anthropic:claude-sonnet-5-5@exercise-solver-v1", decision: "approve", payload: {}, created_at: "2026-11-03T10:00:00Z"}]};
 const responses = {
-  "/api/exercises?limit=50": {items: [exerciseSummary], total: 1, limit: 50, offset: 0, counts: exerciseCounts},
+  "/api/exercises?limit=50": {items: [medicalSummary, exerciseSummary], total: 2, limit: 50, offset: 0, counts: exerciseCounts},
+  "/api/exercises?type=arzt_patient&limit=50": {items: [medicalSummary], total: 1, limit: 50, offset: 0, counts: exerciseCounts},
   "/api/exercises?level=B1&limit=50": {items: [exerciseSummary], total: 1, limit: 50, offset: 0, counts: exerciseCounts},
   "/api/exercises/lx-1": exerciseDetail,
   "/api/gold/P-cccccccc-000": gold,
@@ -171,10 +173,17 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
 {
   const {nodes, calls} = await load("#/exercises");
   assert.ok(calls.includes("/api/exercises?limit=50"), "the list opens unfiltered, one page at a time");
-  assert.equal(nodes.get("exercises-table").children.length, 2, "a header row and one exercise");
-  assert.match(nodes.get("exercises-total").textContent, /^1 exercice\(s\) correspondent aux filtres/);
+  assert.equal(nodes.get("exercises-table").children.length, 3, "a header row, a medical scenario and a language exercise");
+  assert.match(nodes.get("exercises-total").textContent, /^2 exercice\(s\) correspondent aux filtres/);
   assert.equal(nodes.get("exercises-empty").hidden, true);
   assert.deepEqual(nodes.get("exercises-level").children.map(o => o.textContent), ["Tous les niveaux", "B1 (1)", "B2 (0)", "C1 (0)"], "each filter shows how many exercises it holds");
+  assert.deepEqual(nodes.get("exercises-type").children.map(o => o.textContent), ["Tous les types", "Langue : texte à trou (1)", "Langue : phrase à corriger (0)", "Langue : choix de registre (0)", "Médical : Arzt–Patient (1)", "Médical : Arzt–Arzt (0)", "Médical : Fachbegriffe (0)"], "one type filter covers both families");
+  const medicalRow = nodes.get("exercises-table").children[1];
+  assert.equal(medicalRow.children[0].textContent, "Médical : Arzt–Patient");
+  assert.equal(medicalRow.children[1].textContent, "—", "a medical scenario has no level");
+  medicalRow.children[6].children[0].listeners.click[0]();
+  assert.equal(location.hash, "#/registry/FSP-BY-P-cccccccc-000-arzt_patient/1", "a medical scenario opens on its registry page");
+  await new Promise(resolve => setTimeout(resolve, 30));
   assert.equal(nodes.get("exercises-prev").disabled, true);
   assert.equal(nodes.get("exercises-next").disabled, true);
   nodes.get("exercises-level").value = "B1";

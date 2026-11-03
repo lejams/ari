@@ -1,8 +1,12 @@
-"""The bank of language exercises in the back-office: read by every account, withdrawn by the owner.
+"""Every exercise in one list, read by every account: language exercises and medical scenarios.
 
-Read only apart from the withdrawal, which is final and leaves a trace in the exercise's reviews.
-Nothing here writes content: an exercise enters the bank through `python -m ari.exercises_cli
-import`, after the checks and a passing gate report (docs/LANGUAGE_EXERCISES.md).
+Two kinds, two mechanisms, one view. A language exercise (cloze, correct_sentence,
+register_choice) is model-written and model-checked, and lives in the exercise bank; the owner can
+withdraw it here, which is final and leaves a trace in its reviews. A medical scenario
+(arzt_patient, arzt_arzt, fachbegriffe) comes from a frozen gold protocol and is reviewed by two
+humans in the registry; the list only points to its registry page, where it is reviewed, published
+and withdrawn. Nothing here writes content: a language exercise enters the bank through
+`python -m ari.exercises_cli import`, after a passing gate report (docs/LANGUAGE_EXERCISES.md).
 """
 
 from __future__ import annotations
@@ -27,23 +31,66 @@ from ari.domain.language_exercises import (
 Owner = Annotated[AccountContext, Depends(require_roles(Role.OWNER))]
 Anyone = Annotated[AccountContext, Depends(current_account)]
 PREVIEW_LENGTH = 120
+LanguageType = ExerciseFormat
+MedicalType = Literal["arzt_patient", "arzt_arzt", "fachbegriffe", "arztbrief"]
+ExerciseType = Literal[
+    "cloze",
+    "correct_sentence",
+    "register_choice",
+    "arzt_patient",
+    "arzt_arzt",
+    "fachbegriffe",
+    "arztbrief",
+]
+MEDICAL_TYPES: tuple[str, ...] = ("arzt_patient", "arzt_arzt", "fachbegriffe", "arztbrief")
+# One vocabulary for both kinds: a published scenario is "active", as an exercise in the bank is.
+MEDICAL_STATUS = {"published": "active"}
+
+
+def _cut(text: str) -> str:
+    return text if len(text) <= PREVIEW_LENGTH else text[: PREVIEW_LENGTH - 1] + "…"
 
 
 def _summary(stored: StoredExercise) -> dict[str, Any]:
     exercise = stored.exercise
-    stem = exercise.stem
     return {
+        "kind": "language",
         "id": exercise.exercise_id,
+        "version": None,
+        "type": exercise.format,
         "level": exercise.level,
         "category": exercise.category,
         "skill": exercise.skill,
-        "format": exercise.format,
         "status": stored.status,
         "setting": exercise.setting,
-        "stem": stem if len(stem) <= PREVIEW_LENGTH else stem[: PREVIEW_LENGTH - 1] + "…",
+        "stem": _cut(exercise.stem),
         "batch_id": stored.batch_id,
         "created_at": stored.created_at.isoformat(),
         "withdrawn_reason": stored.withdrawn_reason,
+    }
+
+
+def _medical_status(scenario: dict[str, Any]) -> str:
+    status = str(scenario["status"])
+    return MEDICAL_STATUS.get(status, status)
+
+
+def _medical_summary(scenario: dict[str, Any]) -> dict[str, Any]:
+    """A registry scenario seen as an exercise: it has a type and a status, not a level or skill."""
+    return {
+        "kind": "medical",
+        "id": scenario["id"],
+        "version": scenario["version"],
+        "type": scenario["phase"],
+        "level": None,
+        "category": None,
+        "skill": None,
+        "status": _medical_status(scenario),
+        "setting": scenario.get("land"),
+        "stem": _cut(str(scenario.get("title") or scenario["case_id"])),
+        "batch_id": None,
+        "created_at": None,
+        "withdrawn_reason": None,
     }
 
 
@@ -57,36 +104,86 @@ def _review(review: ExerciseReview) -> dict[str, Any]:
     }
 
 
+def _counts(language: dict[str, dict[str, int]], scenarios: list[dict[str, Any]]) -> dict[str, Any]:
+    """How many exercises each filter value holds, for both kinds together."""
+    types = dict(language.get("format", {}))
+    statuses = dict(language.get("status", {}))
+    for scenario in scenarios:
+        types[scenario["phase"]] = types.get(scenario["phase"], 0) + 1
+        status = _medical_status(scenario)
+        statuses[status] = statuses.get(status, 0) + 1
+    return {
+        "type": types,
+        "status": statuses,
+        "level": language.get("level", {}),
+        "category": language.get("category", {}),
+        "skill": language.get("skill", {}),
+    }
+
+
 def exercises_router(services: Backoffice) -> APIRouter:
     router = APIRouter()
     bank = services.exercises
 
+    def medical(
+        *,
+        status: str | None,
+        kind: str | None,
+        language_filters: bool,
+    ) -> list[dict[str, Any]]:
+        """The registry scenarios matching the filters. Level, category and skill belong to language
+        exercises only, so setting any of them leaves the medical scenarios out."""
+        if language_filters or kind in {"cloze", "correct_sentence", "register_choice"}:
+            return []
+        items = [_medical_summary(s) for s in services.registry.list_scenarios()]
+        return [
+            item
+            for item in items
+            if (status is None or item["status"] == status)
+            and (kind is None or item["type"] == kind)
+        ]
+
     @router.get("/api/exercises")
     def list_exercises(
         account: Anyone,
-        status: Annotated[Literal["active", "withdrawn"] | None, Query()] = None,
+        status: Annotated[
+            Literal["active", "draft_unvalidated", "withdrawn"] | None, Query()
+        ] = None,
         level: Annotated[ExerciseLevel | None, Query()] = None,
         category: Annotated[ExerciseCategory | None, Query()] = None,
         skill: Annotated[ExerciseSkill | None, Query()] = None,
-        format: Annotated[ExerciseFormat | None, Query()] = None,
+        type: Annotated[ExerciseType | None, Query()] = None,
         limit: Annotated[int, Query(ge=1, le=200)] = 100,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> dict[str, Any]:
-        items, total = bank.search(
+        """Medical scenarios first (there are few), then language exercises, newest first."""
+        scenarios = medical(
             status=status,
-            level=level,
-            category=category,
-            skill=skill,
-            format=format,
-            limit=limit,
-            offset=offset,
+            kind=type,
+            language_filters=any(value is not None for value in (level, category, skill)),
         )
+        language_type = None if type in MEDICAL_TYPES else type
+        language_status = None if status == "draft_unvalidated" else status
+        if type in MEDICAL_TYPES or status == "draft_unvalidated":
+            language_items: tuple[StoredExercise, ...] = ()
+            language_total = 0
+        else:
+            language_items, language_total = bank.search(
+                status=language_status,
+                level=level,
+                category=category,
+                skill=skill,
+                format=language_type,
+                limit=max(0, limit - max(0, len(scenarios) - offset)),
+                offset=max(0, offset - len(scenarios)),
+            )
+        page = scenarios[offset : offset + limit]
         return {
-            "items": [_summary(stored) for stored in items],
-            "total": total,
+            "items": [*page, *(_summary(stored) for stored in language_items)],
+            "total": len(scenarios) + language_total,
             "limit": limit,
             "offset": offset,
-            "counts": bank.counts(),
+            "counts": _counts(bank.counts(), services.registry.list_scenarios()),
         }
 
     @router.get("/api/exercises/{exercise_id}")

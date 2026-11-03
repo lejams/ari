@@ -63,17 +63,22 @@ Désactiver un compte révoque ses sessions.
    pour le propriétaire, **Publier aux apprenants** (actif quand la liste des blocages est
    vide) ou **Retirer**. Deux approbations par deux comptes distincts sur le contenu exact sont
    nécessaires ; le même compte ne peut pas donner les deux.
-7. **Exercices** : la banque d'exercices de langue (`docs/LANGUAGE_EXERCISES.md`), lisible par
-   tous les comptes. Filtres par niveau (B1 à C1), catégorie (genre, cas, forme verbale, ordre des
-   mots, choix du mot, registre), compétence (grammaire, vocabulaire, registre), format (texte à
-   trou, phrase à corriger, choix de registre) et statut, chacun avec le nombre d'exercices qu'il
-   contient ; liste paginée par 50, les plus récents d'abord. La page d'un exercice montre
-   l'énoncé, les quatre options avec la bonne réponse marquée, l'explication donnée à l'apprenant,
-   les décisions de chaque vérification (résolution à l'aveugle, juge strict) et la provenance
-   (modèles, versions, lot). Le propriétaire peut **retirer** un exercice avec un motif : c'est
-   définitif et tracé dans les vérifications. La page ne crée ni ne modifie rien : un exercice
-   entre par la ligne de commande, après un rapport de gate. Elle ne montre pas les cas tirés des
-   protocoles gold, qui sont dans le Registre.
+7. **Exercices** : tous les exercices dans une seule liste, lisible par tous les comptes, avec un
+   filtre par type : *Langue* (texte à trou, phrase à corriger, choix de registre, de la banque
+   `docs/LANGUAGE_EXERCISES.md`) et *Médical* (Arzt–Patient, Arzt–Arzt, Fachbegriffe, les scénarios
+   du Registre tirés des protocoles gold). Les deux familles n'ont pas le même mécanisme : un
+   exercice de langue est écrit par un modèle puis vérifié par le code, une résolution à l'aveugle
+   et un juge strict ; un scénario médical vient d'un protocole gold figé et exige deux relectures
+   humaines. Filtres : type, niveau (B1 à C1), catégorie, compétence et statut (actif, à relire,
+   retiré), chacun avec le nombre d'exercices qu'il contient. Niveau, catégorie et compétence ne
+   décrivent que les exercices de langue : les choisir masque les scénarios médicaux. Liste
+   paginée par 50, scénarios médicaux d'abord puis exercices de langue, les plus récents d'abord ;
+   un scénario publié compte comme « actif ». « Ouvrir » sur un scénario médical mène à sa page du
+   Registre (revues, publication, retrait). La page d'un exercice de langue montre l'énoncé, les
+   quatre options avec la bonne réponse marquée, l'explication donnée à l'apprenant, les décisions
+   de chaque vérification et la provenance (modèles, versions, lot) ; le propriétaire peut le
+   **retirer** avec un motif, définitif et tracé. La liste ne crée ni ne modifie rien : un exercice
+   de langue entre par la ligne de commande, après un rapport de gate.
 
 Ce que le serveur refuse quoi qu'affiche l'interface : approuver avec des points ouverts,
 décider sur une version qui n'est plus la courante, modifier un protocole gold, rejeté ou

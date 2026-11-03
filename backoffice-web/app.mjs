@@ -284,7 +284,7 @@ $('review-form').onsubmit = event => { event.preventDefault(); perform(async () 
 // ----- costs ---------------------------------------------------------------------------------------
 // ----- language exercises ---------------------------------------------------------------------------------
 const EXERCISE_PAGE = 50;
-const EXERCISE_FILTERS = [['level', 'Tous les niveaux'], ['category', 'Toutes les catégories'], ['skill', 'Toutes les compétences'], ['format', 'Tous les formats'], ['status', 'Tous les statuts']];
+const EXERCISE_FILTERS = [['type', 'Tous les types'], ['level', 'Tous les niveaux'], ['category', 'Toutes les catégories'], ['skill', 'Toutes les compétences'], ['status', 'Tous les statuts']];
 const REVIEW_KIND_LABELS = {blind_solver: 'Résolution à l’aveugle', rubric_judge: 'Juge strict', human: 'Personne', learner_report: 'Signalement d’un apprenant'};
 const REVIEW_DECISION_LABELS = {approve: 'Approuvé', reject: 'Rejeté', report: 'Signalé'};
 let exerciseOffset = 0;
@@ -300,7 +300,7 @@ function fillExerciseFilter(kind, allLabel, counts) {
 async function showExercises() {
   const data = await client.exercises({...exerciseFilters(), limit: EXERCISE_PAGE, offset: exerciseOffset});
   for (const [kind, allLabel] of EXERCISE_FILTERS) fillExerciseFilter(kind, allLabel, data.counts[kind] || {});
-  table($('exercises-table'), ['Niveau', 'Catégorie', 'Compétence', 'Format', 'Énoncé', 'Statut', ''], data.items.map(item => [item.level, exerciseLabel('category', item.category), exerciseLabel('skill', item.skill), exerciseLabel('format', item.format), item.stem, badge(item.status), button('Ouvrir', () => { location.hash = `#/exercises/${item.id}`; })]));
+  table($('exercises-table'), ['Type', 'Niveau', 'Catégorie', 'Compétence', 'Énoncé', 'Statut', ''], data.items.map(item => [exerciseLabel('type', item.type), item.level || '—', item.category ? exerciseLabel('category', item.category) : '—', item.skill ? exerciseLabel('skill', item.skill) : '—', item.stem, badge(item.status), button('Ouvrir', () => { location.hash = item.kind === 'medical' ? `#/registry/${item.id}/${item.version}` : `#/exercises/${item.id}`; })]));
   const first = data.total ? data.offset + 1 : 0, last = data.offset + data.items.length;
   $('exercises-total').textContent = `${data.total} exercice(s) correspondent aux filtres${data.total ? ` (affichés : ${first} à ${last})` : ''}.`;
   $('exercises-empty').hidden = data.total > 0;
@@ -315,7 +315,7 @@ $('exercises-next').onclick = () => { exerciseOffset += EXERCISE_PAGE; perform(s
 async function showExercise(id) {
   const item = await client.exercise(id);
   current.exercise = item.id;
-  $('exercise-eyebrow').textContent = `${item.level} · ${exerciseLabel('category', item.category)} · ${exerciseLabel('skill', item.skill)} · ${exerciseLabel('format', item.format)}`;
+  $('exercise-eyebrow').textContent = `${item.level} · ${exerciseLabel('category', item.category)} · ${exerciseLabel('skill', item.skill)} · ${exerciseLabel('type', item.type)}`;
   $('exercise-title').textContent = item.id;
   $('exercise-meta').textContent = `Décor : ${item.setting} · lot ${item.batch_id} · ajouté le ${formatDate(item.created_at)}${item.status === 'withdrawn' ? ` · RETIRÉ : ${item.withdrawn_reason}` : ''}`;
   $('exercise-context').textContent = item.context_fr;

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from clinical_fixtures import synthetic_bundle
+from conftest import publish_with_simulated_reviews
 from fastapi.testclient import TestClient
+from practice_fixtures import synthetic_practice
 from test_backoffice_api import signed_in
 from test_language_exercises_domain import CLOZE, CORRECTION, REGISTER, candidate
 
@@ -12,6 +15,7 @@ from ari.backoffice_api.app import create_backoffice_app
 from ari.backoffice_api.container import Backoffice
 from ari.content.domain.accounts import Role
 from ari.domain.language_exercises import ExerciseReview, LanguageExercise
+from ari.infrastructure.cases.clinical_store import ClinicalStore
 
 REVIEWS = [
     ExerciseReview("blind_solver", "anthropic:claude-sonnet-5-5@exercise-solver-v1", "approve", {}),
@@ -33,6 +37,14 @@ def fill(services: Backoffice) -> dict[str, LanguageExercise]:
     return items
 
 
+def fill_medical(services: Backoffice) -> None:
+    """One imported (unreviewed) scenario and two published ones, as the registry holds them."""
+    store = ClinicalStore(services.exercises.engine)
+    store.import_bundle(synthetic_bundle())
+    for phase in ("arzt_arzt", "fachbegriffe"):
+        publish_with_simulated_reviews(store, synthetic_practice(phase).bundle)
+
+
 def ids(response: Any) -> set[str]:
     assert response.status_code == 200, response.text
     return {item["id"] for item in response.json()["items"]}
@@ -48,13 +60,13 @@ def test_the_list_needs_an_account_and_filters_by_every_axis(backoffice: Backoff
         body = everything.json()
         assert body["total"] == 3
         assert body["counts"]["level"] == {"B1": 2, "B2": 1}
-        assert body["counts"]["format"] == {"cloze": 1, "correct_sentence": 1, "register_choice": 1}
+        assert body["counts"]["type"] == {"cloze": 1, "correct_sentence": 1, "register_choice": 1}
         assert body["counts"]["status"] == {"active": 3}
         wanted = {
             "level=B2": {items["register"].exercise_id},
             "category=case": {items["correction"].exercise_id},
             "skill=grammar": {items["cloze"].exercise_id, items["correction"].exercise_id},
-            "format=cloze": {items["cloze"].exercise_id},
+            "type=cloze": {items["cloze"].exercise_id},
             "level=B1&skill=grammar&category=gender": {items["cloze"].exercise_id},
             "level=C1": set(),
         }
@@ -141,3 +153,61 @@ def test_a_foreign_origin_cannot_withdraw(backoffice: Backoffice) -> None:
         )
         assert forged.status_code == 403
         assert backoffice.exercises.get(item.exercise_id).status == "active"
+
+
+def test_the_list_holds_the_medical_scenarios_too_with_the_same_type_filter(
+    backoffice: Backoffice,
+) -> None:
+    language = fill(backoffice)
+    fill_medical(backoffice)
+    app = create_backoffice_app(backoffice)
+    with signed_in(app, backoffice, "r@example.org", "Relecteur", Role.LINGUISTIC_REVIEWER) as c:
+        body = c.get("/api/exercises").json()
+        by_kind = {
+            kind: [i for i in body["items"] if i["kind"] == kind]
+            for kind in ("medical", "language")
+        }
+        assert len(by_kind["medical"]) == 3 and len(by_kind["language"]) == 3
+        assert body["total"] == 6
+        assert [i["kind"] for i in body["items"]][:3] == ["medical"] * 3  # Medical first.
+        assert body["counts"]["type"] == {
+            "cloze": 1,
+            "correct_sentence": 1,
+            "register_choice": 1,
+            "arzt_patient": 1,
+            "arzt_arzt": 1,
+            "fachbegriffe": 1,
+        }
+        assert body["counts"]["status"] == {"active": 5, "draft_unvalidated": 1}
+        medical = {i["type"]: i for i in by_kind["medical"]}
+        assert medical["arzt_patient"]["status"] == "draft_unvalidated"
+        assert medical["arzt_arzt"]["status"] == "active"  # Published reads as active.
+        assert medical["arzt_arzt"]["version"] and medical["arzt_arzt"]["level"] is None
+        wanted = {
+            "type=arzt_arzt": {medical["arzt_arzt"]["id"]},
+            "type=fachbegriffe": {medical["fachbegriffe"]["id"]},
+            "type=cloze": {language["cloze"].exercise_id},
+            "status=draft_unvalidated": {medical["arzt_patient"]["id"]},
+        }
+        for query, expected in wanted.items():
+            assert ids(c.get(f"/api/exercises?{query}")) == expected, query
+        # Level, category and skill describe language exercises only.
+        assert not [
+            i for i in c.get("/api/exercises?level=B1").json()["items"] if i["kind"] == "medical"
+        ]
+        assert c.get("/api/exercises?type=cloze&level=B1").json()["total"] == 1
+
+
+def test_paging_runs_through_both_kinds_without_gaps_or_repeats(backoffice: Backoffice) -> None:
+    fill(backoffice)
+    fill_medical(backoffice)
+    app = create_backoffice_app(backoffice)
+    with signed_in(app, backoffice, "r@example.org", "Relecteur", Role.LINGUISTIC_REVIEWER) as c:
+        everything = [i["id"] for i in c.get("/api/exercises").json()["items"]]
+        for size in (1, 2, 4):
+            seen: list[str] = []
+            for offset in range(0, 6, size):
+                page = c.get(f"/api/exercises?limit={size}&offset={offset}").json()
+                assert page["total"] == 6
+                seen += [i["id"] for i in page["items"]]
+            assert seen == everything, size

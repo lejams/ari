@@ -180,12 +180,12 @@
   </section>
 
   <section id="exercises" hidden>
-    <div class="pagehead"><p class="eyebrow">Exercices de langue</p><h1>La banque d’exercices.</h1><p>Exercices de grammaire, de vocabulaire et de registre, écrits par un modèle puis vérifiés par le code, un second modèle qui les résout à l’aveugle et un juge strict. Le cadre médical n’est qu’un décor. Ils entrent dans la banque par la ligne de commande, après un rapport de gate. Les exercices tirés des protocoles gold sont ailleurs (Registre).</p></div>
+    <div class="pagehead"><p class="eyebrow">Exercices de langue</p><h1>Tous les exercices.</h1><p>Deux familles, deux mécanismes. <strong>Langue</strong> (texte à trou, phrase à corriger, choix de registre) : écrits par un modèle, vérifiés par le code, un second modèle qui les résout à l’aveugle et un juge strict, puis importés par la ligne de commande après un rapport de gate. <strong>Médical</strong> (Arzt–Patient, Arzt–Arzt, Fachbegriffe) : tirés d’un protocole gold figé, relus par deux personnes dans le Registre, où un clic sur « Ouvrir » mène. Niveau, catégorie et compétence ne concernent que les exercices de langue : les choisir masque les exercices médicaux.</p></div>
     <div class="row wrap" id="exercises-filters">
+      <label for="exercises-type" class="sr-only">Type d’exercice</label><select id="exercises-type"></select>
       <label for="exercises-level" class="sr-only">Niveau</label><select id="exercises-level"></select>
       <label for="exercises-category" class="sr-only">Catégorie</label><select id="exercises-category"></select>
       <label for="exercises-skill" class="sr-only">Compétence</label><select id="exercises-skill"></select>
-      <label for="exercises-format" class="sr-only">Format</label><select id="exercises-format"></select>
       <label for="exercises-status" class="sr-only">Statut</label><select id="exercises-status"></select>
       <button type="button" id="exercises-reset" class="link">Tout afficher</button>
     </div>
