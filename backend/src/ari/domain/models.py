@@ -275,6 +275,10 @@ class EvidenceObservation:
     text: str
     evidence_turn_sequences: tuple[int, ...]
     category: str | None = None  # Language errors only: gender, case, verb_form, ...
+    # Language errors only, from session-evaluation-v5: the learner's words and their correction,
+    # kept apart from `text` (which reads them back to the learner). None on older evaluations.
+    quote: str | None = None
+    correction: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -254,7 +254,7 @@ def test_completed_session_view_carries_the_lexicon_report(container: Container)
         assert active["turns"][2]["patient_response_kind"] == "wrong_language"
 
         completed = client.post(f"/api/sessions/{session['id']}/end", json={}).json()
-        assert completed["evaluation"]["schema_version"] == "session-evaluation-v4"
+        assert completed["evaluation"]["schema_version"] == "session-evaluation-v5"
         assert completed["evaluation"]["code_switches"][0]["turn"] == 3
         assert completed["vocabulary"][0]["kind"] == "missing"
         assert {e["lemma"] for e in completed["lexicon"]["added"]} == {"ausstrahlen", "Schmerz"}

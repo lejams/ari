@@ -9,10 +9,15 @@ import pytest
 from scripted import DATASETS, GATES, ScriptedProvider, item_id_of, repetition_of, request_for
 
 from ari.application.contracts import LLMRequest
+from ari.domain.models import EvidenceObservation
 from ari.evals.gates import load_gates
 from ari.evals.manifest import load_dataset
 from ari.evals.runner import run
-from ari.evals.scorers.evaluation_language import EvaluationLanguageSuite, LanguageItem
+from ari.evals.scorers.evaluation_language import (
+    EvaluationLanguageSuite,
+    LanguageItem,
+    restores_utterance,
+)
 
 V2 = load_dataset(DATASETS, "evaluation-language", "2")
 GATE_RULES, _ = load_gates(GATES)
@@ -83,7 +88,8 @@ async def test_the_oracle_is_perfect_and_every_gated_category_has_support() -> N
     assert report.metrics["language_location.recall"] == 1.0
     assert report.metrics["category_accuracy_given_located"] == 1.0
     assert report.metrics["stability.changed_rate"] == 0.0
-    assert report.versions.scorer == "evaluation-language-scorer-v2"
+    assert report.metrics["language_correction.restored"] == 1.0
+    assert report.versions.scorer == "evaluation-language-scorer-v3"
 
 
 async def test_a_wrong_label_on_the_right_passage_costs_the_category_not_the_location() -> None:
@@ -271,3 +277,42 @@ def test_the_evaluation_prompt_quotes_no_sentence_of_the_dataset() -> None:
     for example in quoted:
         needle = example.casefold().rstrip("?.!")
         assert not any(needle in line for line in spoken), example
+
+
+async def test_a_correction_that_does_not_restore_the_utterance_is_measured_apart() -> None:
+    """Found at the right place with the right category, but the key it proposes is wrong."""
+
+    def wrong_key(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
+        item = ITEMS[item_id_of(request)]
+        return output(
+            [
+                report_of(item, e.turn, e.category, correction="ganz anders")
+                for e in item.truth.language_errors
+            ],
+            switches(item),
+        )
+
+    report = await measure(wrong_key)
+    assert report.metrics["language_overall.recall"] == 1.0  # the detection is untouched
+    assert report.metrics["language_correction.restored"] == 0.0
+
+
+def test_a_correction_restores_the_utterance_when_it_replaces_the_quoted_words() -> None:
+    def found(quote: str, correction: str) -> EvidenceObservation:
+        return EvidenceObservation("x", (1,), "case", quote, correction)
+
+    spoken = "Nehmen Sie mit der Arzt Kontakt auf."
+    truth = "Nehmen Sie mit dem Arzt Kontakt auf."
+    assert restores_utterance(found("mit der Arzt", "mit dem Arzt"), spoken, truth) is True
+    assert restores_utterance(found("der Arzt", "dem Arzt"), spoken, truth) is True
+    assert restores_utterance(found("mit der Arzt", "mit den Arzt"), spoken, truth) is False
+    assert restores_utterance(found("Kontakt", "dem Kontakt"), spoken, truth) is False
+    # Case and final punctuation never count, and the right occurrence is found among several.
+    assert restores_utterance(found("mit der Arzt", "MIT DEM ARZT"), spoken, truth) is True
+    twice = "Der Arzt sagt, der Arzt kommt"
+    assert (
+        restores_utterance(found("der Arzt", "dem Arzt"), twice, "Der Arzt sagt, dem Arzt kommt")
+        is True
+    )
+    # Before session-evaluation-v5 there is nothing to check.
+    assert restores_utterance(EvidenceObservation("x", (1,), "case"), spoken, truth) is None

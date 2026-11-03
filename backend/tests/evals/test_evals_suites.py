@@ -176,7 +176,7 @@ async def test_language_oracle_scores_perfectly_and_measures_reliability() -> No
     [reliability] = report.reliability
     assert (reliability.source, reliability.precision) == ("llm", 1.0)
     assert reliability.producer == "evaluation-v10@gpt-6-luna"
-    assert report.versions.evaluation_schema_version == "session-evaluation-v4"
+    assert report.versions.evaluation_schema_version == "session-evaluation-v5"
     assert set(report.versions.output_schemas) == {"EvaluationOutputSchema"}
 
 
