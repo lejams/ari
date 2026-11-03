@@ -431,16 +431,23 @@ function renderSessionPlan(program) {
     plan.append(step);
   }
 }
+function examDaysLeft(examDateIso, todayIso) {
+  if (!examDateIso) return null;
+  const exam = new Date(`${examDateIso}T00:00:00`);
+  const today = new Date(`${(todayIso || new Date().toISOString().slice(0, 10))}T00:00:00`);
+  if (Number.isNaN(exam.getTime()) || Number.isNaN(today.getTime())) return null;
+  return Math.max(0, Math.round((exam - today) / 86400000));
+}
 function renderFspCard(program) {
   const model = program.model, details = client.profile?.details || {}, next = program.week.next;
+  const examDate = model.exam?.date || details.exam_date || null;
   const weeks = model.exam?.weeks_left;
-  if (weeks !== null && weeks !== undefined) {
-    $('fsp-days').textContent = String(Math.max(0, Math.round(weeks * 7)));
-    $('fsp-weeks').textContent = String(weeks).padStart(2, '0');
-    $('fsp-tag').textContent = weeks <= 2 ? 'Échéance proche' : 'Préparation';
-    $('fsp-note').textContent = details.exam_date
-      ? `Examen prévu le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}.`
-      : 'Horizon dérivé de votre profil.';
+  const days = examDaysLeft(examDate, program.week?.today);
+  if (days !== null) {
+    $('fsp-days').textContent = String(days);
+    $('fsp-weeks').textContent = weeks !== null && weeks !== undefined ? String(weeks).padStart(2, '0') : String(Math.floor(days / 7)).padStart(2, '0');
+    $('fsp-tag').textContent = days <= 14 ? 'Échéance proche' : 'Préparation';
+    $('fsp-note').textContent = `Examen prévu le ${new Date(`${examDate}T00:00:00`).toLocaleDateString('fr-FR')}.`;
   } else {
     $('fsp-days').textContent = '—';
     $('fsp-weeks').textContent = '—';
@@ -451,11 +458,9 @@ function renderFspCard(program) {
   const sideDays = $('sidefoot-days');
   const sideNote = $('sidefoot-note');
   if (sideDays && sideNote) {
-    if (weeks !== null && weeks !== undefined) {
-      sideDays.textContent = String(Math.max(0, Math.round(weeks * 7)));
-      sideNote.textContent = details.exam_date
-        ? `Examen prévu le ${new Date(details.exam_date).toLocaleDateString('fr-FR')}.`
-        : 'Horizon dérivé de votre profil.';
+    if (days !== null) {
+      sideDays.textContent = String(days);
+      sideNote.textContent = `Examen prévu le ${new Date(`${examDate}T00:00:00`).toLocaleDateString('fr-FR')}.`;
     } else {
       sideDays.textContent = '—';
       sideNote.innerHTML = 'Examen prévu le <span class="ph">[date à saisir]</span>.';
@@ -477,6 +482,12 @@ function renderFspCard(program) {
     $('fsp-next-quote').hidden = true;
   }
 }
+function structureAxisPercent(averages) {
+  if (!averages) return null;
+  const measured = Object.values(averages).filter(value => typeof value === 'number' && Number.isFinite(value));
+  if (!measured.length) return null;
+  return Math.round((measured.reduce((a, b) => a + b, 0) / measured.length) * 100);
+}
 function renderHomeAxes(axes) {
   const host = $('home-axes');
   if (!host) return;
@@ -485,27 +496,24 @@ function renderHomeAxes(axes) {
     host.append(node('p', 'Passez quelques sessions pour voir vos axes ici.', 'help'));
     return;
   }
+  const structure = structureAxisPercent(axes.structure?.averages);
   const rows = [
-    ['Anamnèse', Math.round((axes.structure?.averages ? Object.values(axes.structure.averages).reduce((a, b) => a + b, 0) / Math.max(1, Object.keys(axes.structure.averages).length) : 0) * 100), false],
-    ['Communication', Math.round((axes.communication?.acknowledged_rate ?? 0) * 100), true],
-    ['Lexique', axes.lexicon ? Math.min(100, Math.round((axes.lexicon.acquired / Math.max(1, axes.lexicon.active + axes.lexicon.acquired)) * 100)) : 0, false],
-    ['Rythme', axes.regularity?.weeks?.length ? Math.min(100, (axes.regularity.weeks.at(-1)?.voice_sessions || 0) * 25) : 0, true],
+    ['Anamnèse', structure, false],
+    ['Communication', axes.communication ? Math.round((axes.communication.acknowledged_rate ?? 0) * 100) : null, true],
+    ['Lexique', axes.lexicon ? Math.min(100, Math.round((axes.lexicon.acquired / Math.max(1, axes.lexicon.active + axes.lexicon.acquired)) * 100)) : null, false],
+    ['Rythme', axes.regularity?.weeks?.length ? Math.min(100, (axes.regularity.weeks.at(-1)?.voice_sessions || 0) * 25) : null, true],
   ];
   for (const [label, value, violet] of rows) {
     const ax = node('div', undefined, 'ax');
     const bar = node('span', undefined, 'bar');
     const fill = node('i', undefined, violet ? 'vi' : '');
-    fill.dataset.w = String(value);
-    bar.append(fill, (() => {
-      const t = node('span', undefined, 'thr');
-      if (typeof t.style?.setProperty === 'function') t.style.setProperty('--thr', '65%');
-      else if (t.style) t.style['--thr'] = '65%';
-      return t;
-    })());
-    ax.append(node('span', label, 'n'), bar, node('span', String(value), 'val'));
+    const width = value === null ? 0 : value;
+    fill.dataset.w = String(width);
+    bar.append(fill);
+    ax.append(node('span', label, 'n'), bar, node('span', value === null ? '—' : String(value), 'val'));
     host.append(ax);
-    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { fill.style.width = value + '%'; });
-    else fill.style.width = value + '%';
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { fill.style.width = width + '%'; });
+    else fill.style.width = width + '%';
   }
 }
 async function renderHomeDashboard(program) {
