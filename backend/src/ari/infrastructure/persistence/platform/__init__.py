@@ -5,6 +5,7 @@ schema helpers see the complete platform schema.
 """
 
 from ari.infrastructure.persistence.platform import account_rows as account_rows
+from ari.infrastructure.persistence.platform import exercise_rows as exercise_rows
 from ari.infrastructure.persistence.platform.base import Base
 from ari.infrastructure.persistence.platform.engine import create_platform_engine
 from ari.infrastructure.persistence.platform.repository import SqlSessionRepository

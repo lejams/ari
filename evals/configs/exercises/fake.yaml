@@ -1,0 +1,9 @@
+# Fournisseur simulé déterministe : vérifie la chaîne (contrôles, résolution à l'aveugle, juge,
+# rapport), pas la qualité. Il ne mesure rien de l'allemand et ne peut pas alimenter la banque.
+id: exercises-fake
+description: Fournisseur simulé déterministe (CI), prompts exercise-*-v1
+provider: fake
+prompts:
+  author: exercise-author-v1
+  solver: exercise-solver-v1
+  judge: exercise-judge-v1

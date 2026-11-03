@@ -1,0 +1,59 @@
+name: Evals of the exercise checks
+# Manual, billed: runs the language-exercises suite (backend/src/ari/evals/exercises) on the real
+# models of evals/configs/exercises/luna-sonnet.yaml, with the keys of the `evals` environment. The
+# `exercise-gate` artifact holds the report; a batch of exercises is imported into the bank only
+# with a passing report of this run (python -m ari.exercises_cli import --gate-report). It is not
+# part of the release promotion: the bank is data, not a deployment. See docs/LANGUAGE_EXERCISES.md.
+on:
+  workflow_dispatch:
+    inputs:
+      split:
+        description: "holdout: gate (3 repetitions, the report that unlocks an import); dev: measurement only"
+        required: true
+        default: holdout
+        type: choice
+        options: [holdout, dev]
+permissions: {contents: read}
+jobs:
+  exercises:
+    name: Exercise checks on real models
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: evals
+    concurrency: {group: evals-exercises, cancel-in-progress: false}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.lock
+      - name: Install locked Python dependencies
+        run: |
+          python -m venv .venv
+          make install-locked
+      - name: Run the suite
+        env:
+          ARI_OPENAI_API_KEY: "${{ secrets.ARI_OPENAI_API_KEY }}"
+          ARI_ANTHROPIC_API_KEY: "${{ secrets.ARI_ANTHROPIC_API_KEY }}"
+          SPLIT: "${{ inputs.split }}"
+        run: |
+          set -euo pipefail
+          test -n "$ARI_OPENAI_API_KEY" || { echo "secret ARI_OPENAI_API_KEY missing in the evals environment" >&2; exit 1; }
+          test -n "$ARI_ANTHROPIC_API_KEY" || { echo "secret ARI_ANTHROPIC_API_KEY missing in the evals environment" >&2; exit 1; }
+          args=(--suite language-exercises@1 --config evals/configs/exercises/luna-sonnet.yaml --split "$SPLIT" --live --out exercise-gate/report.json)
+          if [ "$SPLIT" = holdout ]; then args+=(--gate); fi
+          PYTHONPATH=backend/src .venv/bin/python -m ari.evals exercises "${args[@]}"
+      - name: Publish the result
+        if: always()
+        run: |
+          test -f exercise-gate/report.json || exit 0
+          { echo '### Exercise checks on real models'; echo; echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Split: \`$(jq -r .split exercise-gate/report.json)\`, gate: \`$(jq -r '.gate.status // "none"' exercise-gate/report.json)\`"
+            echo "- False acceptance rate: \`$(jq -r '.metrics.false_accept_rate' exercise-gate/report.json)\`"
+            echo "- False rejection rate: \`$(jq -r '.metrics.false_reject_rate' exercise-gate/report.json)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: exercise-gate, path: exercise-gate, if-no-files-found: ignore, retention-days: 90}

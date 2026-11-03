@@ -1,4 +1,4 @@
-"""Command line: `python -m ari.evals` + run, voice, pronunciation, compare, diagnose,
+"""Command line: `python -m ari.evals` + run, voice, pronunciation, exercises, compare, diagnose,
 fingerprint or promotion.
 
 See docs/EVALS.md. Real models are only called with `--live` and a configuration whose
@@ -93,6 +93,27 @@ def _parser() -> argparse.ArgumentParser:
     pronunciation_cmd.add_argument("--out-dir", type=Path)
     pronunciation_cmd.add_argument("--datasets-dir", type=Path, default=DEFAULT_DATASETS)
     pronunciation_cmd.add_argument("--pricing", type=Path, default=DEFAULT_PRICING)
+
+    exercises_cmd = commands.add_parser(
+        "exercises",
+        help="contrôles de la banque d'exercices de langue (language-exercises)",
+    )
+    exercises_cmd.add_argument("--suite", default="language-exercises@1")
+    exercises_cmd.add_argument(
+        "--config", required=True, type=Path, help="evals/configs/exercises/*.yaml"
+    )
+    exercises_cmd.add_argument("--split", choices=("dev", "holdout"), default="dev")
+    exercises_cmd.add_argument("--gate", action="store_true", help="mode gate : seuils, holdout")
+    exercises_cmd.add_argument(
+        "--repeat", type=int, help="répétitions par item (gate : gates.yaml)"
+    )
+    exercises_cmd.add_argument("--live", action="store_true", help="autoriser les vrais modèles")
+    exercises_cmd.add_argument("--baseline", type=Path)
+    exercises_cmd.add_argument("--out", type=Path, help="chemin du rapport JSON")
+    exercises_cmd.add_argument("--datasets-dir", type=Path, default=DEFAULT_DATASETS)
+    exercises_cmd.add_argument("--gates", type=Path, default=DEFAULT_GATES)
+    exercises_cmd.add_argument("--pricing", type=Path, default=DEFAULT_PRICING)
+    exercises_cmd.add_argument("--concurrency", type=int, default=4)
 
     compare_cmd = commands.add_parser(
         "compare", help="comparer des rapports ; le premier est la baseline"
@@ -264,6 +285,56 @@ def _pronunciation(args: argparse.Namespace) -> int:
     return 1 if any(result.outcome == "failed" for result in report.results) else 0
 
 
+async def _exercises(args: argparse.Namespace) -> int:
+    from ari.evals.exercises.dataset import SUITE
+    from ari.evals.exercises.dataset import load_dataset as load_exercise_dataset
+    from ari.evals.exercises.runner import ExerciseRunRequest, run_exercises
+    from ari.infrastructure.exercises import models as exercise_models
+
+    name, version = parse_suite_ref(args.suite)
+    if name != SUITE:
+        raise DatasetError(f"la commande exercises exécute {SUITE}, pas {name}")
+    if args.split == "holdout" and not args.gate:
+        raise DatasetError("le holdout n'est lu qu'avec --gate")
+    dataset = load_exercise_dataset(args.datasets_dir, version)
+    try:
+        config, config_hash = exercise_models.load_config(args.config)
+        prompts = exercise_models.load_prompts(config)
+        provider = exercise_models.build_provider(config, live=args.live)
+    except exercise_models.ExerciseConfigError as exc:
+        raise ConfigError(str(exc)) from exc
+    gates, _ = gate_rules.load_gates(args.gates)
+    repetitions = args.repeat or (gates.repetitions if args.gate else 1)
+    if args.gate and repetitions < gates.repetitions:
+        raise ConfigError(f"un run gate répète chaque item {gates.repetitions} fois au moins")
+    pricing = load_pricing(args.pricing)
+    try:
+        report = await run_exercises(
+            ExerciseRunRequest(
+                dataset=dataset,
+                split=args.split,
+                gate_mode=args.gate,
+                config=config,
+                config_sha256=config_hash,
+                provider=provider,
+                prompts=prompts,
+                pricing=pricing,
+                repetitions=repetitions,
+                gates=gates,
+                baseline=read_report(args.baseline) if args.baseline else None,
+                concurrency=args.concurrency,
+                code_version=os.environ.get("GITHUB_SHA"),
+            )
+        )
+    except exercise_models.ExerciseConfigError as exc:
+        raise ConfigError(str(exc)) from exc
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    out = args.out or DEFAULT_REPORTS / dataset.ref / f"{stamp}-{config.id}-{args.split}.json"
+    write_report(report, out)
+    print(_summary(report, out))
+    return 1 if report.gate is not None and report.gate.status == "failed" else 0
+
+
 def _compare(args: argparse.Namespace) -> int:
     gates, _ = gate_rules.load_gates(args.gates)
     comparison = compare([read_report(path) for path in args.reports], gates)
@@ -335,6 +406,8 @@ def main(argv: list[str] | None = None) -> int:
             return _voice(args)
         if args.command == "pronunciation":
             return _pronunciation(args)
+        if args.command == "exercises":
+            return asyncio.run(_exercises(args))
         if args.command == "diagnose":
             return _diagnose(args)
         if args.command == "fingerprint":

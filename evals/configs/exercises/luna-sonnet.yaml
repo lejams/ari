@@ -1,0 +1,16 @@
+# Décision D5 du plan du 2 novembre 2026 (propriétaire) : l'auteur est gpt-6-luna (aligné sur les
+# décisions du 15 octobre), le contrôle (résolution à l'aveugle et juge strict) est d'une autre
+# famille, Claude Sonnet 5.5, par lots hors ligne. L'auteur et le contrôle ne peuvent pas être le
+# même modèle : la configuration est refusée sinon.
+id: exercises-luna-sonnet
+description: Auteur gpt-6-luna, contrôle (aveugle + juge) Claude Sonnet 5.5
+provider: live
+routes:
+  author: {provider: openai, model: gpt-6-luna}
+  # Réglages du contrôle figés ici (jamais lus de l'environnement) : le fichier est haché dans le
+  # rapport de gate et dans le lot, `import` refuse un lot dont le fichier diffère.
+  checker: {provider: anthropic, model: claude-sonnet-5-5, max_tokens: 16000}
+prompts:
+  author: exercise-author-v1
+  solver: exercise-solver-v1
+  judge: exercise-judge-v1

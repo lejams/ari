@@ -1,0 +1,49 @@
+{
+  "suite": "language-exercises",
+  "version": "1",
+  "description": "Exercices de langue dont le défaut est connu par construction : 16 exercices corrects écrits à la main et leurs variantes défectueuses (mauvaise clé, deux réponses justes, aucune réponse juste, explication fausse, mauvaise catégorie, mauvais niveau, options en double, format cassé, décor médical absurde).",
+  "synthetic": true,
+  "source": "Exercices inventés par l'agent, générés par evals/datasets/build_language_exercises_v1.py",
+  "created_on": "2026-11-02",
+  "consent": "not_applicable:synthetic",
+  "annotators": [
+    {
+      "id": "agent:claude-sonnet-5.5",
+      "role": "rédaction synthétique",
+      "annotated_on": "2026-11-02"
+    }
+  ],
+  "splits": {
+    "dev": [
+      "d1-gender-cloze",
+      "d2-case-correction",
+      "d3-verb-cloze",
+      "d4-order-correction",
+      "d5-choice-cloze",
+      "d6-register-choice",
+      "d7-case-cloze",
+      "d8-verb-correction",
+      "d9-absurd"
+    ],
+    "holdout": [
+      "h1-gender-cloze",
+      "h2-case-correction",
+      "h3-verb-cloze",
+      "h4-order-correction",
+      "h5-choice-cloze",
+      "h6-register-choice",
+      "h7-case-cloze",
+      "h8-verb-cloze",
+      "h9-absurd"
+    ]
+  },
+  "files": {
+    "dev.jsonl": "f097f21988ceaa90de35862bcb9f5d77ff193168eaba8548ac3e9ff837de63c6",
+    "holdout.jsonl": "d2e8a06b57ae08f96a24d68ecc2fa5cb375e734efb0c3b00540593b2f46e2dd1"
+  },
+  "limitations": [
+    "L'allemand a été écrit par l'agent et n'a pas été relu par une personne germanophone : une base peut elle-même être discutable, et un item « valide » refusé est à regarder avant de conclure que le contrôle se trompe.",
+    "Seize bases seulement : le taux de fausse acceptation est mesuré sur peu d'items, avec 3 répétitions chacun ; un zéro n'est pas une garantie, c'est l'absence d'un défaut parmi ceux que le jeu sait fabriquer.",
+    "Les défauts sont fabriqués à partir d'exercices corrects ; les fautes subtiles qu'un modèle auteur produit vraiment (une distractrice presque acceptable) y sont moins bien représentées."
+  ]
+}
