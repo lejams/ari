@@ -45,14 +45,14 @@ function examDaysLeft(examDateIso, todayIso) {
 function renderSidefootCountdown(examDateIso, todayIso) {
   const sideDays = document.getElementById('sidefoot-days');
   const sideNote = document.getElementById('sidefoot-note');
-  if (!sideDays || !sideNote) return;
+  const sideBox = document.getElementById('sidefoot');
+  if (!sideDays || !sideNote || !sideBox) return;
   const days = examDaysLeft(examDateIso, todayIso);
+  // Nothing is shown until the learner has given an exam date: no placeholder, no invented figure.
+  sideBox.hidden = days === null;
   if (days !== null) {
     sideDays.textContent = String(days);
     sideNote.textContent = `Examen prévu le ${new Date(`${examDateIso}T00:00:00`).toLocaleDateString('fr-FR')}.`;
-  } else {
-    sideDays.textContent = '—';
-    sideNote.innerHTML = 'Examen prévu le <span class="ph">[date à saisir]</span>.';
   }
 }
 function refreshSideUser() {
@@ -475,7 +475,7 @@ function renderFspCard(program) {
     $('fsp-days').textContent = '—';
     $('fsp-weeks').textContent = '—';
     $('fsp-tag').textContent = 'Date à saisir';
-    $('fsp-note').innerHTML = 'Indiquez une date d’examen dans votre profil. Seuil FSP <span class="ph">[à définir]</span>.';
+    $('fsp-note').textContent = 'Indiquez une date d’examen dans votre profil pour activer le compte à rebours.';
   }
   $('fsp-slots').textContent = String(program.week.slots.length).padStart(2, '0');
   renderSidefootCountdown(examDate, program.week?.today);

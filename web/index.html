@@ -26,10 +26,10 @@
     <div class="nlabel" data-i18n="nav_pratique">Pratique</div>
     <a href="#exam" data-view="exam"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-i18n="nav_exam">Examen</span></a>
   </nav>
-  <div class="sidefoot">
+  <div class="sidefoot" id="sidefoot" hidden>
     <div class="k">FSP · préparation</div>
     <div class="v"><span id="sidefoot-days">—</span> jours</div>
-    <div class="s" id="sidefoot-note">Examen prévu le <span class="ph">[date à saisir]</span>.</div>
+    <div class="s" id="sidefoot-note"></div>
   </div>
   <div class="side-user" id="side-user" hidden>
     <div class="av" id="side-av">·</div>
@@ -81,7 +81,6 @@
       <div class="card kpi"><div class="k">Série en cours</div><div class="v" id="kpi-streak">—</div><div class="streak" id="kpi-streak-bar" aria-hidden="true"></div></div>
       <div class="card kpi"><div class="k">Cartes à revoir</div><div class="v" id="kpi-lexicon">—</div><div class="s" id="kpi-lexicon-note"></div></div>
       <div class="card kpi"><div class="k">Consultations</div><div class="v" id="kpi-sessions">—</div><div class="s" id="kpi-sessions-note"></div></div>
-      <div class="card kpi"><div class="k">Seuil de réussite</div><div class="v"><span class="ph">[x/y]</span></div><div class="s">Seuil FSP <span class="ph">[à définir]</span></div></div>
     </div>
     <div class="grid g-dash">
       <div class="card plan-card">
@@ -102,12 +101,12 @@
             <div class="pt-body"><div class="pt-title" id="fsp-next-title"></div><div class="pt-quote" id="fsp-next-quote" lang="de"></div></div>
             <span class="tag a" id="fsp-next-tag"></span>
           </div>
-          <p class="note" id="fsp-note">Indiquez une date d’examen dans votre profil pour activer le compte à rebours. Aucune statistique inventée.</p>
+          <p class="note" id="fsp-note">Indiquez une date d’examen dans votre profil pour activer le compte à rebours.</p>
         </div>
         <div class="card">
           <div class="card-h"><h2>Vos axes</h2><div class="sp"></div><a class="linkish" href="#progress" data-view="progress">Détail →</a></div>
           <div class="axes" id="home-axes"></div>
-          <div class="note">Valeurs issues de votre progression. Seuil de réussite <span class="ph">[à définir]</span> — aucun marqueur affiché tant qu’il n’est pas fixé.</div>
+          <div class="note">Valeurs issues de votre progression.</div>
         </div>
       </div>
     </div>
@@ -119,7 +118,7 @@
     <div class="head"><div><div class="eyebrow"><span class="d"></span><span>Programme</span></div><h1>Cette semaine.</h1><p class="sub" id="programme-sub">Le programme s’ajuste après chaque bilan.</p></div><div class="sp"></div><button type="button" class="secondary" data-view="home">← Aujourd’hui</button></div>
     <div class="phase" id="programme-phase" aria-label="Phases du parcours"></div>
     <div class="week" id="programme-week"></div>
-    <p class="note">Durée du programme et répartition indicatives <span class="ph">[à définir]</span>. Les créneaux ci-dessous viennent de votre programme réel.</p>
+    <p class="note">Les créneaux viennent de votre programme réel.</p>
     <article class="card week-card" aria-labelledby="programme-week-title" hidden>
       <h2 id="programme-week-title" class="sr-only">Détail hebdomadaire</h2>
     </article>
@@ -179,7 +178,7 @@
 </main>
 </div>
 </div>
-<nav class="bottomnav" aria-label="Navigation mobile"><a href="#home" data-view="home" data-i18n="nav_home">Aujourd'hui</a><a href="#cases" data-view="cases" data-i18n="nav_cases">Consultation</a><a href="#exam" data-view="exam" data-i18n="nav_exam">Examen</a><a href="#progress" data-view="progress" data-i18n="nav_progress">Progression</a><a href="#vocab" data-view="vocab" data-i18n="nav_vocab">Lexique</a><a href="#history" data-view="history" data-i18n="nav_history">Bilan</a></nav>
+<nav class="bottomnav" aria-label="Navigation mobile"><a href="#home" data-view="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav_home">Aujourd'hui</span></a><a href="#cases" data-view="cases"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span data-i18n="nav_cases">Consultation</span></a><a href="#exam" data-view="exam"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-i18n="nav_exam">Examen</span></a><a href="#progress" data-view="progress"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span data-i18n="nav_progress">Progression</span></a><a href="#vocab" data-view="vocab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="13" height="16" rx="2"/><path d="M8 4v16M20 7v13"/></svg><span data-i18n="nav_vocab">Lexique</span></a><a href="#history" data-view="history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg><span data-i18n="nav_history">Bilan</span></a></nav>
 <script type="module" src="/practice-ui.mjs?v=20261103f"></script>
 </body>
 </html>
