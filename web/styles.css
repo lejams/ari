@@ -1,4 +1,4 @@
-@import url("/tokens.css?v=20261103a");
+@import url("/tokens.css?v=20261103g");
 :root{--font:var(--font-sans);font:15px/1.5 var(--font-sans);color:var(--fg);--ink:var(--fg);--muted:var(--fg-muted);--faint:var(--fg-faint);--surface:var(--bg);--soft:var(--accent-soft);--green:var(--good);--warn:var(--warn)}
 body{font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
 *{box-sizing:border-box}

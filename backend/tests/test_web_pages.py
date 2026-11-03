@@ -62,3 +62,13 @@ def test_the_landing_assets_are_served_without_a_session(container: Container) -
     with TestClient(create_app(container)) as client:
         for path in sorted(PUBLIC_LANDING_ASSETS):
             assert client.get(path).status_code == 200, path
+
+
+def test_the_back_office_self_hosts_its_fonts_and_has_the_theme_switch() -> None:
+    root = Path(__file__).resolve().parents[2] / "backoffice-web"
+    html = (root / "index.html").read_text(encoding="utf-8")
+    assert "googleapis" not in html and "gstatic" not in html
+    assert 'src="/theme.js' in html and "data-theme-toggle" in html
+    assert (root / "fonts" / "geist-latin-wght-normal.woff2").exists()
+    # One theme script for both origins: the two copies must stay identical.
+    assert (root / "theme.js").read_text() == (root.parent / "web" / "theme.js").read_text()
