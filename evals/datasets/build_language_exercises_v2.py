@@ -164,7 +164,7 @@ DEV_BASES: list[Base] = [
         stem="Der Patient hatte seit Tagen hohes Fieber. Dennoch er erschien pünktlich zur Kontrolle.",
         key="Der Patient hatte seit Tagen hohes Fieber. Dennoch erschien er pünktlich zur Kontrolle.",
         distractors=[
-            "Der Patient hatte seit Tagen hohes Fieber. Dennoch pünktlich erschien er zur Kontrolle.",
+            "Der Patient hatte seit Tagen hohes Fieber. Dennoch erschien zur Kontrolle pünktlich er.",
             "Der Patient hatte seit Tagen hohes Fieber. Dennoch er pünktlich zur Kontrolle erschien.",
         ],
         explanation_fr="« dennoch » en début de phrase est suivi du verbe conjugué, puis du sujet : « Dennoch erschien er ».",
@@ -246,7 +246,7 @@ DEV_BASES: list[Base] = [
         stem="Hätte der Patient früher Hilfe gesucht, die Komplikation wäre vermeidbar gewesen.",
         key="Hätte der Patient früher Hilfe gesucht, wäre die Komplikation vermeidbar gewesen.",
         distractors=[
-            "Hätte der Patient früher Hilfe gesucht, wäre vermeidbar die Komplikation gewesen.",
+            "Hätte der Patient früher Hilfe gesucht, wäre gewesen die Komplikation vermeidbar.",
             "Hätte der Patient früher Hilfe gesucht, die Komplikation vermeidbar wäre gewesen.",
         ],
         explanation_fr="Après une conditionnelle sans « wenn » placée en tête, la principale commence par le verbe : « wäre die Komplikation… ».",
@@ -479,7 +479,7 @@ HOLDOUT_BASES: list[Base] = [
         stem="Kaum der Patient hatte das Medikament genommen, setzte die Wirkung ein.",
         key="Kaum hatte der Patient das Medikament genommen, setzte die Wirkung ein.",
         distractors=[
-            "Kaum hatte das Medikament der Patient genommen, setzte die Wirkung ein.",
+            "Kaum hatte der Patient genommen das Medikament, setzte die Wirkung ein.",
             "Kaum der Patient das Medikament genommen hatte, setzte die Wirkung ein.",
         ],
         explanation_fr="Après « kaum » en début de phrase, le verbe conjugué vient avant le sujet : « Kaum hatte der Patient… ».",
