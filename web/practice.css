@@ -1,4 +1,4 @@
-@import url("/tokens.css?v=20261103d");
+@import url("/tokens.css?v=20261103e");
 :root{font:15px/1.5 var(--font-sans);color:var(--fg);background:var(--bg)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
@@ -338,9 +338,9 @@ h1 .mut,.home-head h1 .mut{color:var(--fg-faint);font-weight:500}
 .note{font-size:12px;color:var(--fg-faint);margin-top:12px}
 .linkish{font-size:12.5px;color:var(--accent);text-decoration:none}
 .linkish:hover{text-decoration:underline}
-.phase{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:16px;background:#fff}
-.phase div{padding:14px 16px;border-right:1px solid var(--line);position:relative}
-.phase div:last-child{border:0}
+.phase{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:16px;background:#fff}
+.phase div{padding:14px 12px;border-right:1px solid var(--line);position:relative;min-width:0}
+.phase div:last-child{border-right:0}
 .phase .k{font:500 10.5px var(--font-mono);color:var(--fg-faint)}
 .phase b{display:block;font-weight:500;margin-top:2px}
 .phase .on{background:linear-gradient(180deg,var(--accent-soft),#fff)}
@@ -372,8 +372,10 @@ button.secondary{background:var(--bg);border-color:var(--line-strong)}
   .kpis{grid-template-columns:1fr 1fr}
   .week{grid-template-columns:1fr 1fr}
   .phase{grid-template-columns:1fr 1fr}
-  .phase div:nth-child(2){border-right:0}
-  .phase div:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .phase div{border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .phase div:nth-child(2n){border-right:0}
+  .phase div:nth-last-child(-n+2){border-bottom:0}
+  .phase div:last-child:nth-child(odd){border-right:0;grid-column:1/-1}
   .ax{grid-template-columns:100px 1fr 40px}
   .tl .step{grid-template-columns:36px 16px 1fr;gap:8px}
   .tl .step > .tag,.tl .step > button{grid-column:3}

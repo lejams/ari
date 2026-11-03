@@ -497,9 +497,12 @@ function renderHomeAxes(axes) {
     return;
   }
   const structure = structureAxisPercent(axes.structure?.averages);
+  const communication = typeof axes.communication?.acknowledged_rate === 'number'
+    ? Math.round(axes.communication.acknowledged_rate * 100)
+    : null;
   const rows = [
     ['Anamnèse', structure, false],
-    ['Communication', axes.communication ? Math.round((axes.communication.acknowledged_rate ?? 0) * 100) : null, true],
+    ['Communication', communication, true],
     ['Lexique', axes.lexicon ? Math.min(100, Math.round((axes.lexicon.acquired / Math.max(1, axes.lexicon.active + axes.lexicon.acquired)) * 100)) : null, false],
     ['Rythme', axes.regularity?.weeks?.length ? Math.min(100, (axes.regularity.weeks.at(-1)?.voice_sessions || 0) * 25) : null, true],
   ];
@@ -544,8 +547,10 @@ function renderProgramme(program) {
   weekProgram = program;
   const week = program.week, model = program.model;
   $('programme-sub').textContent = `${PHASE_LABELS_FR[week.phase] || week.phase} · niveau ${model.level.reference || 'non estimé'} · ${week.planned_minutes} / ${week.budget_minutes} min`;
+  // Same sequence as program.phase_for: below-B1 learners land on prerequis.
   const phases = [
     ['positionnement', 'Positionnement'],
+    ['prerequis', 'Prérequis'],
     ['fondations', 'Fondations'],
     ['anamnese', 'Cas cliniques'],
     ['examen', 'Conditions d’examen'],
@@ -553,7 +558,7 @@ function renderProgramme(program) {
   const order = phases.map(([id]) => id);
   const current = order.indexOf(week.phase);
   $('programme-phase').replaceChildren(...phases.map(([id, label], i) => {
-    const el = node('div', undefined, i < current ? 'past' : i === current ? 'on' : '');
+    const el = node('div', undefined, current < 0 ? '' : i < current ? 'past' : i === current ? 'on' : '');
     el.append(node('span', `PHASE ${i + 1}`, 'k'), node('b', label));
     return el;
   }));
