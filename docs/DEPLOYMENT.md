@@ -129,11 +129,24 @@ $CLI import cases/placement/ari_placement_de.v2.yaml
 # La revue du juge LLM est enregistrée sur le hash exact du jeu (docs/PLACEMENT_REVIEW.md).
 $CLI review cases/placement/ari_placement_de.v2.review.yaml
 $CLI publish ari-placement-de 2 --actor "Ismail"
+
+# Audio des écoutes : enregistré une seule fois par version du jeu, avec la voix ElevenLabs du
+# projet (ARI_ELEVENLABS_API_KEY et ARI_ELEVENLABS_VOICE_ID, déjà dans l'environnement de `app`).
+AUDIO="docker compose --profile serve exec app python -m ari.placement_audio_cli"
+$AUDIO generate ari-placement-de 2   # sans effet sur ce qui existe déjà : on peut le relancer
+$AUDIO list ari-placement-de 2       # quelles écoutes ont un audio, quelle voix, combien de secondes
+$AUDIO export ari-placement-de 2 --out-dir /tmp/ecoutes   # des .wav à réécouter avant de publier
 ```
+
+Tant qu'une écoute n'a pas d'audio enregistré, le test la synthétise à la demande avec la voix par
+défaut (OpenAI) ; l'audio enregistré est lu à la place dès qu'il existe, sans redéploiement. Il est
+lié au hash exact du jeu : une nouvelle version du jeu demande un nouvel enregistrement. Changer
+`ARI_ELEVENLABS_VOICE_ID` puis relancer `generate` ajoute la nouvelle voix, et c'est la plus
+récente qui est jouée. L'enregistrement coûte quelques milliers de caractères ElevenLabs par jeu.
 
 Publier une version retire la précédente du même identifiant. Un jeu modifié (même d'un caractère)
 est une autre version : il faut une nouvelle revue. Les signalements d'erreurs des apprenants sont
-des événements `item_report` de la table `placement_events` (base plateforme).
+des événements `item_report` de la table `placement_publication_events` (base plateforme).
 
 ## 7. Vérifications de mise en service
 

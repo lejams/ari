@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Identity,
     Integer,
+    LargeBinary,
     String,
     UniqueConstraint,
 )
@@ -115,3 +116,29 @@ class PlacementAnswerRow(Base):
     item_id: Mapped[str] = mapped_column(String)
     phase: Mapped[str] = mapped_column(String)
     payload: Mapped[dict[str, Any]] = mapped_column(PLACEMENT_JSON)
+
+
+class PlacementAudioRow(Base):
+    """Recorded audio of one listening item of a pinned set, append-only.
+
+    Keyed by the set hash, so a changed set never plays the audio of another text. A new voice
+    is a new row; the latest one is played.
+    """
+
+    __tablename__ = "placement_audio"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["set_id", "set_version", "set_hash"],
+            ["placement_sets.id", "placement_sets.version", "placement_sets.content_hash"],
+        ),
+    )
+    set_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    item_id: Mapped[str] = mapped_column(String, primary_key=True)
+    voice: Mapped[str] = mapped_column(String, primary_key=True)
+    set_id: Mapped[str] = mapped_column(String)
+    set_version: Mapped[str] = mapped_column(String)
+    model: Mapped[str] = mapped_column(String)
+    sample_rate: Mapped[int] = mapped_column(Integer)
+    audio_sha256: Mapped[str] = mapped_column(String(64))
+    audio: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

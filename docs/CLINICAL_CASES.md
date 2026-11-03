@@ -156,9 +156,15 @@ nombre de QCM répondus et ratés, erreurs orales, deux exemples citation → co
 s'arrête là où l'apprenant commence à échouer : le signal écrit dit ce qui a échoué à sa limite, une
 indication pour choisir quoi travailler, pas un diagnostic.
 
+**Audio des écoutes.** Enregistré une seule fois par version du jeu (table `placement_audio`, migration
+`0009_placement_audio`, ajout seul, clé : hash du jeu, écoute, voix) avec la voix ElevenLabs du
+projet : `python -m ari.placement_audio_cli generate | list | export` (`docs/DEPLOYMENT.md`). Le test
+joue l'enregistrement du hash exact qu'il a épinglé ; une écoute sans enregistrement (ou enregistrée à
+une autre fréquence d'échantillonnage) est synthétisée à la demande par la voix par défaut.
+
 **Signaler une erreur.** `POST /api/placement/attempts/{id}/report` (`item_id` rencontré dans la
 tentative, note facultative de 500 caractères) enregistre un événement `item_report` dans la piste
-d'audit du jeu (`placement_events`, sans migration), avec le hash du jeu. Le propriétaire le relit ;
+d'audit du jeu (`placement_publication_events`, sans migration), avec le hash du jeu. Le propriétaire le relit ;
 une correction est une nouvelle version du jeu.
 
 ### Programme hebdomadaire (`program-rules-v4`)
