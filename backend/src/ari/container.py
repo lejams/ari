@@ -37,6 +37,7 @@ from ari.infrastructure.persistence.platform.accounts import SqlLearnerAccountSt
 from ari.infrastructure.persistence.platform.language_drill import SqlLanguageDrillRepository
 from ari.infrastructure.persistence.platform.lexicon import SqlLexiconRepository
 from ari.infrastructure.persistence.platform.placement import SqlPlacementRepository
+from ari.infrastructure.persistence.platform.placement_audio import SqlPlacementAudioStore
 from ari.infrastructure.persistence.platform.practice import SqlPracticeRepository
 from ari.infrastructure.persistence.platform.repository import SqlSessionRepository
 from ari.infrastructure.persistence.platform.usage import SqlUsageLedger
@@ -195,6 +196,23 @@ def _tts_provider(settings: Settings, provider: str | None = None) -> StreamingT
         model=settings.tts_model,
         voice=settings.tts_voice,
         timeout_seconds=settings.tts_timeout_seconds,
+    )
+
+
+def placement_audio_voice(settings: Settings) -> tuple[StreamingTTSProvider, str, str]:
+    """The voice that records the placement listenings: (provider, voice label, model).
+
+    ElevenLabs with its default voice when ARI_PROVIDER_MODE=openai (a key and a voice id are
+    required); the fake tone otherwise.
+    """
+    if settings.provider_mode != "openai":
+        return FakeTTSProvider(), "fake:tone", "fake"
+    if not (settings.elevenlabs_api_key and settings.elevenlabs_voice_id):
+        raise InvalidStateError("ARI_ELEVENLABS_API_KEY et ARI_ELEVENLABS_VOICE_ID sont requis")
+    return (
+        _tts_provider(settings, "elevenlabs"),
+        f"elevenlabs:{settings.elevenlabs_voice_id}",
+        settings.elevenlabs_tts_model,
     )
 
 
@@ -447,6 +465,7 @@ def build_container(settings: Settings) -> Container:
         speaking_prompt,
         feedback_language=settings.feedback_language,
         sample_rate=settings.audio_sample_rate,
+        audio_store=SqlPlacementAudioStore(repository.engine),
     )
     return Container(
         settings=settings,
