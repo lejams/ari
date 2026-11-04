@@ -98,7 +98,7 @@ def test_the_exercise_gate_is_manual_main_only_and_keeps_its_report() -> None:
     run_step = next(s for s in job["steps"] if s.get("name") == "Run the suite")
     assert run_step["env"]["ARI_ANTHROPIC_API_KEY"] == "${{ secrets.ARI_ANTHROPIC_API_KEY }}"
     assert "ari.evals exercises" in run_step["run"] and "--live" in run_step["run"]
-    assert "--gate" in run_step["run"] and "luna-sonnet.yaml" in run_step["run"]
+    assert "--gate" in run_step["run"] and "$CONFIG.yaml" in run_step["run"]
     assert "exercise-gate" in str(job["steps"][-1])
 
 

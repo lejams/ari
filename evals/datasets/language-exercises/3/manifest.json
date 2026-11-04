@@ -1,0 +1,77 @@
+{
+  "suite": "language-exercises",
+  "version": "3",
+  "description": "Exercices de langue dont le défaut est connu par construction : 42 exercices corrects écrits à la main (28 en développement, repris de la version 2, et 14 nouveaux en holdout) et leurs variantes défectueuses (mauvaise clé, deux réponses justes, aucune réponse juste, réponse presque juste, explication fausse, mauvaise catégorie, mauvais niveau, options en double, format cassé, décor médical absurde).",
+  "synthetic": true,
+  "source": "Exercices inventés par l'agent, générés par evals/datasets/build_language_exercises_v3.py",
+  "created_on": "2026-11-04",
+  "consent": "not_applicable:synthetic",
+  "annotators": [
+    {
+      "id": "agent:claude-sonnet-5.5",
+      "role": "rédaction synthétique",
+      "annotated_on": "2026-11-04"
+    }
+  ],
+  "splits": {
+    "dev": [
+      "e-d01-gender-cloze",
+      "e-d02-case-correction",
+      "e-d03-verb-cloze",
+      "e-d04-order-correction",
+      "e-d05-choice-cloze",
+      "e-d06-case-cloze",
+      "e-d07-verb-cloze",
+      "e-d08-order-correction",
+      "e-d09-register-choice",
+      "e-d10-case-cloze",
+      "e-d11-verb-cloze",
+      "e-d12-choice-cloze",
+      "e-d13-order-correction",
+      "e-d14-register-choice",
+      "e-h01-gender-cloze",
+      "e-h02-case-correction",
+      "e-h03-verb-cloze",
+      "e-h04-order-correction",
+      "e-h05-choice-cloze",
+      "e-h06-case-cloze",
+      "e-h07-verb-cloze",
+      "e-h08-order-correction",
+      "e-h09-register-choice",
+      "e-h10-case-cloze",
+      "e-h11-verb-cloze",
+      "e-h12-choice-cloze",
+      "e-h13-order-correction",
+      "e-h14-register-choice",
+      "e-d15-absurd",
+      "e-h15-absurd"
+    ],
+    "holdout": [
+      "e-k01-gender-cloze",
+      "e-k02-case-correction",
+      "e-k03-verb-cloze",
+      "e-k04-order-correction",
+      "e-k05-choice-cloze",
+      "e-k06-case-cloze",
+      "e-k07-verb-cloze",
+      "e-k08-order-correction",
+      "e-k09-register-choice",
+      "e-k10-case-cloze",
+      "e-k11-verb-cloze",
+      "e-k12-choice-cloze",
+      "e-k13-order-correction",
+      "e-k14-register-choice",
+      "e-k15-absurd"
+    ]
+  },
+  "files": {
+    "dev.jsonl": "42d4b851b327e6d9f8b3194e4ef5ade79c508d5dcaf3fc3d85020dcc2610d257",
+    "holdout.jsonl": "56e262f3bc99a6c698e1d15958077f585900e3bf2e4539d10889525f1bd949ad"
+  },
+  "limitations": [
+    "L'allemand a été écrit par l'agent et n'a pas été relu par une personne germanophone : une base peut elle-même être discutable, et un item « valide » refusé est à regarder avant de conclure que le contrôle se trompe.",
+    "Quatorze bases valides en holdout : un exercice juste refusé vaut 7 points de fausse rejection ; un zéro fausse acceptation sur ce jeu n'est pas une garantie.",
+    "Le développement contient les deux splits de la version 2, dont le holdout a été lancé une fois (échec sur `e-h05`) : il ne sert plus de test indépendant. Le holdout de la version 3 est neuf et n'a été lu par aucun modèle avant le gel des contrôles.",
+    "Les défauts sont fabriqués à partir d'exercices corrects ; les fautes subtiles qu'un modèle auteur produit vraiment y sont moins bien représentées. Les fautes de frappe du défaut `near_miss_key` sont choisies une par famille."
+  ]
+}

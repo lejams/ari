@@ -262,6 +262,7 @@ async def _run_once(request: ExerciseRunRequest, item: ExerciseItem, repetition:
         solver_prompt=request.prompts["solver"],
         judge_prompt=request.prompts["judge"],
         author_model=request.config.author_identity,
+        passes=request.config.check_passes,
     )
     outcome: CheckOutcome | None = None
     errors: list[str] = []

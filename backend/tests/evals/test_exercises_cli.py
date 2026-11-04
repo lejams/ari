@@ -84,7 +84,7 @@ async def test_a_batch_backed_by_a_passing_gate_enters_the_bank_with_its_checks(
     assert first.provenance["gate_report"]["suite"] == "language-exercises@1"
     reviews = bank.reviews(first.exercise.exercise_id)
     assert [r.reviewer_kind for r in reviews] == ["blind_solver", "rubric_judge"]
-    assert reviews[1].reviewer_name == "anthropic:claude-sonnet-5-5@exercise-rubric-v1"
+    assert reviews[1].reviewer_name == "anthropic:claude-sonnet-5-5@exercise-rubric-v2"
     again = import_batch(batch, bank, gate_report_path=report_file)
     assert (again["nouveaux"], again["deja_presents"]) == (0, 2)
 
@@ -93,7 +93,7 @@ async def test_a_batch_judged_with_another_rubric_or_checks_than_the_code_applie
     bank: SqlExerciseBank, report_file: Path
 ) -> None:
     batch = await make_batch()
-    for change in ({"rubric_version": "exercise-rubric-v2"}, {"mechanical_checks_version": "x"}):
+    for change in ({"rubric_version": "exercise-rubric-v1"}, {"mechanical_checks_version": "x"}):
         with pytest.raises(InvalidStateError, match="ce code applique"):
             import_batch(batch.model_copy(update=change), bank, gate_report_path=report_file)
     assert bank.list_active() == ()

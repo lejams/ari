@@ -13,6 +13,12 @@ on:
         default: holdout
         type: choice
         options: [holdout, dev]
+      config:
+        description: "luna-sonnet: one pass of the checks; luna-sonnet-double: two passes that must both accept"
+        required: true
+        default: luna-sonnet
+        type: choice
+        options: [luna-sonnet, luna-sonnet-double]
 permissions: {contents: read}
 jobs:
   exercises:
@@ -38,11 +44,12 @@ jobs:
           ARI_OPENAI_API_KEY: "${{ secrets.ARI_OPENAI_API_KEY }}"
           ARI_ANTHROPIC_API_KEY: "${{ secrets.ARI_ANTHROPIC_API_KEY }}"
           SPLIT: "${{ inputs.split }}"
+          CONFIG: "${{ inputs.config }}"
         run: |
           set -euo pipefail
           test -n "$ARI_OPENAI_API_KEY" || { echo "secret ARI_OPENAI_API_KEY missing in the evals environment" >&2; exit 1; }
           test -n "$ARI_ANTHROPIC_API_KEY" || { echo "secret ARI_ANTHROPIC_API_KEY missing in the evals environment" >&2; exit 1; }
-          args=(--suite language-exercises@2 --config evals/configs/exercises/luna-sonnet.yaml --split "$SPLIT" --live --out exercise-gate/report.json)
+          args=(--suite language-exercises@3 --config "evals/configs/exercises/$CONFIG.yaml" --split "$SPLIT" --live --out exercise-gate/report.json)
           if [ "$SPLIT" = holdout ]; then args+=(--gate); fi
           PYTHONPATH=backend/src .venv/bin/python -m ari.evals exercises "${args[@]}"
       - name: Publish the result

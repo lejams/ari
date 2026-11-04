@@ -31,8 +31,8 @@ def live_config(*, checker: tuple[str, str] = CHECKER, config_id: str = "scripte
             },
             "prompts": {
                 "author": "exercise-author-v1",
-                "solver": "exercise-solver-v1",
-                "judge": "exercise-judge-v1",
+                "solver": "exercise-solver-v2",
+                "judge": "exercise-judge-v2",
             },
         }
     )

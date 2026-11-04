@@ -9,7 +9,7 @@
 # - une seule NOUVELLE erreur critique (absente de la baseline) bloque, quelle que soit la moyenne.
 #   Les types d'erreur critiques sont listés par suite dans `critical_outcomes`.
 
-version: gates-v8
+version: gates-v9
 repetitions: 3  # Un run gate répète chaque item 3 fois (stabilité, intervalles).
 
 suites:
@@ -212,6 +212,31 @@ suites:
       - metric: false_reject_rate
         max: 0.25
         source: "à valider : un exercice juste refusé coûte une génération, pas un apprenant ; seuil initial, à recalibrer après la première mesure"
+      - metric: mechanical_catch_rate
+        min: 1.0
+        source: "les contrôles mécaniques sont déterministes : aucun défaut mécanique ne passe"
+      - metric: stability.changed_rate
+        max: 0.10
+        source: "plan : ≤ 10 % de verdicts changeants sur 3 répétitions"
+      - metric: structured_after_retry
+        min: 0.995
+        source: "plan : structure exploitable après un retry ≥ 99,5 %"
+    # Un exercice défectueux accepté est critique : une seule nouvelle occurrence bloque.
+    critical_outcomes: [false_accept]
+
+  # Version 3 du jeu (4 novembre 2026, gates-v9) : mêmes seuils. Le holdout de la version 2 a été
+  # lancé une fois et a échoué sur une seule fausse acceptation (`e-h05`, la bonne réponse
+  # remplacée par une faute de frappe, « angeschlagt »). Les contrôles sont renforcés (le solveur
+  # peut répondre « aucune option correcte », le juge vérifie la forme exacte de la réponse, option
+  # de double passage) et le jeu gagne le défaut `near_miss_key` ; les seuils ne bougent pas.
+  language-exercises@3:
+    thresholds:
+      - metric: false_accept_rate
+        max: 0.0
+        source: "plan, section 5, point 7 : zéro exercice faux qui passe les contrôles sur le jeu de test"
+      - metric: false_reject_rate
+        max: 0.25
+        source: "à valider : un exercice juste refusé coûte une génération, pas un apprenant ; seuil initial, inchangé en version 3"
       - metric: mechanical_catch_rate
         min: 1.0
         source: "les contrôles mécaniques sont déterministes : aucun défaut mécanique ne passe"

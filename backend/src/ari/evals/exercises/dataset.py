@@ -32,6 +32,7 @@ Defect = Literal[
     "wrong_key",
     "two_correct",
     "no_correct",
+    "near_miss_key",
     "bad_explanation",
     "wrong_category",
     "level_mismatch",

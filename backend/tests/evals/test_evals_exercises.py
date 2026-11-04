@@ -36,6 +36,7 @@ from ari.infrastructure.exercises.models import ExerciseConfigError, load_config
 CONFIGS = PROJECT_ROOT / "evals" / "configs" / "exercises"
 BUILDER = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v1.py"
 BUILDER_V2 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v2.py"
+BUILDER_V3 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v3.py"
 SUITE = "language-exercises@1"
 
 
@@ -138,7 +139,7 @@ def test_the_fake_configuration_runs_the_chain_without_a_key_and_measures_nothin
     out = tmp_path / "report.json"
     assert main(["exercises", "--config", str(CONFIGS / "fake.yaml"), "--out", str(out)]) == 0
     report = read_report(out)
-    assert report.suite == "language-exercises@2"  # The default suite is the latest version.
+    assert report.suite == "language-exercises@3"  # The default suite is the latest version.
     assert report.config.provider == "fake" and not report.gate_mode
     assert report.metrics["mechanical_catch_rate"] == 1.0
     assert report.metrics["structured_after_retry"] == 1.0
@@ -409,12 +410,12 @@ def test_each_way_a_report_can_fail_to_back_a_batch(passing_report: Report) -> N
     refused(
         passing_report, batch.model_copy(update={"config_sha256": None}), "fichier de configuration"
     )
-    other = batch.model_copy(update={"rubric_version": "exercise-rubric-v2"})
+    other = batch.model_copy(update={"rubric_version": "exercise-rubric-v1"})
     refused(passing_report, other, "grille ou contrôles")
     changed_prompt = batch.model_copy(
         update={"judge": batch.judge.model_copy(update={"prompt_hash": "a" * 64})}
     )
-    refused(passing_report, changed_prompt, "prompt exercise-judge-v1")
+    refused(passing_report, changed_prompt, "prompt exercise-judge-v2")
     other_model = batch.model_copy(
         update={"solver": batch.solver.model_copy(update={"model": "claude-opus-5-5"})}
     )
@@ -457,8 +458,8 @@ def test_each_route_keeps_its_own_anthropic_settings() -> None:
             },
             "prompts": {
                 "author": "exercise-author-v1",
-                "solver": "exercise-solver-v1",
-                "judge": "exercise-judge-v1",
+                "solver": "exercise-solver-v2",
+                "judge": "exercise-judge-v2",
             },
         }
     )
@@ -466,3 +467,83 @@ def test_each_route_keeps_its_own_anthropic_settings() -> None:
     backends = _RoutedProvider(config, settings)._backends  # type: ignore[arg-type]
     assert (backends["author"]._max_tokens, backends["author"]._effort) == (1024, "low")  # type: ignore[union-attr]
     assert (backends["checker"]._max_tokens, backends["checker"]._effort) == (16000, "high")  # type: ignore[union-attr]
+
+
+def test_the_double_agreement_configuration_differs_from_the_single_one_by_its_passes_only() -> (
+    None
+):
+    single, single_sha = load_config(CONFIGS / "luna-sonnet.yaml")
+    double, double_sha = load_config(CONFIGS / "luna-sonnet-double.yaml")
+    assert (single.check_passes, double.check_passes) == (1, 2)
+    assert single.routes == double.routes and single.prompts == double.prompts
+    assert single_sha != double_sha  # A gate report for one never backs a batch of the other.
+
+
+def test_the_third_version_of_the_dataset_is_what_its_builder_makes(tmp_path: Path) -> None:
+    spec = importlib.util.spec_from_file_location("build_language_exercises_v3", BUILDER_V3)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.build(tmp_path)
+    committed = DATASETS / "language-exercises" / "3"
+    for name in ("manifest.json", "dev.jsonl", "holdout.jsonl"):
+        assert (tmp_path / name).read_bytes() == (committed / name).read_bytes(), name
+
+
+def test_the_third_version_adds_the_near_miss_defect_and_a_holdout_of_new_families() -> None:
+    v2, v3 = load_dataset(DATASETS, "2"), load_dataset(DATASETS, "3")
+    assert v3.ref == "language-exercises@3" and v3.manifest.synthetic
+    dev = v3.read_split("dev", gate=True)  # type: ignore[arg-type]
+    holdout = v3.read_split("holdout", gate=True)  # type: ignore[arg-type]
+    families_v2 = {f for split in v2.manifest.splits.values() for f in split}
+    # The development split is the whole of version 2, the holdout is made of new families.
+    assert {i.family for i in dev} >= {f for f in families_v2 if not f.endswith("absurd")}
+    assert {i.family for i in holdout}.isdisjoint(families_v2)
+    assert {i.family for i in dev}.isdisjoint({i.family for i in holdout})
+    stems = {i.candidate.stem for i in dev}
+    assert stems.isdisjoint({i.candidate.stem for i in holdout})
+    # The regression that failed the version 2 holdout is kept, with the typo as its key.
+    regression = next(i for i in dev if i.id == "e-h05-choice-cloze:near_miss_key")
+    assert not regression.truth.valid and regression.truth.defect == "near_miss_key"
+    assert regression.candidate.options[regression.candidate.answer_index] == "angeschlagenn"
+    for split in (dev, holdout):
+        assert any(i.truth.defect == "near_miss_key" for i in split)
+        assert all(i.truth.defect != "near_miss_key" for i in split if i.truth.valid)
+    assert sum(i.truth.valid for i in holdout) == 14
+    # A near miss is the good exercise with a different key and nothing else changed.
+    valid = {i.family: i.candidate for i in dev + holdout if i.truth.valid}
+    for item in dev + holdout:
+        if item.truth.defect != "near_miss_key":
+            continue
+        good = valid[item.family]
+        kept = good.options[good.answer_index]
+        assert item.candidate.options[item.candidate.answer_index] != kept
+        assert item.candidate.stem == good.stem and item.candidate.category == good.category
+        assert item.candidate.level == good.level
+
+
+async def test_a_perfect_checker_passes_the_gate_on_the_third_version() -> None:
+    dataset = load_dataset(DATASETS, "3")
+    solver, judge = oracle_for(dataset, "holdout", strict=True)
+    provider = ScriptedModels(author=lambda r, p: {}, solver=solver, judge=judge)
+    report = await run_exercises(request(provider, version="3"))
+    assert report.suite == "language-exercises@3"
+    assert report.gate is not None and report.gate.status == "passed", report.gate
+    assert report.metrics["false_accept_rate.near_miss_key"] == 0.0
+    assert report.metrics["false_reject_rate"] == 0.0 and report.critical_errors == []
+
+
+def test_the_diagnosis_names_the_new_refusal_reasons() -> None:
+    from ari.evals.exercises.diagnosis import rejection_reasons
+
+    none = {
+        "stage": "blind_solver",
+        "key_index": 1,
+        "solver": {"chosen_index": -1, "acceptable_indices": [], "medically_plausible": True},
+    }
+    assert rejection_reasons(none) == ["solver:found_no_correct_option"]
+    # A refusal of a later pass sees the options in another order: only the criterion is told.
+    second = {"stage": "rubric_judge", "issues": ["key_form_exact", "pass_2"]}
+    assert rejection_reasons(second) == ["pass_2:judge:key_form_exact"]
+    second_solver = {"stage": "blind_solver", "issues": ["pass_2"]}
+    assert rejection_reasons(second_solver) == ["pass_2:solver"]

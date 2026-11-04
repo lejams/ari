@@ -72,6 +72,9 @@ class ExerciseModelsConfig(BaseModel):
     provider: Literal["fake", "live"]
     routes: dict[Literal["author", "checker"], ExerciseRoute] = Field(default_factory=dict)
     prompts: ExercisePrompts
+    # How many independent passes of solver and judge an exercise must all win (the first
+    # refusal ends the check). Pinned in the file, hashed with it, like the routes.
+    check_passes: Annotated[int, Field(ge=1, le=3)] = 1
 
     @model_validator(mode="after")
     def routes_match_provider(self) -> ExerciseModelsConfig:
