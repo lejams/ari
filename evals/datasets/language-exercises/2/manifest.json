@@ -1,0 +1,62 @@
+{
+  "suite": "language-exercises",
+  "version": "2",
+  "description": "Exercices de langue dont le défaut est connu par construction : 28 exercices corrects écrits à la main (14 par split, niveau et ambiguïté revus après la première mesure) et leurs variantes défectueuses (mauvaise clé, deux réponses justes, aucune réponse juste, explication fausse, mauvaise catégorie, mauvais niveau, options en double, format cassé, décor médical absurde).",
+  "synthetic": true,
+  "source": "Exercices inventés par l'agent, générés par evals/datasets/build_language_exercises_v2.py",
+  "created_on": "2026-11-03",
+  "consent": "not_applicable:synthetic",
+  "annotators": [
+    {
+      "id": "agent:claude-sonnet-5.5",
+      "role": "rédaction synthétique",
+      "annotated_on": "2026-11-03"
+    }
+  ],
+  "splits": {
+    "dev": [
+      "e-d01-gender-cloze",
+      "e-d02-case-correction",
+      "e-d03-verb-cloze",
+      "e-d04-order-correction",
+      "e-d05-choice-cloze",
+      "e-d06-case-cloze",
+      "e-d07-verb-cloze",
+      "e-d08-order-correction",
+      "e-d09-register-choice",
+      "e-d10-case-cloze",
+      "e-d11-verb-cloze",
+      "e-d12-choice-cloze",
+      "e-d13-order-correction",
+      "e-d14-register-choice",
+      "e-d15-absurd"
+    ],
+    "holdout": [
+      "e-h01-gender-cloze",
+      "e-h02-case-correction",
+      "e-h03-verb-cloze",
+      "e-h04-order-correction",
+      "e-h05-choice-cloze",
+      "e-h06-case-cloze",
+      "e-h07-verb-cloze",
+      "e-h08-order-correction",
+      "e-h09-register-choice",
+      "e-h10-case-cloze",
+      "e-h11-verb-cloze",
+      "e-h12-choice-cloze",
+      "e-h13-order-correction",
+      "e-h14-register-choice",
+      "e-h15-absurd"
+    ]
+  },
+  "files": {
+    "dev.jsonl": "67676a66b5f15501441d79e722df25ae9d04e4f1c5bebb7eb80faeb87002793b",
+    "holdout.jsonl": "a998738b754f3405622479159b726c3896efcdfdd8f26e980dc3e036a962a381"
+  },
+  "limitations": [
+    "L'allemand a été écrit par l'agent et n'a pas été relu par une personne germanophone : une base peut elle-même être discutable, et un item « valide » refusé est à regarder avant de conclure que le contrôle se trompe (c'est ce qui a motivé cette version).",
+    "Quatorze bases valides par split : un exercice juste refusé vaut 7 points de fausse rejection ; le taux de fausse acceptation est mesuré sur peu d'items, un zéro n'est pas une garantie.",
+    "Les défauts sont fabriqués à partir d'exercices corrects ; les fautes subtiles qu'un modèle auteur produit vraiment (une distractrice presque acceptable) y sont moins bien représentées.",
+    "Le holdout de la version 2 est neuf (familles neuves) : il n'a pas été utilisé pour régler quoi que ce soit."
+  ]
+}
