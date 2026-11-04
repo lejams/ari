@@ -111,13 +111,13 @@ try {
   page.on("pageerror", error => errors.push(error.message));
   const foreign = [];
   page.on("request", request => { if (!request.url().startsWith(base) && !request.url().startsWith("data:")) foreign.push(request.url()); });
-  const atkinsonLoaded = () => page.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some(face => face.family.replace(/"/g, "") === "Atkinson Hyperlegible Next" && face.status === "loaded"); });
+  const geistLoaded = () => page.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some(face => face.family.replace(/"/g, "") === "Geist" && face.status === "loaded"); });
   await page.goto(base + "/app");
   await signIn(page, accounts[0]);
-  assert.ok(await atkinsonLoaded(), "the sign-in page renders in Atkinson Hyperlegible Next");
+  assert.ok(await geistLoaded(), "the sign-in page renders in Geist");
   await onboard(page);
   // One typeface on every learner page (m7), served by ARI itself: no request leaves the origin.
-  assert.ok(await atkinsonLoaded(), "the app renders in Atkinson Hyperlegible Next");
+  assert.ok(await geistLoaded(), "the app renders in Geist");
   assert.deepEqual(foreign, [], "no third-party request (fonts included)");
   assert.match(await page.locator("#profile-goal").innerText(), /niveau non mesuré/);
   // The weekly programme is computed from the profile: a declared B2 without estimate is "anamnese".
@@ -126,7 +126,7 @@ try {
   assert.match(await page.locator("#recommendation h1").innerText(), /./, "the hero names the next step");
   // Offline, the learner reads French, then retries once the network is back.
   await context.setOffline(true);
-  await page.getByRole("link", {name: "Carnet", exact: true}).first().click();
+  await page.getByRole("link", {name: "Lexique", exact: true}).first().click();
   await page.locator("#error:visible").waitFor();
   assert.match(await page.locator("#error-text").innerText(), /^Connexion impossible : vérifiez votre réseau\./);
   await context.setOffline(false);
@@ -174,7 +174,7 @@ try {
   await page.getByRole("button", {name: "Voir ma progression"}).click();
   await page.locator("#progress:not([hidden])").waitFor();
   assert.match(await page.locator("#progress-list").innerText(), /Lexique : 5.00/);
-  await page.getByRole("link", {name: "Historique", exact: true}).click();
+  await page.getByRole("link", {name: "Bilan", exact: true}).click();
   await page.locator("#history:not([hidden])").waitFor();
   assert.match(await page.locator("#history-list").innerText(), /Examen/);
   assert.equal(await page.locator("#history-list article").count(), 1);
@@ -205,7 +205,7 @@ try {
   await completePlacement(other);
   await other.goto(privateRunUrl);
   await other.locator("#error:visible").waitFor();
-  await other.getByRole("link", {name: "Historique", exact: true}).click();
+  await other.getByRole("link", {name: "Bilan", exact: true}).click();
   await other.getByText("Pas encore de session enregistrée.", {exact: false}).waitFor();
   await other.getByRole("button", {name: "Explorer la bibliothèque →", exact: true}).click();
   await other.locator("#cases:not([hidden])").waitFor();
@@ -234,21 +234,56 @@ try {
   await page.getByRole("button", {name: "Terminer", exact: true}).click();
   await page.locator("#feedback:not(.hidden)").waitFor();
   const voiceFeedbackUrl = page.url();
-  // Every main page, filled with the sessions above, on desktop and mobile: axe and no horizontal overflow.
-  for (const [width, height] of [[1280, 860], [390, 844]]) {
-    await page.setViewportSize({width, height});
-    for (const view of ["home", "cases", "exam", "progress", "vocab", "history", "placement"]) {
-      await page.goto(base + "/app#" + view);
-      await page.locator(`#${view}:not([hidden])`).waitFor();
-      await page.waitForLoadState("networkidle");
-      await assertAccessible(page, `${view} at ${width} px`);
-      await assertNoOverflow(page, `${view} at ${width} px`);
+  // Every main page, filled with the sessions above, on desktop and mobile, in the light and the dark theme:
+  // axe and no horizontal overflow.
+  for (const scheme of ["light", "dark"]) {
+    await page.emulateMedia({colorScheme: scheme});
+    for (const [width, height] of [[1280, 860], [390, 844]]) {
+      await page.setViewportSize({width, height});
+      for (const view of ["home", "programme", "cases", "exam", "progress", "vocab", "history", "placement"]) {
+        await page.goto(base + "/app#" + view);
+        await page.locator(`#${view}:not([hidden])`).waitFor();
+        await page.waitForLoadState("networkidle");
+        await assertAccessible(page, `${view} at ${width} px, ${scheme}`);
+        await assertNoOverflow(page, `${view} at ${width} px, ${scheme}`);
+      }
+      await page.goto(voiceFeedbackUrl);
+      await page.locator("#feedback:not(.hidden)").waitFor();
+      await assertAccessible(page, `voice feedback at ${width} px, ${scheme}`);
+      await assertNoOverflow(page, `voice feedback at ${width} px, ${scheme}`);
     }
-    await page.goto(voiceFeedbackUrl);
-    await page.locator("#feedback:not(.hidden)").waitFor();
-    await assertAccessible(page, `voice feedback at ${width} px`);
-    await assertNoOverflow(page, `voice feedback at ${width} px`);
   }
+  // The theme switch: the system choice is the default, a click picks the other theme and it is kept.
+  await page.emulateMedia({colorScheme: "light"});
+  await page.setViewportSize({width: 1280, height: 860});
+  await page.goto(base + "/app#home");
+  await page.locator("#home:not([hidden])").waitFor();
+  const theme = () => page.evaluate(() => document.documentElement.getAttribute("data-theme"));
+  assert.equal(await theme(), null);
+  await page.locator("[data-theme-toggle]").click();
+  assert.equal(await theme(), "dark");
+  assert.equal(await page.locator("[data-theme-toggle]").getAttribute("aria-pressed"), "true");
+  assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(6, 10, 20)");
+  await page.reload();
+  assert.equal(await theme(), "dark");
+  await page.locator("[data-theme-toggle]").click();
+  assert.equal(await theme(), "light");
+  // Switching the interface language translates the navigation only: the document stays French and
+  // the translated elements carry their own language for screen readers.
+  await page.locator(".lang-switch [data-lang=en]").click();
+  assert.equal(await page.evaluate(() => document.documentElement.lang), "fr");
+  assert.equal(await page.locator(".sidebar nav a span[data-i18n=nav_exam]").getAttribute("lang"), "en");
+  await page.locator(".lang-switch [data-lang=fr]").click();
+  assert.equal(await page.locator(".sidebar nav a span[data-i18n=nav_exam]").getAttribute("lang"), null);
+  await page.evaluate(() => localStorage.removeItem("ari-theme"));
+  // perform() drops a hash change while the page is still loading after the reload: wait until it is idle.
+  await page.locator("#home:not([hidden])").waitFor();
+  await page.locator("#main[aria-busy=false]").waitFor();
+  // Icon-only rail between 761 and 1100 px: the links keep their accessible names.
+  await page.setViewportSize({width: 900, height: 860});
+  for (const name of ["Aujourd'hui", "Consultation", "Examen", "Progression", "Lexique", "Bilan"])
+    assert.equal(await page.locator(".sidebar nav").getByRole("link", {name}).count(), 1, `rail link ${name}`);
+  await page.setViewportSize({width: 1280, height: 860});
   await page.goto(base + "/app#cases");
   await page.locator("#cases:not([hidden])").waitFor();
   assert.equal(await page.locator("#voice-cases article").count(), 1);

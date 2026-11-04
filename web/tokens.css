@@ -1,0 +1,198 @@
+/* ARI shared design tokens — landing (inline), app, voice, login, back-office.
+   Light by default; dark = « Nuit bleue » (maquette B, 3 novembre 2026).
+   Dark applies when the system asks for it, unless the learner chose light (data-theme="light"),
+   or when the learner chose dark (data-theme="dark"). The Examen screen is always dark (body.exam-active). */
+:root{
+  color-scheme:light;
+  --bg:#fff;
+  --bg-soft:#fafafa;
+  --bg-sunk:#f4f4f3;
+  --line:#e8e8e6;
+  --line-strong:#d4d4d2;
+  --fg:#0a0a0a;
+  --fg-muted:#6b6b6b;
+  --fg-faint:#6b6b68;
+  --accent:#0070d5;
+  --accent-soft:#e8f3ff;
+  --accent-line:#abd1ff;
+  --accent-strong:#005bb0;
+  --accent-grad:#5aa7f0;
+  --violet:#9f4bff;
+  --violet-soft:#f4ecff;
+  --violet-line:#dcc3ff;
+  --violet-grad:#c79bff;
+  --violet-text:#7c2fd6;
+  --good-text:#1a7a48;
+  --good:#269e5f;
+  --good-soft:#e9f6ef;
+  --good-line:#bfe5cf;
+  --warn:#dc932e;
+  --warn-soft:#fdf3e4;
+  --warn-line:#f0c98c;
+  --warn-text:#a86414;
+  --danger:#c2410c;
+  --danger-soft:#fdf0f0;
+  --danger-line:#efc3c3;
+  --btn-bg:#0a0a0a;
+  --btn-fg:#fff;
+  --btn-hover:#262626;
+  --card-bg:rgba(255,255,255,.82);
+  --card-soft:rgba(255,255,255,.7);
+  --card-solid:#fff;
+  --glass-blur:8px;
+  --av-1:#cfe5ff;
+  --av-2:#e6d4ff;
+  --aura-l:.88;
+  --aura-c:.11;
+  --aura-opacity:.55;
+  --aura-opacity-lg:.85;
+  --track:#ececea;
+  --heat-0:#f6e3e3;
+  --heat-1:#f5ead6;
+  --heat-2:#ecefd8;
+  --heat-3:#d9ecdf;
+  --heat-4:#b9dcc6;
+  --shadow:0 1px 0 rgba(0,0,0,.02),0 12px 40px -20px rgba(10,30,60,.16);
+  --radius-sm:4px;
+  --radius:6px;
+  --radius-lg:10px;
+  --container:1200px;
+  --font-sans:"Geist",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+  /* Aliases kept for existing class rules that still reference the Continuité names. */
+  --ink:var(--fg);
+  --muted:var(--fg-muted);
+  --faint:var(--fg-faint);
+  --surface:var(--bg);
+  --soft:var(--accent-soft);
+  --green:var(--good);
+  --greenbg:var(--good-soft);
+  --warnbg:var(--warn-soft);
+  --paper:var(--bg-soft);
+}
+
+/* Dark tokens, declared twice on purpose (CSS cannot share a block between a media query and an attribute). */
+:root[data-theme="dark"],body.exam-active{
+  color-scheme:dark;
+  --bg:#060a14;
+  --bg-soft:#0a0f1c;
+  --bg-sunk:#0d1322;
+  --line:rgba(255,255,255,.12);
+  --line-strong:rgba(255,255,255,.22);
+  --fg:#eef3ff;
+  --fg-muted:#aab5cc;
+  --fg-faint:#98a4bd;
+  --accent:#74b6ff;
+  --accent-soft:rgba(116,182,255,.16);
+  --accent-line:rgba(116,182,255,.4);
+  --accent-strong:#9ccbff;
+  --accent-grad:#a9d3ff;
+  --violet:#b9a2ff;
+  --violet-soft:rgba(185,162,255,.14);
+  --violet-line:rgba(185,162,255,.4);
+  --violet-grad:#d9ccff;
+  --violet-text:#b9a2ff;
+  --good-text:#4ccf8e;
+  --good:#4ccf8e;
+  --good-soft:rgba(76,207,142,.14);
+  --good-line:rgba(76,207,142,.4);
+  --warn:#f0b254;
+  --warn-soft:rgba(240,178,84,.14);
+  --warn-line:rgba(240,178,84,.4);
+  --warn-text:#f0b254;
+  --danger:#ff8a5c;
+  --danger-soft:rgba(255,138,92,.14);
+  --danger-line:rgba(255,138,92,.4);
+  --btn-bg:#eef3ff;
+  --btn-fg:#060a14;
+  --btn-hover:#fff;
+  --card-bg:rgba(255,255,255,.055);
+  --card-soft:rgba(255,255,255,.04);
+  --card-solid:#0d1322;
+  --glass-blur:18px;
+  --av-1:#2b4a78;
+  --av-2:#4a3a7a;
+  --aura-l:.62;
+  --aura-c:.19;
+  --aura-opacity:.8;
+  --aura-opacity-lg:.95;
+  --track:rgba(255,255,255,.12);
+  --heat-0:rgba(255,138,92,.28);
+  --heat-1:rgba(240,178,84,.26);
+  --heat-2:rgba(200,210,110,.22);
+  --heat-3:rgba(76,207,142,.24);
+  --heat-4:rgba(76,207,142,.4);
+  --shadow:0 1px 0 rgba(255,255,255,.04),0 12px 40px -20px rgba(0,0,0,.6);
+  --ink:var(--fg);
+  --muted:var(--fg-muted);
+  --faint:var(--fg-faint);
+  --surface:var(--card-solid);
+  --soft:var(--accent-soft);
+  --green:var(--good);
+  --greenbg:var(--good-soft);
+  --warnbg:var(--warn-soft);
+  --paper:var(--bg-soft);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#060a14;
+    --bg-soft:#0a0f1c;
+    --bg-sunk:#0d1322;
+    --line:rgba(255,255,255,.12);
+    --line-strong:rgba(255,255,255,.22);
+    --fg:#eef3ff;
+    --fg-muted:#aab5cc;
+    --fg-faint:#98a4bd;
+    --accent:#74b6ff;
+    --accent-soft:rgba(116,182,255,.16);
+    --accent-line:rgba(116,182,255,.4);
+    --accent-strong:#9ccbff;
+    --accent-grad:#a9d3ff;
+    --violet:#b9a2ff;
+    --violet-soft:rgba(185,162,255,.14);
+    --violet-line:rgba(185,162,255,.4);
+    --violet-grad:#d9ccff;
+    --violet-text:#b9a2ff;
+    --good-text:#4ccf8e;
+    --good:#4ccf8e;
+    --good-soft:rgba(76,207,142,.14);
+    --good-line:rgba(76,207,142,.4);
+    --warn:#f0b254;
+    --warn-soft:rgba(240,178,84,.14);
+    --warn-line:rgba(240,178,84,.4);
+    --warn-text:#f0b254;
+    --danger:#ff8a5c;
+    --danger-soft:rgba(255,138,92,.14);
+    --danger-line:rgba(255,138,92,.4);
+    --btn-bg:#eef3ff;
+    --btn-fg:#060a14;
+    --btn-hover:#fff;
+    --card-bg:rgba(255,255,255,.055);
+    --card-soft:rgba(255,255,255,.04);
+    --card-solid:#0d1322;
+    --glass-blur:18px;
+    --av-1:#2b4a78;
+    --av-2:#4a3a7a;
+    --aura-l:.62;
+    --aura-c:.19;
+    --aura-opacity:.8;
+    --aura-opacity-lg:.95;
+    --track:rgba(255,255,255,.12);
+    --heat-0:rgba(255,138,92,.28);
+    --heat-1:rgba(240,178,84,.26);
+    --heat-2:rgba(200,210,110,.22);
+    --heat-3:rgba(76,207,142,.24);
+    --heat-4:rgba(76,207,142,.4);
+    --shadow:0 1px 0 rgba(255,255,255,.04),0 12px 40px -20px rgba(0,0,0,.6);
+    --surface:var(--card-solid);
+  }
+}
+
+/* Light / dark switch, shared by the landing, sign-in, app and voice pages. */
+.theme-toggle{display:inline-grid;place-items:center;width:36px;height:36px;min-height:36px;padding:0;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--card-soft);color:var(--fg);cursor:pointer}
+.theme-toggle:hover{border-color:var(--fg-muted);background:var(--card-soft)}
+.theme-toggle svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.theme-toggle .i-sun{display:none}
+.theme-toggle[aria-pressed=true] .i-sun{display:block}
+.theme-toggle[aria-pressed=true] .i-moon{display:none}
