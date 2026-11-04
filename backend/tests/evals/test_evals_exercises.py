@@ -37,6 +37,7 @@ CONFIGS = PROJECT_ROOT / "evals" / "configs" / "exercises"
 BUILDER = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v1.py"
 BUILDER_V2 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v2.py"
 BUILDER_V3 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v3.py"
+BUILDER_V4 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v4.py"
 SUITE = "language-exercises@1"
 
 
@@ -139,7 +140,7 @@ def test_the_fake_configuration_runs_the_chain_without_a_key_and_measures_nothin
     out = tmp_path / "report.json"
     assert main(["exercises", "--config", str(CONFIGS / "fake.yaml"), "--out", str(out)]) == 0
     report = read_report(out)
-    assert report.suite == "language-exercises@3"  # The default suite is the latest version.
+    assert report.suite == "language-exercises@4"  # The default suite is the latest version.
     assert report.config.provider == "fake" and not report.gate_mode
     assert report.metrics["mechanical_catch_rate"] == 1.0
     assert report.metrics["structured_after_retry"] == 1.0
@@ -547,3 +548,64 @@ def test_the_diagnosis_names_the_new_refusal_reasons() -> None:
     assert rejection_reasons(second) == ["pass_2:judge:key_form_exact"]
     second_solver = {"stage": "blind_solver", "issues": ["pass_2"]}
     assert rejection_reasons(second_solver) == ["pass_2:solver"]
+
+
+def test_the_fourth_version_of_the_dataset_is_what_its_builder_makes(tmp_path: Path) -> None:
+    spec = importlib.util.spec_from_file_location("build_language_exercises_v4", BUILDER_V4)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.build(tmp_path)
+    committed = DATASETS / "language-exercises" / "4"
+    for name in ("manifest.json", "dev.jsonl", "holdout.jsonl"):
+        assert (tmp_path / name).read_bytes() == (committed / name).read_bytes(), name
+
+
+def test_the_fourth_version_reads_everything_measured_as_dev_and_has_a_new_holdout() -> None:
+    v3, v4 = load_dataset(DATASETS, "3"), load_dataset(DATASETS, "4")
+    assert v4.ref == "language-exercises@4" and v4.manifest.synthetic
+    dev = v4.read_split("dev", gate=True)  # type: ignore[arg-type]
+    holdout = v4.read_split("holdout", gate=True)  # type: ignore[arg-type]
+    families_v3 = {f for split in v3.manifest.splits.values() for f in split}
+    # Both splits of version 3 are development data now: the regression and the burnt holdout.
+    assert {i.family for i in dev} >= {f for f in families_v3 if not f.endswith("absurd")}
+    assert {i.family for i in holdout}.isdisjoint(families_v3)
+    assert {i.candidate.stem for i in holdout}.isdisjoint({i.candidate.stem for i in dev})
+    assert any(i.id == "e-h05-choice-cloze:near_miss_key" for i in dev)
+    assert sum(i.truth.valid for i in holdout) == 14
+    defects = {i.truth.defect for i in holdout}
+    assert defects >= {"wrong_key", "two_correct", "no_correct", "near_miss_key", "bad_explanation"}
+    assert defects >= {"wrong_category", "level_mismatch", "medical_absurd"} | MECHANICAL_DEFECTS
+
+
+def test_the_fourth_version_leaves_the_model_defects_to_the_models() -> None:
+    from ari.domain.language_exercises import mechanical_issues
+
+    dataset = load_dataset(DATASETS, "4")
+    for split in ("dev", "holdout"):
+        for item in dataset.read_split(split, gate=True):  # type: ignore[arg-type]
+            issues = mechanical_issues(item.candidate)
+            if item.truth.defect in MECHANICAL_DEFECTS:
+                assert issues, item.id  # The code must refuse these before any call.
+            else:
+                assert not issues, (item.id, issues)  # A model has to be the one to refuse these.
+
+
+def test_a_vocabulary_exercise_does_not_use_its_typo_as_its_wrong_answer() -> None:
+    """The `no_correct` and `near_miss_key` of a family are two different faults."""
+    dataset = load_dataset(DATASETS, "4")
+    items = {i.id: i for i in dataset.read_split("holdout", gate=True)}  # type: ignore[arg-type]
+    family = "e-m12-choice-cloze"
+    no_correct, near_miss = items[f"{family}:no_correct"], items[f"{family}:near_miss_key"]
+    assert no_correct.candidate.key == "fotokopiert"
+    assert near_miss.candidate.key == "hervorgehobn"
+
+
+async def test_a_perfect_checker_passes_the_gate_on_the_fourth_version() -> None:
+    dataset = load_dataset(DATASETS, "4")
+    solver, judge = oracle_for(dataset, "holdout", strict=True)
+    provider = ScriptedModels(author=lambda r, p: {}, solver=solver, judge=judge)
+    report = await run_exercises(request(provider, version="4"))
+    assert report.suite == "language-exercises@4"
+    assert report.gate is not None and report.gate.status == "passed", report.gate
+    assert report.metrics["false_reject_rate"] == 0.0 and report.critical_errors == []
