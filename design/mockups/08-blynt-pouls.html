@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ARI — Préparez la Fachsprachprüfung, consultation après consultation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff;--bg-soft:#fafafa;--bg-sunk:#f4f4f3;--line:#e8e8e6;--line-strong:#d4d4d2;--fg:#0a0a0a;--fg-muted:#6b6b6b;--fg-faint:#9a9a98;--accent:#0070d5;--accent-soft:#e8f3ff;--accent-line:#abd1ff;--good:#269e5f;--warn:#dc932e;--radius-sm:4px;--radius:6px;--radius-lg:10px;--container:1200px;--font-sans:"Geist",ui-sans-serif,system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
+.container{max-width:var(--container);margin:0 auto;padding:0 28px;position:relative;z-index:1}
+.btn{border-radius:var(--radius);white-space:nowrap;border:1px solid transparent;align-items:center;gap:8px;padding:11px 18px;font-size:14px;font-weight:500;transition:all .15s;display:inline-flex;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}.btn-primary:hover{background:#262626}
+.btn-secondary{border-color:var(--line-strong);background:rgba(255,255,255,.6)}.btn-secondary:hover{border-color:var(--fg-muted)}
+.btn-lg{padding:14px 24px;font-size:15px}.btn .arr{transition:transform .15s}.btn:hover .arr{transform:translateX(3px)}
+/* nav */
+.nav{z-index:50;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);position:sticky;top:0}
+.nav-inner{max-width:var(--container);align-items:center;gap:32px;height:60px;margin:0 auto;padding:0 28px;display:flex}
+.nav-logo{align-items:center;gap:9px;font-size:15px;font-weight:600;display:flex;letter-spacing:-.01em}.nav-logo svg{width:24px;height:24px;color:var(--fg)}
+.nav-links{display:flex;gap:4px;margin-left:16px}.nav-link{color:var(--fg-muted);border-radius:var(--radius);padding:6px 12px;font-size:14px}.nav-link:hover{color:var(--fg);background:var(--bg-sunk)}
+.nav-spacer{flex:1}.nav-cta{display:flex;gap:10px;align-items:center}.nav .btn{padding:8px 14px}
+/* hero */
+.hero{isolation:isolate;padding:104px 0 104px;position:relative;overflow:hidden;min-height:calc(100vh - 60px);display:flex;align-items:center}
+.pulse-bg{position:absolute;inset:0;z-index:0;pointer-events:none;-webkit-mask-image:radial-gradient(62% 52% at 50% 42%,rgba(0,0,0,.08) 0 30%,#000 80%);mask-image:radial-gradient(62% 52% at 50% 42%,rgba(0,0,0,.08) 0 30%,#000 80%)}
+.pulse-bg canvas{position:absolute;inset:0;width:100%;height:100%}
+.pulse-bg .glow{filter:blur(14px);opacity:.35}
+.pulse-bg .sharp{opacity:.5}
+.hero-grid-lines{position:absolute;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:40px 40px;opacity:.35;-webkit-mask-image:radial-gradient(70% 60% at 50% 50%,#000,transparent 75%);mask-image:radial-gradient(70% 60% at 50% 50%,#000,transparent 75%)}
+.hero-copy{text-align:center;display:flex;flex-direction:column;align-items:center;max-width:760px;margin:0 auto}
+.hero h1{letter-spacing:-.03em;text-wrap:balance;max-width:18ch;margin:0 0 22px;font-size:clamp(40px,4.6vw,60px);font-weight:500;line-height:1.04}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero-sub{color:var(--fg-muted);text-wrap:pretty;max-width:620px;margin:0 0 36px;font-size:19px;line-height:1.5}
+.hero-cta{gap:10px;display:flex;flex-wrap:wrap;justify-content:center}
+.hero-meta{margin-top:48px;display:flex;gap:28px;flex-wrap:wrap;justify-content:center;font:12px var(--font-mono);color:var(--fg-faint);letter-spacing:.04em;text-transform:uppercase}
+.hero-meta span{display:inline-flex;gap:8px;align-items:center}.hero-meta i{width:5px;height:5px;background:var(--accent);border-radius:50%;opacity:.6}
+/* reveal */
+.fade{opacity:0;transform:translateY(14px);transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .8s cubic-bezier(.2,.7,.2,1)}.fade.in{opacity:1;transform:none}
+.hero .fade{transition-delay:calc(var(--d,0)*90ms)}
+/* sections */
+.section{border-top:1px solid var(--line);padding:96px 0;position:relative;overflow:clip}
+.section.soft{background:var(--bg-soft)}
+.section-eyebrow{font:12px var(--font-mono);letter-spacing:.04em;color:var(--fg-muted);text-transform:uppercase;align-items:center;gap:10px;margin-bottom:22px;display:flex}
+.section-eyebrow .num{color:var(--accent);border:1px solid var(--accent-line);background:var(--accent-soft);border-radius:var(--radius-sm);padding:1px 6px}
+.section-title{letter-spacing:-.02em;max-width:720px;margin:0 0 14px;font-size:44px;font-weight:500;line-height:1.08;text-wrap:balance}
+.section-lead{color:var(--fg-muted);max-width:620px;margin:0 0 36px;font-size:18px;line-height:1.5}
+.sub{margin-top:72px}.sub-label{font:12px var(--font-mono);color:var(--fg-faint);letter-spacing:.04em;margin-bottom:10px}
+.sub h3{font-size:28px;font-weight:500;letter-spacing:-.015em;margin:0 0 10px;max-width:680px;line-height:1.15}
+.sub p.l{color:var(--fg-muted);max-width:620px;margin:0 0 28px;font-size:16px}
+.ph{font-family:var(--font-mono);color:var(--warn);background:#fdf4e8;border:1px dashed #efc890;border-radius:var(--radius-sm);padding:0 5px;font-size:.85em;white-space:nowrap}
+/* cases */
+.cases{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.case{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg);display:flex;flex-direction:column;overflow:hidden;transition:border-color .2s,transform .2s}
+.case:hover{border-color:var(--line-strong);transform:translateY(-2px)}
+.case-head{padding:22px 22px 16px}.case-tag{font:11px var(--font-mono);color:var(--fg-faint);letter-spacing:.06em;text-transform:uppercase}
+.case h4{font-size:19px;font-weight:500;margin:8px 0 4px;letter-spacing:-.01em}.case .d{color:var(--fg-muted);font-size:14px;margin:0}
+.case-rows{border-top:1px dashed var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}
+.case-row{display:grid;grid-template-columns:110px 1fr;gap:10px;font-size:13px}.case-row .k{font:11px var(--font-mono);color:var(--fg-faint);padding-top:2px;letter-spacing:.03em}
+.case-foot{margin-top:auto;border-top:1px solid var(--line);background:var(--bg-soft);padding:16px 22px;display:flex;align-items:baseline;gap:10px}
+.case-foot .big{font:500 26px var(--font-mono);letter-spacing:-.02em}.case-foot .big.red{color:#c2410c}.case-foot .s{font-size:12px;color:var(--fg-muted)}
+/* bob */
+.bob-grid{grid-template-columns:repeat(3,1fr);gap:16px;display:grid}
+.bob-col{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg-soft);flex-direction:column;gap:14px;min-height:220px;padding:24px;display:flex}
+.bob-bracket{font:500 12px var(--font-mono);letter-spacing:.04em;color:var(--fg)}.bob-bracket span{color:var(--accent)}
+.bob-desc{color:var(--fg-muted);margin:0;font-size:14px;line-height:1.55}
+.bob-pills{border-top:1px dashed var(--line);flex-direction:column;gap:6px;margin-top:auto;padding-top:14px;display:flex}
+.bob-pill{background:var(--bg);border:1px solid var(--line);border-radius:6px;align-items:center;gap:8px;padding:8px 10px;font-size:12px;display:flex}
+.bob-pill .k{font:11px var(--font-mono);color:var(--fg-faint)}.bob-pill .v{font-weight:500;margin-left:auto}
+/* day / scrollytelling */
+.day-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap}
+.day-clock{font:12px var(--font-mono);color:var(--fg-faint);border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:var(--bg)}
+.day{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:64px;margin-top:40px;position:relative}
+.rail{position:absolute;left:43px;top:0;bottom:0;width:1px;background:var(--line)}
+.rail-fill{position:absolute;left:0;top:0;width:1px;background:var(--accent);height:0;transition:height .2s linear;box-shadow:0 0 8px var(--accent)}
+.steps{position:relative}
+.step{min-height:72vh;display:flex;flex-direction:column;justify-content:center;padding:24px 0 24px 0;position:relative}
+.step-time{display:flex;align-items:center;gap:14px;font:500 13px var(--font-mono);color:var(--fg-faint);margin-bottom:16px;transition:color .3s}
+.step-time .node{width:88px;display:flex;justify-content:center}
+.step-time .node i{width:11px;height:11px;border-radius:50%;background:var(--bg);border:1px solid var(--line-strong);transition:all .3s;display:block}
+.step.on .step-time{color:var(--accent)}.step.on .step-time .node i{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 5px var(--accent-soft)}
+.step-body{padding-left:102px;opacity:.35;transition:opacity .4s}.step.on .step-body{opacity:1}
+.step-kicker{font:11px var(--font-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--fg-muted);margin-bottom:8px}
+.step h3{font-size:26px;font-weight:500;letter-spacing:-.015em;margin:0 0 10px;line-height:1.15}
+.step p{color:var(--fg-muted);margin:0 0 14px;font-size:15.5px}
+.step-chips{display:flex;flex-wrap:wrap;gap:6px}.chip{font:11px var(--font-mono);border:1px solid var(--line);border-radius:999px;padding:3px 9px;color:var(--fg-muted);background:var(--bg)}
+.stage-wrap{position:relative}
+.stage{position:sticky;top:96px;height:calc(100vh - 140px);max-height:560px;min-height:460px}
+.screen{position:absolute;inset:0;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg);box-shadow:0 1px 0 rgba(0,0,0,.02),0 24px 60px -24px rgba(10,30,60,.18);overflow:hidden;display:flex;flex-direction:column;opacity:0;transform:translateY(18px) scale(.985);transition:opacity .55s,transform .55s cubic-bezier(.2,.7,.2,1);pointer-events:none}
+.screen.on{opacity:1;transform:none;pointer-events:auto}
+.scr-bar{height:42px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--bg-soft);font:11.5px var(--font-mono);color:var(--fg-muted);flex:none}
+.scr-bar .dots{display:flex;gap:5px}.scr-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--line-strong)}
+.scr-bar .t{margin-left:6px}.scr-bar .r{margin-left:auto;color:var(--fg-faint)}
+.scr-body{flex:1;padding:24px;position:relative;display:flex;flex-direction:column;gap:14px;min-height:0}
+.lbl{font:11px var(--font-mono);color:var(--fg-faint);letter-spacing:.04em;text-transform:uppercase}
+/* m1 srs */
+.srs-meta{display:flex;justify-content:space-between}
+.flip{perspective:1000px;flex:1;min-height:200px}
+.flip-in{position:relative;width:100%;height:100%;transition:transform .9s cubic-bezier(.3,.7,.2,1);transform-style:preserve-3d}
+.screen.on .flip-in{transform:rotateY(180deg);transition-delay:1.1s}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:20px}
+.face.back{transform:rotateY(180deg);background:var(--bg)}
+.face .w{font-size:34px;font-weight:500;letter-spacing:-.02em}.face .w .art{color:var(--accent)}
+.face .g{font:12px var(--font-mono);color:var(--fg-faint)}.face .ex{font-size:14px;color:var(--fg-muted);max-width:36ch}
+.srs-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.srs-btns span{border:1px solid var(--line);border-radius:var(--radius);padding:9px 0;text-align:center;font-size:13px;background:var(--bg)}
+.srs-btns span small{display:block;font:10px var(--font-mono);color:var(--fg-faint)}
+.screen.on .srs-btns .pick{animation:press .5s 2.6s both}
+@keyframes press{0%{}40%{transform:scale(.96);background:var(--accent-soft);border-color:var(--accent-line)}100%{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}}
+.prog{height:4px;background:var(--bg-sunk);border-radius:4px;overflow:hidden}.prog i{display:block;height:100%;width:20%;background:var(--accent);transition:width 1s 2.9s}.screen.on .prog i{width:32%}
+/* m2 remediation */
+.err{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;background:var(--bg-soft);font-size:15px}
+.err .src{font:11px var(--font-mono);color:var(--fg-faint);margin-bottom:6px}
+.err s{color:#c2410c;text-decoration-thickness:1.5px}.err ins{text-decoration:none;color:var(--good);font-weight:500;opacity:0;transition:opacity .4s .9s}.screen.on .err ins{opacity:1}
+.axis{display:flex;gap:8px;align-items:center;font-size:13px}.axis .chip.on{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
+.ex-list{display:flex;flex-direction:column;gap:8px}
+.exr{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;font-size:14px;opacity:0;transform:translateX(10px);transition:all .5s}
+.screen.on .exr{opacity:1;transform:none}.screen.on .exr:nth-child(1){transition-delay:1.3s}.screen.on .exr:nth-child(2){transition-delay:1.6s}.screen.on .exr:nth-child(3){transition-delay:1.9s}
+.exr .n{font:11px var(--font-mono);color:var(--fg-faint)}.gap{display:inline-block;min-width:40px;border-bottom:1.5px solid var(--accent-line);text-align:center;color:var(--accent);font-weight:500}
+.ok{font:11px var(--font-mono);color:var(--good)}
+/* m3 consultation */
+.call{display:grid;grid-template-columns:1fr;gap:14px;flex:1;min-height:0}
+.call-top{display:flex;align-items:center;gap:12px}
+.avatar{width:38px;height:38px;border-radius:50%;background:var(--accent-soft);border:1px solid var(--accent-line);display:grid;place-items:center;font:500 13px var(--font-mono);color:var(--accent)}
+.call-top .who{font-size:14px;font-weight:500}.call-top .who small{display:block;font:11px var(--font-mono);color:var(--fg-faint);font-weight:400}
+.live{margin-left:auto;font:11px var(--font-mono);color:#c2410c;display:flex;align-items:center;gap:6px}.live i{width:7px;height:7px;border-radius:50%;background:#e5484d;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+.voice{height:64px;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-soft);position:relative;overflow:hidden}.voice canvas{width:100%;height:100%;display:block}
+.tx{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:9px;font-size:14px;min-height:0;-webkit-mask-image:linear-gradient(transparent,#000 18%);mask-image:linear-gradient(transparent,#000 18%);justify-content:flex-end}
+.line{display:grid;grid-template-columns:62px 1fr;gap:10px;opacity:0;transform:translateY(6px);transition:all .4s}
+.line.show{opacity:1;transform:none}.line .s{font:11px var(--font-mono);color:var(--fg-faint);padding-top:2px}.line.pt .s{color:var(--accent)}
+.line .flag{display:inline-block;margin-left:6px;font:10.5px var(--font-mono);color:var(--good);border:1px solid #bfe3cf;background:#effaf3;border-radius:999px;padding:0 6px}
+.line .flag.w{color:#a86414;border-color:#f1d2a6;background:#fdf6ea}
+/* m4 arzt-arzt */
+.pres{display:flex;flex-direction:column;gap:7px}
+.pi{display:grid;grid-template-columns:20px 130px 1fr;gap:10px;align-items:start;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius);font-size:13.5px;background:var(--bg)}
+.pi .ck{width:16px;height:16px;border-radius:4px;border:1px solid var(--line-strong);display:grid;place-items:center;margin-top:1px;transition:all .3s}
+.pi .ck svg{width:10px;height:10px;opacity:0;transition:opacity .3s}
+.pi.done .ck{background:var(--accent);border-color:var(--accent)}.pi.done .ck svg{opacity:1}
+.pi .k{font:11.5px var(--font-mono);color:var(--fg-muted);padding-top:1px}.pi .v{color:var(--fg)}
+.quest{border:1px dashed var(--accent-line);background:var(--accent-soft);border-radius:var(--radius);padding:11px 14px;font-size:13.5px;color:#0b4f91;opacity:0;transition:opacity .5s 3.4s}.screen.on .quest{opacity:1}
+/* m5 bilan */
+.bil-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi{border:1px solid var(--line);border-radius:var(--radius);padding:14px;background:var(--bg-soft)}.kpi .v{font:500 20px var(--font-mono);margin-top:6px;letter-spacing:-.01em}
+.bars{display:flex;flex-direction:column;gap:10px}
+.bar{display:grid;grid-template-columns:150px 1fr 54px;gap:10px;align-items:center;font-size:13px}
+.bar .tr{height:6px;background:var(--bg-sunk);border-radius:6px;overflow:hidden}.bar .tr i{display:block;height:100%;width:0;background:var(--accent);border-radius:6px;transition:width 1.1s cubic-bezier(.2,.7,.2,1)}
+.screen.on .bar .tr i{width:var(--w)}.bar .val{text-align:right}
+.next{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:14px}
+.next b{font-weight:500}
+.mock-m{display:none}
+/* how */
+.how{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg);overflow:hidden}
+.how-i{padding:26px 22px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:10px;min-height:250px}.how-i:last-child{border-right:0}
+.how-n{width:28px;height:28px;border-radius:var(--radius);border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--accent);font:500 13px var(--font-mono);display:grid;place-items:center}
+.how-k{font:11px var(--font-mono);color:var(--fg-faint);letter-spacing:.05em;text-transform:uppercase;margin-top:6px}
+.how-i h4{margin:0;font-size:18px;font-weight:500;letter-spacing:-.01em}.how-i p{margin:0;color:var(--fg-muted);font-size:14px}
+.how-i .tag{margin-top:auto;font:11px var(--font-mono);color:var(--fg-muted);border-top:1px dashed var(--line);padding-top:12px}
+/* eval table */
+.evt{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--bg)}
+.evr{display:grid;grid-template-columns:1.1fr 1.6fr .9fr;border-top:1px solid var(--line);font-size:14px}.evr:first-child{border-top:0;background:var(--bg-soft);font:11px var(--font-mono);color:var(--fg-faint);letter-spacing:.05em;text-transform:uppercase}
+.evr>div{padding:14px 18px}.evr>div+div{border-left:1px solid var(--line)}
+.st{font:11.5px var(--font-mono);display:inline-flex;gap:6px;align-items:center}.st i{width:7px;height:7px;border-radius:50%}
+.st.g{color:var(--good)}.st.g i{background:var(--good)}.st.w{color:#a86414}.st.w i{background:var(--warn)}.st.n{color:var(--fg-faint)}.st.n i{background:var(--line-strong)}
+/* cta */
+.final{text-align:center;padding:140px 0}.final .section-title{margin:0 auto 14px;font-size:52px}.final .section-lead{margin:0 auto 32px}
+.footer{border-top:1px solid var(--line);padding:32px 0;font-size:13px;color:var(--fg-muted)}
+.footer .container{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center}.footer .mono{font-size:11px;color:var(--fg-faint)}
+.sec-aura{z-index:0;pointer-events:none;opacity:.85;filter:blur(62px) saturate(1.25);position:absolute;inset:0;overflow:hidden;-webkit-mask-image:radial-gradient(130% 100% at 50% 48%,transparent 0 16%,#000 66%);mask-image:radial-gradient(130% 100% at 50% 48%,transparent 0 16%,#000 66%)}
+.sec-blob{will-change:transform;border-radius:50%;position:absolute}
+.sec-blob-1{width:48vw;height:48vw;left:var(--x1,-6%);top:var(--y1,-16%);background:radial-gradient(circle at 50% 50%,oklch(.88 .11 var(--h1)/.95),transparent 70%);animation:secFloatA 30s ease-in-out infinite alternate}
+.sec-blob-2{width:42vw;height:42vw;left:var(--x2,65%);top:var(--y2,70%);background:radial-gradient(circle at 50% 50%,oklch(.89 .1 var(--h2)/.92),transparent 70%);animation:secFloatB 37s ease-in-out infinite alternate}
+@keyframes secFloatA{0%{transform:translate(0) scale(1)}to{transform:translate(13%,15%) scale(1.16)}}
+@keyframes secFloatB{0%{transform:translate(0) scale(1.06)}to{transform:translate(-13%,-13%) scale(.92)}}
+/* responsive */
+@media (max-width:860px){.section{padding:64px 0}}
+@media (max-width:980px){
+ .nav-links{display:none}.cases,.bob-grid{grid-template-columns:1fr}.how{grid-template-columns:1fr 1fr}.how-i:nth-child(2){border-right:0}.how-i:nth-child(-n+2){border-bottom:1px solid var(--line)}
+ .day{grid-template-columns:1fr;gap:0}.stage-wrap{display:none}.mock-m{display:block;position:relative;height:440px;margin-top:22px}.mock-m .screen{position:absolute}
+ .step{min-height:auto;padding:40px 0}.step-body{padding-left:40px;opacity:1}.rail{left:5px}.step-time .node{width:11px}.step-time{gap:28px}
+}
+@media (max-width:640px){.hide-m{display:none}
+ .container,.nav-inner{padding:0 18px}.nav-inner{gap:12px}.nav .btn-secondary{display:none}
+ .hero{padding:72px 0 96px;min-height:auto}.hero-sub{font-size:17px}
+ .section{padding:64px 0}.section-title{font-size:32px}.final .section-title{font-size:36px}.sub h3{font-size:23px}
+ .how{grid-template-columns:1fr}.how-i{border-right:0!important;border-bottom:1px solid var(--line);min-height:0}.how-i:last-child{border-bottom:0}
+ .evr{grid-template-columns:1fr}.evr>div+div{border-left:0;padding-top:0}.evr:first-child{display:none}.evr>div:first-child{font-weight:500}
+ .step-body{padding-left:30px}.step-time{gap:19px}.step h3{font-size:22px}
+ .bar{grid-template-columns:110px 1fr 44px}.pi{grid-template-columns:20px 1fr}.pi .v{grid-column:2}
+ .scr-body{padding:16px}.face .w{font-size:28px}.hero-meta{gap:14px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.fade{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><mask id="mB"><rect width="32" height="32" fill="#000"/><rect x="1.5" y="1.5" width="29" height="29" rx="8.5" fill="#fff"/></mask><path d="M3.6 16.2h5.6l2.1-5.8 3.3 11.4 2.4-5.6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><rect x="19.4" y="12.7" width="2.2" height="7" rx="1.1" fill="currentColor"/><rect x="22.4" y="9.7" width="2.2" height="13" rx="1.1" fill="currentColor"/><rect x="25.4" y="11.7" width="2.2" height="9" rx="1.1" fill="currentColor"/></symbol>
+<symbol id="ck" viewBox="0 0 10 10"><path d="M2 5.2 4.1 7.3 8 2.8" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol></defs></svg>
+
+<nav class="nav"><div class="nav-inner">
+ <a class="nav-logo" href="#"><svg><use href="#logo"/></svg>ARI</a>
+ <div class="nav-links"><a class="nav-link" href="#constat">Pourquoi ARI</a><a class="nav-link" href="#journee">Une journée</a><a class="nav-link" href="#methode">Méthode</a><a class="nav-link" href="#evaluation">Évaluation</a></div>
+ <div class="nav-spacer"></div>
+ <div class="nav-cta"><a class="btn btn-secondary" href="#positionnement">Test de positionnement</a><a class="btn btn-primary" href="#acces">Rejoindre la liste <span class="arr">→</span></a></div>
+</div></nav>
+
+<header class="hero">
+ <div class="hero-grid-lines"></div>
+ <div class="pulse-bg" id="heroPulse"><canvas class="glow"></canvas><canvas class="sharp"></canvas></div>
+ <div class="container"><div class="hero-copy">
+  <h1 class="fade" style="--d:1">L’allemand médical, <em>consultation après consultation.</em></h1>
+  <p class="hero-sub fade" style="--d:2">ARI prépare les médecins étrangers à la Fachsprachprüfung : de vraies consultations vocales avec un patient IA, la présentation au confrère, le lexique en répétition espacée, et un programme qui part de vos propres erreurs.</p>
+  <div class="hero-cta fade" style="--d:3"><a class="btn btn-primary btn-lg" href="#acces">Rejoindre la liste d’attente <span class="arr">→</span></a><a class="btn btn-secondary btn-lg" href="#journee">Voir une journée type</a></div>
+  <div class="hero-meta fade" style="--d:4"><span><i></i>Arzt–Patient en voix</span><span><i></i>Arzt–Arzt-Gespräch</span><span><i></i>Fachbegriffe</span><span><i></i>Niveau B1 minimum</span></div>
+ </div></div>
+</header>
+
+<section class="section" id="constat">
+ <div class="sec-aura" aria-hidden="true" style="--h1:65;--h2:40;--x1:58%;--y1:-22%;--x2:-14%;--y2:46%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+ <div class="container">
+  <div class="section-eyebrow fade"><span class="num">01</span>Pourquoi ARI</div>
+  <h2 class="section-title fade">Parler allemand ne suffit pas. Il faut parler allemand <em style="font-style:normal;color:var(--accent)">comme un médecin</em>.</h2>
+  <p class="section-lead fade">La FSP n’évalue pas une grammaire de manuel. Elle évalue une anamnèse menée en allemand, une lettre médicale, et une présentation structurée devant un confrère — en temps limité, face à un examinateur.</p>
+  <div class="sub-label fade">1.1 · Les trois épreuves</div>
+  <div class="cases">
+   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 1</div><h4>Arzt–Patient-Gespräch</h4><p class="d">Anamnèse avec un patient simulé</p></div>
+    <div class="case-rows"><div class="case-row"><span class="k">ce qui piège</span><span>Registre patient, questions ouvertes, reformulation</span></div><div class="case-row"><span class="k">ce qui coûte</span><span>Une allergie ou une dose mal comprise</span></div></div>
+    <div class="case-foot"><span class="big">Oral</span><span class="s">en face à face, sans support</span></div></article>
+   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 2</div><h4>Arztbrief / Dokumentation</h4><p class="d">Rédaction de la lettre médicale</p></div>
+    <div class="case-rows"><div class="case-row"><span class="k">ce qui piège</span><span>Nominalisation, passif, orthographe</span></div><div class="case-row"><span class="k">ce qui coûte</span><span>Un fait de l’anamnèse oublié ou déformé</span></div></div>
+    <div class="case-foot"><span class="big">Écrit</span><span class="s">à partir de la consultation</span></div></article>
+   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 3</div><h4>Arzt–Arzt-Gespräch</h4><p class="d">Présentation du cas au confrère</p></div>
+    <div class="case-rows"><div class="case-row"><span class="k">ce qui piège</span><span>Structure, Fachsprache, questions de l’examinateur</span></div><div class="case-row"><span class="k">ce qui coûte</span><span>Une présentation sans fil conducteur</span></div></div>
+    <div class="case-foot"><span class="big">Oral</span><span class="s">entre médecins</span></div></article>
+  </div>
+  <div class="sub fade"><div class="sub-label">1.2 · Comment on s’y prépare aujourd’hui</div>
+   <h3>Des cours de groupe, des PDF de Redemittel, et très peu de pratique réelle.</h3>
+   <p class="l">Le problème n’est pas le manque de contenu. C’est le manque de répétitions parlées, corrigées, et reliées à vos erreurs.</p>
+   <div class="bob-grid">
+    <div class="bob-col"><div class="bob-bracket">[ <span>1.</span> Cours de groupe ]</div><p class="bob-desc">Utiles pour la grammaire, mais on parle quelques minutes par séance, rarement en situation clinique.</p><div class="bob-pills"><div class="bob-pill"><span class="k">temps de parole</span><span class="v">limité</span></div><div class="bob-pill"><span class="k">coût</span><span class="v ph">[à sourcer]</span></div></div></div>
+    <div class="bob-col"><div class="bob-bracket">[ <span>2.</span> Listes et Redemittel ]</div><p class="bob-desc">On apprend des phrases par cœur. On ne sait pas si on les comprend quand le patient répond autrement.</p><div class="bob-pills"><div class="bob-pill"><span class="k">feedback</span><span class="v">aucun</span></div><div class="bob-pill"><span class="k">oral</span><span class="v">non</span></div></div></div>
+    <div class="bob-col"><div class="bob-bracket">[ <span>3.</span> Simulations entre candidats ]</div><p class="bob-desc">Précieuses, mais difficiles à organiser, et personne ne corrige vraiment le genre, le cas ou le registre.</p><div class="bob-pills"><div class="bob-pill"><span class="k">régularité</span><span class="v">variable</span></div><div class="bob-pill"><span class="k">correction</span><span class="v">partielle</span></div></div></div>
+   </div></div>
+ </div>
+</section>
+
+<section class="section soft" id="journee">
+ <div class="sec-aura" aria-hidden="true" style="--h1:254;--h2:230;--x1:-18%;--y1:34%;--x2:66%;--y2:-20%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+ <div class="container">
+  <div class="day-head"><div><div class="section-eyebrow fade"><span class="num">02</span>Une journée avec ARI</div>
+   <h2 class="section-title fade">Une séance, un axe, un vrai patient à écouter.</h2>
+   <p class="section-lead fade" style="margin-bottom:0">Suivez Samira, médecin en préparation de la FSP, sur une séance d’environ 40 minutes avant sa garde. Faites défiler.</p></div>
+   <div class="day-clock fade">Exemple illustratif · séance type</div></div>
+  <div class="day">
+   <div class="steps" id="steps"><div class="rail"><div class="rail-fill" id="railFill"></div></div>
+    <div class="step" data-s="0"><div class="step-time"><span class="node"><i></i></span>07:40 · 5 min</div><div class="step-body"><div class="step-kicker">2.1 · Échauffement</div><h3>Le lexique revient au bon moment.</h3><p>Répétition espacée sur les Fachbegriffe : chaque carte revient juste avant d’être oubliée, avec son article et une phrase clinique.</p><div class="step-chips"><span class="chip">Fachbegriffe</span><span class="chip">article + pluriel</span><span class="chip">répétition espacée</span></div><div class="mock-m"></div></div></div>
+    <div class="step" data-s="1"><div class="step-time"><span class="node"><i></i></span>07:45 · 10–15 min</div><div class="step-body"><div class="step-kicker">2.2 · Travail ciblé</div><h3>Un seul axe : celui de vos erreurs.</h3><p>Hier, Samira a dit « der Patientin ». Aujourd’hui, ARI ouvre l’axe <b>genre</b> avec des exercices tirés de son propre lexique. Un axe par jour, jamais trois.</p><div class="step-chips"><span class="chip">genre</span><span class="chip">cas</span><span class="chip">conjugaison</span><span class="chip">registre</span></div><div class="mock-m"></div></div></div>
+    <div class="step" data-s="2"><div class="step-time"><span class="node"><i></i></span>08:00 · 15–20 min</div><div class="step-body"><div class="step-kicker">2.3 · Consultation vocale</div><h3>Herr Weber a mal à la poitrine. Menez l’anamnèse.</h3><p>Une consultation Arzt–Patient en voix, en temps réel. Le patient IA répond, hésite, se contredit parfois — comme à l’examen. Les faits clés sont repérés au fil de l’échange.</p><div class="step-chips"><span class="chip">micro ouvert</span><span class="chip">transcription</span><span class="chip">faits du cas</span></div><div class="mock-m"></div></div></div>
+    <div class="step" data-s="3"><div class="step-time"><span class="node"><i></i></span>08:20 · 5 min</div><div class="step-body"><div class="step-kicker">2.4 · Arzt–Arzt-Gespräch</div><h3>Présentez le cas au confrère.</h3><p>Samira présente Herr Weber à l’Oberarzt : structure, Fachsprache, puis une question de relance. Ce qui manque à la présentation apparaît immédiatement.</p><div class="step-chips"><span class="chip">présentation structurée</span><span class="chip">Fachsprache</span><span class="chip">relance</span></div><div class="mock-m"></div></div></div>
+    <div class="step" data-s="4"><div class="step-time"><span class="node"><i></i></span>08:25 · 2 min</div><div class="step-body"><div class="step-kicker">2.5 · Bilan</div><h3>Ce qui a été travaillé, ce qui vient demain.</h3><p>Un bilan court : l’axe du jour, les faits du cas recueillis, les erreurs à reconfirmer, et l’objectif de la prochaine séance. Rien de plus.</p><div class="step-chips"><span class="chip">axe du jour</span><span class="chip">à reconfirmer</span><span class="chip">prochaine séance</span></div><div class="mock-m"></div></div></div>
+   </div>
+   <div class="stage-wrap"><div class="stage" id="stage">
+    <!-- 1 SRS -->
+    <div class="screen" data-m="0"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · lexique</span><span class="r">07:40</span></div>
+     <div class="scr-body"><div class="srs-meta"><span class="lbl">Répétition du jour</span><span class="lbl">Kardiologie</span></div><div class="prog"><i></i></div>
+      <div class="flip"><div class="flip-in"><div class="face"><span class="g">Que signifie…</span><div class="w">Brustschmerzen</div><span class="g">nom · pluriel</span></div>
+       <div class="face back"><span class="g">douleurs thoraciques</span><div class="w"><span class="art">die</span> Brustschmerzen</div><span class="ex">« Seit wann haben Sie die Brustschmerzen? »</span></div></div></div>
+      <div class="srs-btns"><span>Encore<small>&lt;1 min</small></span><span>Difficile<small>bientôt</small></span><span class="pick">Bien<small>plus tard</small></span><span>Facile<small>bien plus tard</small></span></div></div></div>
+    <!-- 2 remediation -->
+    <div class="screen" data-m="1"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · axe du jour</span><span class="r">07:45</span></div>
+     <div class="scr-body"><div class="axis"><span class="lbl" style="margin-right:4px">Axe</span><span class="chip on">genre</span><span class="chip">cas</span><span class="chip">verbe</span><span class="chip">registre</span></div>
+      <div class="err"><div class="src">Relevé dans votre consultation d’hier</div>« Ich habe <s>der</s> <ins>die</ins> Patientin nach Allergien gefragt. »</div>
+      <div class="lbl">3 exercices tirés de votre lexique</div>
+      <div class="ex-list"><div class="exr"><span class="n">01</span><span><span class="gap">die</span> Anamnese erheben</span><span class="ok">✓ juste</span></div><div class="exr"><span class="n">02</span><span><span class="gap">das</span> Medikament absetzen</span><span class="ok">✓ juste</span></div><div class="exr"><span class="n">03</span><span>nach <span class="gap">der</span> Untersuchung</span><span class="ok">✓ datif</span></div></div></div></div>
+    <!-- 3 consultation -->
+    <div class="screen" data-m="2"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · Arzt–Patient</span><span class="r" id="callTimer">00:00</span></div>
+     <div class="scr-body"><div class="call"><div class="call-top"><div class="avatar">HW</div><div class="who">Herr Weber, 58 J.<small>patient simulé · Notaufnahme</small></div><div class="live"><i></i>EN DIRECT</div></div>
+      <div class="voice"><canvas class="vc"></canvas></div>
+      <div class="tx"></div></div></div></div>
+    <!-- 4 arzt-arzt -->
+    <div class="screen" data-m="3"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · Arzt–Arzt</span><span class="r">08:20</span></div>
+     <div class="scr-body"><div class="lbl">Structure de la présentation</div>
+      <div class="pres"><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Patient</span><span class="v">Herr Weber, 58 Jahre</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Leitsymptom</span><span class="v">Thoraxschmerzen seit 2 Stunden</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Vorerkrankungen</span><span class="v">arterielle Hypertonie</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Medikation</span><span class="v">Metoprolol 47,5 mg</span></div><div class="pi miss"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Allergien</span><span class="v" style="color:#a86414">non mentionnée — Penicillin</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Verdacht</span><span class="v">akutes Koronarsyndrom</span></div></div>
+      <div class="quest"><span class="lbl" style="color:#0b4f91">Oberarzt</span><br>« Welche Diagnostik würden Sie als Nächstes veranlassen? »</div></div></div>
+    <!-- 5 bilan -->
+    <div class="screen" data-m="4"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · bilan de séance</span><span class="r">08:25</span></div>
+     <div class="scr-body"><div class="bil-grid"><div class="kpi"><div class="lbl">Axe travaillé</div><div class="v">genre</div></div><div class="kpi"><div class="lbl">Durée</div><div class="v">~40 min</div></div></div>
+      <div class="lbl">Rubrique · exemple de démonstration</div>
+      <div class="bars"><div class="bar"><span>Recueil des faits</span><span class="tr"><i style="--w:72%"></i></span><span class="val ph">[x/y]</span></div><div class="bar"><span>Communication</span><span class="tr"><i style="--w:64%"></i></span><span class="val ph">[x/y]</span></div><div class="bar"><span>Présentation</span><span class="tr"><i style="--w:55%"></i></span><span class="val ph">[x/y]</span></div></div>
+      <div class="next"><span><span class="lbl">À reconfirmer</span><br>Allergien in der Übergabe nennen</span><span class="st w"><i></i>recheck</span></div>
+      <div class="next" style="border-color:var(--accent-line);background:var(--accent-soft)"><span><span class="lbl" style="color:var(--accent)">Prochaine séance</span><br><b>Axe : cas (Akkusativ / Dativ)</b> · Arztbrief Herr Weber</span><span class="mono" style="font-size:12px;color:var(--accent)">demain →</span></div></div></div>
+   </div></div>
+  </div>
+ </div>
+</section>
+
+<section class="section" id="methode">
+ <div class="sec-aura" aria-hidden="true" style="--h1:195;--h2:172;--x1:30%;--y1:-26%;--x2:78%;--y2:40%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+ <div class="container">
+  <div class="section-eyebrow fade"><span class="num">03</span>Méthode</div>
+  <h2 class="section-title fade">De votre niveau d’aujourd’hui au jour de l’examen.</h2>
+  <p class="section-lead fade">Quatre étapes, et un principe : tout le contenu médical vient de cas relus. L’IA reformule et corrige, elle n’invente pas la médecine.</p>
+  <div class="how fade" id="positionnement">
+   <div class="how-i"><span class="how-n">1</span><span class="how-k">Positionnement</span><h4>Test de niveau</h4><p>Un test court situe votre allemand. ARI demande un niveau B1 minimum pour démarrer.</p><span class="tag">entrée · B1 minimum</span></div>
+   <div class="how-i"><span class="how-n">2</span><span class="how-k">Programme</span><h4>Plan hebdomadaire</h4><p>Des séances courtes, un axe à la fois, ajustées chaque semaine selon ce que vous réussissez et ratez.</p><span class="tag">rythme · hebdomadaire</span></div>
+   <div class="how-i"><span class="how-n">3</span><span class="how-k">Pratique</span><h4>Consultations et confrère</h4><p>Arzt–Patient en voix, Arzt–Arzt, lexique : toujours sur des cas cliniques relus par des médecins.</p><span class="tag">cas · relus</span></div>
+   <div class="how-i"><span class="how-n">4</span><span class="how-k">Preuve</span><h4>Épreuves blanches</h4><p>À intervalles réguliers, une simulation complète qui ne sert qu’à mesurer où vous en êtes.</p><span class="tag">mesure · examen blanc</span></div>
+  </div>
+ </div>
+</section>
+
+<section class="section soft" id="evaluation">
+ <div class="sec-aura" aria-hidden="true" style="--h1:300;--h2:280;--x1:62%;--y1:-26%;--x2:82%;--y2:38%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+ <div class="container">
+  <div class="section-eyebrow fade"><span class="num">04</span>Évaluation</div>
+  <h2 class="section-title fade">Ce que nous mesurons, et ce que nous ne prétendons pas mesurer.</h2>
+  <p class="section-lead fade">Un outil de préparation honnête dit ses limites. Voici l’état de chaque dimension.</p>
+  <div class="evt fade">
+   <div class="evr"><div>Dimension</div><div>Comment</div><div>Statut</div></div>
+   <div class="evr"><div>Recueil des faits du cas</div><div>Faits attendus comparés à ce que vous avez obtenu du patient</div><div><span class="st g"><i></i>mesuré</span></div></div>
+   <div class="evr"><div>Grammaire en situation</div><div>Genre, cas, verbe, ordre des mots, registre — relevés dans vos réponses</div><div><span class="st g"><i></i>mesuré</span></div></div>
+   <div class="evr"><div>Présentation au confrère</div><div>Structure et éléments clés de la présentation</div><div><span class="st g"><i></i>mesuré</span></div></div>
+   <div class="evr"><div>Lettre médicale (Arztbrief)</div><div>Rédaction à partir de la consultation</div><div><span class="st w"><i></i>en préparation</span></div></div>
+   <div class="evr"><div>Orthographe</div><div>Exige un chemin écrit séparé de la voix</div><div><span class="st w"><i></i>en préparation</span></div></div>
+   <div class="evr"><div>Prononciation</div><div>Pas encore évaluée</div><div><span class="st n"><i></i>non mesuré</span></div></div>
+  </div>
+ </div>
+</section>
+
+<section class="section final" id="acces">
+ <div class="sec-aura" aria-hidden="true" style="--h1:195;--h2:300;--x1:-10%;--y1:20%;--x2:72%;--y2:6%"><span class="sec-blob sec-blob-1"></span><span class="sec-blob sec-blob-2"></span></div>
+ <div class="container">
+  <div class="section-eyebrow fade" style="justify-content:center"><span class="num">05</span>Accès anticipé</div>
+  <h2 class="section-title fade">Votre prochaine consultation peut être en allemand.</h2>
+  <p class="section-lead fade">Rejoignez la liste d’attente. Vous commencerez par le test de positionnement.</p>
+  <div class="hero-cta fade"><a class="btn btn-primary btn-lg" href="#">Rejoindre la liste d’attente <span class="arr">→</span></a><a class="btn btn-secondary btn-lg" href="#">Nous écrire</a></div>
+ </div>
+</section>
+
+<footer class="footer"><div class="container"><a class="nav-logo" href="#"><svg><use href="#logo"/></svg>ARI</a><span>Préparation à la Fachsprachprüfung pour médecins étrangers.</span><span class="mono">© 2026 ARI · MAQUETTE 08</span></div></footer>
+
+<script>
+(()=>{
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* ---------- ECG engine ---------- */
+function rng(s){return()=>(s=(s*16807)%2147483647)/2147483647}
+function makeSignal(seed){
+ const r=rng(seed);const beats=[];let x=0;
+ function extend(to){while(x<to){const voice=r()<.28;const rr=voice?380+r()*70:250+r()*70;beats.push({x,voice,amp:.85+r()*.25,ph:r()*6});x+=rr}}
+ const g=(u,c,w,a)=>a*Math.exp(-((u-c)*(u-c))/(2*w*w));
+ function y(px){extend(px+800);
+  // binary search last beat <= px
+  let lo=0,hi=beats.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(beats[m].x<=px+120)lo=m;else hi=m-1}
+  let v=0;for(let i=Math.max(0,lo-1);i<=lo;i++){const b=beats[i];const u=px-b.x;
+   v+=g(u,-58,11,.11)+g(u,-9,3.2,-.13)+g(u,0,3.6,b.amp)+g(u,9,3.6,-.28)+g(u,62,20,.26);
+   if(b.voice&&u>105&&u<300){const t=(u-105)/195;const env=Math.sin(Math.PI*t)**1.4;
+    v+=env*.32*(Math.sin(u*.42+b.ph)*.6+Math.sin(u*.97+b.ph*2)*.3+Math.sin(u*.21)*.25)}}
+  return v}
+ return {y,beats}}
+function Pulse(el,o){
+ /* Monitor sweep: the trace draws itself left→right, a soft glowing head leads,
+    the drawn part fades behind it; once across, the trace dissolves and a new sweep starts. */
+ const cs=el.querySelectorAll('canvas');const ctxs=[...cs].map(c=>c.getContext('2d'));
+ const sig=makeSignal(o.seed||7);const r=rng((o.seed||7)*31);let W=0,H=0,dpr=1,vis=true;
+ const L=o.line,SWEEP=o.sweep||9000,TRAIL=o.trail||.55,GAP=o.gap||1400;
+ let t0=0,dur=SWEEP,shift=0,state='sweep',fadeT=0;
+ function size(){dpr=Math.min(devicePixelRatio||1,2);W=el.clientWidth;H=el.clientHeight;cs.forEach((c,i)=>{const d=i==0?.5:dpr;c.width=W*d;c.height=H*d;ctxs[i].setTransform(d,0,0,d,0,0)})}
+ size();addEventListener('resize',size);
+ function newSweep(t){t0=t;dur=SWEEP*(.9+r()*.2);shift+=W+300+r()*400;state='sweep'}
+ function draw(p,fade){ // p: head progress 0..1, fade: global multiplier
+  const head=W*p,base=H*L.y,amp=Math.min(H*L.amp,220),tw=W*TRAIL;
+  ctxs.forEach((c,i)=>{c.clearRect(0,0,W,H);c.lineWidth=i==0?L.w*3:L.w;c.lineJoin=c.lineCap='round';
+   const step=3;let px=0,py=base-sig.y(shift)*amp;
+   for(let x=step;x<=head;x+=step){const yy=base-sig.y(x+shift)*amp;
+    const k=Math.max(0,1-(head-x)/tw);if(k>0){c.strokeStyle=`rgba(0,112,213,${L.a*k*k*fade})`;c.beginPath();c.moveTo(px,py);c.lineTo(x,yy);c.stroke()}
+    px=x;py=yy}
+   if(fade>0&&p<1){const yy=base-sig.y(head+shift)*amp;
+    if(i==1){c.fillStyle=`rgba(0,112,213,${.45*fade})`;c.beginPath();c.arc(head,yy,2.2,0,7);c.fill()}
+    else{const rg=c.createRadialGradient(head,yy,0,head,yy,50);rg.addColorStop(0,`rgba(0,112,213,${L.a*.35*fade})`);rg.addColorStop(1,'rgba(0,112,213,0)');c.fillStyle=rg;c.fillRect(head-50,yy-50,100,100)}}
+  })}
+ function loop(t){if(!t0)newSweep(t);
+  if(state=='sweep'){const p=(t-t0)/dur;if(p>=1){state='fade';fadeT=t}else if(vis)draw(p,1)}
+  if(state=='fade'){const f=(t-fadeT)/GAP;if(f>=1)newSweep(t);else if(vis)draw(.999,1-f)}
+  requestAnimationFrame(loop)}
+ if(RM){TRAILstatic()}else{new IntersectionObserver(e=>{vis=e[0].isIntersecting}).observe(el);requestAnimationFrame(loop)}
+ function TRAILstatic(){const base=H*L.y,amp=Math.min(H*L.amp,220);ctxs.forEach((c,i)=>{c.clearRect(0,0,W,H);c.lineWidth=i==0?L.w*3:L.w;c.strokeStyle=`rgba(0,112,213,${L.a*.5})`;c.beginPath();for(let x=0;x<=W;x+=2){const yy=base-sig.y(x+200)*amp;x?c.lineTo(x,yy):c.moveTo(x,yy)}c.stroke()})}
+}
+Pulse(document.getElementById('heroPulse'),{seed:11,sweep:9000,trail:.55,gap:1400,line:{y:.62,amp:.16,w:1.3,a:.5}});
+
+/* ---------- reveal ---------- */
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
+document.querySelectorAll('.fade').forEach(e=>io.observe(e));
+requestAnimationFrame(()=>document.querySelectorAll('.hero .fade').forEach(e=>e.classList.add('in')));
+
+/* ---------- day scrollytelling ---------- */
+const steps=[...document.querySelectorAll('.step')];const screens=[...document.querySelectorAll('#stage .screen')];
+steps.forEach((s,i)=>{const c=screens[i].cloneNode(true);c.removeAttribute('id');s.querySelector('.mock-m').appendChild(c)});
+const allScreens=i=>document.querySelectorAll(`.screen[data-m="${i}"]`);
+let cur=-1;const timers=new WeakMap();
+function activate(i){if(i===cur)return;cur=i;steps.forEach((s,k)=>s.classList.toggle('on',k===i));
+ screens.forEach((s,k)=>s.classList.toggle('on',k===i));
+ if(innerWidth>980)startMock(i,screens[i])}
+const mobIO=new IntersectionObserver(es=>es.forEach(e=>{const s=e.target;if(e.isIntersecting&&!s.classList.contains('on')){s.classList.add('on');startMock(+s.dataset.m,s)}}),{threshold:.45});
+document.querySelectorAll('.mock-m .screen').forEach(s=>mobIO.observe(s));
+const stepsEl=document.getElementById('steps'),rail=document.getElementById('railFill');
+function onScroll(){const mid=innerHeight*.5;let best=0;steps.forEach((s,i)=>{if(s.getBoundingClientRect().top<mid)best=i});
+ if(innerWidth>980)activate(best);else steps.forEach(s=>{const r=s.getBoundingClientRect();if(r.top<innerHeight*.7)s.classList.add('on')});
+ const r=stepsEl.getBoundingClientRect();rail.style.height=Math.max(0,Math.min(r.height,mid-r.top))+'px'}
+addEventListener('scroll',onScroll,{passive:true});addEventListener('resize',onScroll);onScroll();
+
+/* mock animations */
+
+function startMock(i,scr){
+ (timers.get(scr)||[]).forEach(clearTimeout);const T=[];timers.set(scr,T);
+ if(i===2){const tx=scr.querySelector('.tx');tx.innerHTML='';
+  const L=[['Ärztin','pt0','Guten Morgen, Herr Weber. Was führt Sie heute zu uns?'],['Patient','','Ich habe seit heute früh so einen Druck auf der Brust…'],['Ärztin','pt0','Seit wann genau? Strahlen die Schmerzen irgendwohin aus?'],['Patient','','Seit etwa zwei Stunden. In den linken Arm, glaube ich.','Leitsymptom ✓'],['Ärztin','pt0','Haben Sie Allergien gegen Medikamente?'],['Patient','','Ja… gegen Penicillin.','Allergie ✓'],['Ärztin','pt0','Nehmen Sie regelmäßig Medikamente ein?'],['Patient','','Metoprolol, 47,5 Milligramm, morgens.','Dosis ✓']];
+  L.forEach((l,k)=>T.push(setTimeout(()=>{const d=document.createElement('div');d.className='line'+(l[1]?' pt':'');d.innerHTML=`<span class="s">${l[0]}</span><span>${l[2]}${l[3]?` <span class="flag">${l[3]}</span>`:''}</span>`;tx.appendChild(d);while(tx.children.length>6)tx.firstChild.remove();requestAnimationFrame(()=>d.classList.add('show'))},RM?0:400+k*1500)));
+  voice(scr)}
+ if(i===3){const items=scr.querySelectorAll('.pi');items.forEach(p=>p.classList.remove('done'));items.forEach((p,k)=>{if(!p.classList.contains('miss'))T.push(setTimeout(()=>p.classList.add('done'),RM?0:500+k*450))})}
+}
+function voice(scr){const c=scr.querySelector('.vc');const ctx=c.getContext('2d');const timer=scr.querySelector('#callTimer')||scr.querySelector('.scr-bar .r');const t0=performance.now();
+ if(c._run)return;c._run=1;const sig=makeSignal(5);let off=0;
+ function f(t){const w=c.clientWidth,h=c.clientHeight;if(!w){requestAnimationFrame(f);return}const d=Math.min(devicePixelRatio,2);if(c.width!==w*d){c.width=w*d;c.height=h*d}ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,w,h);
+  off+=1.6;ctx.strokeStyle='#0070d5';ctx.lineWidth=1.5;ctx.beginPath();
+  for(let x=0;x<w;x+=1.5){const y=h/2-sig.y(x+off)*h*.36;x?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.stroke();
+  const s=Math.floor((t-t0)/1000);timer.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  if(!RM)requestAnimationFrame(f)}requestAnimationFrame(f)}
+})();
+</script>
+</body>
+</html>
