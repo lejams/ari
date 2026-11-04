@@ -12,5 +12,5 @@ routes:
   checker: {provider: anthropic, model: claude-sonnet-5-5, max_tokens: 16000}
 prompts:
   author: exercise-author-v1
-  solver: exercise-solver-v1
-  judge: exercise-judge-v1
+  solver: exercise-solver-v2
+  judge: exercise-judge-v2

@@ -137,7 +137,7 @@ def test_the_judge_must_rule_on_every_criterion_exactly_once() -> None:
 def test_every_criterion_of_the_rubric_is_written_in_the_judge_prompt() -> None:
     text = PROMPTS["judge"].content
     assert all(f"{c}:" in text for c in RUBRIC_CRITERIA)
-    assert "exercise-rubric-v1" in text
+    assert "exercise-rubric-v2" in text
 
 
 async def test_the_checker_may_not_be_the_authors_model() -> None:
@@ -389,3 +389,123 @@ async def test_a_correction_exercise_runs_the_same_way() -> None:
 
 def test_scripted_provider_labels_match_the_guard() -> None:
     assert ScriptedProvider  # Imported for the models above; labels are checked in the guard test.
+
+
+# ---- Rubric v2: "no correct option", exact form of the key, and the double agreement -------------
+
+
+def test_the_solver_may_find_no_correct_option_but_then_accepts_nothing() -> None:
+    ok = {"chosen_index": -1, "acceptable_indices": [], "medically_plausible": True, "comment": ""}
+    assert BlindSolveSchema.model_validate_json(json.dumps(ok)).chosen_index == -1
+    with pytest.raises(ValueError, match="no correct option"):
+        BlindSolveSchema.model_validate_json(json.dumps({**ok, "acceptable_indices": [1]}))
+
+
+async def test_a_solver_that_finds_no_correct_option_removes_the_exercise() -> None:
+    item = candidate(CLOZE)
+
+    def finds_none(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "chosen_index": -1,
+            "acceptable_indices": [],
+            "medically_plausible": True,
+            "comment": "every option has an error",
+        }
+
+    outcome = await checker_over(models(solver=finds_none)).check(item, run_id="t")
+    assert (outcome.accepted, outcome.stage) == (False, "blind_solver")
+    assert [e.operation for e in outcome.executions] == [OP_SOLVE]
+
+
+def test_the_form_of_the_key_is_a_criterion_of_the_rubric_and_of_the_judge_prompt() -> None:
+    assert "key_form_exact" in RUBRIC_CRITERIA
+    text = PROMPTS["judge"].content
+    assert "key_form_exact:" in text and "do not correct it silently" in text.lower()
+    assert "no option is correct" in PROMPTS["solver"].content.lower() or (
+        "-1" in PROMPTS["solver"].content
+    )
+
+
+def test_the_order_of_the_options_changes_between_passes_and_the_key_follows() -> None:
+    from ari.application.services.exercise_bank import _reordered
+
+    item = candidate(CLOZE)
+    for number in (0, 1, 2):
+        other = _reordered(item, number)
+        assert sorted(other.options) == sorted(item.options)
+        assert other.key == item.key
+        assert (other.options == item.options) == (number == 0)
+    assert _reordered(item, 1).options == tuple(reversed(item.options))
+
+
+def checker_with_passes(provider: Any, passes: int) -> ExerciseChecker:
+    return ExerciseChecker(
+        provider,
+        solver_prompt=PROMPTS["solver"],
+        judge_prompt=PROMPTS["judge"],
+        author_model=AUTHOR,
+        passes=passes,
+    )
+
+
+def key_aware_solver(seen: list[list[str]]) -> Any:
+    """Solves by the text of the key, whatever the order: it knows the key is `die` or the like."""
+
+    def respond(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
+        options = [o["text"] for o in payload["options"]]
+        seen.append(options)
+        index = options.index(KEY_TEXT)
+        return {
+            "chosen_index": index,
+            "acceptable_indices": [index],
+            "medically_plausible": True,
+            "comment": "scripted",
+        }
+
+    return respond
+
+
+KEY_TEXT = candidate(CLOZE).key
+
+
+async def test_two_passes_must_both_accept_and_the_second_sees_the_options_reversed() -> None:
+    item = candidate(CLOZE)
+    seen: list[list[str]] = []
+    checker = checker_with_passes(models(solver=key_aware_solver(seen)), 2)
+    outcome = await checker.check(item, run_id="t")
+    assert outcome.accepted
+    assert [e.operation for e in outcome.executions] == [OP_SOLVE, OP_JUDGE, OP_SOLVE, OP_JUDGE]
+    assert seen == [list(item.options), list(reversed(item.options))]
+    # What the bank keeps is the first pass, which speaks of the options in their stored order.
+    assert outcome.solver is not None and outcome.solver.chosen_index == item.answer_index
+
+
+async def test_a_second_pass_that_refuses_removes_the_exercise_and_says_so() -> None:
+    item = candidate(CLOZE)
+    calls = {"judge": 0}
+
+    def judge_refusing_the_second_time(request: LLMRequest, payload: dict[str, Any]) -> Any:
+        calls["judge"] += 1
+        return judge_passes(failing=("key_form_exact",) if calls["judge"] == 2 else ())(
+            request, payload
+        )
+
+    models_ = models(solver=key_aware_solver([]), judge=judge_refusing_the_second_time)
+    outcome = await checker_with_passes(models_, 2).check(item, run_id="t")
+    assert (outcome.accepted, outcome.stage) == (False, "rubric_judge")
+    assert outcome.issues == ("key_form_exact", "pass_2")
+    assert len(outcome.executions) == 4  # Both passes were made and billed.
+
+
+async def test_a_first_pass_that_refuses_costs_no_second_pass() -> None:
+    item = candidate(CLOZE)
+    checker = checker_with_passes(models(solver=solve_as((item.answer_index + 1) % 3)), 2)
+    outcome = await checker.check(item, run_id="t")
+    assert (outcome.accepted, outcome.stage) == (False, "blind_solver")
+    assert [e.operation for e in outcome.executions] == [OP_SOLVE]
+
+
+def test_the_number_of_passes_is_bounded() -> None:
+    for bad in (0, 4):
+        with pytest.raises(InvalidStateError):
+            checker_with_passes(models(), bad)

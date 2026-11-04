@@ -23,6 +23,14 @@ def rejection_reasons(detail: dict[str, Any]) -> list[str]:
     """The reasons the checks removed one exercise, each a short code."""
     stage = detail.get("stage")
     issues: list[str] = list(detail.get("issues") or [])
+    # A refusal of a later pass sees the options in another order: its indices are not those of
+    # the dataset, so only the criteria (the judge) or the stage (the solver) can be told.
+    later = [i for i in issues if i.startswith("pass_")]
+    issues = [i for i in issues if not i.startswith("pass_")]
+    if later:
+        if stage == "rubric_judge":
+            return [f"{later[0]}:judge:{issue}" for issue in issues] or [f"{later[0]}:judge"]
+        return [f"{later[0]}:solver"]
     if stage == "mechanical":
         return [f"mechanical:{issue}" for issue in issues] or ["mechanical"]
     if stage == "rubric_judge":
@@ -35,7 +43,9 @@ def rejection_reasons(detail: dict[str, Any]) -> list[str]:
         if key is None:  # A report from before the key was recorded, and no dataset to read it in.
             return ["solver:cause_unknown_without_the_key"]
         reasons = []
-        if solver.get("chosen_index") != key:
+        if solver.get("chosen_index") == -1:
+            reasons.append("solver:found_no_correct_option")
+        elif solver.get("chosen_index") != key:
             reasons.append("solver:chose_another_option")
         elif solver.get("acceptable_indices") != [key]:
             reasons.append("solver:sees_several_acceptable_options")

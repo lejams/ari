@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -85,6 +85,28 @@ class CheckOutcome:
         if self.judge is not None:
             detail["judge"] = self.judge.model_dump(mode="json")
         return detail
+
+
+MAX_PASSES = 3
+
+
+def _reordered(candidate: ExerciseCandidate, number: int) -> ExerciseCandidate:
+    """The same exercise with its options in another order, for the check's pass `number`.
+
+    Pass 0 keeps the order of the exercise, pass 1 reverses it, pass 2 rotates it by one. The
+    answer index follows its option. The order has no meaning in any format (the code shuffles
+    the options when it builds an exercise), so the verdicts of a pass do not depend on it.
+    """
+    if number == 0:
+        return candidate
+    count = len(candidate.options)
+    order = list(reversed(range(count))) if number == 1 else [(i + 1) % count for i in range(count)]
+    return candidate.model_copy(
+        update={
+            "options": tuple(candidate.options[i] for i in order),
+            "answer_index": order.index(candidate.answer_index),
+        }
+    )
 
 
 def solver_accepts(candidate: ExerciseCandidate, verdict: BlindSolveSchema) -> bool:
@@ -208,11 +230,15 @@ class ExerciseChecker:
         solver_prompt: VersionedPrompt,
         judge_prompt: VersionedPrompt,
         author_model: tuple[str, str],  # (provider, model) of the author route.
+        passes: int = 1,
     ) -> None:
+        if not 1 <= passes <= MAX_PASSES:
+            raise InvalidStateError(f"Le nombre de passages du contrôle va de 1 à {MAX_PASSES}")
         self._provider = provider
         self._solver_prompt = solver_prompt
         self._judge_prompt = judge_prompt
         self._author_model = author_model
+        self._passes = passes
 
     @property
     def solver_prompt(self) -> VersionedPrompt:
@@ -230,11 +256,41 @@ class ExerciseChecker:
             )
 
     async def check(self, candidate: ExerciseCandidate, *, run_id: str) -> CheckOutcome:
+        """Mechanical checks, then `passes` independent passes of solver and judge.
+
+        Every pass must accept: the first refusal ends the check (a refusal needs no second
+        opinion). The next passes see the options in another order (see `_reordered`), so that a
+        slip of the first one, caused by the position of an option, is not repeated by design.
+        """
         issues = mechanical_issues(candidate)
         if issues:
             return CheckOutcome(False, "mechanical", tuple(issues))
-        executions: list[ExecutionRecord] = []
         content_hash = candidate.content_hash
+        executions: list[ExecutionRecord] = []
+        first: CheckOutcome | None = None
+        for number in range(self._passes):
+            try:
+                outcome = await self._pass(_reordered(candidate, number), run_id, content_hash)
+            except ProviderError as exc:
+                exc.related_executions = (*executions, *exc.related_executions)
+                raise
+            executions.extend(outcome.executions)
+            if first is None:
+                first = outcome
+            if not outcome.accepted:
+                refused = replace(outcome, executions=tuple(executions))
+                return (
+                    refused
+                    if number == 0
+                    else replace(refused, issues=(*refused.issues, f"pass_{number + 1}"))
+                )
+        assert first is not None
+        return replace(first, executions=tuple(executions))
+
+    async def _pass(
+        self, candidate: ExerciseCandidate, run_id: str, content_hash: str
+    ) -> CheckOutcome:
+        executions: list[ExecutionRecord] = []
         solved, execution, failed = await _generate(
             self._provider,
             self._solver_prompt,
@@ -251,9 +307,7 @@ class ExerciseChecker:
         )
         executions.extend([*failed, execution])
         self._guard(execution)
-        if len(solved.acceptable_indices) and max(solved.acceptable_indices) >= len(
-            candidate.options
-        ):
+        if max([solved.chosen_index, *solved.acceptable_indices]) >= len(candidate.options):
             return CheckOutcome(
                 False,
                 "blind_solver",

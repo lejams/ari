@@ -237,6 +237,7 @@ async def generate(args: argparse.Namespace) -> dict[str, Any]:
             solver_prompt=prompts["solver"],
             judge_prompt=prompts["judge"],
             author_model=config.author_identity,
+            passes=config.check_passes,
         ),
         known_keys=known,
     )

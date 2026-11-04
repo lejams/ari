@@ -148,8 +148,34 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   Avant toute mesure du holdout, d13 est remplacé par un cas de discours indirect (C1), et les explications de d09 et h09 couvrent les
   mauvaises options. Quatre remarques de la revue Codex avaient déjà fait remplacer des distracteurs
   défendables.
+- **Contrôles `v2` et version `@3` (4 novembre 2026), suite par défaut.** Le holdout de `@2`, lancé
+  une seule fois (run 41805202714), a échoué sur une fausse acceptation : `e-h05-choice-cloze:no_correct`,
+  la bonne réponse remplacée par la faute de frappe « angeschlagt » (1 passage sur 306). Le résolveur
+  avait choisi l'option la plus proche, et le juge avait lu la forme corrigée. Cause traitée comme
+  une famille d'erreurs, pas comme une exception : (1) le résolveur (`exercise-solver-v2`) peut répondre
+  `chosen_index = -1`, « aucune option correcte », sans jamais choisir la plus proche ; (2) la grille
+  passe en `exercise-rubric-v2` avec un neuvième critère, `key_form_exact` (la réponse attendue est
+  écrite exactement, orthographe et morphologie, dans la phrase complète, sans correction implicite ;
+  les distracteurs peuvent être fautifs) — demandé par le propriétaire le 4 novembre 2026 ; (3) la
+  `reason` du juge est le seul mot `ok` quand le critère passe (moins de jetons de sortie, donc moins
+  cher) ; (4) option `check_passes: 2` ou `3` (`evals/configs/exercises/luna-sonnet-double.yaml`) :
+  le même contrôle est refait avec les options dans un autre ordre (inversé, puis décalé), sans
+  partager les verdicts, et le premier refus rejette l'exercice ; le coût ne double que si le premier
+  passage accepte. Les seuils ne bougent pas. **Jeu `@3`** : le dev reprend toutes les familles de `@2`
+  (dev et ancien holdout, qui n'est plus un test indépendant, `e-h05` reste en régression) ; nouveau
+  défaut `near_miss_key` (la bonne réponse écrite de façon compréhensible mais fautive : lettre
+  manquante, ajoutée ou permutée, terminaison tronquée), une variante par exercice à trou ou à
+  corriger, avec l'exercice juste comme contre-exemple ; holdout **neuf** (14 familles `e-k01` à
+  `e-k14` et 2 exercices au décor absurde, écrits sans lire de verdict des vrais modèles). Constructeur :
+  `evals/datasets/build_language_exercises_v3.py` ; `gates-v9` : mêmes seuils, bloc
+  `language-exercises@3`. L'allemand n'a pas été relu par un germanophone (décision D3 ;
+  question posée au propriétaire pour les nouveaux exercices de référence). Le cache de prompt n'a pas
+  été retenu : les prompts du résolveur et du juge font environ 500 et 900 jetons, sous le minimum
+  de 1 024 jetons nécessaire pour qu'un préfixe soit mis en cache. Procédure de mesure : dev avec
+  `luna-sonnet` puis `luna-sonnet-double` (chacun avec l'accord du propriétaire sur le coût), choix de
+  la configuration, gel, puis le holdout `@3` une seule fois.
 - Métrique principale : **taux de fausse acceptation** (`false_accept_rate`), l'exercice défectueux
-  qui passe. Seuils de `gates.yaml` (`gates-v8`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
+  qui passe. Seuils de `gates.yaml` (`gates-v9`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
   (valeur initiale, à recalibrer après la première mesure ; première mesure sur le dev du 3 novembre 2026, run 41660638291 : fausse acceptation 0, contrôles mécaniques 1,0, structure 100 % après retry, mais fausse rejection 0,625, donc gate non passé), contrôles mécaniques 1,0, verdicts
   changeants ≤ 10 %, structure exploitable ≥ 99,5 %. `false_accept` est une erreur critique : une
   seule nouvelle occurrence bloque.
