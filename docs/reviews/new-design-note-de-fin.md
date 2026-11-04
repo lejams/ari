@@ -73,5 +73,5 @@ Qualité : `make test-web`, `make test-backoffice-web`, `make lint`, `make test-
 3. **Arztbrief / Confrère** : Arztbrief hors périmètre (« bientôt » sur la landing), confrère = exercices Arzt–Arzt dans Consultation.
 4. **Compte à rebours FSP** : branché sur la date d'examen du profil.
 5. **Page vocale** : sans aura (fond uni) ; à décider si elle en reçoit une.
-6. **Atkinson Hyperlegible** : les fichiers restent dans `web/fonts/` (anciens caches) ; à supprimer dans une PR de nettoyage.
+6. **Atkinson Hyperlegible** : supprimée (fichiers de police, licence et déclarations `@font-face`), à la demande du propriétaire du 4 novembre 2026. Aucune page ne la chargeait.
 7. **Chaînes en dur** de l'app (« Plan de la séance », « Vos axes », etc.) : pas dans `i18n.mjs`.
