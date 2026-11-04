@@ -98,7 +98,7 @@ def _parser() -> argparse.ArgumentParser:
         "exercises",
         help="contrôles de la banque d'exercices de langue (language-exercises)",
     )
-    exercises_cmd.add_argument("--suite", default="language-exercises@3")
+    exercises_cmd.add_argument("--suite", default="language-exercises@4")
     exercises_cmd.add_argument(
         "--config", required=True, type=Path, help="evals/configs/exercises/*.yaml"
     )

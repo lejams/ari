@@ -174,8 +174,29 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   de 1 024 jetons nécessaire pour qu'un préfixe soit mis en cache. Procédure de mesure : dev avec
   `luna-sonnet` puis `luna-sonnet-double` (chacun avec l'accord du propriétaire sur le coût), choix de
   la configuration, gel, puis le holdout `@3` une seule fois.
+- **Mesures du 4 novembre 2026 et version `@4`, suite par défaut.** Dev de `@3`, un passage
+  (run 41908249384) : fausse acceptation 0, `near_miss_key` 0 (`e-h05` refusé), fausse rejection
+  0,18 (5 exercices sur 28, tous des doutes du juge). Dev, double passage (run 41908281245) : fausse
+  acceptation 0, fausse rejection 0,39 : écarté, il refuse 6 exercices justes de plus sans rien
+  rattraper. **Holdout `@3`, lancé une fois en mode gate (run 41912108307) : fausse acceptation 0,
+  stabilité 0,048, contrôles mécaniques 1,0, mais fausse rejection 0,40 (17 passages sur 42), gate
+  échoué** ; holdout grillé. Le holdout cache son contenu, la cause n'est donc pas lisible ; le
+  diagnostic du dev montre trois refus sur cinq au critère `distractors_wrong` sur des distracteurs
+  réellement défendables (`eingeführt`, `angesichts dem`, `kaum der Patient hatte…`) : le juge fait son
+  travail, ce sont les références qui sont fautives. **Jeu `@4`**
+  (`evals/datasets/build_language_exercises_v4.py`) : le dev reprend tout ce qui a été mesuré
+  (versions 2 et 3, dont le holdout `@3`), le holdout est neuf (14 exercices justes `e-m01` à
+  `e-m14`, 2 exercices absurdes) et **relu par un lecteur extérieur** (un modèle, à la demande du
+  propriétaire) avant sa première mesure : explication fausse (« der » donné pour un nominatif féminin),
+  variantes qui changeaient le sens ou ajoutaient une information, distracteurs déjà corrects, deux
+  exercices qui n'isolaient pas leur point, consigne de registre sans excuses. Le texte relu est
+  `/mnt/project-files/exercices/holdout-propose-v4.md`. Le `no_correct` d'un exercice de vocabulaire est
+  un mot bien orthographié qui ne convient pas (`fotokopiert`), pour ne pas répéter la faute de frappe de
+  son `near_miss_key`. `gates-v10` : mêmes seuils, bloc `language-exercises@4`. Le juge peut proposer le
+  niveau qu'il voit ; décider qu'un écart d'un cran corrige l'étiquette au lieu de refuser est une
+  décision du propriétaire (grille v3), non prise à ce jour.
 - Métrique principale : **taux de fausse acceptation** (`false_accept_rate`), l'exercice défectueux
-  qui passe. Seuils de `gates.yaml` (`gates-v9`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
+  qui passe. Seuils de `gates.yaml` (`gates-v10`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
   (valeur initiale, à recalibrer après la première mesure ; première mesure sur le dev du 3 novembre 2026, run 41660638291 : fausse acceptation 0, contrôles mécaniques 1,0, structure 100 % après retry, mais fausse rejection 0,625, donc gate non passé), contrôles mécaniques 1,0, verdicts
   changeants ≤ 10 %, structure exploitable ≥ 99,5 %. `false_accept` est une erreur critique : une
   seule nouvelle occurrence bloque.
