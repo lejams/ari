@@ -78,10 +78,13 @@ export function viewLabel(name) {
 export function applyLocale(code) {
   if (!LOCALES.includes(code)) code = 'fr';
   locale = code;
-  if (document.documentElement) document.documentElement.lang = code;
+  // Only the strings below are translated; forms, dashboard and messages stay French. The document
+  // keeps declaring French and the translated elements declare their own language.
+  if (document.documentElement) document.documentElement.lang = 'fr';
   document.querySelectorAll('[data-i18n]').forEach((el) => {
     const key = el.getAttribute('data-i18n');
     const value = t(key);
+    if (code === 'fr') el.removeAttribute('lang'); else el.setAttribute('lang', code);
     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = value;
     else el.textContent = value;
   });

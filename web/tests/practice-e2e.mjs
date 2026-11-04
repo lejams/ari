@@ -268,6 +268,13 @@ try {
   assert.equal(await theme(), "dark");
   await page.locator("[data-theme-toggle]").click();
   assert.equal(await theme(), "light");
+  // Switching the interface language translates the navigation only: the document stays French and
+  // the translated elements carry their own language for screen readers.
+  await page.locator(".lang-switch [data-lang=en]").click();
+  assert.equal(await page.evaluate(() => document.documentElement.lang), "fr");
+  assert.equal(await page.locator(".sidebar nav a span[data-i18n=nav_exam]").getAttribute("lang"), "en");
+  await page.locator(".lang-switch [data-lang=fr]").click();
+  assert.equal(await page.locator(".sidebar nav a span[data-i18n=nav_exam]").getAttribute("lang"), null);
   await page.evaluate(() => localStorage.removeItem("ari-theme"));
   // perform() drops a hash change while the page is still loading after the reload: wait until it is idle.
   await page.locator("#home:not([hidden])").waitFor();
