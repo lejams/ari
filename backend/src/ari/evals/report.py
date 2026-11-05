@@ -212,12 +212,19 @@ def diagnosis_text(report: Report, *, limit: int = 60) -> str:
         for run in item.runs:
             detail = run.detail or {}
             reported = [
-                f"{r['category']}@{r['turns']} {r['verdict']} « {str(r['text'])[:90]} »"
+                f"{r['category']}@{r.get('turns', '-')} {r['verdict']} "
+                f"« {str(r.get('text') or r.get('quote') or '')[:90]} »"
                 for r in detail.get("reported_errors", [])
             ]
             missed = [
-                f"{m.get('category')}@{m.get('turn')}" for m in detail.get("missed_errors", [])
+                f"{m.get('category')}@{m.get('turn', str(m.get('quote', ''))[:60])}"
+                for m in detail.get("missed_errors", [])
             ]
+            level = (
+                f" ; niveau lu {detail['estimated_level']}, attendu {detail.get('expected_level')}"
+                if "estimated_level" in detail
+                else ""
+            )
             fragments = "".join(
                 f" « {c['fragment']} »→« {c['intended_term']} »@{c['turn']}"
                 for c in detail.get("code_switch_fragments", [])
@@ -237,7 +244,7 @@ def diagnosis_text(report: Report, *, limit: int = 60) -> str:
             lines.append(
                 f"    passage {run.repetition} : "
                 f"signalé [{'; '.join(reported) or '-'}] manqué [{', '.join(missed) or '-'}]"
-                f"{switches}{sections}"
+                f"{switches}{sections}{level}"
                 f"{' ; ' + ', '.join(run.outcomes) if run.outcomes else ''}"
             )
             if not run.usable and run.errors:

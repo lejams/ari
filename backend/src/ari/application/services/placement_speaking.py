@@ -29,6 +29,13 @@ from ari.domain.placement import LEVELS
 
 SPOKEN_TURN = 1  # The transcript of a spoken task is the single turn the error quotes cite.
 MAX_PASSES = 5
+# How many passes must report an error for it to stand. One: the oral keeps an error the model
+# sees in any pass. The model reports what it is sure of and every quote is verified against the
+# transcript, so a false report is rare, whereas a real but subtle error (a collocation, a
+# register) is seen in about one pass out of two; a majority vote then drops it or keeps it by
+# chance, and the same answer is rated differently from one run to the next (measured on the dev
+# split of placement@1 on 5 November 2026: stability 0.37 with a majority).
+SPOKEN_ERROR_VOTES = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,10 +53,12 @@ class SpokenRating:
     extra_executions: tuple[ExecutionRecord, ...] = ()
 
 
-def _consolidated(verdicts: list[LanguageErrorVerdict]) -> list[LanguageErrorSchema]:
+def _consolidated(verdicts: list[LanguageErrorVerdict], votes: int) -> list[LanguageErrorSchema]:
     if len(verdicts) == 1:
         return list(verdicts[0].kept)
-    return list(consolidate_language_errors([placed_errors(verdict) for verdict in verdicts]))
+    return list(
+        consolidate_language_errors([placed_errors(verdict) for verdict in verdicts], votes)
+    )
 
 
 async def rate_spoken_task(
@@ -64,17 +73,21 @@ async def rate_spoken_task(
     transcript: str,
     context: ExecutionContext,
     passes: int = 1,
+    error_votes: int = SPOKEN_ERROR_VOTES,
 ) -> SpokenRating:
     """Rate one spoken task, with `passes` independent calls when the rating must be repeatable.
 
     One call flips between reporting an error and missing it, and between two neighbouring
     levels, so the same answer does not always get the same rating. With several passes the code
-    decides: an error stands when a majority of the passes report it on the same words, and the
-    level is the median of the passes' levels (the lower one when an even number of passes
-    remain, some having failed). The confidence is the mean of the passes that gave that level.
+    decides: an error stands when `error_votes` passes report it on the same words (one: any pass
+    that sees it), and the level is the median of the passes' levels (the lower one when an even
+    number of passes remain, some having failed). The confidence is the mean of the passes that
+    gave that level.
     """
     if not 1 <= passes <= MAX_PASSES:
         raise ValueError(f"passes must be between 1 and {MAX_PASSES}")
+    if not 1 <= error_votes <= passes:
+        raise ValueError(f"error_votes must be between 1 and {passes}")
     messages = (
         {"role": "system", "content": prompt.content},
         {
@@ -124,7 +137,7 @@ async def rate_spoken_task(
         estimated_level=level,
         confidence=sum(agreeing) / len(agreeing),
         observations=list(results[primary].value.observations),
-        language_errors=_consolidated(verdicts),
+        language_errors=_consolidated(verdicts, min(error_votes, len(verdicts))),
         proposed_errors=sum(len(item.value.language_errors) for item in results),
         invented_errors=sum(verdict.dropped.get("not_in_turn", 0) for verdict in verdicts),
         execution=results[primary].execution,
