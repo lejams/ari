@@ -676,6 +676,9 @@ def test_the_haiku_configuration_differs_from_the_sonnet_one_by_the_checking_mod
     assert haiku.author_identity != ("anthropic", "claude-haiku-5-5")
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "evals-exercises.yml").read_text()
     assert "luna-haiku" in workflow and "luna-sonnet" not in workflow
+    # Repetitions can be asked for the dev split only: the holdout keeps those of gates.yaml.
+    assert 'options: ["1", "3"]' in workflow
+    assert 'if [ "$SPLIT" = holdout ]; then args+=(--gate); else args+=(--repeat' in workflow
 
 
 def test_the_diagnosis_shows_the_level_read_of_a_swap_and_counts_the_tolerated_ones() -> None:
