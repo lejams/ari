@@ -62,6 +62,12 @@ def _explanation(detail: dict[str, Any]) -> str:
         for v in judge.get("verdicts", [])
         if not v.get("passed")
     ]
+    if "level_fit" in (
+        detail.get("issues") or []
+    ):  # The level is ruled by the code, not a verdict.
+        failing.append(
+            f"level_fit : niveau lu {judge.get('estimated_level')} pour {detail.get('level')}"
+        )
     if failing:
         return " | ".join(failing)
     return str((detail.get("solver") or {}).get("comment", ""))[:200]

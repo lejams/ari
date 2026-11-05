@@ -41,9 +41,11 @@ from ari.domain.language_exercises import (
     EXERCISE_CATEGORIES,
     EXERCISE_FORMATS,
     EXERCISE_LEVELS,
+    MAX_LEVEL_RELABEL,
     MECHANICAL_CHECKS_VERSION,
     ExerciseCandidate,
     LanguageExercise,
+    level_gap,
 )
 from ari.domain.models import new_id, utc_now
 from ari.evals.exercises.gate import require_passing_gate
@@ -171,6 +173,14 @@ def import_batch(
         if not solver_accepts(exercise, solved) or not judged.approved:
             raise InvalidStateError(
                 f"Lot refusé : les verdicts de {entry.exercise_id} ne l'approuvent pas"
+            )
+        # The stored level is the judge's estimate; the declared one is at most one step away.
+        declared = entry.level_relabeled_from or exercise.level
+        if exercise.level != judged.estimated_level or (
+            level_gap(declared, exercise.level) > MAX_LEVEL_RELABEL
+        ):
+            raise InvalidStateError(
+                f"Lot refusé : le niveau de {entry.exercise_id} ne suit pas l'estimation du juge"
             )
         prepared.append((exercise, solved, judged))
     # Refuse the whole batch before writing anything when one sentence is already taken by

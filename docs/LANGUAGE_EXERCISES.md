@@ -192,9 +192,21 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   exercices qui n'isolaient pas leur point, consigne de registre sans excuses. Le texte relu est
   `/mnt/project-files/exercices/holdout-propose-v4.md`. Le `no_correct` d'un exercice de vocabulaire est
   un mot bien orthographié qui ne convient pas (`fotokopiert`), pour ne pas répéter la faute de frappe de
-  son `near_miss_key`. `gates-v10` : mêmes seuils, bloc `language-exercises@4`. Le juge peut proposer le
-  niveau qu'il voit ; décider qu'un écart d'un cran corrige l'étiquette au lieu de refuser est une
-  décision du propriétaire (grille v3), non prise à ce jour.
+  son `near_miss_key`. `gates-v10` : mêmes seuils, bloc `language-exercises@4`. **Holdout `@4` lancé une fois le
+  4 novembre 2026 (run 41933097123, un passage) : gate échoué de justesse sur la fausse rejection
+  (0,262 pour 0,25, 11 refus sur 42 passages)** ; fausse acceptation 0 dans toutes les familles,
+  contrôles mécaniques 1,0, verdicts changeants 0,039. Le holdout `@4` est grillé à son tour.
+  **Grille `exercise-rubric-v3` (décision du propriétaire, 4 novembre 2026)** : le niveau n'est plus
+  un critère oui ou non. Le juge **n'est plus informé du niveau annoncé** et donne le niveau qu'il lit
+  (`estimated_level`, B1, B2 ou C1) ; le code compare (`level_gap`) : même niveau, l'exercice est
+  gardé ; **un cran d'écart, l'exercice est gardé et enregistré sous le niveau du juge**
+  (`level_relabeled_from` dans le lot, la catégorie n'est jamais recalée) ; **deux crans, refusé**
+  (`level_fit`). L'import vérifie que le niveau enregistré est celui du juge et que l'étiquette de
+  l'auteur en est à un cran au plus. La mesure garde sa rigueur : un exercice à niveau échangé
+  (`level_mismatch`) qui sort accepté reste une fausse acceptation, recalé ou non. Nouvelle métrique
+  d'information, sans seuil : `relabel_rate` (exercices justes acceptés avec un niveau déplacé).
+  Aucune mesure sur de vrais modèles pour la grille v3 : une mesure dev (environ 1 €) puis un holdout
+  neuf (`@5`, à écrire et à relire) restent à décider avec le propriétaire.
 - Métrique principale : **taux de fausse acceptation** (`false_accept_rate`), l'exercice défectueux
   qui passe. Seuils de `gates.yaml` (`gates-v10`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
   (valeur initiale, à recalibrer après la première mesure ; première mesure sur le dev du 3 novembre 2026, run 41660638291 : fausse acceptation 0, contrôles mécaniques 1,0, structure 100 % après retry, mais fausse rejection 0,625, donc gate non passé), contrôles mécaniques 1,0, verdicts

@@ -13,6 +13,6 @@ routes:
 prompts:
   author: exercise-author-v1
   solver: exercise-solver-v2
-  judge: exercise-judge-v2
+  judge: exercise-judge-v3
 # Double accord : l'exercice n'entre que si deux passages du contrôle (options dans un autre ordre) l'acceptent.
 check_passes: 2

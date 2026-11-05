@@ -30,6 +30,7 @@ from ari.application.services.exercise_bank import (
     ExerciseSpec,
 )
 from ari.domain.errors import InvalidStateError, ProviderError
+from ari.domain.language_exercises import LanguageExercise
 from ari.domain.models import ExecutionStatus, new_id
 from ari.infrastructure.exercises.models import load_prompts
 
@@ -117,10 +118,14 @@ async def test_one_failed_criterion_is_enough_for_the_judge_to_refuse() -> None:
 
 def test_the_judge_must_rule_on_every_criterion_exactly_once() -> None:
     verdicts = [{"criterion": c, "passed": True, "reason": "ok"} for c in RUBRIC_CRITERIA]
-    assert JudgeSchema.model_validate_json(json.dumps({"verdicts": verdicts})).approved
+    level = {"estimated_level": "B2"}
+    assert JudgeSchema.model_validate_json(json.dumps({**level, "verdicts": verdicts})).approved
     for broken in (verdicts[:-1], [*verdicts[:-1], verdicts[0]]):
         with pytest.raises(ValueError):
-            JudgeSchema.model_validate_json(json.dumps({"verdicts": broken}))
+            JudgeSchema.model_validate_json(json.dumps({**level, "verdicts": broken}))
+    for no_level in ({}, {"estimated_level": "A2"}):  # The level is required, and on the scale.
+        with pytest.raises(ValueError):
+            JudgeSchema.model_validate_json(json.dumps({**no_level, "verdicts": verdicts}))
     with pytest.raises(ValueError, match="chosen option"):
         BlindSolveSchema.model_validate_json(
             json.dumps(
@@ -137,7 +142,7 @@ def test_the_judge_must_rule_on_every_criterion_exactly_once() -> None:
 def test_every_criterion_of_the_rubric_is_written_in_the_judge_prompt() -> None:
     text = PROMPTS["judge"].content
     assert all(f"{c}:" in text for c in RUBRIC_CRITERIA)
-    assert "exercise-rubric-v2" in text
+    assert "exercise-rubric-v3" in text
 
 
 async def test_the_checker_may_not_be_the_authors_model() -> None:
@@ -509,3 +514,75 @@ def test_the_number_of_passes_is_bounded() -> None:
     for bad in (0, 4):
         with pytest.raises(InvalidStateError):
             checker_with_passes(models(), bad)
+
+
+# The level is read by the judge, who is not told the declared one; the code rules on the gap.
+@pytest.mark.parametrize(
+    ("declared", "estimated", "accepted", "stored"),
+    [
+        ("B1", "B1", True, "B1"),
+        ("B1", "B2", True, "B2"),  # One step: the label was off, the exercise is fine.
+        ("B2", "B1", True, "B1"),
+        ("B2", "C1", True, "C1"),
+        ("B1", "C1", False, None),  # Two steps: really mismatched, refused.
+        ("C1", "B1", False, None),
+    ],
+)
+async def test_the_code_keeps_relabels_or_refuses_by_the_gap_to_the_judges_level(
+    declared: str, estimated: str, accepted: bool, stored: str | None
+) -> None:
+    item = candidate(CLOZE, level=declared)
+    judge = judge_passes(level=estimated)
+    outcome = await checker_over(models(solver=solving_the_key(item), judge=judge)).check(
+        item, run_id="t"
+    )
+    assert outcome.accepted is accepted and outcome.level == stored
+    if not accepted:
+        assert (outcome.stage, outcome.issues) == ("rubric_judge", ("level_fit",))
+
+
+async def test_a_level_two_steps_off_is_listed_with_the_other_failing_criteria() -> None:
+    item = candidate(CLOZE, level="B1")
+    judge = judge_passes(failing=("distractors_wrong",), level="C1")
+    outcome = await checker_over(models(solver=solving_the_key(item), judge=judge)).check(
+        item, run_id="t"
+    )
+    assert outcome.issues == ("distractors_wrong", "level_fit")
+
+
+async def test_the_judge_is_not_told_the_declared_level() -> None:
+    item = candidate(CLOZE)
+    sent: list[dict[str, Any]] = []
+
+    def spying(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
+        sent.append(payload)
+        return judge_passes()(request, payload)
+
+    await checker_over(models(solver=solving_the_key(item), judge=spying)).check(item, run_id="t")
+    assert len(sent) == 1 and "level" not in sent[0]
+    assert "estimated_level" in PROMPTS["judge"].content
+
+
+async def test_a_relabelled_exercise_is_stored_under_the_judges_level_and_says_so() -> None:
+    provider = ScriptedModels(
+        author=author_script([DRAFT]),
+        solver=solving_the_key(candidate(CLOZE)),
+        judge=judge_passes(level="B2"),
+    )
+    factory = ExerciseFactory(ExerciseAuthor(provider, PROMPTS["author"]), checker_over(provider))
+    batch = await factory.run("b1", [(ExerciseSpec("B1", "gender", "cloze"), 1)])
+    (entry,) = batch.accepted
+    assert entry.exercise["level"] == "B2" and entry.level_relabeled_from == "B1"
+    assert entry.judge["estimated_level"] == "B2"
+    # The identity follows the stored content, level included.
+    stored = LanguageExercise.model_validate_json(json.dumps(entry.exercise))
+    assert stored.exercise_id == entry.exercise_id
+    kept = ScriptedModels(
+        author=author_script([DRAFT]),
+        solver=solving_the_key(candidate(CLOZE)),
+        judge=judge_passes(level="B1"),
+    )
+    again = ExerciseFactory(ExerciseAuthor(kept, PROMPTS["author"]), checker_over(kept))
+    same = await again.run("b2", [(ExerciseSpec("B1", "gender", "cloze"), 1)])
+    assert same.accepted[0].level_relabeled_from is None
+    assert same.accepted[0].exercise["level"] == "B1"

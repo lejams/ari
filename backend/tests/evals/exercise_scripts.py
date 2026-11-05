@@ -32,7 +32,7 @@ def live_config(*, checker: tuple[str, str] = CHECKER, config_id: str = "scripte
             "prompts": {
                 "author": "exercise-author-v1",
                 "solver": "exercise-solver-v2",
-                "judge": "exercise-judge-v2",
+                "judge": "exercise-judge-v3",
             },
         }
     )
@@ -75,13 +75,20 @@ def solve_as(chosen: int | None = None, *, also: list[int] | None = None, plausi
     return respond
 
 
-def judge_passes(failing: tuple[str, ...] = ()):
+def judge_passes(failing: tuple[str, ...] = (), *, level: str | None = None):
+    """A judge that passes every criterion but `failing`, and reads `level`.
+
+    The real judge is not told the declared level, so the script cannot echo it: it reads B2
+    unless the test says otherwise, which is within one step of every level (nothing refused).
+    """
+
     def respond(request: LLMRequest, payload: dict[str, Any]) -> dict[str, Any]:
         return {
+            "estimated_level": level or "B2",
             "verdicts": [
                 {"criterion": c, "passed": c not in failing, "reason": "scripted"}
                 for c in RUBRIC_CRITERIA
-            ]
+            ],
         }
 
     return respond

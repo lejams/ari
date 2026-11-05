@@ -44,7 +44,7 @@ from ari.evals.runner import call_entry, item_entry
 from ari.evals.scorers import CallRecord, EvalItem, RecordingProvider
 from ari.infrastructure.exercises.models import ExerciseConfigError, ExerciseModelsConfig
 
-SCORER_PREFIX = "language-exercises-scorer-v1"
+SCORER_PREFIX = "language-exercises-scorer-v2"
 ATTEMPTS = 2
 
 
@@ -60,6 +60,8 @@ def ratios_for(keys: Sequence[str]) -> list[Ratio]:
         Ratio("false_accept_rate", ("defective.accepted",), ("defective.total",)),
         Ratio("false_reject_rate", ("valid.rejected",), ("valid.total",)),
         Ratio("mechanical_catch_rate", ("mechanical.rejected",), ("mechanical.total",)),
+        # Information only, no threshold: valid exercises accepted with a level moved one step.
+        Ratio("relabel_rate", ("valid.relabeled",), ("valid.total",)),
     ]
     kinds = sorted({key.split(".")[1] for key in keys if key.startswith("defect.")})
     ratios += [
@@ -91,6 +93,8 @@ def score(
     if truth.valid and not outcome.accepted:
         counts["valid.rejected"] = 1.0
         outcomes.append("false_reject")
+    if truth.valid and outcome.accepted and outcome.level != item.candidate.level:
+        counts["valid.relabeled"] = 1.0
     if not truth.valid and outcome.accepted:
         counts["defective.accepted"] = 1.0
         counts[f"defect.{truth.defect}.accepted"] = 1.0
@@ -291,6 +295,7 @@ async def _run_once(request: ExerciseRunRequest, item: ExerciseItem, repetition:
         else {
             "truth": item.truth.model_dump(mode="json"),
             "key_index": item.candidate.answer_index,
+            "level": item.candidate.level,
             "stem": item.candidate.stem,
             "accepted": outcome.accepted if outcome else None,
             "stage": outcome.stage if outcome else None,
