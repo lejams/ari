@@ -279,3 +279,11 @@ async def test_the_import_follows_the_judges_level_and_refuses_what_does_not(
     assert bank.list_active() == ()
     import_batch(batch, bank, gate_report_path=report_file)
     assert {s.exercise.level for s in bank.list_active()} == {"B2"}
+
+
+def test_the_generation_default_is_the_configuration_the_gate_workflow_measures() -> None:
+    from ari.exercises_cli import DEFAULT_CONFIG
+
+    # Haiku only (owner decision of 5 November 2026): a batch made without `--config` must be
+    # importable with the gate report of the only configuration the workflow offers.
+    assert DEFAULT_CONFIG.name == "luna-haiku.yaml" and DEFAULT_CONFIG.is_file()

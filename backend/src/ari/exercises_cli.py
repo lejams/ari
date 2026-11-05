@@ -54,7 +54,7 @@ from ari.infrastructure.exercises import models as exercise_models
 from ari.infrastructure.persistence.platform.engine import create_platform_engine
 from ari.infrastructure.persistence.platform.exercises import SqlExerciseBank
 
-DEFAULT_CONFIG = PROJECT_ROOT / "evals" / "configs" / "exercises" / "luna-sonnet.yaml"
+DEFAULT_CONFIG = PROJECT_ROOT / "evals" / "configs" / "exercises" / "luna-haiku.yaml"
 MAX_PER_SPEC = 40
 CALLS_PER_REQUEST = 5  # Exercises asked of the author in one call: fewer repeats, shorter output.
 
