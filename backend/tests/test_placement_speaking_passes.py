@@ -135,7 +135,7 @@ async def test_passes_that_name_one_error_differently_give_one_error() -> None:
 async def test_the_level_is_read_by_the_code_from_the_mean_score_of_the_passes() -> None:
     levels: dict[int, str | float] = {0: "B1", 1: "A2", 2: "B1"}  # 3, 2, 3: mean 2.67
     rating = await rate(PassScript(lambda s: (levels[s], [])), 3)
-    assert rating.estimated_level == "B1" and rating.level_score == pytest.approx(8 / 3)
+    assert rating.estimated_level == "B1" and rating.level_score == 2.667
     assert rating.confidence == pytest.approx(0.8)
     assert rating.criteria == dict.fromkeys(SPOKEN_CRITERIA, pytest.approx(8 / 3))
     spread: dict[int, str | float] = {0: "C1", 1: "B2", 2: "B1"}
@@ -159,6 +159,14 @@ def test_the_grid_reads_a_level_from_a_mean_score() -> None:
             spoken_level(outside)
     # The criteria the code averages are exactly the schema's.
     assert tuple(SpeakingCriteriaSchema.model_fields) == SPOKEN_CRITERIA
+
+
+async def test_an_exact_boundary_is_not_lost_to_float_rounding() -> None:
+    # 1.2 + 4.1 + 4.1 + 4.6 = 14 exactly, but the float sum divided by 4 is 3.4999999999999996.
+    scores: dict[int, str | float] = {0: 1.2, 1: 4.1, 2: 4.1, 3: 4.6}
+    assert sum(float(v) for v in scores.values()) / 4 < 3.5
+    rating = await rate(PassScript(lambda s: (scores[s], [])), 4)
+    assert rating.level_score == 3.5 and rating.estimated_level == "B2"
 
 
 async def test_a_failed_pass_does_not_count_in_the_level() -> None:

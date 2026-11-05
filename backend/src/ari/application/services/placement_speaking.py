@@ -132,7 +132,10 @@ async def rate_spoken_task(
         for item in results
     ]
     per_pass = [_pass_score(item.value) for item in results]
-    score = sum(per_pass) / len(per_pass)
+    # Rounded before reading the level: criterion scores are half points, so an exact boundary
+    # (3.5) can come out of the float mean as 3.4999999999999996 and drop a level. Rounding to
+    # 3 decimals also makes the stored score the one the level was read from.
+    score = round(sum(per_pass) / len(per_pass), 3)
     # The pass that stands for the rating (its observations): the first one closest to the mean.
     primary = min(range(len(results)), key=lambda i: abs(per_pass[i] - score))
     return SpokenRating(
