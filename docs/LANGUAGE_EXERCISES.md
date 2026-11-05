@@ -205,8 +205,11 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   l'auteur en est à un cran au plus. La mesure garde sa rigueur : un exercice à niveau échangé
   (`level_mismatch`) qui sort accepté reste une fausse acceptation, recalé ou non. Nouvelle métrique
   d'information, sans seuil : `relabel_rate` (exercices justes acceptés avec un niveau déplacé).
-  Aucune mesure sur de vrais modèles pour la grille v3 : une mesure dev (environ 1 €) puis un holdout
-  neuf (`@5`, à écrire et à relire) restent à décider avec le propriétaire.
+  Aucune mesure sur de vrais modèles pour la grille v3 à l'écriture de cette section. Le propriétaire a
+  demandé (5 novembre 2026) une mesure dev sur Sonnet 5.5 et sur Haiku 5.5 (config `luna-haiku`, seul le
+  modèle du contrôle change ; au prix du catalogue `pricing-v2`, Haiku coûte 0,10 / 0,50 $ par million de
+  jetons contre 2,00 / 10,00 $ pour Sonnet, soit 20 fois moins), puis, si Haiku garde la fausse
+  acceptation à 0, un holdout neuf (`@5`, à écrire et à relire) à lancer une fois sur Haiku.
 - Métrique principale : **taux de fausse acceptation** (`false_accept_rate`), l'exercice défectueux
   qui passe. Seuils de `gates.yaml` (`gates-v10`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
   (valeur initiale, à recalibrer après la première mesure ; première mesure sur le dev du 3 novembre 2026, run 41660638291 : fausse acceptation 0, contrôles mécaniques 1,0, structure 100 % après retry, mais fausse rejection 0,625, donc gate non passé), contrôles mécaniques 1,0, verdicts
