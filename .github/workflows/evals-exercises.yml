@@ -14,11 +14,11 @@ on:
         type: choice
         options: [holdout, dev]
       config:
-        description: "luna-sonnet: one pass of the checks; luna-sonnet-double: two passes that must both accept"
+        description: "luna-sonnet: one pass of the checks; luna-sonnet-double: two passes that must both accept; luna-haiku: one pass on Claude Haiku 5.5"
         required: true
         default: luna-sonnet
         type: choice
-        options: [luna-sonnet, luna-sonnet-double]
+        options: [luna-sonnet, luna-sonnet-double, luna-haiku]
 permissions: {contents: read}
 jobs:
   exercises:

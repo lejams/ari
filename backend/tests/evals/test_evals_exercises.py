@@ -644,3 +644,19 @@ def test_the_diagnosis_says_which_level_the_judge_read_when_it_refuses_for_two_s
         {"issues": ["level_fit"], "level": "B1", "judge": {"estimated_level": "C1", "verdicts": []}}
     )
     assert text == "level_fit : niveau lu C1 pour B1"
+
+
+def test_the_haiku_configuration_differs_from_the_sonnet_one_by_the_checking_model_only() -> None:
+    sonnet, sonnet_sha = load_config(CONFIGS / "luna-sonnet.yaml")
+    haiku, haiku_sha = load_config(CONFIGS / "luna-haiku.yaml")
+    assert haiku.routes["author"] == sonnet.routes["author"]
+    assert (haiku.routes["checker"].provider, haiku.routes["checker"].model) == (
+        "anthropic",
+        "claude-haiku-5-5",
+    )
+    assert haiku.routes["checker"].max_tokens == sonnet.routes["checker"].max_tokens
+    assert haiku.prompts == sonnet.prompts and haiku.check_passes == sonnet.check_passes == 1
+    assert haiku_sha != sonnet_sha  # A gate report for one never backs a batch of the other.
+    assert haiku.author_identity != ("anthropic", "claude-haiku-5-5")
+    workflow = (PROJECT_ROOT / ".github" / "workflows" / "evals-exercises.yml").read_text()
+    assert "luna-haiku" in workflow
