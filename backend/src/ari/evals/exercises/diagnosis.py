@@ -55,6 +55,14 @@ def rejection_reasons(detail: dict[str, Any]) -> list[str]:
     return [str(stage)] if stage else ["unusable"]
 
 
+def _level_read(detail: dict[str, Any]) -> str:
+    """For a swapped level that was accepted: declared, true and judged level."""
+    if detail.get("truth", {}).get("defect") != "level_mismatch":
+        return ""
+    judged = (detail.get("judge") or {}).get("estimated_level")
+    return f" [annoncé {detail.get('level')}, vrai {detail.get('true_level')}, lu {judged}]"
+
+
 def _explanation(detail: dict[str, Any]) -> str:
     judge = detail.get("judge") or {}
     failing = [
@@ -81,7 +89,7 @@ def exercise_diagnosis_text(report: Report, items: Mapping[str, ExerciseItem] | 
     counts: Counter[str] = Counter()
     stages: Counter[str] = Counter()
     lines: list[str] = []
-    valid = rejected = 0
+    valid = rejected = tolerated = 0
     unusable: Counter[str] = Counter()
     for item in report.items:
         known = items.get(item.item_id) if items else None
@@ -95,10 +103,12 @@ def exercise_diagnosis_text(report: Report, items: Mapping[str, ExerciseItem] | 
                 continue
             truth = detail.get("truth") or {}
             if not truth.get("valid"):
-                if detail.get("accepted"):
+                if run.counts.get("level_swap.kept_within_one_step"):
+                    tolerated += 1
+                elif detail.get("accepted"):
                     lines.append(
                         f"- FAUSSE ACCEPTATION {item.item_id} ({truth.get('defect')}) : "
-                        f"{str(detail.get('stem', ''))[:90]}"
+                        f"{str(detail.get('stem', ''))[:90]}{_level_read(detail)}"
                     )
                 continue
             valid += 1
@@ -119,6 +129,8 @@ def exercise_diagnosis_text(report: Report, items: Mapping[str, ExerciseItem] | 
         "Par étape : " + (", ".join(f"{s} {n}" for s, n in stages.most_common()) or "aucune"),
         "Par raison : " + (", ".join(f"{r} {n}" for r, n in counts.most_common()) or "aucune"),
     ]
+    if tolerated:
+        head.append(f"Niveaux échangés acceptés à un cran du vrai niveau (tolérés) : {tolerated}")
     if unusable:
         causes = " | ".join(f"{n} x {text}" for text, n in unusable.most_common(3))
         head.append(

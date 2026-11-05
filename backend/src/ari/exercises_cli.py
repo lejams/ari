@@ -1,6 +1,6 @@
 """Command line of the bank of language exercises: generate, import, list, withdraw.
 
-    python -m ari.exercises_cli generate --config evals/configs/exercises/luna-sonnet.yaml \\
+    python -m ari.exercises_cli generate --config evals/configs/exercises/luna-haiku.yaml \\
         --live --spec B1:case:cloze:10 --out var/exercises/batch.json
     python -m ari.exercises_cli import var/exercises/batch.json \\
         --gate-report exercise-gate/report.json
@@ -54,7 +54,7 @@ from ari.infrastructure.exercises import models as exercise_models
 from ari.infrastructure.persistence.platform.engine import create_platform_engine
 from ari.infrastructure.persistence.platform.exercises import SqlExerciseBank
 
-DEFAULT_CONFIG = PROJECT_ROOT / "evals" / "configs" / "exercises" / "luna-sonnet.yaml"
+DEFAULT_CONFIG = PROJECT_ROOT / "evals" / "configs" / "exercises" / "luna-haiku.yaml"
 MAX_PER_SPEC = 40
 CALLS_PER_REQUEST = 5  # Exercises asked of the author in one call: fewer repeats, shorter output.
 
