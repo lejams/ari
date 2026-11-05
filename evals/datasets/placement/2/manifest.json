@@ -1,0 +1,46 @@
+{
+  "suite": "placement",
+  "version": "2",
+  "description": "Réponses orales de test de niveau, à erreurs injectées (genre, cas, forme verbale, ordre des mots, choix du mot, registre), construites comme la version 1 : en dev, les trois sujets de la version 1 (deux étiquettes douteuses remplacées, l'ancien holdout brûlé inclus) ; en holdout, quatre sujets neufs (60 transcripts, toutes les catégories).",
+  "synthetic": true,
+  "source": "Énoncés inventés par l'agent, générés par evals/datasets/build_placement_v2.py",
+  "created_on": "2026-11-05",
+  "consent": "not_applicable:synthetic",
+  "annotators": [
+    {
+      "id": "agent:claude-sonnet-5.5",
+      "role": "rédaction synthétique",
+      "annotated_on": "2026-11-02"
+    },
+    {
+      "id": "agent:claude-opus-5.5",
+      "role": "rédaction synthétique",
+      "annotated_on": "2026-11-05"
+    }
+  ],
+  "splits": {
+    "dev": [
+      "arbeitstag",
+      "aufklaerung",
+      "deutschlernen"
+    ],
+    "holdout": [
+      "uebergabe",
+      "anamnese",
+      "freizeit",
+      "medikament"
+    ]
+  },
+  "files": {
+    "cases.json": "88adf458b4aea8f635a96afa860e732670623be297d862d346d19c6ba832a77b",
+    "dev.jsonl": "e6312d1661251b659b47f045564b490d63c53f7941f635146364fb53f52dce15",
+    "holdout.jsonl": "c90bd2e47f4ba34789ccdd87f15db8cfef1f4575ceedc10140648d2fae7ed200"
+  },
+  "limitations": [
+    "Énoncés allemands rédigés par l'agent et non relus par un germanophone (décision D3) : une phrase « correcte » qui contiendrait une vraie faute compterait comme fausse erreur du modèle.",
+    "Le niveau attendu est celui du texte sans erreur, écrit par l'agent : il est jugé à un niveau près (les erreurs injectées peuvent faire baisser l'estimation d'un cran), le niveau exact n'est qu'indicatif.",
+    "Les erreurs de `case` restent à distinguer de `gender` selon la règle de build_synthetic_v2.py (forme du bon cas mais d'un autre genre : `gender`).",
+    "Le dev contient l'ancien holdout (`deutschlernen`), déjà lancé une fois : aucun réglage ne doit se juger sur lui seul.",
+    "Le cas `SYN-BRUST` n'est qu'un support exigé par le runner : la suite ne le lit pas."
+  ]
+}

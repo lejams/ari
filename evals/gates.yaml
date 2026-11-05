@@ -9,7 +9,7 @@
 # - une seule NOUVELLE erreur critique (absente de la baseline) bloque, quelle que soit la moyenne.
 #   Les types d'erreur critiques sont listés par suite dans `critical_outcomes`.
 
-version: gates-v12
+version: gates-v13
 repetitions: 3  # Un run gate répète chaque item 3 fois (stabilité, intervalles).
 
 suites:
@@ -151,6 +151,51 @@ suites:
       - metric: stability.changed_rate
         max: 0.10
         source: "plan : ≤ 10 % de verdicts changeants sur 3 répétitions"
+      - metric: structured_after_retry
+        min: 0.995
+        source: "plan : structure exploitable après un retry ≥ 99,5 %"
+    critical_outcomes: []
+
+  # Version 2 du jeu (5 novembre 2026, gates-v13). Le holdout de la version 1, lancé une fois
+  # (run 42023493910), a échoué sur la seule stabilité (0,40) ; deux réglages mesurés en dev
+  # (vote, puis « une passe suffit ») ne l'ont pas fait baisser (0,37, 0,40). Le propriétaire a
+  # choisi (5 novembre 2026) de corriger la mesure avant le modèle : `stability.changed_rate`
+  # demande que toutes les erreurs ET le niveau d'un item soient identiques sur 3 répétitions ; un
+  # item de six erreurs reste alors identique moins d'une fois sur deux même si chaque erreur est
+  # trouvée 95 % du temps. Le seuil du plan (≤ 10 % de verdicts changeants) s'applique désormais à
+  # chaque verdict que le produit rend : le niveau, les points faibles, chaque erreur prise une par
+  # une. Ces seuils sont écrits avant toute mesure sur cette version. `stability.changed_rate`
+  # reste dans le rapport, sans seuil. Les autres seuils ne bougent pas. Holdout de 60 transcripts
+  # (15 en version 1) : à 10 % vrais, 1 item sur 15 autorisé faisait du gate une loterie.
+  placement@2:
+    thresholds:
+      - metric: language_overall.precision
+        min: 0.85
+        source: "plan : erreurs de langue, précision ≥ 0,85 (appliquée à toutes les catégories)"
+      - metric: language_overall.recall
+        min: 0.70
+        source: "plan : erreurs de langue, rappel ≥ 0,70 (appliqué à toutes les catégories)"
+      - metric: invented_quote_rate
+        max: 0.02
+        source: "plan : hallucination de preuve ≤ 2 % (citation absente de la transcription, écartée par le code)"
+      - metric: weak_point.precision.all
+        min: 0.85
+        source: "à valider : un point faible affiché à tort envoie l'apprenant travailler la mauvaise chose"
+      - metric: weak_point.recall.all
+        min: 0.70
+        source: "à valider : même seuil que le rappel des erreurs de langue"
+      - metric: level.within_one
+        min: 0.90
+        source: "à valider : niveau estimé à un niveau près du niveau du texte, sur 90 % des transcripts"
+      - metric: stability.level.changed_rate
+        max: 0.10
+        source: "plan (≤ 10 % de verdicts changeants) appliqué au niveau rendu, propriétaire 5 novembre 2026"
+      - metric: stability.weak_points.changed_rate
+        max: 0.10
+        source: "plan (≤ 10 % de verdicts changeants) appliqué aux points faibles, ce qui pilote la remédiation, propriétaire 5 novembre 2026"
+      - metric: stability.errors.flip_rate
+        max: 0.10
+        source: "plan (≤ 10 % de verdicts changeants) appliqué à chaque erreur : part des erreurs vues au moins une fois qui ne le sont pas à chaque répétition, propriétaire 5 novembre 2026"
       - metric: structured_after_retry
         min: 0.995
         source: "plan : structure exploitable après un retry ≥ 99,5 %"

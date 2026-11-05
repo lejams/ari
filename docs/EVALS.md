@@ -23,7 +23,7 @@ pour les autres. Le seul modèle appelé est celui de la configuration testée.
 | `evaluation-language@3` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v10`, vote sur 3 passes) | idem `@2` | 250 transcripts synthétiques : tout `@2` en dev (175), holdout neuf de trois familles (75 : genou, diarrhée, éruption cutanée) |
 | `evaluation-language@2` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v10`) | erreurs injectées : genre, cas, forme verbale, ordre des mots, choix du mot, registre ; mot français ; artefact de transcription ; section oubliée ; formulations correctes mais inhabituelles | 175 transcripts synthétiques (100 dev, 75 holdout) |
 | `evaluation-language@1` | idem (version 1, gardée pour mémoire, plus exigée) | genre, cas, forme verbale, ordre des mots ; mot français ; artefact ; section oubliée | 120 transcripts (90 dev, 30 holdout) |
-| `placement@1` | la notation de l'oral du test de niveau : `rate_spoken_task` (prompt `placement-speaking-v2`, route `evaluation` avec ses réglages d'effort et de graine, `ARI_EVALUATION_PASSES` passes : erreurs gardées si au moins une passe les voit (les citations sont vérifiées par le code), niveau médian des passes), avec la vérification des citations par le code, puis le calcul des points faibles par `weak_points` | erreurs injectées (catégorie, citation, correction) et niveau du texte (B1, B2, C1) | 45 transcripts synthétiques de six phrases : 3 sujets (2 en dev, 1 en holdout), 3 niveaux, 5 variantes (sans erreur, deux paires, trois catégories, toutes) |
+| `placement@2` (`@1` reste dans le dépôt) | la notation de l'oral du test de niveau : `rate_spoken_task` (prompt `placement-speaking-v2`, route `evaluation` avec ses réglages d'effort et de graine, `ARI_EVALUATION_PASSES` passes : erreurs gardées si au moins une passe les voit (les citations sont vérifiées par le code), niveau médian des passes), puis le calcul des points faibles par `weak_points` | erreurs injectées (catégorie, citation, correction) et niveau du texte (B1, B2, C1) | 105 transcripts synthétiques de six phrases : les 3 sujets de `@1` en dev (45, deux étiquettes corrigées), 4 sujets neufs en holdout (60, toutes les catégories) |
 | `evaluation-medical@1` | l'évaluateur réel | omissions exigibles et erreurs médicales relevées par le médecin | **en attente du médecin** (section 6 du plan) |
 | `language-exercises@6` (les `@1` à `@5` restent dans le dépôt) | les contrôles devant la banque d'exercices de langue : contrôles mécaniques, résolution à l'aveugle, juge strict (`python -m ari.evals exercises`) | exercice bon, ou défaut connu par construction (mauvaise clé, deux réponses justes, explication fausse…) | jeu `@6` : dev de `@5` inchangé, holdout de `@5` corrigé après une relecture extérieure (123 items, jamais lancé) ; jeu `@5` : 491 items en dev (tout ce qui a été mesuré, sans deux familles dont les références sont défendables), 124 en holdout neuf (14 exercices justes, relecture extérieure demandée avant la première mesure, aucune mesure à ce jour) ; jeu `@4` : holdout lancé le 4 novembre 2026, voir ci-dessous ; défaut `near_miss_key` (réponse presque juste) ; holdout `@4` lancé le 4 novembre 2026 (run 41933097123) : fausse acceptation 0, fausse rejection 0,262 pour 0,25, gate échoué, holdout grillé ; grille `exercise-rubric-v3` (le juge lit le niveau, le code recale d'un cran ou refuse à deux), non mesurée ; voir `docs/LANGUAGE_EXERCISES.md` |
 | `voice-snippets@1` | la voix ElevenLabs de chaque persona sur des phrases fixes, puis le STT | termes critiques de chaque phrase (chiffres, doses, termes) | 33 phrases de patient en allemand |
@@ -465,7 +465,7 @@ global 0,996 (`word_choice` 1, `case` 0,98, `verb_form` 0,99), hallucination de 
 de transcription 0, alternances de langue précision et rappel 1. `patient-leakage@1` passe sur les
 deux configurations (fuite 0, fait inventé 0). Verdict de promotion : `passed`. La règle de repli sur
 les seuils (0,15 et 0,65) n'a pas servi. `gates-v6` (2 novembre 2026) a ajouté la suite `placement@1` ; `gates-v7` (même jour) garde tous
-les seuils et ajoute seulement la suite `language-exercises@1` ; `gates-v8` (3 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@2` ; `gates-v9` (4 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@3` ; `gates-v10` (même jour) garde tous les seuils et ajoute le bloc `language-exercises@4` ; `gates-v11` (5 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@5` ; `gates-v12` (même jour) garde tous les seuils et ajoute le bloc `language-exercises@6`.
+les seuils et ajoute seulement la suite `language-exercises@1` ; `gates-v8` (3 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@2` ; `gates-v9` (4 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@3` ; `gates-v10` (même jour) garde tous les seuils et ajoute le bloc `language-exercises@4` ; `gates-v11` (5 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@5` ; `gates-v12` (même jour) garde tous les seuils et ajoute le bloc `language-exercises@6` ; `gates-v13` (même jour) ajoute le bloc `placement@2`, dont la stabilité est mesurée sur le niveau, les points faibles et chaque erreur (section 11).
 
 **Choisir la configuration** : le workflow manuel `Compare evaluation configurations`
 (`.github/workflows/evals-compare.yml`, n'importe quelle branche, split dev uniquement, jamais de
@@ -475,7 +475,7 @@ ne sert pas à itérer.
 
 ## 7. Seuils et erreurs critiques
 
-`evals/gates.yaml` (version `gates-v12`) reprend les seuils du plan :
+`evals/gates.yaml` (version `gates-v13`) reprend les seuils du plan :
 
 | Mesure | Seuil |
 |---|---|
@@ -557,7 +557,7 @@ politique change, détecté par empreinte. Code : `backend/src/ari/evals/promoti
 Une voix, une clé, un délai ou un fichier sans rapport ne la changent pas.
 
 **Runs exigés** (`PROMOTION_RUNS`) : `patient-leakage@1` sur `luna.yaml` (entraînement) et
-`luna-exam.yaml` (chaîne d'examen), `evaluation-language@3` et `placement@1` sur `luna.yaml`. Tous sur le holdout,
+`luna-exam.yaml` (chaîne d'examen), `evaluation-language@3` et `placement@2` sur `luna.yaml`. Tous sur le holdout,
 en mode gate, sur les vrais modèles. Un test vérifie que ces configurations ont les modèles, les
 fournisseurs et les prompts de production. `evaluation-medical@1` s'y ajoutera avec les annotations
 du médecin, `voice-sim@1` avec sa cible staging.
@@ -589,7 +589,7 @@ Conséquences :
   vrais modèles, aucune mise en production n'est possible tant que la qualité ou les seuils ne
   sont pas revus.
 
-## 11. Suite `placement@1` (2 novembre 2026)
+## 11. Suite `placement` (`@1` le 2 novembre 2026, `@2` le 5 novembre 2026)
 
 Elle mesure ce que le test de niveau fait du modèle : le niveau estimé pour une prise de parole, les
 erreurs de langue citées, et les points faibles que l'application en tire. Le texte est écrit à un
@@ -616,3 +616,42 @@ prompt `placement-speaking-v2` change l'empreinte IA, la promotion suivante exig
 `Evals on real models` complet (les quatre runs de la section 10). Sur le fournisseur simulé
 (`make evals-fake`), le niveau passe et les erreurs ne sont pas trouvées : le fake ne sait repérer que
 quelques fautes connues, la chaîne seule est vérifiée.
+
+**Première mesure et version 2 (5 novembre 2026).** Le holdout `@1`, lancé une fois (run
+42023493910), a passé tous les seuils de qualité (précision 1,0, rappel 0,95) mais pas la stabilité
+(0,40 pour 0,10). Deux réglages mesurés en dev n'y ont rien changé : route `evaluation` avec effort,
+graine et vote à la majorité sur 3 passes (0,37, run 42052058339), puis une erreur gardée dès
+qu'une passe la voit (0,40, run 42059515480 ; rappel 0,87, précision 0,98). Lecture item par item :
+5 items sur 30 changent de niveau d'une répétition à l'autre, 7 gardent leur niveau mais pas tout à
+fait le même ensemble d'erreurs.
+
+La métrique en cause : `stability.changed_rate` compte un item comme changé dès que l'une de ses
+erreurs ou son niveau diffère sur 3 répétitions. Si chaque erreur est trouvée 95 % du temps, un item
+de cinq erreurs reste identique sur 3 répétitions moins d'une fois sur deux ; tenir 10 % demande
+plus de 99 % par erreur. La même métrique passe sur l'évaluation des séances (0,027 sur 75 items),
+dont la signature n'a pas de niveau. Et avec 15 items en holdout, un seul a le droit de changer : un
+correcteur vraiment à 10 % échoue une fois sur deux, et relancer des holdouts jusqu'au succès serait
+du surapprentissage.
+
+Le propriétaire a choisi (5 novembre 2026) de corriger la mesure avant le modèle :
+
+- **Stabilité par facette** (`placement-scorer-v2`). Le scorer rend chaque partie de la sortie que le
+  produit utilise comme un ensemble d'étiquettes (`ItemScore.facets`) : le niveau, les points faibles,
+  les erreurs. Le runner en tire, pour chaque facette, la part d'items où elle change
+  (`stability.<facette>.changed_rate`) et la part des étiquettes vues au moins une fois qui ne le sont
+  pas à chaque répétition (`stability.<facette>.flip_rate` ; une erreur jamais vue relève du rappel,
+  pas de la stabilité). `gates-v13` applique le seuil du plan (≤ 10 % de verdicts changeants) au
+  niveau (`stability.level.changed_rate`), aux points faibles (`stability.weak_points.changed_rate`)
+  et à chaque erreur (`stability.errors.flip_rate`). `stability.changed_rate` reste dans le rapport,
+  sans seuil. Ces seuils ont été écrits avant toute mesure sur `@2` ; les autres ne bougent pas.
+- **Doublon** : une même erreur signalée deux fois sur deux morceaux de sa citation (« dich … dich »)
+  n'est plus une fausse erreur, elle est comptée à part (`duplicate_rate`, sans seuil).
+- **Jeu `@2`** (`evals/datasets/build_placement_v2.py`) : deux étiquettes douteuses de `@1`
+  remplacées (« Wenn ich mehr Zeit habe, würde ich … », courant à l'oral ; « den gesamten Team »,
+  faux en cas et en genre à la fois), l'ancien holdout brûlé passe en dev (45 transcripts), un
+  holdout neuf de quatre sujets (transmission à une collègue, anamnèse, loisirs, explication d'un
+  médicament) et 60 transcripts, toutes les catégories présentes. Rédigé par l'agent, non relu par
+  un germanophone (décision D3).
+
+Suite prévue : une mesure dev de `@2` ; si le niveau reste instable, une notation du niveau par
+sous-notes et grille dans le code (et seulement du niveau) ; puis le holdout `@2` une seule fois.

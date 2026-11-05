@@ -1,0 +1,189 @@
+{
+  "cases": [
+    {
+      "id": "SYN-BRUST",
+      "version": "1",
+      "language": "de-DE",
+      "title": "Synthetischer Fall: Brustschmerz",
+      "opening_statement": "Guten Tag, ich habe starke Schmerzen in der Brust.",
+      "opening_fact_ids": [
+        "reason"
+      ],
+      "communication_style": "besorgt, antwortet kurz",
+      "unknown_response": "Das weiß ich leider nicht.",
+      "out_of_scope_response": "Entschuldigung, das verstehe ich nicht. Es geht mir nicht gut.",
+      "facts": [
+        {
+          "id": "identity",
+          "category": "identity",
+          "value": "Klaus Berger, 58 Jahre",
+          "patient_phrase": "Ich heiße Klaus Berger und bin 58 Jahre alt.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "reason",
+          "category": "reason",
+          "value": "Brustschmerzen",
+          "patient_phrase": "Ich habe starke Schmerzen in der Brust.",
+          "disclosure": "spontaneous"
+        },
+        {
+          "id": "onset",
+          "category": "onset",
+          "value": "seit zwei Stunden, in Ruhe begonnen",
+          "patient_phrase": "Die Schmerzen haben vor zwei Stunden angefangen, als ich auf dem Sofa saß.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "character",
+          "category": "pain_character",
+          "value": "drückend, 8 von 10",
+          "patient_phrase": "Es drückt wie ein schwerer Stein, ich würde sagen acht von zehn.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "radiation",
+          "category": "pain_radiation",
+          "value": "Ausstrahlung in den linken Arm",
+          "patient_phrase": "Der Schmerz zieht in den linken Arm.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "history",
+          "category": "medical_history",
+          "value": "arterielle Hypertonie seit 10 Jahren",
+          "patient_phrase": "Ich habe seit zehn Jahren hohen Blutdruck.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "medication",
+          "category": "medication",
+          "value": "Ramipril 5 mg morgens",
+          "patient_phrase": "Ich nehme jeden Morgen Ramipril, fünf Milligramm.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "allergy",
+          "category": "allergy",
+          "value": "Penicillinallergie (Exanthem)",
+          "patient_phrase": "Gegen Penicillin bin ich allergisch, da bekomme ich Ausschlag.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "smoking",
+          "category": "smoking",
+          "value": "20 Zigaretten täglich seit 30 Jahren",
+          "patient_phrase": "Ich rauche seit dreißig Jahren etwa eine Schachtel am Tag.",
+          "disclosure": "when_explicitly_asked"
+        },
+        {
+          "id": "family",
+          "category": "family_history",
+          "value": "Vater: Myokardinfarkt mit 60",
+          "patient_phrase": "Mein Vater hatte mit sechzig einen Herzinfarkt.",
+          "disclosure": "when_asked"
+        },
+        {
+          "id": "occupation",
+          "category": "occupation",
+          "value": "Busfahrer",
+          "patient_phrase": "Ich bin Busfahrer.",
+          "disclosure": "when_asked"
+        }
+      ],
+      "rubric": [
+        {
+          "id": "clinical_coverage",
+          "label": "Couverture clinique",
+          "max_score": 5,
+          "description": "Synthetic criterion: facts elicited"
+        },
+        {
+          "id": "communication",
+          "label": "Communication",
+          "max_score": 5,
+          "description": "Synthetic criterion: patient-centred questions"
+        },
+        {
+          "id": "structure",
+          "label": "Structure",
+          "max_score": 5,
+          "description": "Synthetic criterion: anamnesis order"
+        },
+        {
+          "id": "language",
+          "label": "Langue",
+          "max_score": 5,
+          "description": "Synthetic criterion: grammatical German"
+        },
+        {
+          "id": "vocabulary",
+          "label": "Vocabulaire",
+          "max_score": 5,
+          "description": "Synthetic criterion: medical vocabulary"
+        }
+      ],
+      "anamnesis_sections": [
+        {
+          "id": "patientendaten",
+          "label": "Patientendaten",
+          "fact_ids": [
+            "identity"
+          ]
+        },
+        {
+          "id": "aktuelle_beschwerden",
+          "label": "Aktuelle Beschwerden",
+          "fact_ids": [
+            "reason",
+            "onset",
+            "character",
+            "radiation"
+          ]
+        },
+        {
+          "id": "vorerkrankungen",
+          "label": "Vorerkrankungen",
+          "fact_ids": [
+            "history"
+          ]
+        },
+        {
+          "id": "medikamente",
+          "label": "Medikamente",
+          "fact_ids": [
+            "medication"
+          ]
+        },
+        {
+          "id": "allergien",
+          "label": "Allergien",
+          "fact_ids": [
+            "allergy"
+          ]
+        },
+        {
+          "id": "noxen",
+          "label": "Noxen",
+          "fact_ids": [
+            "smoking"
+          ]
+        },
+        {
+          "id": "familienanamnese",
+          "label": "Familienanamnese",
+          "fact_ids": [
+            "family"
+          ]
+        },
+        {
+          "id": "sozialanamnese",
+          "label": "Sozialanamnese",
+          "fact_ids": [
+            "occupation"
+          ]
+        }
+      ]
+    }
+  ]
+}
