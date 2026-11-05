@@ -611,9 +611,7 @@ async def test_a_perfect_checker_passes_the_gate_on_the_fourth_version() -> None
     assert report.metrics["false_reject_rate"] == 0.0 and report.critical_errors == []
 
 
-def test_a_valid_exercise_moved_one_step_is_accepted_and_counted_but_a_mismatch_never_passes() -> (
-    None
-):
+def test_a_swapped_level_is_judged_against_the_true_level_within_one_step() -> None:
     from ari.application.services.exercise_bank import CheckOutcome
     from ari.evals.exercises.runner import score
 
@@ -624,16 +622,34 @@ def test_a_valid_exercise_moved_one_step_is_accepted_and_counted_but_a_mismatch_
     assert counts["valid.relabeled"] == 1.0 and outcomes == []
     counts, _, _ = score(valid, CheckOutcome(True, "accepted", level=valid.candidate.level))
     assert "valid.relabeled" not in counts
-    # A swapped level that comes out accepted is a false acceptance, relabelled or not: the
-    # measure stays as strict as when the judge could only refuse.
+    # A swapped level (B1 <-> C1) that comes out accepted is a false acceptance when it is stored
+    # more than one step from the true level; one step is the imprecision a valid item has too.
     mismatch = next(i for i in dev if i.truth.defect == "level_mismatch")
-    for level in (mismatch.candidate.level, "B2"):
-        counts, outcomes, _ = score(mismatch, CheckOutcome(True, "accepted", level=level))
-        assert outcomes == ["false_accept"] and counts["defect.level_mismatch.accepted"] == 1.0
+    true_level = next(
+        i for i in dev if i.family == mismatch.family and i.truth.valid
+    ).candidate.level
+    assert true_level != mismatch.candidate.level
+    counts, outcomes, _ = score(mismatch, CheckOutcome(True, "accepted", level="B2"), true_level)
+    assert outcomes == [] and "defective.accepted" not in counts
+    assert counts["level_swap.kept_within_one_step"] == 1.0
+    assert counts["defect.level_mismatch.total"] == 1.0
+    # Stored under the swapped (declared) level, two steps from the truth: a false acceptance.
+    counts, outcomes, _ = score(
+        mismatch, CheckOutcome(True, "accepted", level=mismatch.candidate.level), true_level
+    )
+    assert outcomes == ["false_accept"] and counts["defect.level_mismatch.accepted"] == 1.0
+    # Without a true level the measure stays strict.
+    counts, outcomes, _ = score(mismatch, CheckOutcome(True, "accepted", level="B2"))
+    assert outcomes == ["false_accept"]
+    # Refused stays refused.
+    counts, outcomes, _ = score(
+        mismatch, CheckOutcome(False, "rubric_judge", ["level_fit"]), true_level
+    )
+    assert outcomes == [] and "defective.accepted" not in counts
 
 
 def test_the_scorer_names_the_relabelling_and_the_judge_prompt_is_the_third_version() -> None:
-    assert scorer_version().startswith("language-exercises-scorer-v2+exercise-rubric-v3+")
+    assert scorer_version().startswith("language-exercises-scorer-v3+exercise-rubric-v3+")
     assert load_config(CONFIGS / "luna-sonnet.yaml")[0].prompts.judge == "exercise-judge-v3"
 
 
@@ -659,4 +675,17 @@ def test_the_haiku_configuration_differs_from_the_sonnet_one_by_the_checking_mod
     assert haiku_sha != sonnet_sha  # A gate report for one never backs a batch of the other.
     assert haiku.author_identity != ("anthropic", "claude-haiku-5-5")
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "evals-exercises.yml").read_text()
-    assert "luna-haiku" in workflow
+    assert "luna-haiku" in workflow and "luna-sonnet" not in workflow
+
+
+def test_the_diagnosis_shows_the_level_read_of_a_swap_and_counts_the_tolerated_ones() -> None:
+    from ari.evals.exercises.diagnosis import _level_read
+
+    detail = {
+        "truth": {"defect": "level_mismatch"},
+        "level": "B1",
+        "true_level": "C1",
+        "judge": {"estimated_level": "B1"},
+    }
+    assert _level_read(detail) == " [annoncé B1, vrai C1, lu B1]"
+    assert _level_read({"truth": {"defect": "wrong_key"}}) == ""

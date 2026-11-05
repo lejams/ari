@@ -1,6 +1,6 @@
 name: Evals of the exercise checks
 # Manual, billed: runs the language-exercises suite (backend/src/ari/evals/exercises) on the real
-# models of evals/configs/exercises/luna-sonnet.yaml, with the keys of the `evals` environment. The
+# models of evals/configs/exercises/luna-haiku.yaml, with the keys of the `evals` environment. The
 # `exercise-gate` artifact holds the report; a batch of exercises is imported into the bank only
 # with a passing report of this run (python -m ari.exercises_cli import --gate-report). It is not
 # part of the release promotion: the bank is data, not a deployment. See docs/LANGUAGE_EXERCISES.md.
@@ -14,11 +14,11 @@ on:
         type: choice
         options: [holdout, dev]
       config:
-        description: "luna-sonnet: one pass of the checks; luna-sonnet-double: two passes that must both accept; luna-haiku: one pass on Claude Haiku 5.5"
+        description: "luna-haiku: one pass of the checks on Claude Haiku 5.5 (owner decision of 5 November 2026: Haiku only, on dev and on holdout)"
         required: true
-        default: luna-sonnet
+        default: luna-haiku
         type: choice
-        options: [luna-sonnet, luna-sonnet-double, luna-haiku]
+        options: [luna-haiku]
 permissions: {contents: read}
 jobs:
   exercises:

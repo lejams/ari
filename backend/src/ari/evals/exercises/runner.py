@@ -22,7 +22,7 @@ from ari.application.prompting import VersionedPrompt
 from ari.application.services.costing import PricingTable
 from ari.application.services.exercise_bank import OP_JUDGE, OP_SOLVE, CheckOutcome, ExerciseChecker
 from ari.domain.errors import ProviderError
-from ari.domain.language_exercises import MECHANICAL_CHECKS_VERSION
+from ari.domain.language_exercises import MAX_LEVEL_RELABEL, MECHANICAL_CHECKS_VERSION, level_gap
 from ari.evals import gates as gate_rules
 from ari.evals.exercises.dataset import MECHANICAL_DEFECTS, ExerciseDataset, ExerciseItem
 from ari.evals.manifest import Split
@@ -44,7 +44,7 @@ from ari.evals.runner import call_entry, item_entry
 from ari.evals.scorers import CallRecord, EvalItem, RecordingProvider
 from ari.infrastructure.exercises.models import ExerciseConfigError, ExerciseModelsConfig
 
-SCORER_PREFIX = "language-exercises-scorer-v2"
+SCORER_PREFIX = "language-exercises-scorer-v3"
 ATTEMPTS = 2
 
 
@@ -62,6 +62,12 @@ def ratios_for(keys: Sequence[str]) -> list[Ratio]:
         Ratio("mechanical_catch_rate", ("mechanical.rejected",), ("mechanical.total",)),
         # Information only, no threshold: valid exercises accepted with a level moved one step.
         Ratio("relabel_rate", ("valid.relabeled",), ("valid.total",)),
+        # Information only: swapped-level exercises accepted within one step of their true level.
+        Ratio(
+            "level_swap_kept_within_one_step_rate",
+            ("level_swap.kept_within_one_step",),
+            ("defect.level_mismatch.total",),
+        ),
     ]
     kinds = sorted({key.split(".")[1] for key in keys if key.startswith("defect.")})
     ratios += [
@@ -72,9 +78,16 @@ def ratios_for(keys: Sequence[str]) -> list[Ratio]:
 
 
 def score(
-    item: ExerciseItem, outcome: CheckOutcome | None
+    item: ExerciseItem, outcome: CheckOutcome | None, true_level: str | None = None
 ) -> tuple[dict[str, float], list[str], str]:
-    """Counts, outcomes (failure kinds) and the signature of one run."""
+    """Counts, outcomes (failure kinds) and the signature of one run.
+
+    `true_level` is the level of the exercise before its level was swapped (the level of the valid
+    exercise of the same family). A swapped level that comes out accepted is a false acceptance
+    only when the level it is stored under is more than one step from the true one: one step is
+    the imprecision the bank tolerates for a valid exercise too (`MAX_LEVEL_RELABEL`). Without a
+    true level the measure stays strict.
+    """
     if outcome is None:  # No usable answer even after a retry: `runs.usable` counts it.
         return {"unusable": 1.0}, [], json.dumps({"usable": False})
     counts: dict[str, float] = {}
@@ -95,7 +108,15 @@ def score(
         outcomes.append("false_reject")
     if truth.valid and outcome.accepted and outcome.level != item.candidate.level:
         counts["valid.relabeled"] = 1.0
-    if not truth.valid and outcome.accepted:
+    if (
+        truth.defect == "level_mismatch"
+        and outcome.accepted
+        and true_level is not None
+        and outcome.level is not None
+        and level_gap(outcome.level, true_level) <= MAX_LEVEL_RELABEL
+    ):
+        counts["level_swap.kept_within_one_step"] = 1.0
+    elif not truth.valid and outcome.accepted:
         counts["defective.accepted"] = 1.0
         counts[f"defect.{truth.defect}.accepted"] = 1.0
         outcomes.append("false_accept")
@@ -141,9 +162,12 @@ async def run_exercises(request: ExerciseRunRequest) -> Report:
     started = time.perf_counter()
     semaphore = asyncio.Semaphore(max(1, request.concurrency))
 
+    # The level an exercise had before the swap is that of the valid exercise of its family.
+    true_levels = {i.family: i.candidate.level for i in items if i.truth.valid}
+
     async def guarded(item: ExerciseItem, repetition: int) -> RunEntry:
         async with semaphore:
-            return await _run_once(request, item, repetition)
+            return await _run_once(request, item, repetition, true_levels.get(item.family))
 
     runs = await asyncio.gather(
         *(guarded(item, rep) for item in items for rep in range(1, request.repetitions + 1))
@@ -259,7 +283,9 @@ def item_entry_for(item: ExerciseItem, runs: list[RunEntry], repetitions: int) -
     return item_entry(EvalItem(id=item.id, family=item.family, case_id="none"), runs, repetitions)
 
 
-async def _run_once(request: ExerciseRunRequest, item: ExerciseItem, repetition: int) -> RunEntry:
+async def _run_once(
+    request: ExerciseRunRequest, item: ExerciseItem, repetition: int, true_level: str | None = None
+) -> RunEntry:
     recorder = RecordingProvider(request.provider)
     checker = ExerciseChecker(
         recorder,
@@ -276,7 +302,7 @@ async def _run_once(request: ExerciseRunRequest, item: ExerciseItem, repetition:
         )
     except ProviderError as exc:
         errors.append(str(exc)[:400])
-    counts, outcomes, signature = score(item, outcome)
+    counts, outcomes, signature = score(item, outcome, true_level)
     counts["runs.total"] = 1.0
     counts["runs.usable"] = 1.0 if outcome is not None else 0.0
     counts["runs.first_try"] = 1.0 if outcome is not None and not _retried(recorder.calls) else 0.0
@@ -296,6 +322,7 @@ async def _run_once(request: ExerciseRunRequest, item: ExerciseItem, repetition:
             "truth": item.truth.model_dump(mode="json"),
             "key_index": item.candidate.answer_index,
             "level": item.candidate.level,
+            "true_level": true_level,
             "stem": item.candidate.stem,
             "accepted": outcome.accepted if outcome else None,
             "stage": outcome.stage if outcome else None,

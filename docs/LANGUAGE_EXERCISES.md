@@ -202,14 +202,25 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   gardé ; **un cran d'écart, l'exercice est gardé et enregistré sous le niveau du juge**
   (`level_relabeled_from` dans le lot, la catégorie n'est jamais recalée) ; **deux crans, refusé**
   (`level_fit`). L'import vérifie que le niveau enregistré est celui du juge et que l'étiquette de
-  l'auteur en est à un cran au plus. La mesure garde sa rigueur : un exercice à niveau échangé
-  (`level_mismatch`) qui sort accepté reste une fausse acceptation, recalé ou non. Nouvelle métrique
-  d'information, sans seuil : `relabel_rate` (exercices justes acceptés avec un niveau déplacé).
-  Aucune mesure sur de vrais modèles pour la grille v3 à l'écriture de cette section. Le propriétaire a
-  demandé (5 novembre 2026) une mesure dev sur Sonnet 5.5 et sur Haiku 5.5 (config `luna-haiku`, seul le
-  modèle du contrôle change ; au prix du catalogue `pricing-v2`, Haiku coûte 0,10 / 0,50 $ par million de
-  jetons contre 2,00 / 10,00 $ pour Sonnet, soit 20 fois moins), puis, si Haiku garde la fausse
-  acceptation à 0, un holdout neuf (`@5`, à écrire et à relire) à lancer une fois sur Haiku.
+  l'auteur en est à un cran au plus. Nouvelle métrique d'information, sans seuil : `relabel_rate`
+  (exercices justes acceptés avec un niveau déplacé).
+  **Mesures dev de la grille v3 (5 novembre 2026, config à Sonnet puis à Haiku, valides : structure
+  exploitable ≈ 1)** : Sonnet (run 41990466763) fausse acceptation 0,018 (6 erreurs critiques, toutes
+  `level_mismatch`, 0,24), fausse rejection 0,262 (11 sur 42), recalés 31 % ; Haiku (run 41990470896)
+  fausse acceptation 0,026 (9 erreurs critiques : 8 `level_mismatch`, 1 `wrong_category`, e-k13),
+  fausse rejection 0,190 (8 sur 42), recalés 36 %. Contrôles mécaniques 1,0 des deux côtés. Faute de
+  frappe, mauvaise clé, deux bonnes réponses : aucune acceptée. Le journal n'affichait pas le niveau
+  lu par le juge pour les niveaux échangés.
+  **Décision du propriétaire (5 novembre 2026) : mesure du niveau à un cran, et Haiku 5.5 seul, en dev
+  comme en holdout** (la config par défaut du CLI et l'option du workflow sont `luna-haiku`). Les
+  exercices à niveau échangé (B1 et C1 permutés, deux crans) sont mesurés contre le **vrai niveau**,
+  celui de l'exercice juste de la même famille : accepté et enregistré à au plus un cran du vrai
+  niveau (la même imprécision qu'un exercice juste recalé), ce n'est plus une fausse acceptation ;
+  enregistré à deux crans, c'en est une. `scorer` passe à `language-exercises-scorer-v3` ; métrique
+  d'information `level_swap_kept_within_one_step_rate` ; le diagnostic dev affiche pour chaque
+  fausse acceptation de niveau « annoncé, vrai, lu » et compte les échanges tolérés. Seuils
+  inchangés. Reste : relancer le dev sur Haiku, puis, si la fausse acceptation tombe à 0 et la fausse
+  rejection reste sous 0,25, un holdout neuf (`@5`, à écrire et à relire) à lancer une fois.
 - Métrique principale : **taux de fausse acceptation** (`false_accept_rate`), l'exercice défectueux
   qui passe. Seuils de `gates.yaml` (`gates-v10`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
   (valeur initiale, à recalibrer après la première mesure ; première mesure sur le dev du 3 novembre 2026, run 41660638291 : fausse acceptation 0, contrôles mécaniques 1,0, structure 100 % après retry, mais fausse rejection 0,625, donc gate non passé), contrôles mécaniques 1,0, verdicts

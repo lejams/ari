@@ -1,6 +1,6 @@
 """Command line of the bank of language exercises: generate, import, list, withdraw.
 
-    python -m ari.exercises_cli generate --config evals/configs/exercises/luna-sonnet.yaml \\
+    python -m ari.exercises_cli generate --config evals/configs/exercises/luna-haiku.yaml \\
         --live --spec B1:case:cloze:10 --out var/exercises/batch.json
     python -m ari.exercises_cli import var/exercises/batch.json \\
         --gate-report exercise-gate/report.json

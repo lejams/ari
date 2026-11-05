@@ -1,8 +1,9 @@
-# Variante moins chère à mesurer (demande du propriétaire, 5 novembre 2026) : seul le modèle du
-# contrôle change, tout le reste est celui de luna-sonnet.yaml. À adopter seulement si le gate passe.
+# Contrôle sur Claude Haiku 5.5 : seul le modèle du contrôle change par rapport à luna-sonnet.yaml.
+# Décision du propriétaire (5 novembre 2026) : Haiku seul, en dev comme en holdout ; la mesure et
+# l'import n'utilisent plus Sonnet. Le fichier est haché dans le rapport du gate.
 # Décision D5 du plan du 2 novembre 2026 (propriétaire) : l'auteur est gpt-6-luna (aligné sur les
 # décisions du 15 octobre), le contrôle (résolution à l'aveugle et juge strict) est d'une autre
-# famille, Claude Sonnet 5.5, par lots hors ligne. L'auteur et le contrôle ne peuvent pas être le
+# famille, Claude (Sonnet 5.5 à l'origine, Haiku 5.5 depuis le 5 novembre 2026), par lots hors ligne. L'auteur et le contrôle ne peuvent pas être le
 # même modèle : la configuration est refusée sinon.
 id: exercises-luna-haiku
 description: Auteur gpt-6-luna, contrôle (aveugle + juge) Claude Haiku 5.5 (mesure du 5 novembre 2026)
