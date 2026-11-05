@@ -219,10 +219,27 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   enregistré à deux crans, c'en est une. `scorer` passe à `language-exercises-scorer-v3` ; métrique
   d'information `level_swap_kept_within_one_step_rate` ; le diagnostic dev affiche pour chaque
   fausse acceptation de niveau « annoncé, vrai, lu » et compte les échanges tolérés. Seuils
-  inchangés. Reste : relancer le dev sur Haiku, puis, si la fausse acceptation tombe à 0 et la fausse
-  rejection reste sous 0,25, un holdout neuf (`@5`, à écrire et à relire) à lancer une fois.
+  inchangés.
+  **Mesures dev sur Haiku 5.5 seul (5 novembre 2026)** : un passage (run 41995683122), puis trois
+  répétitions (run 41999479170, 0,15 € environ) : fausse rejection 0,1825, verdicts changeants 0,0705,
+  contrôles mécaniques 1,0, structure exploitable ≈ 1 (tous sous les seuils) ; **fausse acceptation 0,004
+  (3 critiques sur environ 1 000 passages)**, toutes dans deux familles, `e-k13-order-correction`
+  (mauvaise catégorie deux fois sur trois, explication fausse une fois) et `e-k12-choice-cloze`
+  (mauvaise catégorie une fois). L'exercice juste de ces familles est lui aussi refusé par les contrôles
+  (par Sonnet et Haiku pour `e-k13`) : lecture, leurs références sont défendables et les défauts bâtis
+  dessus ne sont pas nets.
+  **Jeu `@5` (décision du propriétaire, 5 novembre 2026)** : le dev est le jeu `@4` sans ces deux
+  familles (elles restent dans `@4`, qui ne change jamais), plus les 15 familles du holdout `@4`, déjà
+  lues par un lancement. **Holdout neuf** : 14 exercices justes `e-n01` à `e-n14` (B1 ×4, B2 ×5, C1 ×5 ;
+  genre, cas, forme verbale, ordre des mots, choix de mot, registre) et 2 décors médicaux absurdes,
+  écrits sans lire aucun verdict des vrais modèles, en évitant les défauts relevés dans les anciennes
+  références : aucun distracteur qu'un locuteur natif pourrait accepter, étiquette de catégorie
+  que l'exercice travaille nettement, registre où une seule option est polie et complète. 124
+  items en holdout, 491 en dev. `gates-v11` : mêmes seuils, bloc `language-exercises@5`. Aucun lecteur
+  germanophone ; une relecture extérieure du holdout est demandée avant sa première mesure, qui n'aura
+  lieu qu'une fois, avec l'accord du propriétaire.
 - Métrique principale : **taux de fausse acceptation** (`false_accept_rate`), l'exercice défectueux
-  qui passe. Seuils de `gates.yaml` (`gates-v10`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
+  qui passe. Seuils de `gates.yaml` (`gates-v11`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
   (valeur initiale, à recalibrer après la première mesure ; première mesure sur le dev du 3 novembre 2026, run 41660638291 : fausse acceptation 0, contrôles mécaniques 1,0, structure 100 % après retry, mais fausse rejection 0,625, donc gate non passé), contrôles mécaniques 1,0, verdicts
   changeants ≤ 10 %, structure exploitable ≥ 99,5 %. `false_accept` est une erreur critique : une
   seule nouvelle occurrence bloque.
