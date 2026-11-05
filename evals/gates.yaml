@@ -9,7 +9,7 @@
 # - une seule NOUVELLE erreur critique (absente de la baseline) bloque, quelle que soit la moyenne.
 #   Les types d'erreur critiques sont listés par suite dans `critical_outcomes`.
 
-version: gates-v13
+version: gates-v14
 repetitions: 3  # Un run gate répète chaque item 3 fois (stabilité, intervalles).
 
 suites:
@@ -167,6 +167,15 @@ suites:
   # une. Ces seuils sont écrits avant toute mesure sur cette version. `stability.changed_rate`
   # reste dans le rapport, sans seuil. Les autres seuils ne bougent pas. Holdout de 60 transcripts
   # (15 en version 1) : à 10 % vrais, 1 item sur 15 autorisé faisait du gate une loterie.
+  #
+  # gates-v14 (5 novembre 2026, choix du propriétaire) : depuis `placement-speaking-v3`, le code lit
+  # le niveau sur une grille fixe à partir d'un score de 1 à 6. Mesure dev (run 42085869644) : le
+  # score bouge peu entre répétitions (environ 0,1 niveau), mais beaucoup de transcripts tombent pile
+  # sur un seuil (un B2 avec erreurs lu 3,47 contre 3,5), et leur niveau bascule avec n'importe quel
+  # correcteur : `stability.level.changed_rate` vaut 0,24. Le seuil porte donc sur le bruit du score
+  # lui-même, `stability.level_score.mean_sd` ≤ 0,15 niveau ; le changement du niveau rendu reste
+  # dans le rapport, sans seuil. Seuil fixé après la mesure dev et avant le holdout, qui n'a jamais
+  # été lancé. Les autres seuils ne bougent pas ; `level.within_one` garde le niveau à un cran près.
   placement@2:
     thresholds:
       - metric: language_overall.precision
@@ -187,9 +196,9 @@ suites:
       - metric: level.within_one
         min: 0.90
         source: "à valider : niveau estimé à un niveau près du niveau du texte, sur 90 % des transcripts"
-      - metric: stability.level.changed_rate
-        max: 0.10
-        source: "plan (≤ 10 % de verdicts changeants) appliqué au niveau rendu, propriétaire 5 novembre 2026"
+      - metric: stability.level_score.mean_sd
+        max: 0.15
+        source: "propriétaire, 5 novembre 2026 (gates-v14) : écart type moyen du score de niveau entre répétitions ≤ 0,15 niveau ; remplace le changement du niveau rendu, rapporté sans seuil"
       - metric: stability.weak_points.changed_rate
         max: 0.10
         source: "plan (≤ 10 % de verdicts changeants) appliqué aux points faibles, ce qui pilote la remédiation, propriétaire 5 novembre 2026"

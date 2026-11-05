@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import statistics
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -27,10 +28,12 @@ from ari.evals.manifest import Dataset, Split
 from ari.evals.metrics import (
     COMMON_RATIOS,
     FACET_PREFIX,
+    MEASURE_PREFIX,
     Ratio,
     add_counts,
     compute,
     facet_ratios,
+    measure_ratios,
     total,
 )
 from ari.evals.report import (
@@ -78,7 +81,7 @@ class RunRequest:
 
 
 def ratios_for(suite: Suite, keys: Sequence[str]) -> list[Ratio]:
-    return [*suite.ratios(keys), *COMMON_RATIOS, *facet_ratios(keys)]
+    return [*suite.ratios(keys), *COMMON_RATIOS, *facet_ratios(keys), *measure_ratios(keys)]
 
 
 def facet_counts(runs: Sequence[RunEntry]) -> dict[str, float]:
@@ -98,6 +101,23 @@ def facet_counts(runs: Sequence[RunEntry]) -> dict[str, float]:
         counts[f"{prefix}.changed"] = 1.0 if len(set(sets)) > 1 else 0.0
         counts[f"{prefix}.seen"] = float(len(seen))
         counts[f"{prefix}.flipping"] = float(len(seen - steady))
+    return counts
+
+
+def measure_counts(runs: Sequence[RunEntry]) -> dict[str, float]:
+    """Spread of each measure over the repetitions of one item (see ItemScore.measures).
+
+    The sample standard deviation of the values the repetitions gave; an item with fewer than
+    two values (unusable repetitions) is not counted, its loss is `structured_after_retry`'s.
+    """
+    counts: dict[str, float] = {}
+    for name in sorted({name for run in runs for name in run.measures}):
+        values = [run.measures[name] for run in runs if name in run.measures]
+        if len(values) < 2:
+            continue
+        prefix = f"{MEASURE_PREFIX}.{name}"
+        counts[f"{prefix}.items"] = 1.0
+        counts[f"{prefix}.sd"] = statistics.stdev(values)
     return counts
 
 
@@ -302,6 +322,7 @@ async def _run_once(
         errors=errors,
         calls=[call_entry(call, request.pricing) for call in recorder.calls],
         facets={name: sorted(set(labels)) for name, labels in score.facets.items()},
+        measures=dict(score.measures),
         detail=None if request.split == "holdout" else score.detail,
     )
 
@@ -340,6 +361,7 @@ def item_entry(item: EvalItem, runs: list[RunEntry], repetitions: int) -> ItemEn
         counts["stability.items"] = 1.0
         counts["stability.changed"] = 1.0 if len({r.signature for r in runs}) > 1 else 0.0
         add_counts(counts, facet_counts(runs))
+        add_counts(counts, measure_counts(runs))
     outcomes = sorted({o for run in runs for o in run.outcomes})
     return ItemEntry(
         item_id=item.id,

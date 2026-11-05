@@ -465,7 +465,7 @@ global 0,996 (`word_choice` 1, `case` 0,98, `verb_form` 0,99), hallucination de 
 de transcription 0, alternances de langue précision et rappel 1. `patient-leakage@1` passe sur les
 deux configurations (fuite 0, fait inventé 0). Verdict de promotion : `passed`. La règle de repli sur
 les seuils (0,15 et 0,65) n'a pas servi. `gates-v6` (2 novembre 2026) a ajouté la suite `placement@1` ; `gates-v7` (même jour) garde tous
-les seuils et ajoute seulement la suite `language-exercises@1` ; `gates-v8` (3 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@2` ; `gates-v9` (4 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@3` ; `gates-v10` (même jour) garde tous les seuils et ajoute le bloc `language-exercises@4` ; `gates-v11` (5 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@5` ; `gates-v12` (même jour) garde tous les seuils et ajoute le bloc `language-exercises@6` ; `gates-v13` (même jour) ajoute le bloc `placement@2`, dont la stabilité est mesurée sur le niveau, les points faibles et chaque erreur (section 11).
+les seuils et ajoute seulement la suite `language-exercises@1` ; `gates-v8` (3 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@2` ; `gates-v9` (4 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@3` ; `gates-v10` (même jour) garde tous les seuils et ajoute le bloc `language-exercises@4` ; `gates-v11` (5 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@5` ; `gates-v12` (même jour) garde tous les seuils et ajoute le bloc `language-exercises@6` ; `gates-v13` (même jour) ajoute le bloc `placement@2`, dont la stabilité est mesurée sur le niveau, les points faibles et chaque erreur (section 11) ; `gates-v14` (même jour) remplace, pour `placement@2` seulement, le seuil sur le changement du niveau rendu par un seuil sur l'écart type du score de niveau (section 11).
 
 **Choisir la configuration** : le workflow manuel `Compare evaluation configurations`
 (`.github/workflows/evals-compare.yml`, n'importe quelle branche, split dev uniquement, jamais de
@@ -475,7 +475,7 @@ ne sert pas à itérer.
 
 ## 7. Seuils et erreurs critiques
 
-`evals/gates.yaml` (version `gates-v13`) reprend les seuils du plan :
+`evals/gates.yaml` (version `gates-v14`) reprend les seuils du plan :
 
 | Mesure | Seuil |
 |---|---|
@@ -668,3 +668,23 @@ et la lit sur une grille fixe (`ari.domain.placement.spoken_level` : B1 à parti
 C1 de 4,5). Une erreur ne baisse que la correction (ou la consigne pour le registre), pas les autres
 critères. Les erreurs de langue, leur vérification et les seuils ne changent pas. Le rapport donne le
 score de chaque item (`level_score`). Le holdout `@2` n'a pas été lancé.
+
+**Mesure dev de `placement-speaking-v3` et seuil sur le score (5 novembre 2026).** Run 42085869644
+(`luna`, 45 items, 3 répétitions) : le niveau est plus juste (exact 0,70 contre 0,53, à un cran près
+0,99), précision 0,99, rappel 0,93, points faibles 0,044, erreurs 0,095 ; mais
+`stability.level.changed_rate` monte à 0,24. Le score bouge peu entre répétitions (écart d'environ
+0,2 au plus sur trois répétitions, soit un écart type d'environ 0,1 niveau), mais beaucoup de
+transcripts tombent pile sur un seuil : un texte B2 avec erreurs est lu 3,47 ou 3,5, un C1 avec
+erreurs 4,4 ou 4,57. Le niveau d'un tel transcript bascule avec n'importe quel correcteur, même peu
+bruité : compter les bascules mesure surtout où le jeu place ses textes. Le propriétaire a choisi (5
+novembre 2026) de mesurer le bruit du score lui-même :
+
+- **Mesures numériques** (`placement-scorer-v3`). Un scorer peut rendre les nombres dont le produit
+  tire un verdict (`ItemScore.measures`) ; le runner calcule, pour chaque item, l'écart type
+  (échantillon) de chaque mesure entre répétitions, et le rapport donne leur moyenne
+  (`stability.<mesure>.mean_sd`). Un item qui a moins de deux répétitions exploitables n'est pas
+  compté (sa perte relève de `structured_after_retry`).
+- **`gates-v14`** : pour `placement@2`, `stability.level_score.mean_sd` ≤ 0,15 niveau remplace
+  `stability.level.changed_rate` ≤ 0,10, qui reste dans le rapport sans seuil. `level.within_one`
+  ≥ 0,90 garde le niveau à un cran près. Les autres seuils, le jeu et le prompt ne changent pas. Ce
+  seuil a été fixé après la mesure dev, et avant le holdout, qui n'a jamais été lancé.

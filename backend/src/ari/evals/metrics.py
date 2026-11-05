@@ -84,6 +84,26 @@ def facet_ratios(keys: Iterable[str]) -> list[Ratio]:
     return ratios
 
 
+MEASURE_PREFIX = "stability.measure"
+
+
+def measure_ratios(keys: Iterable[str]) -> list[Ratio]:
+    """Per-measure spread, from the counts the runner adds for a suite's measures.
+
+    `stability.<measure>.mean_sd`: mean over items of the standard deviation of the measure
+    between repetitions, in the measure's own unit (one level for the placement level score).
+    """
+    names = sorted({s.rpartition(".")[0] for s in suffixes(keys, MEASURE_PREFIX)})
+    return [
+        Ratio(
+            f"stability.{name}.mean_sd",
+            (f"{MEASURE_PREFIX}.{name}.sd",),
+            (f"{MEASURE_PREFIX}.{name}.items",),
+        )
+        for name in names
+    ]
+
+
 def compute(ratios: Sequence[Ratio], counts: Counts) -> dict[str, float | None]:
     return {ratio.name: ratio.value(counts) for ratio in ratios}
 

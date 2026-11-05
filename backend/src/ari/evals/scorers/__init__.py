@@ -78,6 +78,11 @@ class ItemScore:
     # its own (`stability.<facet>.changed_rate`) and of each label (`.flip_rate`), on top of the
     # whole signature. Labels say what was found, never the content (they reach the holdout).
     facets: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    # Optional: each number the product reads a verdict from (for example the level score the
+    # level is read from). The runner measures how much it moves between repetitions
+    # (`stability.<measure>.mean_sd`): a hard threshold flips any item that sits on it, however
+    # small the noise, so a label flip alone does not say whether the rater is noisy.
+    measures: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
