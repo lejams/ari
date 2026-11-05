@@ -56,7 +56,7 @@ jobs:
           set -euo pipefail
           test -n "$ARI_OPENAI_API_KEY" || { echo "secret ARI_OPENAI_API_KEY missing in the evals environment" >&2; exit 1; }
           test -n "$ARI_ANTHROPIC_API_KEY" || { echo "secret ARI_ANTHROPIC_API_KEY missing in the evals environment" >&2; exit 1; }
-          args=(--suite language-exercises@4 --config "evals/configs/exercises/$CONFIG.yaml" --split "$SPLIT" --live --out exercise-gate/report.json)
+          args=(--suite language-exercises@5 --config "evals/configs/exercises/$CONFIG.yaml" --split "$SPLIT" --live --out exercise-gate/report.json)
           if [ "$SPLIT" = holdout ]; then args+=(--gate); else args+=(--repeat "${REPEAT:-1}"); fi
           PYTHONPATH=backend/src .venv/bin/python -m ari.evals exercises "${args[@]}"
       - name: Publish the result

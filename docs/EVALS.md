@@ -25,7 +25,7 @@ pour les autres. Le seul modèle appelé est celui de la configuration testée.
 | `evaluation-language@1` | idem (version 1, gardée pour mémoire, plus exigée) | genre, cas, forme verbale, ordre des mots ; mot français ; artefact ; section oubliée | 120 transcripts (90 dev, 30 holdout) |
 | `placement@1` | la notation de l'oral du test de niveau : `rate_spoken_task` (prompt `placement-speaking-v2`, route `patient`), avec la vérification des citations par le code, puis le calcul des points faibles par `weak_points` | erreurs injectées (catégorie, citation, correction) et niveau du texte (B1, B2, C1) | 45 transcripts synthétiques de six phrases : 3 sujets (2 en dev, 1 en holdout), 3 niveaux, 5 variantes (sans erreur, deux paires, trois catégories, toutes) |
 | `evaluation-medical@1` | l'évaluateur réel | omissions exigibles et erreurs médicales relevées par le médecin | **en attente du médecin** (section 6 du plan) |
-| `language-exercises@4` (les `@1` à `@3` restent dans le dépôt) | les contrôles devant la banque d'exercices de langue : contrôles mécaniques, résolution à l'aveugle, juge strict (`python -m ari.evals exercises`) | exercice bon, ou défaut connu par construction (mauvaise clé, deux réponses justes, explication fausse…) | jeu `@4` : 383 items en dev (tout ce qui a été mesuré), 127 en holdout neuf relu par un lecteur extérieur (14 exercices justes) ; défaut `near_miss_key` (réponse presque juste) ; holdout `@4` lancé le 4 novembre 2026 (run 41933097123) : fausse acceptation 0, fausse rejection 0,262 pour 0,25, gate échoué, holdout grillé ; grille `exercise-rubric-v3` (le juge lit le niveau, le code recale d'un cran ou refuse à deux), non mesurée ; voir `docs/LANGUAGE_EXERCISES.md` |
+| `language-exercises@5` (les `@1` à `@4` restent dans le dépôt) | les contrôles devant la banque d'exercices de langue : contrôles mécaniques, résolution à l'aveugle, juge strict (`python -m ari.evals exercises`) | exercice bon, ou défaut connu par construction (mauvaise clé, deux réponses justes, explication fausse…) | jeu `@5` : 491 items en dev (tout ce qui a été mesuré, sans deux familles dont les références sont défendables), 124 en holdout neuf (14 exercices justes, relecture extérieure demandée avant la première mesure, aucune mesure à ce jour) ; jeu `@4` : holdout lancé le 4 novembre 2026, voir ci-dessous ; défaut `near_miss_key` (réponse presque juste) ; holdout `@4` lancé le 4 novembre 2026 (run 41933097123) : fausse acceptation 0, fausse rejection 0,262 pour 0,25, gate échoué, holdout grillé ; grille `exercise-rubric-v3` (le juge lit le niveau, le code recale d'un cran ou refuse à deux), non mesurée ; voir `docs/LANGUAGE_EXERCISES.md` |
 | `voice-snippets@1` | la voix ElevenLabs de chaque persona sur des phrases fixes, puis le STT | termes critiques de chaque phrase (chiffres, doses, termes) | 33 phrases de patient en allemand |
 | `voice-sim@1` | toute la chaîne vocale, de bout en bout : sockets, segmentation de la parole, STT, patient, voix, accusés de lecture, évaluation finale | faits demandés par chaque question du script | 1 script de 12 questions sur le cas `ARI-DEV-FR` |
 
@@ -465,7 +465,7 @@ global 0,996 (`word_choice` 1, `case` 0,98, `verb_form` 0,99), hallucination de 
 de transcription 0, alternances de langue précision et rappel 1. `patient-leakage@1` passe sur les
 deux configurations (fuite 0, fait inventé 0). Verdict de promotion : `passed`. La règle de repli sur
 les seuils (0,15 et 0,65) n'a pas servi. `gates-v6` (2 novembre 2026) a ajouté la suite `placement@1` ; `gates-v7` (même jour) garde tous
-les seuils et ajoute seulement la suite `language-exercises@1` ; `gates-v8` (3 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@2` ; `gates-v9` (4 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@3` ; `gates-v10` (même jour) garde tous les seuils et ajoute le bloc `language-exercises@4`.
+les seuils et ajoute seulement la suite `language-exercises@1` ; `gates-v8` (3 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@2` ; `gates-v9` (4 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@3` ; `gates-v10` (même jour) garde tous les seuils et ajoute le bloc `language-exercises@4` ; `gates-v11` (5 novembre 2026) garde tous les seuils et ajoute le bloc `language-exercises@5`.
 
 **Choisir la configuration** : le workflow manuel `Compare evaluation configurations`
 (`.github/workflows/evals-compare.yml`, n'importe quelle branche, split dev uniquement, jamais de
@@ -475,7 +475,7 @@ ne sert pas à itérer.
 
 ## 7. Seuils et erreurs critiques
 
-`evals/gates.yaml` (version `gates-v10`) reprend les seuils du plan :
+`evals/gates.yaml` (version `gates-v11`) reprend les seuils du plan :
 
 | Mesure | Seuil |
 |---|---|

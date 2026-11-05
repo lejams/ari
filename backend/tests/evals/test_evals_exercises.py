@@ -38,6 +38,7 @@ BUILDER = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v1.py"
 BUILDER_V2 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v2.py"
 BUILDER_V3 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v3.py"
 BUILDER_V4 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v4.py"
+BUILDER_V5 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v5.py"
 SUITE = "language-exercises@1"
 
 
@@ -140,7 +141,7 @@ def test_the_fake_configuration_runs_the_chain_without_a_key_and_measures_nothin
     out = tmp_path / "report.json"
     assert main(["exercises", "--config", str(CONFIGS / "fake.yaml"), "--out", str(out)]) == 0
     report = read_report(out)
-    assert report.suite == "language-exercises@4"  # The default suite is the latest version.
+    assert report.suite == "language-exercises@5"  # The default suite is the latest version.
     assert report.config.provider == "fake" and not report.gate_mode
     assert report.metrics["mechanical_catch_rate"] == 1.0
     assert report.metrics["structured_after_retry"] == 1.0
@@ -607,6 +608,79 @@ async def test_a_perfect_checker_passes_the_gate_on_the_fourth_version() -> None
     provider = ScriptedModels(author=lambda r, p: {}, solver=solver, judge=judge)
     report = await run_exercises(request(provider, version="4"))
     assert report.suite == "language-exercises@4"
+    assert report.gate is not None and report.gate.status == "passed", report.gate
+    assert report.metrics["false_reject_rate"] == 0.0 and report.critical_errors == []
+
+
+def test_the_fifth_version_of_the_dataset_is_what_its_builder_makes(tmp_path: Path) -> None:
+    spec = importlib.util.spec_from_file_location("build_language_exercises_v5", BUILDER_V5)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.build(tmp_path)
+    committed = DATASETS / "language-exercises" / "5"
+    for name in ("manifest.json", "dev.jsonl", "holdout.jsonl"):
+        assert (tmp_path / name).read_bytes() == (committed / name).read_bytes(), name
+
+
+def test_the_fifth_version_drops_two_doubtful_families_and_has_a_new_holdout() -> None:
+    v4, v5 = load_dataset(DATASETS, "4"), load_dataset(DATASETS, "5")
+    assert v5.ref == "language-exercises@5" and v5.manifest.synthetic
+    dev = v5.read_split("dev", gate=True)  # type: ignore[arg-type]
+    holdout = v5.read_split("holdout", gate=True)  # type: ignore[arg-type]
+    families_v4 = {f for split in v4.manifest.splits.values() for f in split}
+    dropped = {"e-k12-choice-cloze", "e-k13-order-correction"}
+    # Everything of version 4 that was measured is development data, except the dropped families.
+    assert {i.family for i in dev} == families_v4 - dropped
+    assert {i.family for i in holdout}.isdisjoint(families_v4)
+    assert {i.candidate.stem for i in holdout}.isdisjoint({i.candidate.stem for i in dev})
+    assert {i.candidate.correct_sentence() for i in holdout}.isdisjoint(
+        {i.candidate.correct_sentence() for i in dev}
+    )
+    assert sum(i.truth.valid for i in holdout) == 14
+    defects = {i.truth.defect for i in holdout}
+    assert defects >= {"wrong_key", "two_correct", "no_correct", "near_miss_key", "bad_explanation"}
+    assert defects >= {"wrong_category", "level_mismatch", "medical_absurd"} | MECHANICAL_DEFECTS
+    assert {i.candidate.level for i in holdout if i.truth.valid} == {"B1", "B2", "C1"}
+    assert "dropped" in " ".join(v5.manifest.limitations).lower() or any(
+        "e-k12" in text and "e-k13" in text for text in v5.manifest.limitations
+    )
+
+
+def test_the_fifth_version_leaves_the_model_defects_to_the_models() -> None:
+    from ari.domain.language_exercises import mechanical_issues
+
+    dataset = load_dataset(DATASETS, "5")
+    for split in ("dev", "holdout"):
+        for item in dataset.read_split(split, gate=True):  # type: ignore[arg-type]
+            issues = mechanical_issues(item.candidate)
+            if item.truth.defect in MECHANICAL_DEFECTS:
+                assert issues, item.id
+            else:
+                assert not issues, (item.id, issues)
+
+
+def test_every_near_miss_of_the_fifth_version_is_a_small_typo_of_the_key() -> None:
+    from difflib import SequenceMatcher
+
+    dataset = load_dataset(DATASETS, "5")
+    items = dataset.read_split("holdout", gate=True)  # type: ignore[arg-type]
+    by_id = {i.id: i for i in items}
+    near = [i for i in items if i.truth.defect == "near_miss_key"]
+    assert len(near) == 12
+    for item in near:
+        valid = by_id[item.family + ":valid"]
+        assert item.candidate.key != valid.candidate.key
+        ratio = SequenceMatcher(None, item.candidate.key, valid.candidate.key).ratio()
+        assert ratio >= 0.6, (item.id, ratio)  # A transposition of "das" gives 0.67.
+
+
+async def test_a_perfect_checker_passes_the_gate_on_the_fifth_version() -> None:
+    dataset = load_dataset(DATASETS, "5")
+    solver, judge = oracle_for(dataset, "holdout", strict=True)
+    provider = ScriptedModels(author=lambda r, p: {}, solver=solver, judge=judge)
+    report = await run_exercises(request(provider, version="5"))
+    assert report.suite == "language-exercises@5"
     assert report.gate is not None and report.gate.status == "passed", report.gate
     assert report.metrics["false_reject_rate"] == 0.0 and report.critical_errors == []
 
