@@ -75,7 +75,7 @@ class PassScript(FakeLLMProvider):
         return ProviderResult(response_model.model_validate(payload), result.execution)
 
 
-async def rate(provider: PassScript, passes: int) -> Any:
+async def rate(provider: PassScript, passes: int, **extra: Any) -> Any:
     return await rate_spoken_task(
         provider,
         PROMPT,
@@ -87,21 +87,43 @@ async def rate(provider: PassScript, passes: int) -> Any:
         transcript=TRANSCRIPT,
         context=CONTEXT,
         passes=passes,
+        **extra,
     )
 
 
-async def test_an_error_one_pass_misses_still_stands_when_two_see_it() -> None:
+async def test_an_error_one_pass_misses_still_stands() -> None:
     provider = PassScript(lambda s: ("B2", [HILFSBEREIT, SPRECHE] if s != 1 else [SPRECHE]))
     rating = await rate(provider, 3)
     assert {e.quote for e in rating.language_errors} == {"hilfsbereit", "Ich spreche jeden Tag"}
     assert sorted(provider.samples) == [0, 1, 2]
 
 
-async def test_an_error_only_one_pass_reports_is_dropped() -> None:
+async def test_an_error_only_one_pass_reports_stands_by_default() -> None:
     provider = PassScript(lambda s: ("B2", [HILFSBEREIT] if s == 2 else []))
     rating = await rate(provider, 3)
-    assert rating.language_errors == []
-    assert rating.proposed_errors == 1  # What was proposed is still counted, for the measure.
+    assert [e.quote for e in rating.language_errors] == ["hilfsbereit"]
+    assert rating.proposed_errors == 1
+
+
+async def test_a_majority_can_be_asked_for() -> None:
+    provider = PassScript(lambda s: ("B2", [HILFSBEREIT] if s == 2 else []))
+    assert (await rate(provider, 3, error_votes=2)).language_errors == []
+    both = PassScript(lambda s: ("B2", [HILFSBEREIT] if s != 0 else []))
+    assert len((await rate(both, 3, error_votes=2)).language_errors) == 1
+
+
+async def test_an_invented_quote_never_stands_whatever_the_votes() -> None:
+    invented = slip("dieser Satz wurde nie gesagt", "dieser Satz wurde nie gesagt, ja")
+    provider = PassScript(lambda s: ("B2", [invented] if s == 0 else []))
+    rating = await rate(provider, 3)
+    assert rating.language_errors == [] and rating.invented_errors == 1
+
+
+async def test_passes_that_name_one_error_differently_give_one_error() -> None:
+    wide = slip("Besonders hilfsbereit finde ich", "Besonders hilfreich finde ich")
+    provider = PassScript(lambda s: ("B2", [HILFSBEREIT] if s == 0 else [wide]))
+    rating = await rate(provider, 3)
+    assert len(rating.language_errors) == 1
 
 
 async def test_the_level_is_the_median_of_the_passes() -> None:
@@ -149,3 +171,6 @@ async def test_the_number_of_passes_is_bounded() -> None:
     for passes in (0, 6):
         with pytest.raises(ValueError):
             await rate(PassScript(lambda s: ("B1", [])), passes)
+    for votes in (0, 4):
+        with pytest.raises(ValueError):
+            await rate(PassScript(lambda s: ("B1", [])), 3, error_votes=votes)

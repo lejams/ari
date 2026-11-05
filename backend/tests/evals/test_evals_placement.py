@@ -12,6 +12,7 @@ from scripted import DATASETS, GATES, ScriptedProvider, repetition_of, request_f
 from ari.config import PROJECT_ROOT
 from ari.evals.gates import load_gates
 from ari.evals.manifest import load_dataset
+from ari.evals.report import diagnosis_text
 from ari.evals.runner import run
 from ari.evals.scorers.placement import PlacementSuite, SpokenItem
 
@@ -122,6 +123,21 @@ async def stability_with(passes: int) -> Any:
     )
     config = request.config.model_copy(update={"evaluation_passes": passes})
     return await run(replace(request, config=config))
+
+
+async def test_the_diagnosis_reads_a_placement_dev_run() -> None:
+    request = request_for(
+        PlacementSuite(),
+        ScriptedProvider(forgetful(oracle())),
+        dataset=DATASET,
+        split="dev",
+        gate_mode=False,
+        gates=GATE_RULES,
+        repetitions=3,
+    )
+    text = diagnosis_text(await run(request))
+    assert "instable" in text and "niveau lu" in text and "manqué [" in text
+    assert "KeyError" not in text
 
 
 async def test_a_single_forgetful_call_makes_the_rating_unstable() -> None:

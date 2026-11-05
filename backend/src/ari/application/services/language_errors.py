@@ -229,8 +229,11 @@ def placed_errors(verdict: LanguageErrorVerdict) -> tuple[PlacedError, ...]:
 
 def consolidate_language_errors(
     passes: Sequence[Sequence[PlacedError]],
+    needed_votes: int | None = None,
 ) -> tuple[LanguageErrorSchema, ...]:
     """The language errors that a majority of independent passes report on the same words.
+
+    `needed_votes` is how many passes must report an error for it to stand; unset, a majority.
 
     Each pass is already verified (`verify_language_errors`). A single pass sometimes sees an
     error and sometimes does not, so what the evaluator reports changes from one run to the next;
@@ -242,7 +245,7 @@ def consolidate_language_errors(
     error (the category is the one most passes gave, the earliest pass on a tie). The same words
     are never reported twice: a result that overlaps one already kept is dropped.
     """
-    needed = majority(len(passes))
+    needed = majority(len(passes)) if needed_votes is None else needed_votes
     results: list[tuple[int, Cell, PlacedError]] = []
     for members in _cluster(
         passes,
