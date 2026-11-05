@@ -238,8 +238,22 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   items en holdout, 491 en dev. `gates-v11` : mêmes seuils, bloc `language-exercises@5`. Aucun lecteur
   germanophone ; une relecture extérieure du holdout est demandée avant sa première mesure, qui n'aura
   lieu qu'une fois, avec l'accord du propriétaire.
+  **Relecture extérieure du holdout `@5` (5 novembre 2026, jamais lancé) et jeu `@6`** : un modèle
+  extérieur a lu les 16 exercices. Verdict : les 14 clés sont justes et uniques en allemand standard, les
+  2 absurdes sont à refuser. Défauts relevés : explications imprécises (`e-n01` : « der » est aussi un
+  datif féminin, « die » aussi un pluriel ; `e-n05` : « die » est un nominatif ou un accusatif, pas
+  seulement un accusatif), distracteur ambigu de `e-n13` (« darf beginnen die Untersuchung », ordre
+  marginal mais attesté) et explication qui désignait le mauvais mot, niveau de `e-n13` surévalué
+  (règle de B1 à B2), premier absurde étiqueté « cas » alors qu'il travaille le genre. Une version publiée
+  ne change jamais : **`@6`** reprend le dev de `@5` octet pour octet et corrige le holdout (explications,
+  distracteur remplacé par un ordre nettement faux, `e-n13` en B2, premier absurde en `gender`). `e-n13`
+  n'ayant plus de niveau échangeable (seuls B1 et C1 le sont), le holdout passe à 123 items (8
+  `level_mismatch` au lieu de 9). Le holdout reste facile pour le C1 : il mesure la détection de fautes
+  et d'absurdités, pas des exercices C1 exigeants (noté dans le manifeste). `gates-v12` : mêmes seuils,
+  bloc `language-exercises@6`, suite par défaut du CLI et du workflow. Le holdout `@6` n'est lancé qu'une
+  fois, avec l'accord du propriétaire.
 - Métrique principale : **taux de fausse acceptation** (`false_accept_rate`), l'exercice défectueux
-  qui passe. Seuils de `gates.yaml` (`gates-v11`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
+  qui passe. Seuils de `gates.yaml` (`gates-v12`) : fausse acceptation ≤ 0, fausse rejection ≤ 0,25
   (valeur initiale, à recalibrer après la première mesure ; première mesure sur le dev du 3 novembre 2026, run 41660638291 : fausse acceptation 0, contrôles mécaniques 1,0, structure 100 % après retry, mais fausse rejection 0,625, donc gate non passé), contrôles mécaniques 1,0, verdicts
   changeants ≤ 10 %, structure exploitable ≥ 99,5 %. `false_accept` est une erreur critique : une
   seule nouvelle occurrence bloque.
