@@ -39,6 +39,7 @@ BUILDER_V2 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v2.
 BUILDER_V3 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v3.py"
 BUILDER_V4 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v4.py"
 BUILDER_V5 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v5.py"
+BUILDER_V6 = PROJECT_ROOT / "evals" / "datasets" / "build_language_exercises_v6.py"
 SUITE = "language-exercises@1"
 
 
@@ -141,7 +142,7 @@ def test_the_fake_configuration_runs_the_chain_without_a_key_and_measures_nothin
     out = tmp_path / "report.json"
     assert main(["exercises", "--config", str(CONFIGS / "fake.yaml"), "--out", str(out)]) == 0
     report = read_report(out)
-    assert report.suite == "language-exercises@5"  # The default suite is the latest version.
+    assert report.suite == "language-exercises@6"  # The default suite is the latest version.
     assert report.config.provider == "fake" and not report.gate_mode
     assert report.metrics["mechanical_catch_rate"] == 1.0
     assert report.metrics["structured_after_retry"] == 1.0
@@ -681,6 +682,70 @@ async def test_a_perfect_checker_passes_the_gate_on_the_fifth_version() -> None:
     provider = ScriptedModels(author=lambda r, p: {}, solver=solver, judge=judge)
     report = await run_exercises(request(provider, version="5"))
     assert report.suite == "language-exercises@5"
+    assert report.gate is not None and report.gate.status == "passed", report.gate
+    assert report.metrics["false_reject_rate"] == 0.0 and report.critical_errors == []
+
+
+def test_the_sixth_version_of_the_dataset_is_what_its_builder_makes(tmp_path: Path) -> None:
+    spec = importlib.util.spec_from_file_location("build_language_exercises_v6", BUILDER_V6)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.build(tmp_path)
+    committed = DATASETS / "language-exercises" / "6"
+    for name in ("manifest.json", "dev.jsonl", "holdout.jsonl"):
+        assert (tmp_path / name).read_bytes() == (committed / name).read_bytes(), name
+
+
+def test_the_sixth_version_keeps_the_dev_of_the_fifth_and_corrects_its_holdout() -> None:
+    v5, v6 = load_dataset(DATASETS, "5"), load_dataset(DATASETS, "6")
+    assert v6.ref == "language-exercises@6" and v6.manifest.synthetic
+    assert (v6.directory / "dev.jsonl").read_bytes() == (v5.directory / "dev.jsonl").read_bytes()
+    assert v6.manifest.splits == v5.manifest.splits
+    old = {i.id: i for i in v5.read_split("holdout", gate=True)}  # type: ignore[arg-type]
+    new = {i.id: i for i in v6.read_split("holdout", gate=True)}  # type: ignore[arg-type]
+    # A B2 exercise has no swapped-level variant (only B1 and C1 are swapped): e-n13 loses it.
+    assert set(old) - set(new) == {"e-n13-order-correction:level_mismatch"}
+    assert set(new) <= set(old)
+    changed = {i for i in new if new[i].candidate != old[i].candidate}
+    assert {i.split(":")[0] for i in changed} == {
+        "e-n01-gender-cloze",
+        "e-n05-case-cloze",
+        "e-n13-order-correction",
+        "e-n15-absurd",
+    }
+    # Only the explanation changes for the first two; the options and the key are the same.
+    for family in ("e-n01-gender-cloze", "e-n05-case-cloze"):
+        before, after = old[f"{family}:valid"].candidate, new[f"{family}:valid"].candidate
+        assert before.options == after.options and before.answer_index == after.answer_index
+        assert before.explanation_fr != after.explanation_fr
+    order = new["e-n13-order-correction:valid"].candidate
+    assert order.level == "B2" and order.category == "word_order"
+    # The ambiguous order (subject after the infinitive) is no longer offered.
+    assert not any("beginnen die Untersuchung" in o for o in order.options)
+    assert new["e-n15-absurd:medical_absurd1"].candidate.category == "gender"
+    assert sum(i.truth.valid for i in new.values()) == 14
+
+
+def test_the_sixth_version_leaves_the_model_defects_to_the_models() -> None:
+    from ari.domain.language_exercises import mechanical_issues
+
+    dataset = load_dataset(DATASETS, "6")
+    for split in ("dev", "holdout"):
+        for item in dataset.read_split(split, gate=True):  # type: ignore[arg-type]
+            issues = mechanical_issues(item.candidate)
+            if item.truth.defect in MECHANICAL_DEFECTS:
+                assert issues, item.id
+            else:
+                assert not issues, (item.id, issues)
+
+
+async def test_a_perfect_checker_passes_the_gate_on_the_sixth_version() -> None:
+    dataset = load_dataset(DATASETS, "6")
+    solver, judge = oracle_for(dataset, "holdout", strict=True)
+    provider = ScriptedModels(author=lambda r, p: {}, solver=solver, judge=judge)
+    report = await run_exercises(request(provider, version="6"))
+    assert report.suite == "language-exercises@6"
     assert report.gate is not None and report.gate.status == "passed", report.gate
     assert report.metrics["false_reject_rate"] == 0.0 and report.critical_errors == []
 
