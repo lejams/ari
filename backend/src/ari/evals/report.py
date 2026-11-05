@@ -48,6 +48,7 @@ class RunEntry(_Model):
     signature: str
     errors: list[str]
     calls: list[CallEntry]
+    facets: dict[str, list[str]] = {}  # See ItemScore.facets; empty for suites without them.
     detail: dict[str, Any] | None  # None for the holdout: its content stays out of reports.
 
 

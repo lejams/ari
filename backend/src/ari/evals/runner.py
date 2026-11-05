@@ -24,7 +24,15 @@ from ari.domain.models import MedicalCase
 from ari.evals import gates as gate_rules
 from ari.evals.configs import ConfigError, EvalConfig
 from ari.evals.manifest import Dataset, Split
-from ari.evals.metrics import COMMON_RATIOS, Ratio, compute, total
+from ari.evals.metrics import (
+    COMMON_RATIOS,
+    FACET_PREFIX,
+    Ratio,
+    add_counts,
+    compute,
+    facet_ratios,
+    total,
+)
 from ari.evals.report import (
     REPORT_VERSION,
     CallEntry,
@@ -70,7 +78,27 @@ class RunRequest:
 
 
 def ratios_for(suite: Suite, keys: Sequence[str]) -> list[Ratio]:
-    return [*suite.ratios(keys), *COMMON_RATIOS]
+    return [*suite.ratios(keys), *COMMON_RATIOS, *facet_ratios(keys)]
+
+
+def facet_counts(runs: Sequence[RunEntry]) -> dict[str, float]:
+    """Stability of each facet over the repetitions of one item (see ItemScore.facets).
+
+    A facet changed when its set of labels is not the same in every repetition. A label flips
+    when some repetitions have it and others do not; one that no repetition has is not counted
+    (that is recall, not stability).
+    """
+    counts: dict[str, float] = {}
+    for name in sorted({name for run in runs for name in run.facets}):
+        sets = [frozenset(run.facets.get(name, ())) for run in runs]
+        seen = frozenset().union(*sets)
+        steady = frozenset.intersection(*sets)
+        prefix = f"{FACET_PREFIX}.{name}"
+        counts[f"{prefix}.items"] = 1.0
+        counts[f"{prefix}.changed"] = 1.0 if len(set(sets)) > 1 else 0.0
+        counts[f"{prefix}.seen"] = float(len(seen))
+        counts[f"{prefix}.flipping"] = float(len(seen - steady))
+    return counts
 
 
 async def run(request: RunRequest) -> Report:
@@ -273,6 +301,7 @@ async def _run_once(
         signature=score.signature,
         errors=errors,
         calls=[call_entry(call, request.pricing) for call in recorder.calls],
+        facets={name: sorted(set(labels)) for name, labels in score.facets.items()},
         detail=None if request.split == "holdout" else score.detail,
     )
 
@@ -310,6 +339,7 @@ def item_entry(item: EvalItem, runs: list[RunEntry], repetitions: int) -> ItemEn
     if repetitions >= 2:
         counts["stability.items"] = 1.0
         counts["stability.changed"] = 1.0 if len({r.signature for r in runs}) > 1 else 0.0
+        add_counts(counts, facet_counts(runs))
     outcomes = sorted({o for run in runs for o in run.outcomes})
     return ItemEntry(
         item_id=item.id,

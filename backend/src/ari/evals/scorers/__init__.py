@@ -73,6 +73,11 @@ class ItemScore:
     counts: dict[str, float]
     signature: str  # What must stay identical between repetitions of the same item.
     detail: dict[str, Any] = field(default_factory=dict)  # Not written for the holdout.
+    # Optional: each part of the output the product uses, as a set of labels (for example the
+    # level, the weak points, each error). The runner measures the stability of each part on
+    # its own (`stability.<facet>.changed_rate`) and of each label (`.flip_rate`), on top of the
+    # whole signature. Labels say what was found, never the content (they reach the holdout).
+    facets: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

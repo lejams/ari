@@ -15,6 +15,10 @@ injected errors call for, which is what the learner finally sees.
 
 The level is judged to one level (`level.within_one`), the exact level is only reported: the
 injected errors can lower the estimate by one level, and the doctor's FSP does not need more.
+
+Stability is measured on each part of the rating the product uses (`facets`): the level, the
+weak points, each error. The whole signature (all of them identical) is still reported, but an
+item of six errors rarely stays identical even when each error is found almost every time.
 """
 
 from __future__ import annotations
@@ -74,9 +78,20 @@ def _as_errors(rating: SpokenRating) -> list[dict[str, str]]:
     ]
 
 
+def _facets(level: str, weak: set[str], identities: list[str]) -> dict[str, tuple[str, ...]]:
+    """What the product uses, each on its own: the level, the weak points, each error."""
+    return {
+        "level": (level,),
+        "weak_points": tuple(sorted(weak)),
+        "errors": tuple(sorted(set(identities))),
+    }
+
+
 class PlacementSuite:
     name: str = "placement"
-    scorer_version: str = "placement-scorer-v1"
+    # v2 (5 November 2026): the same error reported twice is a duplicate, not a false error;
+    # stability is also measured on the level, the weak points and each error (facets).
+    scorer_version: str = "placement-scorer-v2"
     prompt_roles: tuple[str, ...] = ("placement_speaking",)
 
     def output_schemas(self, patient_engine: str) -> tuple[type[BaseModel], ...]:
@@ -140,6 +155,7 @@ class PlacementSuite:
                 outcomes=(),
                 counts=counts,
                 signature=json.dumps({"usable": False}),
+                facets=_facets("unusable", {"unusable"}, []),
             )
         rating = cast(SpokenRating, value)
         truth_spans = [(e, spans(e.quote, spoken.transcript)) for e in injected]
@@ -159,11 +175,28 @@ class PlacementSuite:
                 ),
                 None,
             )
+            already = next(
+                (
+                    e
+                    for e, e_where in truth_spans
+                    if e not in unmatched
+                    and e.category == reported.category
+                    and _overlap(where, e_where)
+                ),
+                None,
+            )
             if match is not None:
                 unmatched.remove(match)
                 count(f"lang.tp.{reported.category}")
                 verdict = "correct"
                 identities.append(f"hit:{injected.index(match)}")
+            elif already is not None:
+                # The same error reported again on other words of its quote ("dich ... dich"):
+                # the learner reads one correction twice, not a wrong one. Neither right nor
+                # false, counted apart.
+                count("lang.duplicate")
+                verdict = "duplicate"
+                identities.append(f"hit:{injected.index(already)}")
             else:
                 count(f"lang.fp.{reported.category}")
                 outcomes.add("false_language_error")
@@ -204,7 +237,7 @@ class PlacementSuite:
         if distance > 1:
             outcomes.add("level_off")
         signature = {
-            "errors": sorted(identities),
+            "errors": sorted(set(identities)),
             "level": rating.estimated_level,
         }
         return ItemScore(
@@ -212,6 +245,7 @@ class PlacementSuite:
             outcomes=tuple(sorted(outcomes)),
             counts=counts,
             signature=json.dumps(signature, ensure_ascii=False),
+            facets=_facets(rating.estimated_level, found, identities),
             detail={
                 "estimated_level": rating.estimated_level,
                 "expected_level": spoken.expected_level,
@@ -238,6 +272,7 @@ class PlacementSuite:
             Ratio("language_overall.precision", tps, tps + fps),
             Ratio("language_overall.recall", tps, tps + fns),
             Ratio("category_confusion_rate", ("lang.confused",), ("lang.reported",)),
+            Ratio("duplicate_rate", ("lang.duplicate",), ("lang.reported",)),
             Ratio("invented_quote_rate", ("quotes.invented",), ("quotes.proposed",)),
             *precision_recall("weak_point", "wp", "all"),
             Ratio("level.within_one", ("level.within_one",), ("level.items",)),

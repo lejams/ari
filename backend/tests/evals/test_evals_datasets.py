@@ -23,6 +23,7 @@ COMMITTED = [
     ("evaluation-language", "2"),
     ("evaluation-language", "3"),
     ("placement", "1"),
+    ("placement", "2"),
 ]
 
 
@@ -72,6 +73,7 @@ def test_the_build_script_reproduces_the_committed_files(tmp_path: Path) -> None
         "build_synthetic_v2.py",
         "build_synthetic_v3.py",
         "build_placement_v1.py",
+        "build_placement_v2.py",
     )
     for script in scripts:
         runpy.run_path(str(DATASETS / script))["main"](tmp_path)

@@ -61,6 +61,29 @@ COMMON_RATIOS = (
 )
 
 
+FACET_PREFIX = "stability.facet"
+
+
+def facet_ratios(keys: Iterable[str]) -> list[Ratio]:
+    """Per-facet stability, from the counts the runner adds for a suite's facets.
+
+    `stability.<facet>.changed_rate`: share of items whose facet is not the same in every
+    repetition. `stability.<facet>.flip_rate`: share of the labels seen in at least one
+    repetition that are not in all of them.
+    """
+    names = sorted({s.rpartition(".")[0] for s in suffixes(keys, FACET_PREFIX)})
+    ratios: list[Ratio] = []
+    for name in names:
+        prefix = f"{FACET_PREFIX}.{name}"
+        ratios.append(
+            Ratio(f"stability.{name}.changed_rate", (f"{prefix}.changed",), (f"{prefix}.items",))
+        )
+        ratios.append(
+            Ratio(f"stability.{name}.flip_rate", (f"{prefix}.flipping",), (f"{prefix}.seen",))
+        )
+    return ratios
+
+
 def compute(ratios: Sequence[Ratio], counts: Counts) -> dict[str, float | None]:
     return {ratio.name: ratio.value(counts) for ratio in ratios}
 
