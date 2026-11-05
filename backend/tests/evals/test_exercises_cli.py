@@ -84,7 +84,7 @@ async def test_a_batch_backed_by_a_passing_gate_enters_the_bank_with_its_checks(
     assert first.provenance["gate_report"]["suite"] == "language-exercises@1"
     reviews = bank.reviews(first.exercise.exercise_id)
     assert [r.reviewer_kind for r in reviews] == ["blind_solver", "rubric_judge"]
-    assert reviews[1].reviewer_name == "anthropic:claude-sonnet-5-5@exercise-rubric-v2"
+    assert reviews[1].reviewer_name == "anthropic:claude-sonnet-5-5@exercise-rubric-v3"
     again = import_batch(batch, bank, gate_report_path=report_file)
     assert (again["nouveaux"], again["deja_presents"]) == (0, 2)
 
@@ -249,3 +249,33 @@ def test_the_command_line_generates_a_batch_file_without_touching_the_database(
     assert json.loads(capsys.readouterr().out)["lot"] == batch.batch_id
     # A batch of the simulated chain can never enter the bank.
     assert run(["import", str(out), "--gate-report", str(out), "--dry-run"]) == 2
+
+
+async def test_the_import_follows_the_judges_level_and_refuses_what_does_not(
+    bank: SqlExerciseBank, report_file: Path
+) -> None:
+    batch = await make_batch()
+    entry = batch.accepted[0]
+    # The scripted judge reads B2 and the spec was B1: stored as B2, relabelled from B1.
+    assert (entry.exercise["level"], entry.level_relabeled_from) == ("B2", "B1")
+    assert entry.judge["estimated_level"] == "B2"
+    # Stored under a level the judge did not read: refused, whatever the identifier says.
+    other = {**entry.exercise, "level": "C1"}
+    other_id = LanguageExercise.model_validate_json(json.dumps(other)).exercise_id
+    wrong = entry.model_copy(update={"exercise": other, "exercise_id": other_id})
+    # The judge reads C1 and the exercise is stored as C1, but the author declared B1: two steps.
+    far = entry.model_copy(
+        update={
+            "exercise": other,
+            "exercise_id": other_id,
+            "judge": {**entry.judge, "estimated_level": "C1"},
+            "level_relabeled_from": "B1",
+        }
+    )
+    for tampered in (wrong, far):
+        bad = batch.model_copy(update={"accepted": [tampered, *batch.accepted[1:]]})
+        with pytest.raises(InvalidStateError, match="estimation du juge"):
+            import_batch(bad, bank, gate_report_path=report_file)
+    assert bank.list_active() == ()
+    import_batch(batch, bank, gate_report_path=report_file)
+    assert {s.exercise.level for s in bank.list_active()} == {"B2"}

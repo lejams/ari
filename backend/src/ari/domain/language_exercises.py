@@ -35,6 +35,16 @@ MECHANICAL_CHECKS_VERSION = "exercise-mechanical-v1"
 
 ExerciseLevel = Literal["B1", "B2", "C1"]
 EXERCISE_LEVELS: tuple[str, ...] = ("B1", "B2", "C1")
+# The judge may move the label of an exercise by one step (a B2 labelled B1); two steps is a real
+# mismatch and the exercise is refused.
+MAX_LEVEL_RELABEL = 1
+
+
+def level_gap(declared: str, estimated: str) -> int:
+    """Steps between two levels of the scale, always from the code, never from a model."""
+    return abs(EXERCISE_LEVELS.index(declared) - EXERCISE_LEVELS.index(estimated))
+
+
 # The closed list the session evaluator already uses, without `other` (nothing to train on).
 ExerciseCategory = Literal["gender", "case", "verb_form", "word_order", "word_choice", "register"]
 EXERCISE_CATEGORIES: tuple[str, ...] = (

@@ -1,8 +1,9 @@
 """Structured outputs of the exercise bank: what the author, the blind solver and the judge return.
 
 The rubric of the judge is a versioned asset: its criteria are listed here (the code requires
-exactly one verdict per criterion) and described in `exercise_prompts/exercise_judge_v2.txt`. A
-change to the criteria or to their wording is a new rubric version.
+exactly one verdict per criterion) and described in `exercise_prompts/exercise_judge_v3.txt`. A
+change to the criteria or to their wording is a new rubric version. The level is not a criterion
+since `exercise-rubric-v3`: the judge reports the level it reads and the code rules on the gap.
 """
 
 from __future__ import annotations
@@ -12,14 +13,14 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, model_validator
 
 from ari.application.schemas import StrictModel
+from ari.domain.language_exercises import ExerciseLevel
 
-RUBRIC_VERSION = "exercise-rubric-v2"
+RUBRIC_VERSION = "exercise-rubric-v3"
 RUBRIC_CRITERIA: tuple[str, ...] = (
     "key_correct",
     "key_form_exact",
     "distractors_wrong",
     "targets_category",
-    "level_fit",
     "explanation_correct",
     "natural_register",
     "medical_plausible",
@@ -30,7 +31,6 @@ CriterionId = Literal[
     "key_form_exact",
     "distractors_wrong",
     "targets_category",
-    "level_fit",
     "explanation_correct",
     "natural_register",
     "medical_plausible",
@@ -85,6 +85,9 @@ class CriterionVerdictSchema(StrictModel):
 
 
 class JudgeSchema(StrictModel):
+    # The level the judge reads in the exercise. It is an observation, not a verdict: the code
+    # compares it with the declared level (`level_gap`) and decides to keep, relabel or refuse.
+    estimated_level: ExerciseLevel
     verdicts: list[CriterionVerdictSchema] = Field(
         min_length=len(RUBRIC_CRITERIA), max_length=len(RUBRIC_CRITERIA)
     )
@@ -97,5 +100,5 @@ class JudgeSchema(StrictModel):
 
     @property
     def approved(self) -> bool:
-        """The code decides: approved only when every criterion passed."""
+        """Every criterion passed. The level is ruled on separately, by the code."""
         return all(v.passed for v in self.verdicts)

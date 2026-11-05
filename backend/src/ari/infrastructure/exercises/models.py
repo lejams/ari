@@ -266,9 +266,11 @@ class FakeExerciseProvider:
     @staticmethod
     def _judge() -> dict[str, object]:
         return {
+            # The simulation always reads B2: a B1 or C1 spec is relabelled one step.
+            "estimated_level": "B2",
             "verdicts": [
                 {"criterion": c, "passed": True, "reason": "simulated"} for c in RUBRIC_CRITERIA
-            ]
+            ],
         }
 
 

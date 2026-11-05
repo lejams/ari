@@ -46,6 +46,8 @@ class AcceptedEntry(_Model):
     exercise_id: str
     solver: dict[str, Any]
     judge: dict[str, Any]
+    # The level the author declared when the judge moved it by one step; None when kept.
+    level_relabeled_from: str | None = None
 
 
 class RejectedEntry(_Model):

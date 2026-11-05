@@ -6,8 +6,9 @@ The order is the order of cost, and every stage can only remove an exercise, nev
 2. the blind solver (the checker model, without the key): the exercise stays only if it finds
    the key and says that no other option is acceptable, and does not call a sentence absurd;
 3. the judge (the same checker model, other prompt, with the key and a written rubric): the
-   exercise stays only if every criterion passes. The judge supplies verdicts, the code
-   computes the decision.
+   exercise stays only if every criterion passes. The judge supplies verdicts and the level it
+   reads (without being told the declared one); the code computes the decision: a level one step
+   from the declared one relabels the exercise, two steps refuse it.
 
 The checker is never the author's model: the guard compares the model recorded on the checker's
 own calls with the author's, and refuses to go on when they are the same.
@@ -43,11 +44,13 @@ from ari.application.prompting import VersionedPrompt
 from ari.domain.errors import InvalidStateError, ProviderError
 from ari.domain.language_exercises import (
     EXERCISE_SCHEMA,
+    MAX_LEVEL_RELABEL,
     MECHANICAL_CHECKS_VERSION,
     ExerciseCandidate,
     ExerciseReview,
     LanguageExercise,
     assemble,
+    level_gap,
     mechanical_issues,
 )
 from ari.domain.models import ExecutionRecord
@@ -76,6 +79,9 @@ class CheckOutcome:
     solver: BlindSolveSchema | None = None
     judge: JudgeSchema | None = None
     executions: tuple[ExecutionRecord, ...] = ()
+    # The level the exercise is stored with when accepted: the judge's estimate, which is the
+    # declared level or one step from it.
+    level: str | None = None
 
     @property
     def detail(self) -> dict[str, Any]:
@@ -327,7 +333,8 @@ class ExerciseChecker:
                 content_hash,
                 {
                     "rubric_version": RUBRIC_VERSION,
-                    "level": candidate.level,
+                    # The declared level stays hidden: the judge reads the level, it does not
+                    # confirm one (see `level_gap`).
                     "category": candidate.category,
                     "format": candidate.format,
                     "instruction_fr": candidate.instruction_fr,
@@ -346,10 +353,16 @@ class ExerciseChecker:
             raise
         executions.extend([*failed, execution])
         self._guard(execution)
-        if not judged.approved:
-            failing = tuple(v.criterion for v in judged.verdicts if not v.passed)
-            return CheckOutcome(False, "rubric_judge", failing, solved, judged, tuple(executions))
-        return CheckOutcome(True, "accepted", (), solved, judged, tuple(executions))
+        failing: list[str] = [v.criterion for v in judged.verdicts if not v.passed]
+        if level_gap(candidate.level, judged.estimated_level) > MAX_LEVEL_RELABEL:
+            failing.append("level_fit")
+        if failing:
+            return CheckOutcome(
+                False, "rubric_judge", tuple(failing), solved, judged, tuple(executions)
+            )
+        return CheckOutcome(
+            True, "accepted", (), solved, judged, tuple(executions), judged.estimated_level
+        )
 
 
 def stage_info(stage: str, execution: ExecutionRecord, prompt: VersionedPrompt) -> StageInfo:
@@ -560,12 +573,17 @@ class ExerciseFactory:
                 )
             )
             return
+        assert outcome.solver is not None and outcome.judge is not None and outcome.level
+        relabeled_from = candidate.level if outcome.level != candidate.level else None
+        if relabeled_from is not None:
+            candidate = candidate.model_copy(update={"level": outcome.level})
+            dumped = candidate.model_dump(mode="json")
         exercise = LanguageExercise.model_validate_json(candidate.model_dump_json())
-        assert outcome.solver is not None and outcome.judge is not None
         state.accepted.append(
             AcceptedEntry(
                 exercise=dumped,
                 exercise_id=exercise.exercise_id,
+                level_relabeled_from=relabeled_from,
                 solver=outcome.solver.model_dump(mode="json"),
                 judge=outcome.judge.model_dump(mode="json"),
             )

@@ -416,7 +416,7 @@ def test_each_way_a_report_can_fail_to_back_a_batch(passing_report: Report) -> N
     changed_prompt = batch.model_copy(
         update={"judge": batch.judge.model_copy(update={"prompt_hash": "a" * 64})}
     )
-    refused(passing_report, changed_prompt, "prompt exercise-judge-v2")
+    refused(passing_report, changed_prompt, "prompt exercise-judge-v3")
     other_model = batch.model_copy(
         update={"solver": batch.solver.model_copy(update={"model": "claude-opus-5-5"})}
     )
@@ -460,7 +460,7 @@ def test_each_route_keeps_its_own_anthropic_settings() -> None:
             "prompts": {
                 "author": "exercise-author-v1",
                 "solver": "exercise-solver-v2",
-                "judge": "exercise-judge-v2",
+                "judge": "exercise-judge-v3",
             },
         }
     )
@@ -609,3 +609,38 @@ async def test_a_perfect_checker_passes_the_gate_on_the_fourth_version() -> None
     assert report.suite == "language-exercises@4"
     assert report.gate is not None and report.gate.status == "passed", report.gate
     assert report.metrics["false_reject_rate"] == 0.0 and report.critical_errors == []
+
+
+def test_a_valid_exercise_moved_one_step_is_accepted_and_counted_but_a_mismatch_never_passes() -> (
+    None
+):
+    from ari.application.services.exercise_bank import CheckOutcome
+    from ari.evals.exercises.runner import score
+
+    dev = load_dataset(DATASETS, "4").read_split("dev", gate=False)
+    valid = next(i for i in dev if i.truth.valid)
+    moved = "B2" if valid.candidate.level != "B2" else "C1"
+    counts, outcomes, _ = score(valid, CheckOutcome(True, "accepted", level=moved))
+    assert counts["valid.relabeled"] == 1.0 and outcomes == []
+    counts, _, _ = score(valid, CheckOutcome(True, "accepted", level=valid.candidate.level))
+    assert "valid.relabeled" not in counts
+    # A swapped level that comes out accepted is a false acceptance, relabelled or not: the
+    # measure stays as strict as when the judge could only refuse.
+    mismatch = next(i for i in dev if i.truth.defect == "level_mismatch")
+    for level in (mismatch.candidate.level, "B2"):
+        counts, outcomes, _ = score(mismatch, CheckOutcome(True, "accepted", level=level))
+        assert outcomes == ["false_accept"] and counts["defect.level_mismatch.accepted"] == 1.0
+
+
+def test_the_scorer_names_the_relabelling_and_the_judge_prompt_is_the_third_version() -> None:
+    assert scorer_version().startswith("language-exercises-scorer-v2+exercise-rubric-v3+")
+    assert load_config(CONFIGS / "luna-sonnet.yaml")[0].prompts.judge == "exercise-judge-v3"
+
+
+def test_the_diagnosis_says_which_level_the_judge_read_when_it_refuses_for_two_steps() -> None:
+    from ari.evals.exercises.diagnosis import _explanation
+
+    text = _explanation(
+        {"issues": ["level_fit"], "level": "B1", "judge": {"estimated_level": "C1", "verdicts": []}}
+    )
+    assert text == "level_fit : niveau lu C1 pour B1"

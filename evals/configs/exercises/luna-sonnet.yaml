@@ -13,4 +13,4 @@ routes:
 prompts:
   author: exercise-author-v1
   solver: exercise-solver-v2
-  judge: exercise-judge-v2
+  judge: exercise-judge-v3
