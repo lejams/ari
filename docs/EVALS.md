@@ -23,7 +23,7 @@ pour les autres. Le seul modèle appelé est celui de la configuration testée.
 | `evaluation-language@3` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v10`, vote sur 3 passes) | idem `@2` | 250 transcripts synthétiques : tout `@2` en dev (175), holdout neuf de trois familles (75 : genou, diarrhée, éruption cutanée) |
 | `evaluation-language@2` | l'évaluateur réel `LLMBackedEvaluator` (`evaluation-v10`) | erreurs injectées : genre, cas, forme verbale, ordre des mots, choix du mot, registre ; mot français ; artefact de transcription ; section oubliée ; formulations correctes mais inhabituelles | 175 transcripts synthétiques (100 dev, 75 holdout) |
 | `evaluation-language@1` | idem (version 1, gardée pour mémoire, plus exigée) | genre, cas, forme verbale, ordre des mots ; mot français ; artefact ; section oubliée | 120 transcripts (90 dev, 30 holdout) |
-| `placement@2` (`@1` reste dans le dépôt) | la notation de l'oral du test de niveau : `rate_spoken_task` (prompt `placement-speaking-v2`, route `evaluation` avec ses réglages d'effort et de graine, `ARI_EVALUATION_PASSES` passes : erreurs gardées si au moins une passe les voit (les citations sont vérifiées par le code), niveau médian des passes), puis le calcul des points faibles par `weak_points` | erreurs injectées (catégorie, citation, correction) et niveau du texte (B1, B2, C1) | 105 transcripts synthétiques de six phrases : les 3 sujets de `@1` en dev (45, deux étiquettes corrigées), 4 sujets neufs en holdout (60, toutes les catégories) |
+| `placement@2` (`@1` reste dans le dépôt) | la notation de l'oral du test de niveau : `rate_spoken_task` (prompt `placement-speaking-v3`, route `evaluation` avec ses réglages d'effort et de graine, `ARI_EVALUATION_PASSES` passes : erreurs gardées si au moins une passe les voit (les citations sont vérifiées par le code), niveau lu par le code sur une grille fixe à partir de la moyenne de cinq sous-notes sur les passes), puis le calcul des points faibles par `weak_points` | erreurs injectées (catégorie, citation, correction) et niveau du texte (B1, B2, C1) | 105 transcripts synthétiques de six phrases : les 3 sujets de `@1` en dev (45, deux étiquettes corrigées), 4 sujets neufs en holdout (60, toutes les catégories) |
 | `evaluation-medical@1` | l'évaluateur réel | omissions exigibles et erreurs médicales relevées par le médecin | **en attente du médecin** (section 6 du plan) |
 | `language-exercises@6` (les `@1` à `@5` restent dans le dépôt) | les contrôles devant la banque d'exercices de langue : contrôles mécaniques, résolution à l'aveugle, juge strict (`python -m ari.evals exercises`) | exercice bon, ou défaut connu par construction (mauvaise clé, deux réponses justes, explication fausse…) | jeu `@6` : dev de `@5` inchangé, holdout de `@5` corrigé après une relecture extérieure (123 items, jamais lancé) ; jeu `@5` : 491 items en dev (tout ce qui a été mesuré, sans deux familles dont les références sont défendables), 124 en holdout neuf (14 exercices justes, relecture extérieure demandée avant la première mesure, aucune mesure à ce jour) ; jeu `@4` : holdout lancé le 4 novembre 2026, voir ci-dessous ; défaut `near_miss_key` (réponse presque juste) ; holdout `@4` lancé le 4 novembre 2026 (run 41933097123) : fausse acceptation 0, fausse rejection 0,262 pour 0,25, gate échoué, holdout grillé ; grille `exercise-rubric-v3` (le juge lit le niveau, le code recale d'un cran ou refuse à deux), non mesurée ; voir `docs/LANGUAGE_EXERCISES.md` |
 | `voice-snippets@1` | la voix ElevenLabs de chaque persona sur des phrases fixes, puis le STT | termes critiques de chaque phrase (chiffres, doses, termes) | 33 phrases de patient en allemand |
@@ -612,7 +612,7 @@ niveau connu, avec des erreurs injectées à des endroits connus : `evals/datase
 erreurs de langue, reportés ici faute de mieux ; les deux seuils propres au test (points faibles,
 niveau) sont à valider par le propriétaire. Le jeu est petit (15 transcripts en holdout, un seul
 sujet sans erreur de cas ni de registre) : il vérifie la chaîne et les ordres de grandeur. Comme le
-prompt `placement-speaking-v2` change l'empreinte IA, la promotion suivante exige un run
+prompt de l'oral (`placement-speaking-v2`, puis `-v3`) change l'empreinte IA, la promotion suivante exige un run
 `Evals on real models` complet (les quatre runs de la section 10). Sur le fournisseur simulé
 (`make evals-fake`), le niveau passe et les erreurs ne sont pas trouvées : le fake ne sait repérer que
 quelques fautes connues, la chaîne seule est vérifiée.
@@ -655,3 +655,16 @@ Le propriétaire a choisi (5 novembre 2026) de corriger la mesure avant le modè
 
 Suite prévue : une mesure dev de `@2` ; si le niveau reste instable, une notation du niveau par
 sous-notes et grille dans le code (et seulement du niveau) ; puis le holdout `@2` une seule fois.
+
+**Mesure dev de `@2` et notation du niveau (5 novembre 2026).** Run 42068460081 (`luna`, 45 items,
+3 répétitions) : `stability.errors.flip_rate` 0,036, `stability.weak_points.changed_rate` 0,022,
+précision 0,997, rappel 0,92, niveau à un cran près 0,99, mais **`stability.level.changed_rate`
+0,133 pour 0,10** (6 items, tous entre deux niveaux voisins). Le modèle donnait un niveau d'un bloc
+et la médiane de 3 niveaux basculait dès qu'une passe lisait un cran plus bas. Avec l'accord du
+propriétaire, le prompt `placement-speaking-v3` ne demande plus de niveau : le modèle note cinq
+critères de 1 (A1) à 6 (C2), demi-points permis (vocabulaire, correction grammaticale, complexité
+des phrases, cohérence, réponse à la consigne) ; le code fait la moyenne des critères puis des passes
+et la lit sur une grille fixe (`ari.domain.placement.spoken_level` : B1 à partir de 2,5, B2 de 3,5,
+C1 de 4,5). Une erreur ne baisse que la correction (ou la consigne pour le registre), pas les autres
+critères. Les erreurs de langue, leur vérification et les seuils ne changent pas. Le rapport donne le
+score de chaque item (`level_score`). Le holdout `@2` n'a pas été lancé.

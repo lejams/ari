@@ -2,8 +2,8 @@
 
 Shared by the placement service and by the `placement` evaluation suite, so what is measured is
 what runs. "The model proposes, the code decides": every quoted error is checked against the
-transcript (`verify_language_errors`) and dropped when the quote is not there, and with several
-passes the errors and the level are the ones the passes agree on.
+transcript (`verify_language_errors`) and dropped when the quote is not there, and the level is
+read by the code from the model's criterion scores (`spoken_level`), averaged over the passes.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from ari.application.services.language_errors import (
 )
 from ari.domain.errors import ProviderError
 from ari.domain.models import ExecutionRecord
-from ari.domain.placement import LEVELS
+from ari.domain.placement import SPOKEN_CRITERIA, spoken_level
 
 SPOKEN_TURN = 1  # The transcript of a spoken task is the single turn the error quotes cite.
 MAX_PASSES = 5
@@ -40,7 +40,7 @@ SPOKEN_ERROR_VOTES = 1
 
 @dataclass(frozen=True, slots=True)
 class SpokenRating:
-    estimated_level: str
+    estimated_level: str  # Decided by the code from `level_score` (`spoken_level`).
     confidence: float
     observations: list[str]
     language_errors: list[LanguageErrorSchema]  # Verified: every quote stands in the transcript.
@@ -51,6 +51,9 @@ class SpokenRating:
     execution: ExecutionRecord
     # The other passes' calls, failed ones included: they cost money and are recorded too.
     extra_executions: tuple[ExecutionRecord, ...] = ()
+    # Mean of the criteria, then of the passes (1 = A1 ... 6 = C2), and each criterion's mean.
+    level_score: float = 0.0
+    criteria: dict[str, float] | None = None
 
 
 def _consolidated(verdicts: list[LanguageErrorVerdict], votes: int) -> list[LanguageErrorSchema]:
@@ -77,12 +80,12 @@ async def rate_spoken_task(
 ) -> SpokenRating:
     """Rate one spoken task, with `passes` independent calls when the rating must be repeatable.
 
-    One call flips between reporting an error and missing it, and between two neighbouring
-    levels, so the same answer does not always get the same rating. With several passes the code
-    decides: an error stands when `error_votes` passes report it on the same words (one: any pass
-    that sees it), and the level is the median of the passes' levels (the lower one when an even
-    number of passes remain, some having failed). The confidence is the mean of the passes that
-    gave that level.
+    One call flips between reporting an error and missing it, and a whole level read at once
+    flips between two neighbouring levels, so the same answer does not always get the same
+    rating. The code decides: an error stands when `error_votes` passes report it on the same
+    words (one: any pass that sees it); the model scores five criteria, and the level is read on
+    a fixed grid from their mean over every pass that answered (`spoken_level`). The confidence
+    is the mean of the passes; the observations are those of the pass closest to the mean.
     """
     if not 1 <= passes <= MAX_PASSES:
         raise ValueError(f"passes must be between 1 and {MAX_PASSES}")
@@ -128,14 +131,13 @@ async def rate_spoken_task(
         verify_language_errors(item.value.language_errors, {SPOKEN_TURN: transcript})
         for item in results
     ]
-    levels = sorted((item.value.estimated_level for item in results), key=LEVELS.index)
-    level = levels[(len(levels) - 1) // 2]
-    # The pass that stands for the rating: the first one that gave the consolidated level.
-    primary = next(i for i, item in enumerate(results) if item.value.estimated_level == level)
-    agreeing = [item.value.confidence for item in results if item.value.estimated_level == level]
+    per_pass = [_pass_score(item.value) for item in results]
+    score = sum(per_pass) / len(per_pass)
+    # The pass that stands for the rating (its observations): the first one closest to the mean.
+    primary = min(range(len(results)), key=lambda i: abs(per_pass[i] - score))
     return SpokenRating(
-        estimated_level=level,
-        confidence=sum(agreeing) / len(agreeing),
+        estimated_level=spoken_level(score),
+        confidence=sum(item.value.confidence for item in results) / len(results),
         observations=list(results[primary].value.observations),
         language_errors=_consolidated(verdicts, min(error_votes, len(verdicts))),
         proposed_errors=sum(len(item.value.language_errors) for item in results),
@@ -143,4 +145,16 @@ async def rate_spoken_task(
         execution=results[primary].execution,
         extra_executions=tuple(item.execution for i, item in enumerate(results) if i != primary)
         + tuple(cast(ExecutionRecord, cast(ProviderError, item).execution) for item in failures),
+        level_score=score,
+        criteria={
+            name: sum(float(item.value.criteria.model_dump()[name]) for item in results)
+            / len(results)
+            for name in SPOKEN_CRITERIA
+        },
     )
+
+
+def _pass_score(rating: SpeakingRatingSchema) -> float:
+    """Mean of one pass's criterion scores."""
+    scores = rating.criteria.model_dump()
+    return sum(float(scores[name]) for name in SPOKEN_CRITERIA) / len(SPOKEN_CRITERIA)

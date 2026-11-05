@@ -127,10 +127,24 @@ class EvaluationOutputSchema(StrictModel):
     empathy: list[EmpathyJudgementSchema] = Field(default_factory=list, max_length=8)
 
 
-class SpeakingRatingSchema(StrictModel):
-    """CEFR estimate of one short spoken production, from its transcript."""
+CriterionScore = Annotated[float, Field(ge=1, le=6)]  # CEFR scale: 1 = A1 ... 6 = C2.
 
-    estimated_level: Literal["A1", "A2", "B1", "B2", "C1", "C2"]
+
+class SpeakingCriteriaSchema(StrictModel):
+    """Five scores of one spoken production; the code reads the level from their mean."""
+
+    range: CriterionScore  # Range and precision of vocabulary.
+    accuracy: CriterionScore  # Grammatical control: the errors count here.
+    complexity: CriterionScore  # Sentence structures.
+    coherence: CriterionScore  # Connected speech, cohesion.
+    task: CriterionScore  # Task fulfilment.
+
+
+class SpeakingRatingSchema(StrictModel):
+    """CEFR criteria of one short spoken production, from its transcript (no level: the code
+    decides it, `ari.domain.placement.spoken_level`)."""
+
+    criteria: SpeakingCriteriaSchema
     confidence: Annotated[float, Field(ge=0, le=1)]
     observations: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
         default_factory=list, max_length=4

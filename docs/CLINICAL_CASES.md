@@ -140,8 +140,9 @@ items du niveau atteint (aucun emprunt à un autre niveau, qui biaiserait l'esti
 l'estimation vocabulaire-grammaire est la médiane basse des niveaux des 6 dernières questions
 présentées. Les écoutes autour de ce niveau donnent le niveau d'écoute (≥ 75 % de bonnes
 réponses : +1 ; ≥ 50 % : égal ; sinon −1). Les deux productions orales sont transcrites puis
-notées par le fournisseur (`placement-speaking-v2`, schéma strict : niveau, confiance,
-observations, et en v2 des erreurs de langue citées). Le résultat global est le plus faible des
+notées par le fournisseur (`placement-speaking-v3`, schéma strict : cinq sous-notes de 1 à 6,
+confiance, observations, erreurs de langue citées) ; le code lit le niveau de l'oral sur une grille
+fixe à partir de la moyenne des sous-notes. Le résultat global est le plus faible des
 niveaux mesurés ; l'oral n'est compté que si sa confiance atteint 0,6. Il est copié dans le
 profil comme `estimated_level`, avec la date et l'identifiant de la tentative. Ce n'est ni un
 certificat ni le niveau requis pour l'inscription à la FSP.

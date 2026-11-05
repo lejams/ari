@@ -269,7 +269,7 @@ def test_an_invented_spoken_error_is_dropped_by_the_code(v2_container: Container
     from ari.infrastructure.providers.fake import FakeLLMProvider
 
     invented = {
-        "estimated_level": "B1",
+        "criteria": dict.fromkeys(("range", "accuracy", "complexity", "coherence", "task"), 3.0),
         "confidence": 0.9,
         "observations": [],
         "language_errors": [

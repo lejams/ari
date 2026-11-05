@@ -222,7 +222,9 @@ def diagnosis_text(report: Report, *, limit: int = 60) -> str:
                 for m in detail.get("missed_errors", [])
             ]
             level = (
-                f" ; niveau lu {detail['estimated_level']}, attendu {detail.get('expected_level')}"
+                f" ; niveau lu {detail['estimated_level']}"
+                + (f" (score {detail['level_score']})" if "level_score" in detail else "")
+                + f", attendu {detail.get('expected_level')}"
                 if "estimated_level" in detail
                 else ""
             )

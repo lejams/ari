@@ -10,6 +10,7 @@ from typing import Any
 from scripted import DATASETS, GATES, ScriptedProvider, repetition_of, request_for
 
 from ari.config import PROJECT_ROOT
+from ari.domain.placement import SPOKEN_CRITERIA
 from ari.evals.gates import load_gates
 from ari.evals.manifest import load_dataset
 from ari.evals.report import diagnosis_text
@@ -75,8 +76,9 @@ def oracle(
                     "category": "case",
                 }
             )
+        score = float(levels.index(item.expected_level) + level_shift + 1)
         return {
-            "estimated_level": levels[levels.index(item.expected_level) + level_shift],
+            "criteria": dict.fromkeys(SPOKEN_CRITERIA, score),
             "confidence": 0.8,
             "observations": [],
             "language_errors": errors,
@@ -214,8 +216,7 @@ def flaky(base: Any, *, level: bool = False, first_error: bool = False) -> Any:
         answer: dict[str, Any] = base(request, payload)
         if repetition_of(request) == 2:
             if level:
-                levels = ["A1", "A2", "B1", "B2", "C1", "C2"]
-                answer["estimated_level"] = levels[levels.index(answer["estimated_level"]) - 1]
+                answer["criteria"] = {k: v - 1 for k, v in answer["criteria"].items()}
             if first_error:
                 answer["language_errors"] = answer["language_errors"][1:]
         return answer
@@ -314,7 +315,7 @@ def test_version_2_replaces_the_two_doubtful_labels_of_version_1() -> None:
 
 
 def test_the_speaking_prompt_quotes_no_sentence_of_the_dataset() -> None:
-    prompt = (PROJECT_ROOT / "backend/src/ari/prompts/placement_speaking_v2.txt").read_text("utf-8")
+    prompt = (PROJECT_ROOT / "backend/src/ari/prompts/placement_speaking_v3.txt").read_text("utf-8")
     quoted = [q for q in re.findall(r'"([^"]{6,})"', prompt) if any(c.isalpha() for c in q)]
     spoken = [
         text.casefold()

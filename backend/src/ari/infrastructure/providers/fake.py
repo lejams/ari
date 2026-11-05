@@ -27,6 +27,7 @@ from ari.application.schemas import (
     SpeakingRatingSchema,
 )
 from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
+from ari.domain.placement import SPOKEN_CRITERIA
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -369,13 +370,13 @@ class FakeLLMProvider:
         ]
         if words >= 40:
             return {
-                "estimated_level": "B2",
+                "criteria": dict.fromkeys(SPOKEN_CRITERIA, 4.0),
                 "confidence": 0.8,
                 "observations": ["Production fictive longue : niveau B2 attribué par le fake."],
                 "language_errors": errors,
             }
         return {
-            "estimated_level": "B1",
+            "criteria": dict.fromkeys(SPOKEN_CRITERIA, 3.0),
             "confidence": 0.5,
             "observations": ["Production fictive courte : niveau B1 attribué par le fake."],
             "language_errors": errors,
