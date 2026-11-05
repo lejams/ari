@@ -74,6 +74,7 @@ class PlacementService:
         *,
         feedback_language: str,
         sample_rate: int,
+        speaking_passes: int = 1,
         audio_store: PlacementAudioStore | None = None,
         clock: Callable[[], datetime] = utc_now,
     ) -> None:
@@ -87,6 +88,7 @@ class PlacementService:
         self._prompt = speaking_prompt
         self._feedback_language = feedback_language
         self._sample_rate = sample_rate
+        self._speaking_passes = speaking_passes
         self._clock = clock
         self._audio_cache: dict[tuple[str, str], bytes] = {}
 
@@ -426,8 +428,9 @@ class PlacementService:
         except ProviderError as exc:
             self._record_failure(exc, learner_id, attempt.id)
             raise
-        self._record_execution(rating["execution"], learner_id, attempt.id)
-        executions.append(_execution_summary(rating["execution"]))
+        for execution in (rating["execution"], *rating["extra_executions"]):
+            self._record_execution(execution, learner_id, attempt.id)
+            executions.append(_execution_summary(execution))
         state = json.loads(json.dumps(attempt.state))
         state["presented"].append(item.id)
         state["speaking"].append(
@@ -477,6 +480,7 @@ class PlacementService:
             target_seconds=item.target_seconds,
             transcript=transcript,
             context=context,
+            passes=self._speaking_passes,
         )
         return {
             "estimated_level": rating.estimated_level,
@@ -493,6 +497,7 @@ class PlacementService:
             ],
             "dropped_errors": rating.proposed_errors - len(rating.language_errors),
             "execution": rating.execution,
+            "extra_executions": rating.extra_executions,
         }
 
     # ----- audio ---------------------------------------------------------------------
@@ -560,8 +565,9 @@ class PlacementService:
         )
 
     def _record_failure(self, error: ProviderError, learner_id: str, attempt_id: str) -> None:
-        if isinstance(error.execution, ExecutionRecord):
-            self._record_execution(error.execution, learner_id, attempt_id)
+        for execution in (error.execution, *error.related_executions):
+            if isinstance(execution, ExecutionRecord):
+                self._record_execution(execution, learner_id, attempt_id)
 
     # ----- finish --------------------------------------------------------------------
 

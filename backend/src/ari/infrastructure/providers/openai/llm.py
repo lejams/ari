@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from ari.application.contracts import LLMRequest, ProviderResult
 from ari.domain.errors import ProviderError
 from ari.domain.models import ExecutionRecord, ExecutionStatus, new_id
-from ari.infrastructure.providers.llm_routing import CONTENT_OPERATIONS
+from ari.infrastructure.providers.llm_routing import CONTENT_OPERATIONS, EVALUATION_OPERATIONS
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -34,8 +34,8 @@ class OpenAILLMProvider:
         self._evaluation_model = evaluation_model
         self._patient_timeout_seconds = patient_timeout_seconds
         self._evaluation_timeout_seconds = evaluation_timeout_seconds
-        # Sampling settings of the session evaluation only: the patient and the content keep the
-        # model's defaults.
+        # Sampling settings of the rating operations (the session evaluation and the placement
+        # oral): the patient and the content keep the model's defaults.
         self._evaluation_options: dict[str, Any] = {}
         if evaluation_reasoning_effort is not None:
             self._evaluation_options["reasoning_effort"] = evaluation_reasoning_effort
@@ -45,7 +45,7 @@ class OpenAILLMProvider:
         self._content_timeout_seconds = content_timeout_seconds or evaluation_timeout_seconds
 
     def _model_and_timeout(self, operation: str) -> tuple[str, float]:
-        if operation == "session_evaluation":
+        if operation in EVALUATION_OPERATIONS:
             return self._evaluation_model, self._evaluation_timeout_seconds
         if operation in CONTENT_OPERATIONS:
             return self._content_model, self._content_timeout_seconds
@@ -65,7 +65,7 @@ class OpenAILLMProvider:
         started = time.perf_counter()
         options: dict[str, Any] = (
             dict(self._evaluation_options)
-            if request.context.operation == "session_evaluation"
+            if request.context.operation in EVALUATION_OPERATIONS
             else {}
         )
         if "seed" in options:

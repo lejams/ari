@@ -124,14 +124,16 @@ class Settings(BaseSettings):
     content_provider: Literal["openai", "anthropic"] = "openai"
     fact_attribution_provider: Literal["openai", "anthropic"] | None = None
     fact_attribution_model: str | None = None
-    # Session evaluation on OpenAI only. None keeps the model's own defaults. A fixed seed and a
-    # chosen reasoning effort make the evaluator answer more alike from one call to the next
-    # (the `stability` metric of ari.evals); the values are measured, not guessed.
+    # Session evaluation and placement oral rating, on OpenAI only. None keeps the model's own
+    # defaults. A fixed seed and a chosen reasoning effort make the evaluator answer more alike
+    # from one call to the next (the `stability` metric of ari.evals); the values are measured,
+    # not guessed.
     evaluation_reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
     evaluation_seed: int | None = None
     # Independent evaluations of a session: the language errors and code switches kept are the
     # ones most passes report, so the result does not flip from one run to the next. Each pass
-    # is one model call (the seed, when set, is shifted by the pass index).
+    # is one model call (the seed, when set, is shifted by the pass index). The placement oral is
+    # rated the same way: errors by majority, level by the median of the passes.
     evaluation_passes: int = Field(default=3, ge=1, le=5)
     anthropic_api_key: str | None = None
     anthropic_max_tokens: int = Field(default=16000, ge=1024)

@@ -108,6 +108,7 @@ class PlacementSuite:
                 prompt_version=prompt.version,
                 prompt_hash=prompt.content_hash,
             ),
+            passes=context.evaluation_passes,
         )
 
     def score(

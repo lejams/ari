@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 from typing import Any
 
-from scripted import DATASETS, GATES, ScriptedProvider, request_for
+from scripted import DATASETS, GATES, ScriptedProvider, repetition_of, request_for
 
 from ari.config import PROJECT_ROOT
 from ari.evals.gates import load_gates
@@ -95,6 +96,45 @@ async def measure(respond: Any, *, split: str = "dev", gate: bool = False) -> An
             repetitions=3 if gate else 1,
         )
     )
+
+
+def forgetful(base: Any) -> Any:
+    """The oracle, except it forgets the first error in the first call of the second repetition."""
+
+    def respond(request: Any, payload: dict[str, Any]) -> dict[str, Any]:
+        answer: dict[str, Any] = base(request, payload)
+        if repetition_of(request) == 2 and request.sample == 0:
+            answer["language_errors"] = answer["language_errors"][1:]
+        return answer
+
+    return respond
+
+
+async def stability_with(passes: int) -> Any:
+    request = request_for(
+        PlacementSuite(),
+        ScriptedProvider(forgetful(oracle())),
+        dataset=DATASET,
+        split="holdout",
+        gate_mode=True,
+        gates=GATE_RULES,
+        repetitions=3,
+    )
+    config = request.config.model_copy(update={"evaluation_passes": passes})
+    return await run(replace(request, config=config))
+
+
+async def test_a_single_forgetful_call_makes_the_rating_unstable() -> None:
+    report = await stability_with(1)
+    assert report.metrics["stability.changed_rate"] > 0.5
+    assert report.gate is not None and report.gate.status == "failed"
+
+
+async def test_three_passes_outvote_the_forgetful_call() -> None:
+    report = await stability_with(3)
+    assert report.metrics["stability.changed_rate"] == 0.0
+    assert report.metrics["language_overall.recall"] == 1.0
+    assert report.gate is not None and report.gate.status == "passed", report.gate
 
 
 async def test_the_oracle_is_perfect_and_passes_the_gate_on_the_holdout() -> None:
