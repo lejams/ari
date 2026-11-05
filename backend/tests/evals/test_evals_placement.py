@@ -13,8 +13,8 @@ from ari.config import PROJECT_ROOT
 from ari.domain.placement import SPOKEN_CRITERIA
 from ari.evals.gates import load_gates
 from ari.evals.manifest import load_dataset
-from ari.evals.report import diagnosis_text
-from ari.evals.runner import run
+from ari.evals.report import RunEntry, diagnosis_text
+from ari.evals.runner import measure_counts, run
 from ari.evals.scorers.placement import PlacementSuite, SpokenItem
 
 DATASET = load_dataset(DATASETS, "placement", "2")
@@ -253,6 +253,39 @@ async def test_stability_is_measured_on_each_part_the_product_uses() -> None:
     assert "stability.errors.flip_rate" in failed and "stability.changed_rate" not in failed
 
 
+def shifted(base: Any, *, offset: float, second: float) -> Any:
+    """The oracle with every criterion moved by `offset`, and by `second` more in repetition 2."""
+
+    def respond(request: Any, payload: dict[str, Any]) -> dict[str, Any]:
+        answer: dict[str, Any] = base(request, payload)
+        delta = offset + (second if repetition_of(request) == 2 else 0.0)
+        answer["criteria"] = {k: v + delta for k, v in answer["criteria"].items()}
+        return answer
+
+    return respond
+
+
+def failed_checks(report: Any) -> set[str]:
+    return {c.metric for c in report.gate.checks if c.status == "failed"} if report.gate else set()
+
+
+async def test_the_gate_judges_the_noise_of_the_level_score_not_a_flip_on_a_threshold() -> None:
+    # Every transcript sits just above a threshold (C1 read 4.55) and moves by 0.1 once: the level
+    # flips on every item, yet the score barely moves (sd 0.058) and the gate passes.
+    edge = await stability_with(1, respond=shifted(oracle(), offset=-0.45, second=-0.1))
+    assert edge.metrics["stability.level.changed_rate"] == 1.0
+    spread = edge.metrics["stability.level_score.mean_sd"]
+    assert spread is not None and abs(spread - 0.1 / 3**0.5) < 1e-9
+    assert edge.gate is not None and edge.gate.status == "passed", failed_checks(edge)
+    # Far from any threshold (B2 read 4.0), a score that jumps by 0.45 keeps its level but fails.
+    noisy = await stability_with(1, respond=shifted(oracle(), offset=0.0, second=0.45))
+    assert noisy.metrics["stability.level.changed_rate"] == 0.0
+    assert failed_checks(noisy) == {"stability.level_score.mean_sd"}
+    # A steady rater: no spread at all.
+    steady = await stability_with(1, respond=oracle())
+    assert steady.metrics["stability.level_score.mean_sd"] == 0.0
+
+
 async def test_one_error_reported_twice_on_two_parts_of_its_quote_is_a_duplicate() -> None:
     def twice(request: Any, payload: dict[str, Any]) -> dict[str, Any]:
         answer: dict[str, Any] = oracle()(request, payload)
@@ -332,3 +365,29 @@ def test_the_speaking_prompt_quotes_no_sentence_of_the_dataset() -> None:
             for e in i.truth.errors
             if len(example) > 6
         ), example
+
+
+def test_the_spread_skips_an_item_with_fewer_than_two_usable_repetitions() -> None:
+    def entry(repetition: int, measures: dict[str, float]) -> RunEntry:
+        return RunEntry(
+            repetition=repetition,
+            attempts=1,
+            usable=bool(measures),
+            verdict=True,
+            outcomes=[],
+            counts={},
+            signature="",
+            errors=[],
+            calls=[],
+            measures=measures,
+            detail=None,
+        )
+
+    two = measure_counts(
+        [entry(1, {"level_score": 3.0}), entry(2, {}), entry(3, {"level_score": 4.0})]
+    )
+    assert two == {
+        "stability.measure.level_score.items": 1.0,
+        "stability.measure.level_score.sd": 0.5**0.5,
+    }
+    assert measure_counts([entry(1, {"level_score": 3.0}), entry(2, {}), entry(3, {})]) == {}

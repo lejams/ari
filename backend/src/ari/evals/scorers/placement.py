@@ -20,6 +20,9 @@ injected errors can lower the estimate by one level, and the doctor's FSP does n
 Stability is measured on each part of the rating the product uses (`facets`): the level, the
 weak points, each error. The whole signature (all of them identical) is still reported, but an
 item of six errors rarely stays identical even when each error is found almost every time.
+The level is read by the code from a score on a fixed grid, so its stability is measured on that
+score (`measures`, `stability.level_score.mean_sd`, in levels): a transcript whose score sits on
+a threshold flips level with any rater, however small the noise.
 """
 
 from __future__ import annotations
@@ -92,7 +95,8 @@ class PlacementSuite:
     name: str = "placement"
     # v2 (5 November 2026): the same error reported twice is a duplicate, not a false error;
     # stability is also measured on the level, the weak points and each error (facets).
-    scorer_version: str = "placement-scorer-v2"
+    # v3 (5 November 2026): the spread of the level score between repetitions (measures).
+    scorer_version: str = "placement-scorer-v3"
     prompt_roles: tuple[str, ...] = ("placement_speaking",)
 
     def output_schemas(self, patient_engine: str) -> tuple[type[BaseModel], ...]:
@@ -247,6 +251,7 @@ class PlacementSuite:
             counts=counts,
             signature=json.dumps(signature, ensure_ascii=False),
             facets=_facets(rating.estimated_level, found, identities),
+            measures={"level_score": rating.level_score},
             detail={
                 "estimated_level": rating.estimated_level,
                 "level_score": round(rating.level_score, 3),
