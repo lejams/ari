@@ -31,6 +31,30 @@ REQUIRED_LEVELS: tuple[str, ...] = ("A1", "A2", "B1", "B2")  # placement-set-v1
 REQUIRED_LEVELS_V2: tuple[str, ...] = ("A2", "B1", "B2", "C1")
 LISTENING_LEVELS_V2: tuple[str, ...] = ("B1", "B2", "C1")
 MCQ_PER_LEVEL_V2 = 8
+
+# The spoken level is decided by the code from five criteria the model scores on the CEFR scale
+# (1 = A1 ... 6 = C2, half points allowed): the mean of the criteria, then of the passes, read
+# on a fixed grid. A mean moves much less than a vote between whole levels, so a production
+# at the border of two levels does not flip from one rating to the next.
+SPOKEN_CRITERIA: tuple[str, ...] = ("range", "accuracy", "complexity", "coherence", "task")
+# Lower bound of each level's band on the mean score: A1 below 1.5, A2 from 1.5, ... C2 from 5.5.
+SPOKEN_LEVEL_FLOORS: tuple[tuple[str, float], ...] = (
+    ("C2", 5.5),
+    ("C1", 4.5),
+    ("B2", 3.5),
+    ("B1", 2.5),
+    ("A2", 1.5),
+    ("A1", 1.0),
+)
+
+
+def spoken_level(score: float) -> str:
+    """The CEFR level of a mean criterion score (1 to 6) on the fixed grid."""
+    if not 1.0 <= score <= 6.0:
+        raise ValueError("a spoken score lies between 1 and 6")
+    return next(level for level, floor in SPOKEN_LEVEL_FLOORS if score >= floor)
+
+
 MCQ_PER_CATEGORY_V2 = 4
 
 # Closed list shared with the session evaluator (`LANGUAGE_ERROR_CATEGORIES` without `other`,

@@ -450,6 +450,8 @@ class PlacementService:
             payload={
                 "transcript": transcript,
                 "estimated_level": rating["estimated_level"],
+                "level_score": rating["level_score"],
+                "criteria": rating["criteria"],
                 "confidence": rating["confidence"],
                 "observations": rating["observations"],
                 "language_errors": rating["language_errors"],
@@ -484,6 +486,8 @@ class PlacementService:
         )
         return {
             "estimated_level": rating.estimated_level,
+            "level_score": round(rating.level_score, 3),
+            "criteria": {k: round(v, 3) for k, v in (rating.criteria or {}).items()},
             "confidence": rating.confidence,
             "observations": rating.observations,
             "language_errors": [

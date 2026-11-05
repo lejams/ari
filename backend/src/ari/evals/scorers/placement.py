@@ -3,7 +3,8 @@
 One item is one transcript of a spoken placement task, written at a known level with errors
 injected at known places (category, quote, correction), so the truth is known by construction.
 Run through the real rater of the placement service (`rate_spoken_task`, prompt
-`placement-speaking-v2`), with its code verification of the quotes.
+`placement-speaking-v3`: criterion scores, level read by the code), with its code verification
+of the quotes.
 
 Matching: a reported error is right when it has the injected category and its quote overlaps the
 words of an injected quote in the transcript. A report that overlaps an injected error with another
@@ -248,6 +249,7 @@ class PlacementSuite:
             facets=_facets(rating.estimated_level, found, identities),
             detail={
                 "estimated_level": rating.estimated_level,
+                "level_score": round(rating.level_score, 3),
                 "expected_level": spoken.expected_level,
                 "confidence": rating.confidence,
                 "reported_errors": predicted,

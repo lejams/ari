@@ -1,4 +1,4 @@
-"""The placement oral is rated by passes: a majority decides the errors, the median the level."""
+"""The placement oral is rated by passes: any pass keeps an error, the mean score sets the level."""
 
 from __future__ import annotations
 
@@ -11,17 +11,19 @@ from pydantic import BaseModel
 
 from ari.application.contracts import ExecutionContext, LLMRequest, ProviderResult
 from ari.application.prompting import load_prompt
+from ari.application.schemas import SpeakingCriteriaSchema
 from ari.application.services.placement_speaking import rate_spoken_task
 from ari.config import PROJECT_ROOT
 from ari.domain.errors import ProviderError
 from ari.domain.models import ExecutionStatus
+from ari.domain.placement import LEVELS, SPOKEN_CRITERIA, spoken_level
 from ari.infrastructure.providers.fake import FakeLLMProvider
 
 T = TypeVar("T", bound=BaseModel)
 TRANSCRIPT = "Ich spreche jeden Tag mit meinen Kollegen. Besonders hilfsbereit finde ich Gespräche."
 PROMPT = load_prompt(
-    PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "placement_speaking_v2.txt",
-    "placement-speaking-v2",
+    PROJECT_ROOT / "backend" / "src" / "ari" / "prompts" / "placement_speaking_v3.txt",
+    "placement-speaking-v3",
 )
 CONTEXT = ExecutionContext(
     session_id="s",
@@ -52,7 +54,7 @@ class PassScript(FakeLLMProvider):
 
     def __init__(
         self,
-        script: Callable[[int], tuple[str, list[dict[str, Any]]]],
+        script: Callable[[int], tuple[str | float, list[dict[str, Any]]]],
         failing: frozenset[int] = frozenset(),
     ) -> None:
         super().__init__()
@@ -70,8 +72,12 @@ class PassScript(FakeLLMProvider):
                 "down", execution=replace(result.execution, status=ExecutionStatus.FAILED)
             )
         level, errors = self._script(request.sample)
+        # A level stands for every criterion at that level's score; a number is the score itself.
+        score = level if isinstance(level, float) else float(LEVELS.index(level) + 1)
         payload = result.value.model_dump()
-        payload.update(estimated_level=level, language_errors=errors, confidence=0.8)
+        payload.update(
+            criteria=dict.fromkeys(SPOKEN_CRITERIA, score), language_errors=errors, confidence=0.8
+        )
         return ProviderResult(response_model.model_validate(payload), result.execution)
 
 
@@ -126,20 +132,50 @@ async def test_passes_that_name_one_error_differently_give_one_error() -> None:
     assert len(rating.language_errors) == 1
 
 
-async def test_the_level_is_the_median_of_the_passes() -> None:
-    levels = {0: "B1", 1: "A2", 2: "B1"}
+async def test_the_level_is_read_by_the_code_from_the_mean_score_of_the_passes() -> None:
+    levels: dict[int, str | float] = {0: "B1", 1: "A2", 2: "B1"}  # 3, 2, 3: mean 2.67
     rating = await rate(PassScript(lambda s: (levels[s], [])), 3)
-    assert rating.estimated_level == "B1"
+    assert rating.estimated_level == "B1" and rating.level_score == 2.667
     assert rating.confidence == pytest.approx(0.8)
-    spread = {0: "C1", 1: "B2", 2: "B1"}
+    assert rating.criteria == dict.fromkeys(SPOKEN_CRITERIA, pytest.approx(8 / 3))
+    spread: dict[int, str | float] = {0: "C1", 1: "B2", 2: "B1"}
     assert (await rate(PassScript(lambda s: (spread[s], [])), 3)).estimated_level == "B2"
 
 
-async def test_the_lower_level_stands_when_an_even_number_of_passes_remain() -> None:
-    levels = {0: "B2", 1: "B1", 2: "B2"}
+def test_the_grid_reads_a_level_from_a_mean_score() -> None:
+    assert [spoken_level(x) for x in (1.0, 1.49, 1.5, 2.5, 3.49, 3.5, 4.5, 5.5, 6.0)] == [
+        "A1",
+        "A1",
+        "A2",
+        "B1",
+        "B1",
+        "B2",
+        "C1",
+        "C2",
+        "C2",
+    ]
+    for outside in (0.9, 6.1):
+        with pytest.raises(ValueError):
+            spoken_level(outside)
+    # The criteria the code averages are exactly the schema's.
+    assert tuple(SpeakingCriteriaSchema.model_fields) == SPOKEN_CRITERIA
+
+
+async def test_an_exact_boundary_is_not_lost_to_float_rounding() -> None:
+    # 1.2 + 4.1 + 4.1 + 4.6 = 14 exactly, but the float sum divided by 4 is 3.4999999999999996.
+    scores: dict[int, str | float] = {0: 1.2, 1: 4.1, 2: 4.1, 3: 4.6}
+    assert sum(float(v) for v in scores.values()) / 4 < 3.5
+    rating = await rate(PassScript(lambda s: (scores[s], [])), 4)
+    assert rating.level_score == 3.5 and rating.estimated_level == "B2"
+
+
+async def test_a_failed_pass_does_not_count_in_the_level() -> None:
+    levels: dict[int, str | float] = {0: "B2", 1: "B1", 2: "A2"}
+    rating = await rate(PassScript(lambda s: (levels[s], [])), 3)
+    assert rating.estimated_level == "B1"  # 4, 3, 2: mean 3
     provider = PassScript(lambda s: (levels[s], []), failing=frozenset({2}))
     rating = await rate(provider, 3)
-    assert rating.estimated_level == "B1"
+    assert rating.estimated_level == "B2"  # 4, 3: mean 3.5, the floor of B2
 
 
 async def test_a_failed_pass_is_recorded_and_the_others_still_decide() -> None:

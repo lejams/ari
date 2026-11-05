@@ -96,7 +96,7 @@ def config(
             "prompts": {
                 "patient": "patient-exam-v1" if engine == "exam" else "patient-v3",
                 "evaluation": "evaluation-v10",
-                "placement_speaking": "placement-speaking-v2",
+                "placement_speaking": "placement-speaking-v3",
             },
             "patient_engine": engine,
         }

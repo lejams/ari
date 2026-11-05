@@ -28,9 +28,9 @@ du propriétaire dans un organisme de cours particuliers.
 - Les consignes de production donnent **trois points de contenu** à traiter. Adopté (format
   seulement) pour la consigne orale `s-1` du jeu allemand : décrire, justifier, proposer.
 - Les critères de correction publiés du Goethe-Institut pour l'écrit sont l'adéquation à la tâche, la
-  cohérence, le vocabulaire et les structures. Ils recoupent déjà ce que demande le prompt
-  `placement-speaking-v2` (étendue du vocabulaire, maîtrise grammaticale, complexité, cohésion,
-  réalisation de la tâche).
+  cohérence, le vocabulaire et les structures. Ils recoupent les cinq sous-notes que demande le
+  prompt `placement-speaking-v3` (étendue du vocabulaire, maîtrise grammaticale, complexité,
+  cohésion, réalisation de la tâche), dont le code tire le niveau.
 
 ## 3. Ce que cela change pour ce lot
 
