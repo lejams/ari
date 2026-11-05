@@ -82,7 +82,7 @@ def _settings(**kw: Any) -> Settings:
 
 def test_each_operation_belongs_to_one_task() -> None:
     assert [task_of(op) for op in OPERATIONS] == [
-        "patient", "patient", "evaluation", "fact_attribution", "content", "content", "content",
+        "patient", "evaluation", "evaluation", "fact_attribution", "content", "content", "content",
     ]  # fmt: skip
 
 
@@ -145,7 +145,11 @@ async def test_each_operation_is_sent_to_its_route() -> None:
     for operation in OPERATIONS:
         with pytest.raises(NotImplementedError):
             await provider.generate_structured(_request(operation), _Answer)
-    assert [c[0] for c in anthropic.calls] == ["session_evaluation", "fact_attribution"]
+    assert [c[0] for c in anthropic.calls] == [
+        "placement_speaking",
+        "session_evaluation",
+        "fact_attribution",
+    ]
     assert anthropic.calls[0][1:] == ("claude-sonnet-5-5", 60)
     assert openai.calls[0] == ("patient_simulation", "gpt-6-luna", 30)
     assert openai.calls[-1] == ("bundle_draft", "gpt-6-luna", 300)
@@ -218,14 +222,15 @@ def _openai_with(completions: _Completions, **kw: Any) -> Any:
     return provider
 
 
-async def test_the_evaluation_alone_gets_the_sampling_settings() -> None:
+async def test_the_ratings_alone_get_the_sampling_settings() -> None:
     completions = _Completions()
     provider = _openai_with(completions, evaluation_reasoning_effort="high", evaluation_seed=7)
-    for operation in ("session_evaluation", "patient_simulation"):
+    for operation in ("session_evaluation", "placement_speaking", "patient_simulation"):
         with pytest.raises(ProviderError):
             await provider.generate_structured(_request(operation), _Answer)
-    evaluation, patient = completions.seen
-    assert evaluation["reasoning_effort"] == "high" and evaluation["seed"] == 7
+    evaluation, speaking, patient = completions.seen
+    for rated in (evaluation, speaking):
+        assert rated["reasoning_effort"] == "high" and rated["seed"] == 7
     assert "reasoning_effort" not in patient and "seed" not in patient
 
 

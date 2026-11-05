@@ -465,6 +465,7 @@ def build_container(settings: Settings) -> Container:
         speaking_prompt,
         feedback_language=settings.feedback_language,
         sample_rate=settings.audio_sample_rate,
+        speaking_passes=settings.evaluation_passes,
         audio_store=SqlPlacementAudioStore(repository.engine),
     )
     return Container(

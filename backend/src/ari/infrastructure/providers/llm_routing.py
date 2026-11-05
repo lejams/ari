@@ -1,7 +1,8 @@
 """Which provider and model answer each kind of structured-generation call.
 
-ARI's calls fall into four tasks: the patient (training turns and the placement oral), the
-session evaluation, the exam fact audit, and the content pipeline. Each task has its own route
+ARI's calls fall into four tasks: the patient (training turns), the session evaluation (which
+also rates the placement oral: a rating, not a conversation), the exam fact audit, and the content
+pipeline. Each task has its own route
 (provider, model, timeout), set in configuration, so a task can move to another provider or
 model without the application noticing: the port is still `LLMProvider.generate_structured`.
 
@@ -26,6 +27,8 @@ T = TypeVar("T", bound=BaseModel)
 LLMTask = Literal["patient", "evaluation", "fact_attribution", "content"]
 ProviderName = Literal["openai", "anthropic"]
 
+# Operations rated by the evaluation route, and so by its sampling settings.
+EVALUATION_OPERATIONS = frozenset({"session_evaluation", "placement_speaking"})
 # Operations of the content pipeline run on the content route with its long timeout.
 CONTENT_OPERATIONS = frozenset({"protocol_segmentation", "protocol_extraction", "bundle_draft"})
 LEARNER_TASKS: tuple[LLMTask, ...] = ("patient", "evaluation", "fact_attribution")
@@ -33,13 +36,13 @@ CONTENT_TASKS: tuple[LLMTask, ...] = ("content",)
 
 
 def task_of(operation: str) -> LLMTask:
-    if operation == "session_evaluation":
+    if operation in EVALUATION_OPERATIONS:
         return "evaluation"
     if operation == "fact_attribution":
         return "fact_attribution"
     if operation in CONTENT_OPERATIONS:
         return "content"
-    return "patient"  # patient_simulation, placement_speaking
+    return "patient"  # patient_simulation
 
 
 @dataclass(frozen=True, slots=True)
