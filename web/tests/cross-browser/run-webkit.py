@@ -69,8 +69,9 @@ try:
         if IFR: got = [w, h]
         for scheme in ["light", "dark"]:
             d.get(base + ("/" if BO else "/connexion")); d.delete_all_cookies(); d.execute_script("localStorage.setItem('ari-theme', arguments[0])", scheme)
+            logged_in = False  # cookies were just cleared: sign in before the first protected page, whichever pages PAGES selects
             for pn, url, view in PAGES:
-                if view is not None and pn in ("app-home", "bo-home") and not getattr(d, "_in", False): login(d)
+                if view is not None and not logged_in: login(d); logged_in = True
                 if view is None and pn == "landing": d.delete_all_cookies() if False else None
                 goto(d, url)
                 if BO: d.execute_script("location.hash=arguments[0]", url.split("#")[1])
