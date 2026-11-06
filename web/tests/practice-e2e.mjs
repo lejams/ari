@@ -316,6 +316,22 @@ try {
   await page.locator("#home:not([hidden])").waitFor();
   assert.equal(new URL(page.url()).hash, "#home");
   await page.locator("#main[aria-busy=false]").waitFor();
+  // Back pressed while a menu screen is still loading is honoured and keeps the forward entry.
+  await page.goForward();
+  await page.locator("#vocab:not([hidden])").waitFor();
+  await page.locator("#main[aria-busy=false]").waitFor();
+  await page.route("**/api/progression", async route => { await new Promise(resolve => setTimeout(resolve, 1500)); await route.continue(); });
+  await page.locator(".sidebar nav").getByRole("link", {name: "Progression"}).click();
+  await page.locator("#main[aria-busy=true]").waitFor();
+  await page.goBack();
+  await page.locator("#home:not([hidden])").waitFor({timeout: 10000});
+  await page.locator("#main[aria-busy=false]").waitFor();
+  assert.equal(new URL(page.url()).hash, "#home");
+  await page.unroute("**/api/progression");
+  await page.goForward();
+  await page.locator("#vocab:not([hidden])").waitFor();
+  await page.locator("#main[aria-busy=false]").waitFor();
+  assert.equal(new URL(page.url()).hash, "#vocab");
   // Phone widths: the bottom bar needs no scroll and keeps 44 px targets, and fields do not make iOS zoom.
   for (const width of [430, 390, 360, 320]) {
     await page.setViewportSize({width, height: 740});
