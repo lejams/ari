@@ -166,6 +166,20 @@ def focus_candidates(
     return candidates
 
 
+def report_open(reviews: Iterable[tuple[str, str]], reviewer_name: str) -> bool:
+    """This reviewer's report on the exercise is still open: no person has reviewed it since.
+
+    `reviews` are the exercise's (reviewer_kind, reviewer_name) pairs, oldest first.
+    """
+    open_ = False
+    for kind, name in reviews:
+        if kind == "human":
+            open_ = False
+        elif kind == "learner_report" and name == reviewer_name:
+            open_ = True
+    return open_
+
+
 def series_completions(answers: Iterable[LanguageDrill], since: datetime) -> list[datetime]:
     """When each series of `SERIES_ITEMS` answers given since `since` was completed."""
     times = sorted(a.answered_at for a in answers if a.answered_at >= since)

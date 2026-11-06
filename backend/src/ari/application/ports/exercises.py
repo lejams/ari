@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from ari.domain.language_exercises import (
     ExerciseReview,
@@ -67,7 +67,15 @@ class ExerciseBank(Protocol):
 
     def dedup_keys(self) -> frozenset[str]: ...
 
-    def reviews_by(self, reviewer_name: str, *, since: datetime) -> int: ...
+    def add_report(
+        self, exercise_id: str, review: ExerciseReview, *, cap: int, since: datetime
+    ) -> Literal["added", "open", "capped"]:
+        """Keep a learner's report unless theirs is still open or they left `cap` since `since`.
+
+        The check and the insert are one step, serialised per reviewer: concurrent reports from
+        the same learner never exceed the cap nor leave two open reports on one exercise.
+        """
+        ...
 
     def held_for_review(self) -> frozenset[str]:
         """Active exercises a learner reported and no person has reviewed since: not served."""

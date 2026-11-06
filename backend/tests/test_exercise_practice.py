@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -504,3 +506,35 @@ def test_one_learner_cannot_hold_back_more_than_ten_exercises_a_day(container: C
         clock=lambda: NOW + timedelta(days=1, minutes=1),
     )
     tomorrow.report(learner, items[REPORTS_PER_DAY].exercise_id, reason="other", comment=None)
+
+
+def test_simultaneous_reports_from_one_learner_never_pass_the_cap(container: Container) -> None:
+    practice = service(container)
+    items = [gender(n) for n in range(len(NAMES))]
+    stock(practice, items)
+    learner = learner_at(container, "B1")
+    start = threading.Barrier(len(items) + 2)
+
+    def report(exercise_id: str) -> str:
+        start.wait()
+        try:
+            practice.report(learner, exercise_id, reason="other", comment=None)
+        except InvalidStateError:
+            return "capped"
+        return "kept"
+
+    # Every exercise at once, and the first one twice: the same learner's second report on it
+    # must find the first one open, not add another.
+    targets = [item.exercise_id for item in items] + [items[0].exercise_id] * 2
+    with ThreadPoolExecutor(max_workers=len(targets)) as pool:
+        outcomes = list(pool.map(report, targets))
+    name = f"learner:{learner}"
+
+    def mine(exercise_id: str) -> int:
+        return sum(r.reviewer_name == name for r in practice.bank.reviews(exercise_id))
+
+    assert sum(mine(item.exercise_id) for item in items) == REPORTS_PER_DAY
+    first = mine(items[0].exercise_id)
+    assert first <= 1
+    # The two repeats are thanked as already reported when the first report was kept.
+    assert outcomes.count("kept") == REPORTS_PER_DAY + 2 * first

@@ -7,11 +7,12 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ari.domain.errors import InvalidStateError, NotFoundError
+from ari.domain.exercise_practice import report_open
 from ari.domain.language_exercises import (
     ExerciseReview,
     LanguageDrill,
@@ -53,6 +54,10 @@ def _review_row(exercise_id: str, review: ExerciseReview) -> LanguageExerciseRev
         payload=review.payload,
         created_at=review.created_at,
     )
+
+
+# First key of the advisory lock that serialises one learner's reports (the second is the name).
+_REPORT_LOCK_SPACE = 7_301
 
 
 class SqlExerciseBank:
@@ -251,18 +256,39 @@ class SqlExerciseBank:
         with Session(self.engine) as db:
             return frozenset(db.scalars(select(LanguageExerciseRow.dedup_key)))
 
-    def reviews_by(self, reviewer_name: str, *, since: datetime) -> int:
-        """How many checks this reviewer left since `since` (a learner's reports, for a cap)."""
-        with Session(self.engine) as db:
+    def add_report(
+        self, exercise_id: str, review: ExerciseReview, *, cap: int, since: datetime
+    ) -> Literal["added", "open", "capped"]:
+        with Session(self.engine) as db, db.begin():
+            # One reviewer at a time: the open-report check, the count and the insert below run
+            # in this transaction, so two simultaneous reports cannot both pass the cap.
+            db.execute(
+                text("SELECT pg_advisory_xact_lock(CAST(:space AS integer), hashtext(:name))"),
+                {"space": _REPORT_LOCK_SPACE, "name": review.reviewer_name},
+            )
+            if db.get(LanguageExerciseRow, exercise_id) is None:
+                raise NotFoundError(f"Exercice introuvable : {exercise_id}")
+            history = db.execute(
+                select(
+                    LanguageExerciseReviewRow.reviewer_kind, LanguageExerciseReviewRow.reviewer_name
+                )
+                .where(LanguageExerciseReviewRow.exercise_id == exercise_id)
+                .order_by(LanguageExerciseReviewRow.sequence)
+            )
+            if report_open(((kind, name) for kind, name in history), review.reviewer_name):
+                return "open"
             count = db.scalar(
                 select(func.count())
                 .select_from(LanguageExerciseReviewRow)
                 .where(
-                    LanguageExerciseReviewRow.reviewer_name == reviewer_name,
+                    LanguageExerciseReviewRow.reviewer_name == review.reviewer_name,
                     LanguageExerciseReviewRow.created_at >= since,
                 )
             )
-        return int(count or 0)
+            if int(count or 0) >= cap:
+                return "capped"
+            db.add(_review_row(exercise_id, review))
+            return "added"
 
     def held_for_review(self) -> frozenset[str]:
         """Active exercises whose last word is a learner's report: no person has looked since.

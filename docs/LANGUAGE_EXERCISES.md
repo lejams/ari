@@ -351,6 +351,8 @@ modèle, dans `domain/exercise_practice.py` ; service `application/services/exer
   le propriétaire le retire (définitif) ou le remet en circulation avec une note (vérification
   `human`, `approve`). Qui a signalé n'est pas affiché ; l'identifiant reste dans la vérification.
   Dix signalements par compte et par 24 heures au plus : un seul compte ne peut pas vider la banque.
+  Le contrôle et l'enregistrement se font dans une seule transaction, sous un verrou consultatif
+  PostgreSQL propre au compte : des signalements simultanés ne dépassent pas ce plafond.
 - API apprenant : `GET /api/language-exercises`, `GET /api/language-exercises/next?category=…`,
   `POST /api/language-exercises/answers`, `POST /api/language-exercises/{id}/report`, derrière la
   connexion (comme `/api/language-drill`, ajouté à la même liste à cette occasion).

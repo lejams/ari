@@ -237,33 +237,27 @@ class ExercisePracticeService:
         self, learner_id: str, exercise_id: str, *, reason: ReportReason, comment: str | None
     ) -> dict[str, Any]:
         """Hold the exercise back from every learner until a person reviews it."""
-        self.bank.get(exercise_id)  # NotFoundError for an unknown exercise.
         name = f"learner:{learner_id}"
-        already = False  # This learner's report is still open: a person has not looked since.
-        for review in self.bank.reviews(exercise_id):
-            if review.reviewer_kind == "human":
-                already = False
-            elif review.reviewer_kind == "learner_report" and review.reviewer_name == name:
-                already = True
-        if not already:
-            since = self._clock() - timedelta(days=1)
-            if self.bank.reviews_by(name, since=since) >= REPORTS_PER_DAY:
-                raise InvalidStateError(
-                    "Vous avez déjà signalé plusieurs exercices aujourd'hui : merci, ils seront "
-                    "vérifiés. Réessayez demain."
-                )
-            self.bank.add_review(
-                exercise_id,
-                ExerciseReview(
-                    "learner_report",
-                    name,
-                    "report",
-                    {
-                        "learner_id": learner_id,
-                        "reason": reason,
-                        "comment": (comment or "").strip() or None,
-                    },
-                    created_at=self._clock(),
-                ),
+        outcome = self.bank.add_report(
+            exercise_id,
+            ExerciseReview(
+                "learner_report",
+                name,
+                "report",
+                {
+                    "learner_id": learner_id,
+                    "reason": reason,
+                    "comment": (comment or "").strip() or None,
+                },
+                created_at=self._clock(),
+            ),
+            cap=REPORTS_PER_DAY,
+            since=self._clock() - timedelta(days=1),
+        )
+        if outcome == "capped":
+            raise InvalidStateError(
+                "Vous avez déjà signalé plusieurs exercices aujourd'hui : merci, ils seront "
+                "vérifiés. Réessayez demain."
             )
+        already = outcome == "open"  # This learner's report is still open: no one looked yet.
         return {"reported": True, "already_reported": already}

@@ -8,6 +8,10 @@ const moduleUrl = pathToFileURL(new URL("../practice-ui.mjs", import.meta.url).p
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 
+// The sidebar is hidden on phones: the exercise chooser has to stay reachable from the mobile nav.
+const mobileNav = html.match(/<nav class="bottomnav"[\s\S]*?<\/nav>/)?.[0] ?? "";
+assert.match(mobileNav, /<a href="#exercises" data-view="exercises">/, "the mobile nav must link to the exercises");
+
 class Element {
   constructor(id = "", tagName = "DIV") {
     this.id = id; this.tagName = tagName; this.children = []; this.listeners = {}; this.value = ""; this.hidden = false;
