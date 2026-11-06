@@ -322,6 +322,7 @@ try {
     await page.goto(base + "/app#cases");
     await page.locator("#cases:not([hidden])").waitFor();
     await page.locator("#main[aria-busy=false]").waitFor();
+    await page.evaluate(() => document.fonts.ready);
     const bar = await page.evaluate(() => {
       const nav = document.querySelector(".bottomnav");
       const links = [...nav.querySelectorAll("a")].map(a => a.getBoundingClientRect());

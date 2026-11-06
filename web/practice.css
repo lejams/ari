@@ -424,9 +424,10 @@ html{scroll-padding-top:72px;-webkit-text-size-adjust:100%;text-size-adjust:100%
   .crumb-root{display:none}
   .topbar{gap:8px}
 }
-/* Very narrow phones: seven labels no longer fit, so only the current screen keeps its label
+/* Narrow phones (up to 399 px, so the 390 and 393 px iPhones keep some slack even when a fallback font is wider
+   than Geist): seven labels no longer fit with room to spare, so only the current screen keeps its label
    (the others stay in the page for screen readers). */
-@media(max-width:384px){
+@media(max-width:399px){
   .bottomnav a:not([aria-current=page]) span{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 }
 @media(max-width:340px){
