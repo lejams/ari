@@ -1,5 +1,6 @@
 """WebKit (WebKitGTK through WebKitWebDriver) twin of run-chromium.mjs. See README.md."""
 import json, os, sys, time
+from urllib.parse import quote
 HERE = os.path.dirname(os.path.abspath(__file__))
 from selenium import webdriver
 from selenium.webdriver.webkitgtk.options import Options
@@ -32,8 +33,12 @@ def login(d):
     if BO:
         goto(d, "/#/login"); time.sleep(1)
         if d.find_elements(By.CSS_SELECTOR, "#login-email") and d.find_element(By.CSS_SELECTOR, "#login-email").is_displayed():
-            d.execute_script("""const set=(el,v)=>{el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}))};set(document.querySelector('#login-email'),'owner@example.test');set(document.querySelector('#login-password'),'correct horse battery');document.querySelector('#login-form button.primary, #login-form button[type=submit]').click();""")
+            d.execute_script("""const set=(el,v)=>{el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}))};set(document.querySelector('#login-email'),arguments[0]);set(document.querySelector('#login-password'),arguments[1]);document.querySelector('#login-form button.primary, #login-form button[type=submit]').click();""",
+                os.environ.get("ARI_QA_BO_EMAIL", "owner@example.test"), os.environ.get("ARI_QA_BO_PASSWORD", "correct horse battery"))
             time.sleep(1.5)
+            # A wrong password leaves the login form on screen: stop instead of measuring the login page under every name.
+            if d.find_elements(By.CSS_SELECTOR, "#login-email") and d.find_element(By.CSS_SELECTOR, "#login-email").is_displayed():
+                raise SystemExit("Back-office login failed: check ARI_QA_BO_EMAIL and ARI_QA_BO_PASSWORD")
         return
     goto(d, "/connexion"); time.sleep(.8)
     if not d.find_elements(By.CSS_SELECTOR, "#login-form"): return
@@ -47,7 +52,7 @@ def goto(d, url):
     """Open url directly, or inside an iframe of the wanted size when the window cannot be that narrow."""
     if IFR:
         d.switch_to.default_content()
-        d.get(f"http://127.0.0.1:8011/frame.html?w={IFR[0]}&h={IFR[1]}&src=" + base.replace(":","%3A").replace("/","%2F") + url.replace("/","%2F"))
+        d.get(f"http://127.0.0.1:8011/frame.html?w={IFR[0]}&h={IFR[1]}&src=" + quote(base + url, safe=""))
         for _ in range(20):
             time.sleep(.3)
             try: d.switch_to.frame(0); break
