@@ -51,7 +51,7 @@ function installDom(hash) {
   globalThis.matchMedia = () => ({ matches: true });
   globalThis.window = globalThis;
   globalThis.location = { hash, search: "", href: "http://test/", protocol: "http:", host: "test" };
-  globalThis.history = { replaceState() {} };
+  globalThis.history = { replaceState() {}, pushState() {} };
   globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
   globalThis.sessionStorage = { getItem: () => null, setItem() {}, removeItem() {} };
   globalThis.scrollTo = () => {};

@@ -178,6 +178,12 @@ function restoreDraft() {
   onboardingStep(draft.step === 2 ? 2 : 1);
   sourceState();
 }
+// A click on the navigation is a step the Back button should undo; every other view change
+// (first load, Back itself, a refresh of the same screen) only rewrites the current entry.
+let pushNext = false;
+// Back or Forward pressed while a screen is loading: the loading screen must not write its own entry over the one
+// the learner just chose (that would drop the forward entries and ignore Back); route() shows the chosen entry after.
+let historyMovedWhileBusy = false;
 function view(name, changeHash = true) {
   for (const id of views) $(id).hidden = id !== name;
   // No profile yet: the navigation would only lead back to onboarding.
@@ -187,7 +193,12 @@ function view(name, changeHash = true) {
     button.setAttribute('aria-current', current ? 'page' : 'false');
   });
   if (name !== 'exercise') document.body.classList.remove('exam-active');
-  if (changeHash && !['onboarding', 'exercise'].includes(name)) history.replaceState(null, '', '#' + name);
+  if (changeHash && !historyMovedWhileBusy && !['onboarding', 'exercise'].includes(name)) {
+    const next = '#' + name;
+    if (pushNext && location.hash !== next && typeof history.pushState === 'function') history.pushState(null, '', next);
+    else history.replaceState(null, '', next);
+  }
+  pushNext = false;
   setAura(name);
   setCrumb(name);
   refreshSideUser();
@@ -1224,7 +1235,9 @@ for (const button of document.querySelectorAll('[data-view]')) {
     const target = button.dataset.view;
     const scrollId = button.dataset.scroll;
     perform(async () => {
-      await navigate(target);
+      // Set inside the accepted action: a click ignored because a screen is loading must not clear the pending push.
+      pushNext = true;
+      try { await navigate(target); } finally { pushNext = false; }
       if (scrollId) {
         const el = document.getElementById(scrollId);
         if (el) {
@@ -1236,7 +1249,9 @@ for (const button of document.querySelectorAll('[data-view]')) {
   };
 }
 initLocale();
-window.addEventListener('hashchange',()=>perform(route));
+// Back or Forward while a screen is still loading: wait for it instead of leaving the URL and the screen apart.
+const routeWhenIdle=()=>{if(busy)return setTimeout(routeWhenIdle,60);historyMovedWhileBusy=false;return perform(route);};
+window.addEventListener('hashchange',()=>{if(busy)historyMovedWhileBusy=true;routeWhenIdle();});
 window.addEventListener('resize',()=>{if(!$('progress').hidden){const selected=$('daytrack').querySelector('[aria-pressed=true]');selected?.scrollIntoView({block:'nearest',inline:'nearest'});}});
 window.addEventListener('focus',()=>{const today=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});if($('today-label').textContent!==today){$('today-label').textContent=today;if(!$('progress').hidden)renderCalendar();}});
 $('today-label').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});

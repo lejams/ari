@@ -15,7 +15,7 @@ function button(text, action, className = '') { const element = node('button', t
 function link(text, hash) { const element = node('a', text); element.href = `#${hash}`; return element; }
 function table(target, headers, rows) {
   target.replaceChildren();
-  const head = node('tr'); for (const header of headers) head.append(node('th', header)); target.append(head);
+  const head = node('tr'); for (const header of headers) { const th = node('th'); if (header) th.textContent = header; else th.append(node('span', 'Actions', 'sr-only')); head.append(th); } target.append(head);
   for (const cells of rows) { const row = node('tr'); for (const cell of cells) { const td = node('td'); if (cell && typeof cell === 'object' && cell.tagName) td.append(cell); else td.textContent = cell ?? '—'; row.append(td); } target.append(row); }
 }
 function fillLands(select) { for (const land of lands) { const option = document.createElement('option'); option.value = land; option.textContent = land; select.append(option); } }

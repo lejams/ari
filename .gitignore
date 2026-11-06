@@ -37,3 +37,8 @@ docs/GUIDE_DU_PROJET.md
 /.release*.json
 /.staging-success.json
 /releases/
+
+# Cross-browser pass outputs (web/tests/cross-browser)
+qa-shots/
+qa-chromium.json
+qa-webkit.json

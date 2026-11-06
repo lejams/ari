@@ -11,7 +11,8 @@
 <link rel="stylesheet" href="/tokens.css?v=20261103g">
 <script src="/theme.js"></script>
 <style>
-*{box-sizing:border-box}html{scroll-behavior:smooth}
+*{box-sizing:border-box}html{scroll-padding-top:68px;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+@media(prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
 .container{max-width:var(--container);margin:0 auto;padding:0 28px;position:relative;z-index:1}
@@ -20,16 +21,16 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
 .btn-secondary{border-color:var(--line-strong);background:var(--card-soft)}.btn-secondary:hover{border-color:var(--fg-muted)}
 .btn-lg{padding:14px 24px;font-size:15px}.btn .arr{transition:transform .15s}.btn:hover .arr{transform:translateX(3px)}
 /* nav */
-.nav{z-index:50;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);position:sticky;top:0}
+.nav{z-index:50;background:var(--bg);background:color-mix(in srgb,var(--bg) 95%,transparent);border-bottom:1px solid var(--line);position:sticky;top:0}
 .nav-inner{max-width:var(--container);align-items:center;gap:32px;height:60px;margin:0 auto;padding:0 28px;display:flex}
 .nav-logo{align-items:center;gap:9px;font-size:15px;font-weight:600;display:flex;letter-spacing:-.01em}.nav-logo svg{width:24px;height:24px;color:var(--fg)}
 .nav-links{display:flex;gap:4px;margin-left:16px}.nav-link{color:var(--fg-muted);border-radius:var(--radius);padding:6px 12px;font-size:14px}.nav-link:hover{color:var(--fg);background:var(--bg-sunk)}
 .nav-spacer{flex:1}.nav-cta{display:flex;gap:10px;align-items:center}.nav .btn{padding:8px 14px}
 /* hero */
-.hero{isolation:isolate;padding:104px 0 104px;position:relative;overflow:hidden;min-height:calc(100vh - 60px);display:flex;align-items:center}
+.hero{isolation:isolate;padding:104px 0 104px;position:relative;overflow:hidden;min-height:calc(100vh - 60px);min-height:calc(100svh - 60px);display:flex;align-items:center}
 .pulse-bg{position:absolute;inset:0;z-index:0;pointer-events:none;-webkit-mask-image:radial-gradient(62% 52% at 50% 42%,rgba(0,0,0,.08) 0 30%,#000 80%);mask-image:radial-gradient(62% 52% at 50% 42%,rgba(0,0,0,.08) 0 30%,#000 80%)}
 .pulse-bg canvas{position:absolute;inset:0;width:100%;height:100%}
-.pulse-bg .glow{filter:blur(14px);opacity:.35}
+.pulse-bg .glow{opacity:.35}
 .pulse-bg .sharp{opacity:.5}
 .hero-grid-lines{position:absolute;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:40px 40px;opacity:.35;-webkit-mask-image:radial-gradient(70% 60% at 50% 50%,#000,transparent 75%);mask-image:radial-gradient(70% 60% at 50% 50%,#000,transparent 75%)}
 .hero-copy{text-align:center;display:flex;flex-direction:column;align-items:center;max-width:760px;margin:0 auto}
@@ -46,19 +47,19 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
 .section{border-top:1px solid var(--line);padding:96px 0;position:relative;overflow:clip}
 .section.soft{background:var(--bg-soft)}
 .section-eyebrow{font:12px var(--font-mono);letter-spacing:.04em;color:var(--fg-muted);text-transform:uppercase;align-items:center;gap:10px;margin-bottom:22px;display:flex}
-.section-eyebrow .num{color:var(--accent);border:1px solid var(--accent-line);background:var(--accent-soft);border-radius:var(--radius-sm);padding:1px 6px}
+.section-eyebrow .num{color:var(--accent-strong);border:1px solid var(--accent-line);background:var(--accent-soft);border-radius:var(--radius-sm);padding:1px 6px}
 .section-title{letter-spacing:-.02em;max-width:720px;margin:0 0 14px;font-size:44px;font-weight:500;line-height:1.08;text-wrap:balance}
 .section-lead{color:var(--fg-muted);max-width:620px;margin:0 0 36px;font-size:18px;line-height:1.5}
 .sub{margin-top:72px}.sub-label{font:12px var(--font-mono);color:var(--fg-faint);letter-spacing:.04em;margin-bottom:10px}
 .sub h3{font-size:28px;font-weight:500;letter-spacing:-.015em;margin:0 0 10px;max-width:680px;line-height:1.15}
 .sub p.l{color:var(--fg-muted);max-width:620px;margin:0 0 28px;font-size:16px}
-.ph{font-family:var(--font-mono);color:var(--warn);background:#fdf4e8;border:1px dashed #efc890;border-radius:var(--radius-sm);padding:0 5px;font-size:.85em;white-space:nowrap}
+.ph{font-family:var(--font-mono);color:var(--warn-text);background:#fdf4e8;border:1px dashed #efc890;border-radius:var(--radius-sm);padding:0 5px;font-size:.85em;white-space:nowrap}
 /* cases */
 .cases{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .case{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg);display:flex;flex-direction:column;overflow:hidden;transition:border-color .2s,transform .2s}
 .case:hover{border-color:var(--line-strong);transform:translateY(-2px)}
 .case-head{padding:22px 22px 16px}.case-tag{font:11px var(--font-mono);color:var(--fg-faint);letter-spacing:.06em;text-transform:uppercase}
-.case h4{font-size:19px;font-weight:500;margin:8px 0 4px;letter-spacing:-.01em}.case .d{color:var(--fg-muted);font-size:14px;margin:0}
+.case h3{font-size:19px;font-weight:500;margin:8px 0 4px;letter-spacing:-.01em}.case .d{color:var(--fg-muted);font-size:14px;margin:0}
 .case-rows{border-top:1px dashed var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}
 .case-row{display:grid;grid-template-columns:110px 1fr;gap:10px;font-size:13px}.case-row .k{font:11px var(--font-mono);color:var(--fg-faint);padding-top:2px;letter-spacing:.03em}
 .case-foot{margin-top:auto;border-top:1px solid var(--line);background:var(--bg-soft);padding:16px 22px;display:flex;align-items:baseline;gap:10px}
@@ -89,7 +90,7 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
 .step p{color:var(--fg-muted);margin:0 0 14px;font-size:15.5px}
 .step-chips{display:flex;flex-wrap:wrap;gap:6px}.chip{font:11px var(--font-mono);border:1px solid var(--line);border-radius:999px;padding:3px 9px;color:var(--fg-muted);background:var(--bg)}
 .stage-wrap{position:relative}
-.stage{position:sticky;top:96px;height:calc(100vh - 140px);max-height:560px;min-height:460px}
+.stage{position:sticky;top:96px;height:calc(100vh - 140px);height:calc(100dvh - 140px);max-height:560px;min-height:460px}
 .screen{position:absolute;inset:0;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg);box-shadow:0 1px 0 rgba(0,0,0,.02),0 24px 60px -24px rgba(10,30,60,.18);overflow:hidden;display:flex;flex-direction:column;opacity:0;transform:translateY(18px) scale(.985);transition:opacity .55s,transform .55s cubic-bezier(.2,.7,.2,1);pointer-events:none}
 .screen.on{opacity:1;transform:none;pointer-events:auto}
 .scr-bar{height:42px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--bg-soft);font:11.5px var(--font-mono);color:var(--fg-muted);flex:none}
@@ -108,24 +109,24 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
 .face .g{font:12px var(--font-mono);color:var(--fg-faint)}.face .ex{font-size:14px;color:var(--fg-muted);max-width:36ch}
 .srs-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .srs-btns span{border:1px solid var(--line);border-radius:var(--radius);padding:9px 0;text-align:center;font-size:13px;background:var(--bg)}
-.srs-btns span small{display:block;font:10px var(--font-mono);color:var(--fg-faint)}
+.srs-btns span small{display:block;font:11px var(--font-mono);color:var(--fg-faint)}
 .screen.on .srs-btns .pick{animation:press .5s 2.6s both}
 @keyframes press{0%{}40%{transform:scale(.96);background:var(--accent-soft);border-color:var(--accent-line)}100%{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}}
 .prog{height:4px;background:var(--bg-sunk);border-radius:4px;overflow:hidden}.prog i{display:block;height:100%;width:20%;background:var(--accent);transition:width 1s 2.9s}.screen.on .prog i{width:32%}
 /* m2 remediation */
 .err{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;background:var(--bg-soft);font-size:15px}
 .err .src{font:11px var(--font-mono);color:var(--fg-faint);margin-bottom:6px}
-.err s{color:var(--danger);text-decoration-thickness:1.5px}.err ins{text-decoration:none;color:var(--good);font-weight:500;opacity:0;transition:opacity .4s .9s}.screen.on .err ins{opacity:1}
-.axis{display:flex;gap:8px;align-items:center;font-size:13px}.axis .chip.on{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
+.err s{color:var(--danger);text-decoration-thickness:1.5px}.err ins{text-decoration:none;color:var(--good-text);font-weight:500;opacity:0;transition:opacity .4s .9s}.screen.on .err ins{opacity:1}
+.axis{display:flex;gap:8px;align-items:center;font-size:13px}.axis .chip.on{color:var(--accent-strong);border-color:var(--accent-line);background:var(--accent-soft)}
 .ex-list{display:flex;flex-direction:column;gap:8px}
 .exr{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;font-size:14px;opacity:0;transform:translateX(10px);transition:all .5s}
 .screen.on .exr{opacity:1;transform:none}.screen.on .exr:nth-child(1){transition-delay:1.3s}.screen.on .exr:nth-child(2){transition-delay:1.6s}.screen.on .exr:nth-child(3){transition-delay:1.9s}
 .exr .n{font:11px var(--font-mono);color:var(--fg-faint)}.gap{display:inline-block;min-width:40px;border-bottom:1.5px solid var(--accent-line);text-align:center;color:var(--accent);font-weight:500}
-.ok{font:11px var(--font-mono);color:var(--good)}
+.ok{font:11px var(--font-mono);color:var(--good-text)}
 /* m3 consultation */
 .call{display:grid;grid-template-columns:1fr;gap:14px;flex:1;min-height:0}
 .call-top{display:flex;align-items:center;gap:12px}
-.avatar{width:38px;height:38px;border-radius:50%;background:var(--accent-soft);border:1px solid var(--accent-line);display:grid;place-items:center;font:500 13px var(--font-mono);color:var(--accent)}
+.avatar{width:38px;height:38px;border-radius:50%;background:var(--accent-soft);border:1px solid var(--accent-line);display:grid;place-items:center;font:500 13px var(--font-mono);color:var(--accent-strong)}
 .call-top .who{font-size:14px;font-weight:500}.call-top .who small{display:block;font:11px var(--font-mono);color:var(--fg-faint);font-weight:400}
 .live{margin-left:auto;font:11px var(--font-mono);color:var(--danger);display:flex;align-items:center;gap:6px}.live i{width:7px;height:7px;border-radius:50%;background:#e5484d;animation:blink 1.2s infinite}
 @keyframes blink{50%{opacity:.25}}
@@ -133,7 +134,7 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
 .tx{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:9px;font-size:14px;min-height:0;-webkit-mask-image:linear-gradient(transparent,#000 18%);mask-image:linear-gradient(transparent,#000 18%);justify-content:flex-end}
 .line{display:grid;grid-template-columns:62px 1fr;gap:10px;opacity:0;transform:translateY(6px);transition:all .4s}
 .line.show{opacity:1;transform:none}.line .s{font:11px var(--font-mono);color:var(--fg-faint);padding-top:2px}.line.pt .s{color:var(--accent)}
-.line .flag{display:inline-block;margin-left:6px;font:10.5px var(--font-mono);color:var(--good);border:1px solid var(--good-line);background:var(--good-soft);border-radius:999px;padding:0 6px}
+.line .flag{display:inline-block;margin-left:6px;font:11px var(--font-mono);color:var(--good-text);border:1px solid var(--good-line);background:var(--good-soft);border-radius:999px;padding:0 6px}
 .line .flag.w{color:var(--warn-text);border-color:var(--warn-line);background:var(--warn-soft)}
 /* m4 arzt-arzt */
 .pres{display:flex;flex-direction:column;gap:7px}
@@ -156,26 +157,30 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
 /* how */
 .how{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--bg);overflow:hidden}
 .how-i{padding:26px 22px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:10px;min-height:250px}.how-i:last-child{border-right:0}
-.how-n{width:28px;height:28px;border-radius:var(--radius);border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--accent);font:500 13px var(--font-mono);display:grid;place-items:center}
+.how-n{width:28px;height:28px;border-radius:var(--radius);border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--accent-strong);font:500 13px var(--font-mono);display:grid;place-items:center}
 .how-k{font:11px var(--font-mono);color:var(--fg-faint);letter-spacing:.05em;text-transform:uppercase;margin-top:6px}
-.how-i h4{margin:0;font-size:18px;font-weight:500;letter-spacing:-.01em}.how-i p{margin:0;color:var(--fg-muted);font-size:14px}
+.how-i h3{margin:0;font-size:18px;font-weight:500;letter-spacing:-.01em}.how-i p{margin:0;color:var(--fg-muted);font-size:14px}
 .how-i .tag{margin-top:auto;font:11px var(--font-mono);color:var(--fg-muted);border-top:1px dashed var(--line);padding-top:12px}
 /* eval table */
 .evt{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--bg)}
 .evr{display:grid;grid-template-columns:1.1fr 1.6fr .9fr;border-top:1px solid var(--line);font-size:14px}.evr:first-child{border-top:0;background:var(--bg-soft);font:11px var(--font-mono);color:var(--fg-faint);letter-spacing:.05em;text-transform:uppercase}
 .evr>div{padding:14px 18px}.evr>div+div{border-left:1px solid var(--line)}
 .st{font:11.5px var(--font-mono);display:inline-flex;gap:6px;align-items:center}.st i{width:7px;height:7px;border-radius:50%}
-.st.g{color:var(--good)}.st.g i{background:var(--good)}.st.w{color:var(--warn-text)}.st.w i{background:var(--warn)}.st.n{color:var(--fg-faint)}.st.n i{background:var(--line-strong)}
+.st.g{color:var(--good-text)}.st.g i{background:var(--good)}.st.w{color:var(--warn-text)}.st.w i{background:var(--warn)}.st.n{color:var(--fg-faint)}.st.n i{background:var(--line-strong)}
 /* cta */
 .final{text-align:center;padding:140px 0}.final .section-title{margin:0 auto 14px;font-size:52px}.final .section-lead{margin:0 auto 32px}
 .footer{border-top:1px solid var(--line);padding:32px 0;font-size:13px;color:var(--fg-muted)}
 .footer .container{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center}.footer .mono{font-size:11px;color:var(--fg-faint)}
-.sec-aura{z-index:0;pointer-events:none;opacity:var(--aura-opacity-lg);filter:blur(62px) saturate(1.25);position:absolute;inset:0;overflow:hidden;-webkit-mask-image:radial-gradient(130% 100% at 50% 48%,transparent 0 16%,#000 66%);mask-image:radial-gradient(130% 100% at 50% 48%,transparent 0 16%,#000 66%)}
+.sec-aura{z-index:0;pointer-events:none;opacity:var(--aura-opacity-lg);contain:strict;position:absolute;inset:0;overflow:hidden}
+.sec-aura::after{content:"";position:absolute;inset:0;background:radial-gradient(130% 100% at 50% 48%,var(--section-bg,var(--bg)) 16%,transparent 66%)}
+.section.soft{--section-bg:var(--bg-soft)}
 .sec-blob{will-change:transform;border-radius:50%;position:absolute}
-.sec-blob-1{width:48vw;height:48vw;left:var(--x1,-6%);top:var(--y1,-16%);background:radial-gradient(circle at 50% 50%,oklch(var(--aura-l) var(--aura-c) var(--h1)/.95),transparent 70%);animation:secFloatA 30s ease-in-out infinite alternate}
-.sec-blob-2{width:42vw;height:42vw;left:var(--x2,65%);top:var(--y2,70%);background:radial-gradient(circle at 50% 50%,oklch(var(--aura-l) var(--aura-c) var(--h2)/.92),transparent 70%);animation:secFloatB 37s ease-in-out infinite alternate}
+.sec-blob-1{width:48vw;height:48vw;left:var(--x1,-6%);top:var(--y1,-16%);background:radial-gradient(circle at 50% 50%,oklch(var(--aura-l) calc(var(--aura-c)*1.3) var(--h1)/.9),transparent 70%);animation:secFloatA 30s ease-in-out infinite alternate}
+.sec-blob-2{width:42vw;height:42vw;left:var(--x2,65%);top:var(--y2,70%);background:radial-gradient(circle at 50% 50%,oklch(var(--aura-l) calc(var(--aura-c)*1.3) var(--h2)/.9),transparent 70%);animation:secFloatB 37s ease-in-out infinite alternate}
 @keyframes secFloatA{0%{transform:translate(0) scale(1)}to{transform:translate(13%,15%) scale(1.16)}}
 @keyframes secFloatB{0%{transform:translate(0) scale(1.06)}to{transform:translate(-13%,-13%) scale(.92)}}
+/* While the page scrolls the colour washes hold still: moving masked layers are repainted on every frame. */
+.is-scrolling .sec-blob{animation-play-state:paused}
 /* responsive */
 @media (max-width:860px){.section{padding:64px 0}}
 @media (max-width:980px){
@@ -203,6 +208,7 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
 #questions .evr>div:last-child{display:none}
 @media (max-width:640px){#questions .evr{grid-template-columns:1fr}#questions .evr>div:last-child{display:none}.lang{display:none}}
 
+@media(pointer:coarse),(max-width:1100px){.btn,.nav .btn,.nav-logo,.nav-link,.theme-toggle,.lang button{min-height:44px}.nav-link,.nav-logo{display:inline-flex;align-items:center}.theme-toggle{width:44px;height:44px}.lang button{min-width:40px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.fade{opacity:1;transform:none}}
 </style>
 </head>
@@ -218,6 +224,7 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
  <div class="nav-cta"><button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Mode sombre"><svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button><a class="btn btn-secondary" href="/app">Test de positionnement</a><a class="btn btn-primary" href="/app">Commencer <span class="arr">→</span></a></div>
 </div></nav>
 
+<main id="main">
 <header class="hero">
  <div class="hero-grid-lines"></div>
  <div class="pulse-bg" id="heroPulse"><canvas class="glow"></canvas><canvas class="sharp"></canvas></div>
@@ -237,13 +244,13 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
   <p class="section-lead fade">La FSP n’évalue pas une grammaire de manuel. Elle évalue une anamnèse menée en allemand, une lettre médicale, et une présentation structurée devant un confrère — en temps limité, face à un examinateur.</p>
   <div class="sub-label fade">1.1 · Les trois épreuves</div>
   <div class="cases">
-   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 1</div><h4>Arzt–Patient-Gespräch</h4><p class="d">Anamnèse avec un patient simulé</p></div>
+   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 1</div><h3>Arzt–Patient-Gespräch</h3><p class="d">Anamnèse avec un patient simulé</p></div>
     <div class="case-rows"><div class="case-row"><span class="k">ce qui piège</span><span>Registre patient, questions ouvertes, reformulation</span></div><div class="case-row"><span class="k">ce qui coûte</span><span>Une allergie ou une dose mal comprise</span></div></div>
     <div class="case-foot"><span class="big">Oral</span><span class="s">en face à face, sans support</span></div></article>
-   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 2</div><h4>Arztbrief / Dokumentation</h4><p class="d">Rédaction de la lettre médicale</p></div>
+   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 2</div><h3>Arztbrief / Dokumentation</h3><p class="d">Rédaction de la lettre médicale</p></div>
     <div class="case-rows"><div class="case-row"><span class="k">ce qui piège</span><span>Nominalisation, passif, orthographe</span></div><div class="case-row"><span class="k">ce qui coûte</span><span>Un fait de l’anamnèse oublié ou déformé</span></div></div>
     <div class="case-foot"><span class="big">Écrit</span><span class="s">à partir de la consultation · bientôt dans ARI</span></div></article>
-   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 3</div><h4>Arzt–Arzt-Gespräch</h4><p class="d">Présentation du cas au confrère</p></div>
+   <article class="case fade"><div class="case-head"><div class="case-tag">Épreuve 3</div><h3>Arzt–Arzt-Gespräch</h3><p class="d">Présentation du cas au confrère</p></div>
     <div class="case-rows"><div class="case-row"><span class="k">ce qui piège</span><span>Structure, Fachsprache, questions de l’examinateur</span></div><div class="case-row"><span class="k">ce qui coûte</span><span>Une présentation sans fil conducteur</span></div></div>
     <div class="case-foot"><span class="big">Oral</span><span class="s">entre médecins</span></div></article>
   </div>
@@ -294,14 +301,14 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
     <!-- 4 arzt-arzt -->
     <div class="screen" data-m="3"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · Arzt–Arzt</span><span class="r">08:20</span></div>
      <div class="scr-body"><div class="lbl">Structure de la présentation</div>
-      <div class="pres"><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Patient</span><span class="v">Herr Weber, 58 Jahre</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Leitsymptom</span><span class="v">Thoraxschmerzen seit 2 Stunden</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Vorerkrankungen</span><span class="v">arterielle Hypertonie</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Medikation</span><span class="v">Metoprolol 47,5 mg</span></div><div class="pi miss"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Allergien</span><span class="v" style="color:#a86414">non mentionnée — Penicillin</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Verdacht</span><span class="v">akutes Koronarsyndrom</span></div></div>
+      <div class="pres"><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Patient</span><span class="v">Herr Weber, 58 Jahre</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Leitsymptom</span><span class="v">Thoraxschmerzen seit 2 Stunden</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Vorerkrankungen</span><span class="v">arterielle Hypertonie</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Medikation</span><span class="v">Metoprolol 47,5 mg</span></div><div class="pi miss"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Allergien</span><span class="v" style="color:var(--warn-text)">non mentionnée — Penicillin</span></div><div class="pi"><span class="ck"><svg><use href="#ck"/></svg></span><span class="k">Verdacht</span><span class="v">akutes Koronarsyndrom</span></div></div>
       <div class="quest"><span class="lbl" style="color:var(--accent-strong)">Oberarzt</span><br>« Welche Diagnostik würden Sie als Nächstes veranlassen? »</div></div></div>
     <!-- 5 bilan -->
     <div class="screen" data-m="4"><div class="scr-bar"><span class="dots"><i></i><i></i><i></i></span><span class="t">ari · bilan de séance</span><span class="r">08:25</span></div>
      <div class="scr-body"><div class="bil-grid"><div class="kpi"><div class="lbl">Axe travaillé</div><div class="v">genre</div></div><div class="kpi"><div class="lbl">Durée</div><div class="v">~40 min</div></div></div>
       <div class="next"><span><span class="lbl">Faits du cas recueillis</span><br>Leitsymptom · Vorerkrankungen · Medikation</span><span class="st g"><i></i>relevés</span></div>
       <div class="next"><span><span class="lbl">À reconfirmer</span><br>Allergien in der Übergabe nennen</span><span class="st w"><i></i>recheck</span></div>
-      <div class="next" style="border-color:var(--accent-line);background:var(--accent-soft)"><span><span class="lbl" style="color:var(--accent)">Prochaine séance</span><br><b>Axe : cas (Akkusativ / Dativ)</b> · Fachbegriffe Kardiologie</span><span class="mono" style="font-size:12px;color:var(--accent)">demain →</span></div></div></div>
+      <div class="next" style="border-color:var(--accent-line);background:var(--accent-soft)"><span><span class="lbl" style="color:var(--accent-strong)">Prochaine séance</span><br><b>Axe : cas (Akkusativ / Dativ)</b> · Fachbegriffe Kardiologie</span><span class="mono" style="font-size:12px;color:var(--accent-strong)">demain →</span></div></div></div>
    </div></div>
   </div>
  </div>
@@ -314,10 +321,10 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
   <h2 class="section-title fade">De votre niveau d’aujourd’hui au jour de l’examen.</h2>
   <p class="section-lead fade">Quatre étapes, et un principe : tout le contenu médical vient de cas relus. L’IA reformule et corrige, elle n’invente pas la médecine.</p>
   <div class="how fade" id="positionnement">
-   <div class="how-i"><span class="how-n">1</span><span class="how-k">Positionnement</span><h4>Test de niveau</h4><p>Un test court situe votre allemand. ARI demande un niveau B1 minimum pour démarrer.</p><span class="tag">entrée · B1 minimum</span></div>
-   <div class="how-i"><span class="how-n">2</span><span class="how-k">Programme</span><h4>Plan hebdomadaire</h4><p>Des séances courtes, un axe à la fois, ajustées chaque semaine selon ce que vous réussissez et ratez.</p><span class="tag">rythme · hebdomadaire</span></div>
-   <div class="how-i"><span class="how-n">3</span><span class="how-k">Pratique</span><h4>Consultations et confrère</h4><p>Arzt–Patient en voix, Arzt–Arzt, lexique : toujours sur des cas cliniques relus par des médecins.</p><span class="tag">cas · relus</span></div>
-   <div class="how-i"><span class="how-n">4</span><span class="how-k">Preuve</span><h4>Épreuves blanches</h4><p>À intervalles réguliers, une simulation complète qui ne sert qu’à mesurer où vous en êtes.</p><span class="tag">bientôt · examen blanc</span></div>
+   <div class="how-i"><span class="how-n">1</span><span class="how-k">Positionnement</span><h3>Test de niveau</h3><p>Un test court situe votre allemand. ARI demande un niveau B1 minimum pour démarrer.</p><span class="tag">entrée · B1 minimum</span></div>
+   <div class="how-i"><span class="how-n">2</span><span class="how-k">Programme</span><h3>Plan hebdomadaire</h3><p>Des séances courtes, un axe à la fois, ajustées chaque semaine selon ce que vous réussissez et ratez.</p><span class="tag">rythme · hebdomadaire</span></div>
+   <div class="how-i"><span class="how-n">3</span><span class="how-k">Pratique</span><h3>Consultations et confrère</h3><p>Arzt–Patient en voix, Arzt–Arzt, lexique : toujours sur des cas cliniques relus par des médecins.</p><span class="tag">cas · relus</span></div>
+   <div class="how-i"><span class="how-n">4</span><span class="how-k">Preuve</span><h3>Épreuves blanches</h3><p>À intervalles réguliers, une simulation complète qui ne sert qu’à mesurer où vous en êtes.</p><span class="tag">bientôt · examen blanc</span></div>
   </div>
  </div>
 </section>
@@ -368,6 +375,7 @@ a{color:inherit;text-decoration:none}.mono{font-family:var(--font-mono)}
  </div>
 </section>
 
+</main>
 <footer class="footer"><div class="container"><a class="nav-logo" href="#"><svg><use href="#logo"/></svg>ARI</a><span>Préparation à la Fachsprachprüfung pour médecins étrangers.</span><span class="mono">© 2026 ARI</span></div></footer>
 
 <script>
@@ -399,7 +407,7 @@ function Pulse(el,o){
  const sig=makeSignal(o.seed||7);const r=rng((o.seed||7)*31);let W=0,H=0,dpr=1,vis=true;
  const L=o.line,SWEEP=o.sweep||9000,TRAIL=o.trail||.55,GAP=o.gap||1400;
  let t0=0,dur=SWEEP,shift=0,state='sweep',fadeT=0;
- function size(){dpr=Math.min(devicePixelRatio||1,2);W=el.clientWidth;H=el.clientHeight;cs.forEach((c,i)=>{const d=i==0?.5:dpr;c.width=W*d;c.height=H*d;ctxs[i].setTransform(d,0,0,d,0,0)})}
+ function size(){dpr=Math.min(devicePixelRatio||1,2);W=el.clientWidth;H=el.clientHeight;cs.forEach((c,i)=>{const d=i==0?.25:dpr;c.width=W*d;c.height=H*d;ctxs[i].setTransform(d,0,0,d,0,0)})}
  size();addEventListener('resize',size);
  function newSweep(t){t0=t;dur=SWEEP*(.9+r()*.2);shift+=W+300+r()*400;state='sweep'}
  function draw(p,fade){ // p: head progress 0..1, fade: global multiplier
@@ -461,7 +469,7 @@ const stepsEl=document.getElementById('steps'),rail=document.getElementById('rai
 function onScroll(){const mid=innerHeight*.5;let best=0;steps.forEach((s,i)=>{if(s.getBoundingClientRect().top<mid)best=i});
  if(innerWidth>980)activate(best);else steps.forEach(s=>{const r=s.getBoundingClientRect();if(r.top<innerHeight*.7)s.classList.add('on')});
  const r=stepsEl.getBoundingClientRect();rail.style.height=Math.max(0,Math.min(r.height,mid-r.top))+'px'}
-addEventListener('scroll',onScroll,{passive:true});addEventListener('resize',onScroll);onScroll();
+let scrollQueued=false,scrollIdle=0;addEventListener('scroll',()=>{document.documentElement.classList.add('is-scrolling');clearTimeout(scrollIdle);scrollIdle=setTimeout(()=>document.documentElement.classList.remove('is-scrolling'),180);if(scrollQueued)return;scrollQueued=true;requestAnimationFrame(()=>{scrollQueued=false;onScroll()})},{passive:true});addEventListener('resize',onScroll);onScroll();
 
 /* mock animations */
 
