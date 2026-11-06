@@ -299,6 +299,23 @@ try {
   await page.goForward();
   await page.locator("#vocab:not([hidden])").waitFor();
   await page.locator("#main[aria-busy=false]").waitFor();
+  // A second menu click while the first screen is loading is ignored and must not turn the first push into a replace.
+  await page.goto(base + "/app#home");
+  await page.locator("#home:not([hidden])").waitFor();
+  await page.locator("#main[aria-busy=false]").waitFor();
+  await page.evaluate(() => {
+    const links = document.querySelectorAll(".sidebar nav [data-view]");
+    const vocab = [...links].find(l => l.dataset.view === "vocab");
+    const other = [...links].find(l => l.dataset.view !== "vocab" && l.dataset.view !== "home");
+    vocab.click();
+    other.click();
+  });
+  await page.locator("#vocab:not([hidden])").waitFor();
+  await page.locator("#main[aria-busy=false]").waitFor();
+  await page.goBack();
+  await page.locator("#home:not([hidden])").waitFor();
+  assert.equal(new URL(page.url()).hash, "#home");
+  await page.locator("#main[aria-busy=false]").waitFor();
   // Phone widths: the bottom bar needs no scroll and keeps 44 px targets, and fields do not make iOS zoom.
   for (const width of [430, 390, 360, 320]) {
     await page.setViewportSize({width, height: 740});

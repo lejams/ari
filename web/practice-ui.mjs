@@ -1231,8 +1231,9 @@ for (const button of document.querySelectorAll('[data-view]')) {
     event.preventDefault();
     const target = button.dataset.view;
     const scrollId = button.dataset.scroll;
-    pushNext = !busy;
     perform(async () => {
+      // Set inside the accepted action: a click ignored because a screen is loading must not clear the pending push.
+      pushNext = true;
       try { await navigate(target); } finally { pushNext = false; }
       if (scrollId) {
         const el = document.getElementById(scrollId);
