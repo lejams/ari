@@ -36,6 +36,7 @@ from ari.application.services.exam_session import CHAIN_EXAM_STACK_ID
 from ari.config import Settings, get_settings
 from ari.container import Container, build_container
 from ari.domain.errors import (
+    GENERIC_PROVIDER_MESSAGE,
     AriError,
     ConflictError,
     EmailDeliveryError,
@@ -155,7 +156,13 @@ def create_app(container: Container | None = None, settings: Settings | None = N
             status = 429
         else:
             status = 400
-        return JSONResponse(status_code=status, content={"detail": str(exc)})
+        # A provider failure carries an English technical message: the learner gets French wording.
+        detail = (
+            (exc.public_message or GENERIC_PROVIDER_MESSAGE)
+            if isinstance(exc, ProviderError)
+            else str(exc)
+        )
+        return JSONResponse(status_code=status, content={"detail": detail})
 
     @app.get("/api/health")
     async def health() -> dict[str, object]:

@@ -5,7 +5,7 @@ import {LanguageDrillClient, outcomeText, resultText} from './language-drill-cli
 import {LanguageExercisesClient, REPORT_REASONS, categoryLine, seriesText, verdictText} from './language-exercises-client.mjs';
 import {PcmRecorder} from './pcm-recorder.mjs';
 import {completedDayKeys, lastLocalDays, localDayKey, scrollDelta} from './calendar.mjs';
-import {clearFieldErrorOnInput, microphoneErrorMessage, validateFields} from './errors.mjs';
+import {clearFieldErrorOnInput, asSentence, microphoneErrorMessage, validateFields} from './errors.mjs';
 import {initLocale, viewLabel} from './i18n.mjs';
 
 const VIEW_AURAS = {
@@ -198,7 +198,7 @@ async function perform(action) {
   busy = true; retryAction = action; $('error').hidden = true; $('notice').textContent = 'Chargement…';
   $('main').setAttribute('aria-busy', 'true');
   try { await action(); $('notice').textContent = ''; }
-  catch (error) { $('notice').textContent = ''; $('error-text').textContent = `${error.message} Vous pouvez réessayer ; aucune réussite n’est supposée.`; $('error').hidden = false; }
+  catch (error) { $('notice').textContent = ''; $('error-text').textContent = `${asSentence(error.message)} Vous pouvez réessayer ; aucune réussite n’est supposée.`; $('error').hidden = false; }
   finally { busy = false; $('main').setAttribute('aria-busy', 'false'); }
 }
 async function loadCatalog() {

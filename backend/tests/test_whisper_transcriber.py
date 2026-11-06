@@ -5,6 +5,8 @@ import wave
 from types import SimpleNamespace
 from typing import Any, cast
 
+import httpx
+import openai
 import pytest
 
 from ari.application.contracts import ExecutionContext, TranscriptionConfig
@@ -84,3 +86,45 @@ async def test_provider_failure_is_traceable() -> None:
     assert execution.status is ExecutionStatus.FAILED
     assert execution.error_code == "RuntimeError"
     assert execution.retryable is True
+    # The learner never reads the English technical message.
+    assert captured.value.public_message == "La transcription de votre voix n'a pas abouti."
+    assert "Whisper" not in captured.value.public_message
+
+
+def _status_error(code: int) -> openai.APIStatusError:
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/audio/transcriptions")
+    response = httpx.Response(code, request=request)
+    return openai.APIStatusError("provider said no", response=response, body=None)
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (TimeoutError(), "pris trop de temps"),
+        (
+            openai.APIConnectionError(request=httpx.Request("POST", "https://x")),
+            "momentanément indisponible",
+        ),
+        (_status_error(429), "momentanément indisponible"),
+        (_status_error(503), "momentanément indisponible"),
+        (_status_error(401), "n'a pas abouti"),
+        (_status_error(400), "n'a pas abouti"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_learner_message_depends_on_the_kind_of_failure(
+    error: Exception, expected: str
+) -> None:
+    transcriber, calls = _transcriber("x")
+
+    async def fail(**_: Any) -> None:
+        raise error
+
+    calls.create = fail  # type: ignore[method-assign]
+    with pytest.raises(ProviderError) as captured:
+        await transcriber.transcribe(
+            bytes(4800), sample_rate=24_000, context=CONTEXT, config=CONFIG
+        )
+    assert captured.value.public_message is not None
+    assert expected in captured.value.public_message
+    assert str(captured.value) == "Whisper transcription failed"

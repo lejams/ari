@@ -13,6 +13,13 @@ export async function guardedFetch(fetcher, path, options) {
   }
 }
 
+// Ends a message with a full stop unless it already ends with punctuation, so that two
+// sentences can follow each other ("Failed to fetch" would otherwise run into the next one).
+export function asSentence(message) {
+  const text = String(message ?? "").trim();
+  return /[.!?…»]$/.test(text) ? text : `${text}.`;
+}
+
 // getUserMedia failures, named by the DOMException. `retry` names the button to press again.
 export function microphoneErrorMessage(error, retry) {
   const again = retry ? `, puis cliquez de nouveau sur « ${retry} »` : ", puis réessayez";
