@@ -10,7 +10,7 @@ import wave
 from typing import Any
 from urllib.parse import urlparse
 
-from openai import AsyncOpenAI
+from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
 
 from ari.application.contracts import ExecutionContext, TranscriptionConfig
 from ari.application.ports.stt import Transcription
@@ -28,6 +28,16 @@ def wav_bytes(pcm16: bytes, sample_rate: int) -> bytes:
         container.setframerate(sample_rate)
         container.writeframes(pcm16)
     return buffer.getvalue()
+
+
+def _learner_message(exc: Exception) -> str:
+    """French wording for the learner; the provider's own text stays in logs and executions."""
+    status = exc.status_code if isinstance(exc, APIStatusError) else None
+    if isinstance(exc, TimeoutError | APITimeoutError):
+        return "La transcription de votre voix a pris trop de temps."
+    if isinstance(exc, APIConnectionError) or status in (429, 500, 502, 503, 504):
+        return "Le service de transcription est momentanément indisponible."
+    return "La transcription de votre voix n'a pas abouti."
 
 
 def primary_language(locale: str) -> str:
@@ -67,13 +77,18 @@ class WhisperTranscriber:
             execution = self._record(context, config, started, ExecutionStatus.FAILED, usage, exc)
             # The API answer stays generic; the console tells the developer what happened.
             logger.warning(
-                "Whisper transcription failed (%s, %.1fs of audio, model %s): %s",
+                "Whisper transcription failed (%s, %.1fs of audio, model %s): %s: %s",
                 self._provider,
                 usage["audio_seconds"],
                 self._model,
+                type(exc).__name__,
                 str(exc)[:300],
             )
-            raise ProviderError("Whisper transcription failed", execution=execution) from exc
+            raise ProviderError(
+                "Whisper transcription failed",
+                execution=execution,
+                public_message=_learner_message(exc),
+            ) from exc
         text = response.text.strip()
         usage["characters"] = len(text)
         return Transcription(

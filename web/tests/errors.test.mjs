@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {NETWORK_MESSAGE, TIMEOUT_MESSAGE, clearFieldErrorOnInput, fieldErrorMessage, guardedFetch, microphoneErrorMessage, showFieldError, validateFields} from "../errors.mjs";
+import {asSentence, NETWORK_MESSAGE, TIMEOUT_MESSAGE, clearFieldErrorOnInput, fieldErrorMessage, guardedFetch, microphoneErrorMessage, showFieldError, validateFields} from "../errors.mjs";
 
 // Network failures become French; an HTTP answer or another error passes through untouched.
 await assert.rejects(() => guardedFetch(async () => { throw new TypeError("Failed to fetch"); }, "/x"), {message: NETWORK_MESSAGE});
@@ -7,6 +7,12 @@ await assert.rejects(() => guardedFetch(async () => { throw new DOMException("ti
 await assert.rejects(() => guardedFetch(async () => { throw new DOMException("aborted", "AbortError"); }, "/x"), {name: "AbortError"});
 const answer = {ok: false, status: 503};
 assert.equal(await guardedFetch(async () => answer, "/x"), answer);
+
+// A message gets a full stop only when it has none, so the next sentence never runs into it.
+assert.equal(asSentence("La transcription n’a pas abouti"), "La transcription n’a pas abouti.");
+assert.equal(asSentence("Connexion impossible : vérifiez votre réseau."), "Connexion impossible : vérifiez votre réseau.");
+assert.equal(asSentence("Vraiment ?"), "Vraiment ?");
+assert.equal(asSentence(" Requête refusée (500) "), "Requête refusée (500).");
 
 // Each getUserMedia failure says what to do, and names the button to press again.
 const denied = microphoneErrorMessage(new DOMException("Permission denied", "NotAllowedError"), "Commencer la consultation");

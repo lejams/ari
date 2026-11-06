@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from ari.api.app import create_app
 from ari.container import Container
 from ari.demo import DEMO_BUNDLES, DEV_BUNDLES, publish_placement_content
-from ari.domain.errors import InvalidStateError
+from ari.domain.errors import GENERIC_PROVIDER_MESSAGE, InvalidStateError, ProviderError
 from ari.domain.placement import (
     LEVELS,
     PlacementBundle,
@@ -317,3 +317,44 @@ def test_placement_is_owned_and_unavailable_without_published_set(
         client.post("/api/learners", json={})
         assert client.get("/api/placement").json()["available"] is False
         assert client.post("/api/placement/attempts", json={"request_id": "r"}).status_code == 400
+
+
+class _FailingTranscriber:
+    def __init__(self, public_message: str | None) -> None:
+        self.public_message = public_message
+
+    async def transcribe(self, *args: object, **kwargs: object) -> None:
+        raise ProviderError(
+            "Whisper transcription failed", execution=None, public_message=self.public_message
+        )
+
+
+@pytest.mark.parametrize(
+    ("public_message", "expected"),
+    [
+        ("La transcription de votre voix n'a pas abouti.", "La transcription de votre voix"),
+        (None, GENERIC_PROVIDER_MESSAGE),
+    ],
+)
+def test_failed_transcription_reaches_the_learner_in_french(
+    placement_container: Container, public_message: str | None, expected: str
+) -> None:
+    """The technical English message stays in logs; the learner reads French, and can retry."""
+    bundle = demo_placement()
+    app = create_app(placement_container)
+    with TestClient(app) as client:
+        sign_in(client)
+        client.post("/api/learners", json={"target_cefr": "B2"})
+        attempt = client.post("/api/placement/attempts", json={"request_id": "req-stt"}).json()
+        attempt = _answer_all(client, attempt, correct=True, bundle=bundle)
+        attempt = _answer_all(client, attempt, correct=True, bundle=bundle)
+        assert attempt["phase"] == "speaking"
+        placement_container.placement._transcriber = _FailingTranscriber(public_message)  # type: ignore[assignment]
+        response = client.post(
+            f"/api/placement/attempts/{attempt['id']}/speaking/{attempt['current_item']['id']}",
+            content=bytes(24_000 * 2 * 3),
+            headers={"content-type": "application/octet-stream", "x-event-id": "speak-stt"},
+        )
+        assert response.status_code == 502
+        assert response.json()["detail"].startswith(expected)
+        assert "Whisper" not in response.json()["detail"]
