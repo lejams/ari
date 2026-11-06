@@ -31,7 +31,7 @@ Playwright télécharge WebKit depuis un CDN : sur un poste sans accès, `apt in
 et `pip install selenium` donnent WebKitGTK (le moteur de Safari, pas Safari : pas de barre d'adresse mobile,
 pas de tactile, pas de `safe-area`). La fenêtre de MiniBrowser ne descend pas sous 447 px : les formats
 étroits passent par une iframe (`frame.html`, à servir sur le port 8011 :
-`python -m http.server 8011 --bind 127.0.0.1` dans ce dossier). `ARI_QA_AXE` = chemin de `axe.min.js`,
+`python -m http.server 8011 --bind 127.0.0.1` dans ce dossier ; le runner l'appelle par le même nom d'hôte que `BASE`, sinon les cookies `SameSite=Strict` du back-office n'atteignent pas l'iframe). `ARI_QA_AXE` = chemin de `axe.min.js`,
 `xvfb-run -a python run-webkit.py`.
 
 ## Note par format

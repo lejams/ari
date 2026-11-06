@@ -1,11 +1,13 @@
 """WebKit (WebKitGTK through WebKitWebDriver) twin of run-chromium.mjs. See README.md."""
 import json, os, sys, time
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 HERE = os.path.dirname(os.path.abspath(__file__))
 from selenium import webdriver
 from selenium.webdriver.webkitgtk.options import Options
 from selenium.webdriver.common.by import By
 base = os.environ.get("BASE", "http://127.0.0.1:8010")
+# The narrow-screen wrapper must be on the same site as BASE (same host name), or SameSite=Strict cookies never reach the iframe.
+FRAME_HOST = urlparse(base).hostname or "127.0.0.1"
 acc = json.load(open(os.environ.get("ARI_QA_ACCOUNT_FILE", "accounts.json")))[0]
 measure = "\n".join(l for l in open(os.path.join(HERE, "measure.js")).read().splitlines() if not l.strip().startswith("//")).strip().rstrip(";")
 perf = "\n".join(l for l in open(os.path.join(HERE, "scrollperf.js")).read().splitlines() if not l.strip().startswith("//")).strip().rstrip(";")
@@ -52,7 +54,7 @@ def goto(d, url):
     """Open url directly, or inside an iframe of the wanted size when the window cannot be that narrow."""
     if IFR:
         d.switch_to.default_content()
-        d.get(f"http://127.0.0.1:8011/frame.html?w={IFR[0]}&h={IFR[1]}&src=" + quote(base + url, safe=""))
+        d.get(f"http://{FRAME_HOST}:8011/frame.html?w={IFR[0]}&h={IFR[1]}&src=" + quote(base + url, safe=""))
         for _ in range(20):
             time.sleep(.3)
             try: d.switch_to.frame(0); break
