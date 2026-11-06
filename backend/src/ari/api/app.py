@@ -21,6 +21,7 @@ from ari.api.dto import (
 )
 from ari.api.exam_socket import ChainExamSocket
 from ari.api.language_drill import language_drill_router
+from ari.api.language_exercises import language_exercises_router
 from ari.api.lexicon import lexicon_router, public_report
 from ari.api.ownership import OwnershipMiddleware
 from ari.api.pause import ServicePauseMiddleware
@@ -106,6 +107,7 @@ def create_app(container: Container | None = None, settings: Settings | None = N
     app.include_router(lexicon_router(services))
     app.include_router(placement_router(services))
     app.include_router(language_drill_router(services))
+    app.include_router(language_exercises_router(services))
     app.include_router(program_router(services))
 
     def _session_view(session_id: str) -> Any:

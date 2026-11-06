@@ -211,3 +211,45 @@ def test_paging_runs_through_both_kinds_without_gaps_or_repeats(backoffice: Back
                 assert page["total"] == 6
                 seen += [i["id"] for i in page["items"]]
             assert seen == everything, size
+
+
+def test_a_learner_report_shows_as_reported_and_the_owner_puts_it_back_or_withdraws_it(
+    backoffice: Backoffice,
+) -> None:
+    items = fill(backoffice)
+    reported, other = items["cloze"], items["correction"]
+    report = ExerciseReview(
+        "learner_report",
+        "learner:l-secret",
+        "report",
+        {"learner_id": "l-secret", "reason": "wrong_key", "comment": "die ?"},
+    )
+    backoffice.exercises.add_review(reported.exercise_id, report)
+    backoffice.exercises.add_review(other.exercise_id, report)
+    app = create_backoffice_app(backoffice)
+    path = f"/api/exercises/{reported.exercise_id}"
+    with signed_in(app, backoffice, "r@example.org", "Relecteur", Role.LINGUISTIC_REVIEWER) as c:
+        body = c.get("/api/exercises").json()
+        assert body["counts"]["status"] == {"active": 3, "reported": 2}
+        flagged = {i["id"] for i in body["items"] if i["reported"]}
+        assert flagged == {reported.exercise_id, other.exercise_id}
+        assert ids(c.get("/api/exercises?status=reported")) == flagged
+        trace = c.get(path).json()["reviews"][-1]
+        # The owner reads why; who reported stays out of view.
+        assert (trace["kind"], trace["name"]) == ("learner_report", "Apprenant")
+        assert trace["payload"] == {"reason": "wrong_key", "comment": "die ?"}
+        assert c.post(f"{path}/reinstate", json={"note": "La clé est juste"}).status_code == 403
+    with signed_in(app, backoffice, "o@example.org", "Ismail", Role.OWNER) as c:
+        assert c.post(f"{path}/reinstate", json={"note": "ok"}).status_code == 422
+        back = c.post(f"{path}/reinstate", json={"note": "La clé est juste"})
+        assert back.status_code == 200 and back.json()["reported"] is False
+        assert c.post(f"{path}/reinstate", json={"note": "encore"}).status_code == 400
+        last = c.get(path).json()["reviews"][-1]
+        assert (last["kind"], last["name"], last["decision"]) == ("human", "Ismail", "approve")
+        assert last["payload"] == {"reinstated": "La clé est juste"}
+        withdrawn = c.post(
+            f"/api/exercises/{other.exercise_id}/withdraw", json={"reason": "Deux réponses"}
+        )
+        assert withdrawn.json()["reported"] is False
+        assert ids(c.get("/api/exercises?status=reported")) == set()
+        assert "reported" not in c.get("/api/exercises").json()["counts"]["status"]

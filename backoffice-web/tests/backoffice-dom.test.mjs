@@ -211,6 +211,23 @@ for (const [hash, section] of [["#/", "dashboard"], ["#/documents", "documents"]
   assert.equal(options[1].textContent, "der", "only the key is marked");
   assert.equal(nodes.get("exercise-withdraw").hidden, false, "the owner can withdraw an active exercise");
   assert.equal(nodes.get("exercise-reviews").children.length, 2);
+  assert.equal(nodes.get("exercise-reinstate").hidden, true, "nothing to settle without a report");
+}
+{
+  // A learner's report: flagged in the list, and the owner can put the exercise back.
+  const reported = {...exerciseDetail, reported: true, reviews: [...exerciseDetail.reviews, {kind: "learner_report", name: "Apprenant", decision: "report", payload: {reason: "wrong_key", comment: null}, created_at: "2026-11-06T10:00:00Z"}]};
+  responses["/api/exercises/lx-1"] = reported;
+  responses["/api/exercises/lx-1/reinstate"] = {...exerciseSummary, reported: false};
+  const {nodes, calls} = await load("#/exercises/lx-1");
+  assert.match(nodes.get("exercise-meta").textContent, /SIGNALÉ par un apprenant/);
+  assert.equal(nodes.get("exercise-reinstate").hidden, false);
+  assert.equal(nodes.get("exercise-reinstate-form").hidden, false, "the owner settles the report");
+  nodes.get("exercise-reinstate-note").value = "La clé est juste";
+  responses["/api/exercises/lx-1"] = exerciseDetail;
+  nodes.get("exercise-reinstate-form").onsubmit({preventDefault() {}});
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.ok(calls.includes("/api/exercises/lx-1/reinstate"));
+  assert.equal(nodes.get("exercise-reinstate").hidden, true);
 }
 {
   const {nodes} = await load("#/exercises/lx-1", {roles: ["linguistic_reviewer"]});

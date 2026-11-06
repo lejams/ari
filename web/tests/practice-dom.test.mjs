@@ -8,6 +8,10 @@ const moduleUrl = pathToFileURL(new URL("../practice-ui.mjs", import.meta.url).p
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 
+// The sidebar is hidden on phones: the exercise chooser has to stay reachable from the mobile nav.
+const mobileNav = html.match(/<nav class="bottomnav"[\s\S]*?<\/nav>/)?.[0] ?? "";
+assert.match(mobileNav, /<a href="#exercises" data-view="exercises">/, "the mobile nav must link to the exercises");
+
 class Element {
   constructor(id = "", tagName = "DIV") {
     this.id = id; this.tagName = tagName; this.children = []; this.listeners = {}; this.value = ""; this.hidden = false;
@@ -37,7 +41,7 @@ function installDom(hash) {
     body: new Element("body"),
     documentElement: { lang: "fr" },
     getElementById: id => nodes.get(id) ?? null,
-    querySelector: selector => (selector.includes("[name=source]") ? radios.source : selector.includes("[name=mode]") ? radios.mode : selector.includes("[name=placement-option]") ? { value: "0" } : null),
+    querySelector: selector => (selector.includes("[name=source]") ? radios.source : selector.includes("[name=mode]") ? radios.mode : selector.includes("[name=placement-option]") ? { value: "0" } : selector.includes("[name=exercise-option]") ? { value: "1" } : selector.includes("[name=exercise-report-reason]") ? { value: "wrong_key" } : null),
     querySelectorAll: () => [],
     createElement: tag => new Element("", tag.toUpperCase()),
     createTextNode: text => ({ textContent: text }),
@@ -112,7 +116,17 @@ async function load(hash) {
   return { nodes, calls };
 }
 
-for (const hash of ["#home", "#vocab", "#progress", "#placement", "#drill", "#cases", "#history", "#exam"]) {
+const exerciseOverview = {
+  series_items: 5, limitations: "Exercices écrits par une IA puis vérifiés par une autre IA.",
+  focus: { category: "gender", label: "le genre", level: "B1", source: "placement", errors: 3, available: 2, items: 2, rationale: "Exercices sur le genre, niveau B1 : un point faible de votre test de niveau." },
+  categories: [
+    { category: "gender", label: "le genre", level: "B1", available: 2, answered: 0, correct: 0 },
+    { category: "case", label: "les cas", level: "B1", available: 0, answered: 0, correct: 0 },
+  ],
+};
+responses["/api/language-exercises"] = exerciseOverview;
+
+for (const hash of ["#home", "#vocab", "#progress", "#placement", "#drill", "#exercises", "#cases", "#history", "#exam"]) {
   const { nodes } = await load(hash);
   assert.equal(nodes.get("error").hidden, true, `${hash}: ${nodes.get("error-text").textContent}`);
   const section = nodes.get(hash.slice(1));
@@ -262,6 +276,54 @@ for (const hash of ["#home", "#vocab", "#progress", "#placement", "#drill", "#ca
   assert.equal(nodes.get("drill-result").hidden, false);
   assert.match(nodes.get("drill-result-text").textContent, /1 phrase sur 2 reprise/);
   assert.ok(calls.includes("/api/language-drill/drills/d1/finish"));
+}
+{
+  // Bank exercises: the key and the explanation only after the answer; a report skips the exercise.
+  const { nodes, calls } = await load("#exercises");
+  assert.match(nodes.get("exercises-focus").textContent, /^Conseillé cette semaine : Exercices sur le genre, niveau B1/);
+  const [gender, cases] = nodes.get("exercises-categories").children;
+  assert.equal(gender.textContent, "Le genre · niveau B1 · 2 exercices");
+  assert.equal(cases.disabled, true, "nothing to draw: the category cannot be started");
+  const exercise = id => ({ id, level: "B1", category: "gender", category_label: "le genre", format: "cloze", instruction_fr: "Choisissez ce qui complète correctement la phrase.", context_fr: null, stem: `Haben Sie ___ Tablette genommen? (${id})`, options: ["den", "die", "das"] });
+  const next = "/api/language-exercises/next?category=gender";
+  responses[next] = { category: "gender", label: "le genre", level: "B1", remaining: 2, exercise: exercise("lx-1") };
+  responses["/api/language-exercises/answers"] = { exercise: exercise("lx-1"), chosen_index: 1, correct: true, answer_index: 1, correct_sentence: "Haben Sie die Tablette genommen?", explanation_fr: "« Tablette » est féminin." };
+  nodes.get("exercises-focus-action").children[0].listeners.click[0]();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(nodes.get("error").hidden, true, nodes.get("error-text").textContent);
+  assert.equal(nodes.get("exercises-run").hidden, false);
+  assert.equal(nodes.get("exercises-progress").textContent, "Le genre · niveau B1 · exercice 1 / 5");
+  assert.equal(nodes.get("exercises-options").children.length, 4, "a legend and three options");
+  assert.match(nodes.get("exercises-stem").textContent, /Haben Sie ___ Tablette/);
+  assert.equal(nodes.get("exercises-feedback").hidden, true, "nothing of the key before the answer");
+  nodes.get("exercises-form").onsubmit({ preventDefault() {} });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(nodes.get("error").hidden, true, nodes.get("error-text").textContent);
+  assert.equal(nodes.get("exercises-verdict").textContent, "Juste.");
+  const [, , key] = nodes.get("exercises-options").children;
+  assert.equal(key.children[0].disabled, true, "the options stay in view, locked");
+  assert.equal(key.children.at(-1).textContent, "✓ réponse attendue");
+  assert.equal(nodes.get("exercises-submit").hidden, true);
+  assert.equal(nodes.get("exercises-correct").textContent, "Haben Sie die Tablette genommen?");
+  assert.equal(nodes.get("exercises-next").textContent, "Exercice suivant →");
+  // The next one is reported before it is answered: thanked, and the series moves on.
+  responses[next] = { ...responses[next], remaining: 1, exercise: exercise("lx-2") };
+  nodes.get("exercises-next").onclick();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.match(nodes.get("exercises-stem").textContent, /lx-2/);
+  responses["/api/language-exercises/lx-2/report"] = { reported: true, already_reported: false };
+  responses[next] = { ...responses[next], remaining: 0, exercise: null };
+  nodes.get("exercises-report").onclick();
+  assert.equal(nodes.get("exercises-report-form").hidden, false);
+  assert.equal(nodes.get("exercises-report-reasons").children.length, 5, "a legend and four reasons");
+  nodes.get("exercises-report-form").onsubmit({ preventDefault() {} });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(nodes.get("error").hidden, true, nodes.get("error-text").textContent);
+  assert.ok(calls.includes("/api/language-exercises/lx-2/report"));
+  assert.match(nodes.get("exercises-status").textContent, /retiré pour tout le monde/);
+  // Nothing left to draw: the series ends on what was done.
+  assert.equal(nodes.get("exercises-result").hidden, false);
+  assert.equal(nodes.get("exercises-result-text").textContent, "1 réponse juste sur 1.");
 }
 {
   // Declared B1, estimated A2, joined on Wednesday: home names both levels and greys the days before.

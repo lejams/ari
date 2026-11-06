@@ -77,3 +77,9 @@ class RegistryReviewRequest(ApiModel):
 
 class WithdrawExerciseRequest(ApiModel):
     reason: Annotated[str, Field(min_length=3, max_length=500)]
+
+
+class ReinstateExerciseRequest(ApiModel):
+    """Why a reported exercise is right after all: kept with the review, never shown to learners."""
+
+    note: Annotated[str, Field(min_length=3, max_length=500)]

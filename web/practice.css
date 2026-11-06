@@ -266,7 +266,7 @@ details.technical summary{cursor:pointer}
   main{padding:22px 16px 100px}
   .grid,.form-grid{grid-template-columns:minmax(0,1fr);gap:14px}
   .bottomnav{display:flex;gap:4px;position:fixed;bottom:0;left:0;right:0;z-index:20;background:var(--bg);border-top:1px solid var(--line);padding:8px 8px max(8px,env(safe-area-inset-bottom))}
-  .bottomnav a{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:52px;padding:4px 1px;border-radius:var(--radius);font-size:10px;letter-spacing:-.02em;font-weight:500;color:var(--fg-muted);text-decoration:none}
+  .bottomnav a{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:52px;padding:4px 1px;border-radius:var(--radius);font-size:10px;letter-spacing:-.02em;font-weight:500;color:var(--fg-muted);text-decoration:none}
   .bottomnav a svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
   .bottomnav a span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .card{padding:16px}

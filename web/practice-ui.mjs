@@ -2,6 +2,7 @@ import {PracticeClient, phaseLabel, stateLabel, dimensionText, modeLabel} from '
 import {LexiconClient, RATINGS, lexiconStateLabel, ratingLabel, sourceLabel} from './lexicon-client.mjs';
 import {PlacementClient, LEVEL_LABELS, PHASE_LABELS, describeResult, describeWeakPoints} from './placement-client.mjs';
 import {LanguageDrillClient, outcomeText, resultText} from './language-drill-client.mjs';
+import {LanguageExercisesClient, REPORT_REASONS, categoryLine, seriesText, verdictText} from './language-exercises-client.mjs';
 import {PcmRecorder} from './pcm-recorder.mjs';
 import {completedDayKeys, lastLocalDays, localDayKey, scrollDelta} from './calendar.mjs';
 import {clearFieldErrorOnInput, microphoneErrorMessage, validateFields} from './errors.mjs';
@@ -19,6 +20,7 @@ const VIEW_AURAS = {
   onboarding: [210, 40, '10%', '-20%', '70%', '50%'],
   warmup: [254, 230, '-18%', '34%', '66%', '-20%'],
   exercise: [300, 280, '62%', '-26%', '82%', '38%'],
+  exercises: [195, 300, '-10%', '20%', '72%', '6%'],
 };
 function setAura(name) {
   const aura = document.getElementById('aura');
@@ -79,10 +81,13 @@ const lexicon = new LexiconClient((path, options) => client.api(path, options));
 const placement = new PlacementClient((path, options) => client.api(path, options));
 const drills = new LanguageDrillClient((path, options) => client.api(path, options));
 let drill = null;
+const bankExercises = new LanguageExercisesClient((path, options) => client.api(path, options));
+// The series in progress: its category, the exercise shown, and the answers given so far.
+let exerciseSeries = null;
 let reviewQueue = [], reviewTotal = 0, reviewEntry = null;
 let placementAttempt = null, placementListens = 0, recorder = null, recordedAudio = null, recordTimer = null, providerMode = 'fake';
 const $ = id => document.getElementById(id);
-const views = ['onboarding', 'home', 'programme', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress', 'placement', 'drill'];
+const views = ['onboarding', 'home', 'programme', 'warmup', 'cases', 'exam', 'vocab', 'exercise', 'history', 'progress', 'placement', 'drill', 'exercises'];
 const fields = ['goal', 'land', 'date', 'minutes', 'situation', 'specialty', 'level', 'certificate-level', 'certificate-issuer', 'certificate-date'];
 // What the onboarding form sends to the profile; land, goal and dates are server-side now.
 function profileDetails() {
@@ -297,22 +302,23 @@ function renderCalendar() {
 }
 
 // ----- weekly programme -----------------------------------------------------------------
-const SLOT_LABELS = {lexicon_review: 'Réviser mon carnet', lexicon_maintenance: 'Entretien du carnet', fachbegriffe: 'Fachbegriffe', arzt_arzt: 'Arzt–Arzt', voice_training: 'Consultation · Entraînement', voice_exam: 'Consultation · Examen', placement: 'Test de niveau', language_drill: 'Vos erreurs rejouées'};
+const SLOT_LABELS = {lexicon_review: 'Réviser mon carnet', lexicon_maintenance: 'Entretien du carnet', fachbegriffe: 'Fachbegriffe', arzt_arzt: 'Arzt–Arzt', voice_training: 'Consultation · Entraînement', voice_exam: 'Consultation · Examen', placement: 'Test de niveau', language_drill: 'Vos erreurs rejouées', language_exercises: 'Exercices de langue'};
 const SLOT_STATES = {done: '✓', today: '○', todo: '·', missed: '—'};
 const PHASE_LABELS_FR = {positionnement: 'Positionnement', prerequis: 'Prérequis', fondations: 'Fondations', anamnese: 'Anamnèse', examen: 'Examen'};
 function slotTitle(slot) {
   const rec = slot.recommended;
-  if (slot.kind === 'language_drill') return rec?.label ? `${SLOT_LABELS[slot.kind]} · ${rec.label}` : SLOT_LABELS[slot.kind];
+  if (slot.kind === 'language_drill' || slot.kind === 'language_exercises') return rec?.label ? `${SLOT_LABELS[slot.kind]} · ${rec.label}` : SLOT_LABELS[slot.kind];
   return rec ? `${SLOT_LABELS[slot.kind]} · ${rec.title}` : SLOT_LABELS[slot.kind] || slot.kind;
 }
 function slotButtonLabel(slot) {
-  return {lexicon_review: 'Réviser →', lexicon_maintenance: 'Entretenir →', placement: 'Passer le test →', voice_training: 'Préparer la consultation →', voice_exam: 'Commencer en Examen →', fachbegriffe: 'Faire l’exercice →', arzt_arzt: 'Faire l’exercice →', language_drill: 'Reprendre mes phrases →'}[slot.kind] || 'Commencer →';
+  return {lexicon_review: 'Réviser →', lexicon_maintenance: 'Entretenir →', placement: 'Passer le test →', voice_training: 'Préparer la consultation →', voice_exam: 'Commencer en Examen →', fachbegriffe: 'Faire l’exercice →', arzt_arzt: 'Faire l’exercice →', language_drill: 'Reprendre mes phrases →', language_exercises: 'Faire la série →'}[slot.kind] || 'Commencer →';
 }
 async function runSlot(slot) {
   const rec = slot.recommended;
   if (slot.kind === 'lexicon_review' || slot.kind === 'lexicon_maintenance') return showVocab();
   if (slot.kind === 'placement') return showPlacement();
   if (slot.kind === 'language_drill') return showDrill();
+  if (slot.kind === 'language_exercises') return showExercises(rec?.category || null);
   if (rec?.kind === 'voice') {
     await loadCatalog();
     const item = voiceCases.find(c => c.id === rec.id && c.version === rec.version) || rec;
@@ -1064,6 +1070,101 @@ function renderDrillResult(current) {
     return card;
   }));
 }
+// ----- language exercises from the bank: a short series at the learner's working level ------
+const capital = text => text ? text[0].toUpperCase() + text.slice(1) : text;
+// Said inside the page: the shared notice line is cleared once an action completes.
+function exercisesStatus(text = '') { $('exercises-status').textContent = text; $('exercises-status').hidden = !text; }
+async function showExercises(category = null) {
+  bankExercises.profileId = client.profile.id;
+  const overview = await bankExercises.overview();
+  exerciseSeries = null; exercisesStatus();
+  $('exercises-start').hidden = false; $('exercises-run').hidden = true; $('exercises-result').hidden = true;
+  const focus = overview.focus;
+  $('exercises-focus').textContent = focus ? `Conseillé cette semaine : ${focus.rationale}` : 'Aucun point de langue établi pour l’instant : faites une séance ou le test de niveau, ou choisissez ci-dessous ce que vous voulez travailler.';
+  $('exercises-focus-action').replaceChildren(...(focus ? [actionButton(`Commencer : ${focus.label} →`, () => startSeries(focus.category), true)] : []));
+  $('exercises-categories').replaceChildren(...overview.categories.map(item => {
+    const button = actionButton(categoryLine(item), () => startSeries(item.category));
+    button.disabled = !item.available;
+    return button;
+  }));
+  $('exercises-limitations').textContent = overview.limitations;
+  view('exercises');
+  const chosen = category && overview.categories.find(item => item.category === category && item.available);
+  if (chosen) await startSeries(chosen.category);
+}
+async function startSeries(category) {
+  exercisesStatus();
+  exerciseSeries = {category, target: 5, results: [], current: null, answered: false};
+  await nextExercise();
+}
+async function nextExercise() {
+  const series = exerciseSeries;
+  if (series.results.length >= series.target) return finishSeries();
+  const drawn = await bankExercises.next(series.category);
+  if (!drawn.exercise) {
+    if (series.results.length) return finishSeries();
+    $('exercises-run').hidden = true; $('exercises-start').hidden = false;
+    exercisesStatus(`Plus d’exercice nouveau sur ${drawn.label} à votre niveau pour l’instant.`);
+    return;
+  }
+  series.current = drawn.exercise; series.answered = false; series.level = drawn.level; series.label = drawn.label;
+  renderExercise();
+}
+function renderExercise() {
+  const series = exerciseSeries, exercise = series.current;
+  $('exercises-start').hidden = true; $('exercises-result').hidden = true; $('exercises-run').hidden = false;
+  $('exercises-progress').textContent = `${capital(exercise.category_label)} · niveau ${exercise.level} · exercice ${series.results.length + 1} / ${series.target}`;
+  $('exercises-instruction').textContent = exercise.instruction_fr;
+  $('exercises-context').hidden = !exercise.context_fr; $('exercises-context').textContent = exercise.context_fr || '';
+  $('exercises-stem').textContent = exercise.stem;
+  $('exercises-options').replaceChildren(node('legend', 'Choisissez votre réponse', 'sr-only'), ...exercise.options.map((option, index) => {
+    const label = node('label'); const input = node('input'); input.type = 'radio'; input.name = 'exercise-option'; input.value = String(index);
+    label.append(input, document.createTextNode(` ${option}`)); label.lang = 'de'; return label;
+  }));
+  $('exercises-form').hidden = false; $('exercises-submit').hidden = false; $('exercises-feedback').hidden = true; $('exercises-report-form').hidden = true;
+  $('exercises-report').hidden = false;
+  $('exercises-stop').hidden = series.results.length === 0;
+}
+function renderFeedback(result) {
+  // The options stay in view, locked, with the expected answer and the learner's choice marked.
+  Array.from($('exercises-options').children).slice(1).forEach((label, index) => {
+    label.children[0].disabled = true;
+    const mark = index === result.answer_index ? node('strong', '✓ réponse attendue') : index === result.chosen_index ? node('span', '✗ votre choix') : null;
+    if (mark) { mark.style.marginLeft = '0.4em'; label.append(mark); }
+  });
+  $('exercises-submit').hidden = true; $('exercises-feedback').hidden = false;
+  $('exercises-verdict').textContent = verdictText(result);
+  $('exercises-correct').textContent = result.correct_sentence;
+  $('exercises-explanation').textContent = result.explanation_fr;
+  const last = exerciseSeries.results.length >= exerciseSeries.target;
+  $('exercises-next').textContent = last ? 'Voir le bilan →' : 'Exercice suivant →';
+  $('exercises-stop').hidden = false;
+  $('exercises-next').focus();
+}
+async function finishSeries() {
+  const series = exerciseSeries;
+  $('exercises-run').hidden = true; $('exercises-start').hidden = true; $('exercises-result').hidden = false;
+  $('exercises-result-text').textContent = seriesText(series.results);
+  $('exercises-result-items').replaceChildren(...series.results.map(result => {
+    const card = node('article', undefined, 'card');
+    const sentence = node('p', result.correct_sentence); sentence.lang = 'de';
+    card.append(node('p', result.correct ? '✓ Juste' : '✗ À revoir', 'eyebrow'), sentence, node('p', result.explanation_fr, 'help'));
+    return card;
+  }));
+  $('exercises-again').onclick = () => perform(() => startSeries(series.category));
+  await client.restoreProfile();
+  let after = null;
+  try { after = (await client.api('/api/program')).week.next; } catch { after = null; }
+  $('exercises-after').replaceChildren(...(after && after.kind !== 'language_exercises' ? [actionButton(`Prochaine étape : ${slotTitle(after)} →`, () => runSlot(after), true)] : []));
+}
+function openReport() {
+  $('exercises-report-reasons').replaceChildren(node('legend', 'Qu’est-ce qui ne va pas dans cet exercice ?'), ...REPORT_REASONS.map(reason => {
+    const label = node('label'); const input = node('input'); input.type = 'radio'; input.name = 'exercise-report-reason'; input.value = reason.value;
+    label.append(input, document.createTextNode(` ${reason.label}`)); return label;
+  }));
+  $('exercises-report-comment').value = '';
+  $('exercises-report-form').hidden = false; $('exercises-report').hidden = true;
+}
 async function drillStep() {
   await client.restoreProfile();
   let after = null;
@@ -1072,7 +1173,7 @@ async function drillStep() {
 }
 async function navigate(name) {
   if(!client.profile)return home();
-  const routes={home,programme:showProgramme,cases:showCases,exam:showExam,vocab:showVocab,history:showHistory,progress:showProgress,placement:showPlacement,drill:showDrill,warmup:()=>selected?view('warmup'):showCases()};
+  const routes={home,programme:showProgramme,cases:showCases,exam:showExam,vocab:showVocab,history:showHistory,progress:showProgress,placement:showPlacement,drill:showDrill,exercises:()=>showExercises(),warmup:()=>selected?view('warmup'):showCases()};
   await (routes[name]||home)();
 }
 async function route() { const match=location.hash.match(/^#practice\/([A-Za-z0-9_.-]+)$/);if(client.profile&&match)return showRun(await client.getRun(match[1]));return navigate(location.hash.slice(1)||'home'); }
@@ -1093,6 +1194,12 @@ $('drill-resume').onclick=()=>perform(()=>startDrill(true));
 $('drill-form').onsubmit=event=>{event.preventDefault();const current=drill,item=current.items.find(i=>i.id===current.current_item_id),text=$('drill-answer').value;if(!item||!text.trim()){$('notice').textContent='Écrivez votre phrase avant de vérifier.';return;}perform(async()=>renderDrill(await drills.answer(current,item.id,text),item.id));};
 $('drill-next').onclick=()=>{const current=drill;if(current.progress.answered>=current.progress.total)perform(async()=>{const done=await drills.finish(current);await drillStep();renderDrill(done);});else renderDrill(current);};
 $('drill-stop').onclick=()=>{const current=drill;perform(async()=>{const done=await drills.finish(current);await drillStep();renderDrill(done);});};
+$('exercises-form').onsubmit=event=>{event.preventDefault();const chosen=document.querySelector('[name=exercise-option]:checked');if(!chosen){$('notice').textContent='Choisissez une réponse.';return;}const series=exerciseSeries,exercise=series.current;perform(async()=>{const result=await bankExercises.answer(exercise,Number(chosen.value));series.results.push(result);series.answered=true;renderFeedback(result);});};
+$('exercises-next').onclick=()=>{exercisesStatus();perform(nextExercise);};
+$('exercises-stop').onclick=()=>perform(finishSeries);
+$('exercises-report').onclick=openReport;
+$('exercises-report-cancel').onclick=()=>{$('exercises-report-form').hidden=true;$('exercises-report').hidden=false;};
+$('exercises-report-form').onsubmit=event=>{event.preventDefault();const reason=document.querySelector('[name=exercise-report-reason]:checked');if(!reason){$('notice').textContent='Choisissez ce qui ne va pas.';return;}const series=exerciseSeries,exercise=series.current,comment=$('exercises-report-comment').value;perform(async()=>{await bankExercises.report(exercise,reason.value,comment);$('exercises-report-form').hidden=true;exercisesStatus('Merci : cet exercice est retiré pour tout le monde jusqu’à vérification.');if(series.answered)$('exercises-report').hidden=true;else await nextExercise();});};
 $('placement-start').onclick=()=>perform(()=>startPlacement(false));
 $('placement-resume').onclick=()=>perform(()=>startPlacement(true));
 $('placement-report').onclick=()=>{const attempt=placementAttempt;if(!attempt?.current_item)return;perform(async()=>{await placement.report(attempt,attempt.current_item.id,'');$('notice').textContent='Merci : cette question sera relue.';});};

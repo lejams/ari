@@ -6,6 +6,7 @@ const STRINGS = {
     nav_home: "Aujourd'hui",
     nav_cases: 'Consultation',
     nav_exam: 'Examen',
+    nav_exercises: 'Exercices',
     nav_progress: 'Progression',
     nav_vocab: 'Lexique',
     nav_history: 'Bilan',
@@ -23,6 +24,7 @@ const STRINGS = {
     nav_home: 'Today',
     nav_cases: 'Consultation',
     nav_exam: 'Exam',
+    nav_exercises: 'Exercises',
     nav_progress: 'Progress',
     nav_vocab: 'Lexicon',
     nav_history: 'Review',
@@ -40,6 +42,7 @@ const STRINGS = {
     nav_home: 'Heute',
     nav_cases: 'Konsultation',
     nav_exam: 'Prüfung',
+    nav_exercises: 'Übungen',
     nav_progress: 'Fortschritt',
     nav_vocab: 'Lexikon',
     nav_history: 'Bilanz',
@@ -56,9 +59,9 @@ const STRINGS = {
 };
 
 const VIEW_LABELS = {
-  fr: { home: "Aujourd'hui", cases: 'Consultation', exam: 'Examen', progress: 'Progression', vocab: 'Lexique', history: 'Bilan', placement: 'Test de niveau', onboarding: 'Profil', warmup: 'Échauffement', exercise: 'Exercice', programme: 'Programme' },
-  en: { home: 'Today', cases: 'Consultation', exam: 'Exam', progress: 'Progress', vocab: 'Lexicon', history: 'Review', placement: 'Placement', onboarding: 'Profile', warmup: 'Warm-up', exercise: 'Exercise', programme: 'Programme' },
-  de: { home: 'Heute', cases: 'Konsultation', exam: 'Prüfung', progress: 'Fortschritt', vocab: 'Lexikon', history: 'Bilanz', placement: 'Einstufung', onboarding: 'Profil', warmup: 'Aufwärmen', exercise: 'Übung', programme: 'Programm' },
+  fr: { home: "Aujourd'hui", cases: 'Consultation', exam: 'Examen', progress: 'Progression', vocab: 'Lexique', history: 'Bilan', placement: 'Test de niveau', onboarding: 'Profil', warmup: 'Échauffement', exercise: 'Exercice', exercises: 'Exercices', programme: 'Programme' },
+  en: { home: 'Today', cases: 'Consultation', exam: 'Exam', progress: 'Progress', vocab: 'Lexicon', history: 'Review', placement: 'Placement', onboarding: 'Profile', warmup: 'Warm-up', exercise: 'Exercise', exercises: 'Exercises', programme: 'Programme' },
+  de: { home: 'Heute', cases: 'Konsultation', exam: 'Prüfung', progress: 'Fortschritt', vocab: 'Lexikon', history: 'Bilanz', placement: 'Einstufung', onboarding: 'Profil', warmup: 'Aufwärmen', exercise: 'Übung', exercises: 'Übungen', programme: 'Programm' },
 };
 
 let locale = 'fr';

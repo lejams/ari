@@ -311,7 +311,7 @@ async def test_the_drill_replays_the_learners_errors_end_to_end(database_url: st
         program = client.get("/api/program").json()
         assert program["model"]["version"] == "learner-model-v2"
         assert program["model"]["language"]["focus"] == "case"
-        assert program["week"]["version"] == "program-rules-v4"
+        assert program["week"]["version"] == "program-rules-v5"
 
 
 def test_a_session_without_any_structured_error_gives_no_drill(database_url: str) -> None:

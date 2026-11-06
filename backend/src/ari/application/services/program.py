@@ -1,4 +1,4 @@
-"""Weekly programme, program-rules-v4: a policy recomputed on every read, never a stored plan.
+"""Weekly programme, program-rules-v5: a policy recomputed on every read, never a stored plan.
 
 The week runs Monday to Sunday. Slots are derived from the learner model; volume is
 bounded by the declared minutes per day; recommendations score published content by
@@ -14,6 +14,11 @@ Since v4, a learner whose recent sessions show a recurring language error (two o
 category, with at least one replayable quote not yet matched) gets `language_drill` slots on one
 axis, the category of that focus: the remediation drill "Votre phrase". Nothing is planned when no
 error is established.
+
+Since v5, the learner also gets `language_exercises` slots: a series of exercises from the bank,
+at the learner's working level, on the first category that is established (recurring errors of
+the recent sessions, else a weak point of the placement test) and still has exercises to draw.
+Nothing is planned without such a category, nor when the bank has nothing left for it.
 """
 
 from __future__ import annotations
@@ -30,7 +35,7 @@ from ari.domain.placement import LEVELS, level_index
 from ari.domain.practice import PracticeContent
 from ari.domain.text import normalize_answer
 
-PROGRAM_RULES_VERSION = "program-rules-v4"
+PROGRAM_RULES_VERSION = "program-rules-v5"
 EXAM_PHASE_WEEKS = 8
 RECENCY_DAYS = 14
 
@@ -43,6 +48,9 @@ PLACEMENT_MINUTES = 10  # The B1 to C1 placement test takes about ten minutes.
 DRILL_MINUTES_PER_ITEM = 2  # A drill of five phrases takes about ten minutes.
 DRILL_MINUTES_MIN = 4
 DRILL_DAYS = (2, 5)
+EXERCISE_MINUTES_PER_ITEM = 1.2  # A series of five choices, read and explained: about six minutes.
+EXERCISE_MINUTES_MIN = 3
+EXERCISE_DAYS = (0, 3)
 
 PHASE_MESSAGES = {
     "positionnement": (
@@ -77,7 +85,7 @@ class Slot:
     day_offset: int
     kind: (
         str  # lexicon_review | lexicon_maintenance | fachbegriffe | arzt_arzt | voice_* | placement
-        # | language_drill
+        # | language_drill | language_exercises
     )
     minutes: int
     priority: int  # lower is kept first when the budget is tight
@@ -185,8 +193,10 @@ def plan_week(
     today: date,
     *,
     completed: dict[str, list[datetime]],
+    exercise_focus: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """`completed` maps slot kinds to completion timestamps since the start of the week."""
+    """`completed` maps slot kinds to completion timestamps since the start of the week;
+    `exercise_focus` is the bank's focus for this learner (`ExercisePracticeService.focus`)."""
     phase = phase_for(model)
     start = week_start(today)
     slots: list[Slot] = []
@@ -262,6 +272,24 @@ def plan_week(
                     "category": language.focus,
                     "label": label,
                     "items": language.drill_items,
+                },
+            )
+
+    if phase in {"fondations", "anamnese", "examen"} and exercise_focus:
+        items = int(exercise_focus["items"])
+        for day in EXERCISE_DAYS:
+            add(
+                day,
+                "language_exercises",
+                max(EXERCISE_MINUTES_MIN, round(EXERCISE_MINUTES_PER_ITEM * items)),
+                3,
+                str(exercise_focus["rationale"]),
+                {
+                    "kind": "language_exercises",
+                    "category": exercise_focus["category"],
+                    "label": exercise_focus["label"],
+                    "level": exercise_focus["level"],
+                    "items": items,
                 },
             )
 
