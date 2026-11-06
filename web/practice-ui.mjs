@@ -178,6 +178,9 @@ function restoreDraft() {
   onboardingStep(draft.step === 2 ? 2 : 1);
   sourceState();
 }
+// A click on the navigation is a step the Back button should undo; every other view change
+// (first load, Back itself, a refresh of the same screen) only rewrites the current entry.
+let pushNext = false;
 function view(name, changeHash = true) {
   for (const id of views) $(id).hidden = id !== name;
   // No profile yet: the navigation would only lead back to onboarding.
@@ -187,7 +190,12 @@ function view(name, changeHash = true) {
     button.setAttribute('aria-current', current ? 'page' : 'false');
   });
   if (name !== 'exercise') document.body.classList.remove('exam-active');
-  if (changeHash && !['onboarding', 'exercise'].includes(name)) history.replaceState(null, '', '#' + name);
+  if (changeHash && !['onboarding', 'exercise'].includes(name)) {
+    const next = '#' + name;
+    if (pushNext && location.hash !== next && typeof history.pushState === 'function') history.pushState(null, '', next);
+    else history.replaceState(null, '', next);
+  }
+  pushNext = false;
   setAura(name);
   setCrumb(name);
   refreshSideUser();
@@ -1223,8 +1231,9 @@ for (const button of document.querySelectorAll('[data-view]')) {
     event.preventDefault();
     const target = button.dataset.view;
     const scrollId = button.dataset.scroll;
+    pushNext = !busy;
     perform(async () => {
-      await navigate(target);
+      try { await navigate(target); } finally { pushNext = false; }
       if (scrollId) {
         const el = document.getElementById(scrollId);
         if (el) {
@@ -1236,7 +1245,9 @@ for (const button of document.querySelectorAll('[data-view]')) {
   };
 }
 initLocale();
-window.addEventListener('hashchange',()=>perform(route));
+// Back or Forward while a screen is still loading: wait for it instead of leaving the URL and the screen apart.
+const routeWhenIdle=()=>busy?setTimeout(routeWhenIdle,60):perform(route);
+window.addEventListener('hashchange',routeWhenIdle);
 window.addEventListener('resize',()=>{if(!$('progress').hidden){const selected=$('daytrack').querySelector('[aria-pressed=true]');selected?.scrollIntoView({block:'nearest',inline:'nearest'});}});
 window.addEventListener('focus',()=>{const today=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});if($('today-label').textContent!==today){$('today-label').textContent=today;if(!$('progress').hidden)renderCalendar();}});
 $('today-label').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});

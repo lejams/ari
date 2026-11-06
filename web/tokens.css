@@ -196,3 +196,4 @@
 .theme-toggle .i-sun{display:none}
 .theme-toggle[aria-pressed=true] .i-sun{display:block}
 .theme-toggle[aria-pressed=true] .i-moon{display:none}
+@media (pointer:coarse),(max-width:1100px){.theme-toggle{width:44px;height:44px;min-height:44px;flex:none}}

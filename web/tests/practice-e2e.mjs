@@ -283,6 +283,41 @@ try {
   await page.setViewportSize({width: 900, height: 860});
   for (const name of ["Aujourd'hui", "Consultation", "Examen", "Progression", "Lexique", "Bilan"])
     assert.equal(await page.locator(".sidebar nav").getByRole("link", {name}).count(), 1, `rail link ${name}`);
+  // A click on the menu is a step the Back button undoes; Back and Forward land on the right screen.
+  await page.setViewportSize({width: 1280, height: 860});
+  await page.goto(base + "/app#home");
+  await page.locator("#home:not([hidden])").waitFor();
+  await page.locator("#main[aria-busy=false]").waitFor();
+  await page.locator(".sidebar nav").getByRole("link", {name: "Lexique"}).click();
+  await page.locator("#vocab:not([hidden])").waitFor();
+  await page.locator("#main[aria-busy=false]").waitFor();
+  assert.equal(new URL(page.url()).hash, "#vocab");
+  await page.goBack();
+  await page.locator("#home:not([hidden])").waitFor();
+  assert.equal(new URL(page.url()).hash, "#home");
+  await page.locator("#main[aria-busy=false]").waitFor();
+  await page.goForward();
+  await page.locator("#vocab:not([hidden])").waitFor();
+  await page.locator("#main[aria-busy=false]").waitFor();
+  // Phone widths: the bottom bar needs no scroll and keeps 44 px targets, and fields do not make iOS zoom.
+  for (const width of [430, 390, 360, 320]) {
+    await page.setViewportSize({width, height: 740});
+    await page.goto(base + "/app#cases");
+    await page.locator("#cases:not([hidden])").waitFor();
+    await page.locator("#main[aria-busy=false]").waitFor();
+    const bar = await page.evaluate(() => {
+      const nav = document.querySelector(".bottomnav");
+      const links = [...nav.querySelectorAll("a")].map(a => a.getBoundingClientRect());
+      const fields = [...document.querySelectorAll("#cases input:not([type=radio]), #cases select")].map(el => parseFloat(getComputedStyle(el).fontSize));
+      const current = nav.querySelector("[aria-current=page] span").getBoundingClientRect().width;
+      return {scrolls: nav.scrollWidth > nav.clientWidth + 1, narrow: links.filter(r => r.width < 39.5).length,
+        short: links.filter(r => r.height < 44).length, fields: Math.min(...fields), current};
+    });
+    assert.deepEqual([bar.scrolls, bar.narrow, bar.short], [false, 0, 0], `bottom bar at ${width} px: ${JSON.stringify(bar)}`);
+    assert.ok(bar.fields >= 16, `fields at ${width} px are ${bar.fields} px`);
+    assert.ok(bar.current > 10, `the current screen keeps its label at ${width} px`);
+    await assertNoOverflow(page, `cases at ${width} px`);
+  }
   await page.setViewportSize({width: 1280, height: 860});
   await page.goto(base + "/app#cases");
   await page.locator("#cases:not([hidden])").waitFor();
