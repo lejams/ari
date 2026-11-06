@@ -92,6 +92,8 @@ test-web:
 	$(NODE) --check web/placement-client.mjs
 	$(NODE) --check web/language-drill-client.mjs
 	$(NODE) web/tests/language-drill-client.test.mjs
+	$(NODE) --check web/language-exercises-client.mjs
+	$(NODE) web/tests/language-exercises-client.test.mjs
 	$(NODE) --check web/pcm-recorder.mjs
 	$(NODE) web/tests/pcm-recorder.test.mjs
 	$(NODE) web/tests/practice-client.test.mjs

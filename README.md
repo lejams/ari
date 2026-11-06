@@ -35,7 +35,7 @@ creates a local profile, then practises with published, versioned clinical conte
   *estimated* level per skill and an overall band stored as `estimated_level`. Its
   content is a separate registry bundle (`ari-placement-bundle-v1`) with one linguistic
   review; see `docs/CLINICAL_CASES.md`.
-- **Weekly programme** (`program-rules-v4`): a learner model is computed on every read
+- **Weekly programme** (`program-rules-v5`; since v5 also two series a week of bank language exercises on the established language point, see `docs/LANGUAGE_EXERCISES.md` section 7): a learner model is computed on every read
   from deterministic signals only (reference level, lexicon due words, section coverage
   over the last sessions, required items missed, empathy verdict counts, recent
   activity, exam horizon) and turned into this week's slots, bounded by the declared

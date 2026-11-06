@@ -32,6 +32,8 @@ class OwnershipMiddleware:
                 "/api/practice/",
                 "/api/lexicon",
                 "/api/placement",
+                "/api/language-drill",
+                "/api/language-exercises",
             )
         ) or path in (
             "/api/profile",

@@ -1,9 +1,9 @@
 # Banque d'exercices de langue
 
-Partie hors ligne de la PR 3 du plan `docs/PLAN_NIVEAU_ET_REMEDIATION.md` (section 5). Cette PR
-construit la banque, ses contrôles et leur mesure. **Elle ne sert encore aucun apprenant** : le
-tirage, le niveau de travail par catégorie, le bouton « Signaler une erreur » et le créneau du
-programme viennent après la fusion de la PR 1 (remédiation) et de la PR 2 (test de niveau).
+PR 3 du plan `docs/PLAN_NIVEAU_ET_REMEDIATION.md` (section 5). La partie hors ligne (sections 1 à
+6) construit la banque, ses contrôles et leur mesure. La partie apprenant (section 7, choix du
+propriétaire du 6 novembre 2026) la sert : tirage au niveau de travail de chaque catégorie, page
+« Exercices », créneau du programme et bouton « Signaler une erreur ».
 
 Direction produit (Ismail, 2 novembre 2026) : les apprenants veulent progresser en allemand comme
 langue. Un exercice entraîne la grammaire, le vocabulaire ou le registre, à B1, B2 ou C1. La
@@ -100,7 +100,7 @@ accède). `--database-url` sinon `ARI_DATABASE_URL`.
 ```bash
 # 1. Écrire un lot (appelle les modèles, facturé : --live ; ne touche pas la base)
 PYTHONPATH=backend/src .venv/bin/python -m ari.exercises_cli generate \
-    --config evals/configs/exercises/luna-sonnet.yaml --live \
+    --config evals/configs/exercises/luna-haiku.yaml --live \
     --spec B1:case:cloze:10 --spec B2:word_choice:correct_sentence:10 --out var/exercises/lot-1.json
 # 2. Lire le lot (acceptés, refusés par étape, appels), puis l'importer
 PYTHONPATH=backend/src .venv/bin/python -m ari.exercises_cli import var/exercises/lot-1.json \
@@ -110,10 +110,29 @@ PYTHONPATH=backend/src .venv/bin/python -m ari.exercises_cli import var/exercise
 ... -m ari.exercises_cli list --level B1 --category case
 ```
 
-Les clés `ARI_OPENAI_API_KEY` et `ARI_ANTHROPIC_API_KEY` doivent être dans l'environnement (ou le
-`.env`) pour `generate --live`. Sans `--live` et avec la configuration `fake.yaml`, la chaîne tourne
+La configuration est celle que le gate a mesurée (`luna-haiku`, décision du 5 novembre 2026) :
+`import` refuse un lot fait avec un autre fichier. Les clés `ARI_OPENAI_API_KEY` et
+`ARI_ANTHROPIC_API_KEY` doivent être dans l'environnement (ou le `.env`) pour `generate --live`. Sans `--live` et avec la configuration `fake.yaml`, la chaîne tourne
 sans clé sur un fournisseur simulé : elle ne mesure rien de l'allemand, et un lot simulé est **refusé
 à l'import**.
+
+**Sur le VPS** (premier lot fait ainsi le 6 novembre 2026, depuis `/opt/ari` à jour) : l'image ne
+contient pas `evals/`, on le monte depuis le checkout ; le rapport du gate (artefact
+`exercise-gate` du run qui a passé, `report.json`) est copié dans `exercise-gate/` ; la clé
+Anthropic n'est tapée que pour cette session de terminal (l'application n'en a pas besoin).
+
+```bash
+mkdir -p var/exercises && sudo chown 10001 var/exercises
+read -rs ARI_ANTHROPIC_API_KEY && export ARI_ANTHROPIC_API_KEY
+EX="docker compose --profile serve run --rm -e ARI_ANTHROPIC_API_KEY -v $PWD/evals:/app/evals:ro \
+  -v $PWD/exercise-gate:/app/exercise-gate:ro -v $PWD/var/exercises:/app/var/exercises \
+  app python -m ari.exercises_cli"
+$EX generate --live --config evals/configs/exercises/luna-haiku.yaml --spec B1:case:cloze:5 … \
+  --out var/exercises/lot-1.json
+$EX import var/exercises/lot-1.json --gate-report exercise-gate/report.json --dry-run
+$EX import var/exercises/lot-1.json --gate-report exercise-gate/report.json
+unset ARI_ANTHROPIC_API_KEY
+```
 
 Les exercices se consultent dans l'onglet **Exercices** du back-office, avec les scénarios médicaux
 (filtres par type, niveau, catégorie, compétence et statut ; retrait par le propriétaire), voir
@@ -283,9 +302,8 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
 
 ## 6. Limites connues
 
-- **Aucune mesure sur de vrais modèles n'a été faite** (pas de clé dans cet environnement). Les seuils
-  sont des valeurs initiales. Le premier run du workflow est la première mesure, à lire avant tout
-  import.
+- Le gate a passé une fois, sur le holdout `@6` (5 novembre 2026, run 42020999264, `luna-haiku`) ;
+  l'historique des mesures est en section 5.
 - L'allemand du jeu de test, des prompts et des exemples a été écrit par l'agent et **n'a pas été relu
   par une personne germanophone** (le propriétaire a retiré cette relecture, D3). Une base discutable
   peut produire un « exercice juste refusé » : regarder le détail avant de conclure.
@@ -301,5 +319,43 @@ ces changements ? Oui, et il bloque l'entrée dans la banque.
   comme doublon) ; une correction n'est pas vérifiée comme proche de la phrase fautive (le juge est le
   seul filet) ; la phrase correcte d'un exercice retiré reste prise, donc sa version corrigée doit
   changer de phrase ; `TRUNCATE` contourne les triggers par ligne (limite de toute la base).
-- Hors périmètre de cette PR, volontairement : le tirage, le signalement, le créneau `language_drill`,
-  le niveau de travail par catégorie, la génération en masse, l'API et l'interface apprenant.
+- Hors périmètre, volontairement : la génération en masse (un lot se lance à la main).
+
+## 7. Servir la banque aux apprenants
+
+Lecture seule de la banque : rien ici ne génère ni ne modifie un exercice. Règles versionnées, sans
+modèle, dans `domain/exercise_practice.py` ; service `application/services/exercise_practice.py`.
+
+- **Niveau de travail par catégorie (`working-level-v1`, plan section 4.4, D8).** Il part du niveau de
+  l'apprenant (l'estimation du test, sinon le niveau déclaré), ramené entre B1 et C1. Il monte d'un
+  cran quand les 10 dernières réponses données à ce niveau sont justes à 80 % ou plus, descend sous
+  50 %, et le compte repart à chaque changement. Il est rejoué depuis les réponses (table
+  `language_drills`), rien n'est stocké ; les réponses antérieures au dernier test de niveau ne
+  comptent pas. Le niveau estimé n'est jamais modifié.
+- **Tirage (`exercise-draw-v1`).** Parmi les exercices actifs de la catégorie au niveau de travail :
+  jamais un exercice déjà réussi, jamais un exercice retenu par un signalement. D'abord ceux jamais
+  vus, dans un ordre propre à chaque apprenant (hash), puis ceux manqués, le plus ancien d'abord et
+  au moins un jour après l'erreur. Rien à ce niveau : rien n'est proposé (pas de repli sur un autre
+  niveau).
+- **Page « Exercices »** (`web/`, menu Pratique). Une série de 5 questions à choix. La clé et
+  l'explication ne partent du serveur qu'avec la réponse ; la note est celle du code (`grade`), une
+  réponse par requête (`request_id`). Les options restent affichées, verrouillées, avec la réponse
+  attendue et le choix de l'apprenant.
+- **Programme (`program-rules-v5`).** Deux séries par semaine (lundi et jeudi, 6 minutes) sur le
+  premier point de langue établi qui a encore des exercices : une catégorie à au moins deux erreurs
+  dans les séances récentes, sinon un point faible du test de niveau. Rien n'est planifié sans un tel
+  point, ni sans niveau (ni estimé ni déclaré), ni en dessous de B1. Un créneau est fait toutes les 5 réponses de la semaine.
+- **Signalement.** Le bouton « Signaler une erreur dans cet exercice » (motif parmi quatre,
+  commentaire facultatif de 300 caractères) ajoute une vérification `learner_report` : l'exercice
+  n'est plus proposé à personne. Dans le back-office il apparaît « Signalé » (filtre et compteur) ;
+  le propriétaire le retire (définitif) ou le remet en circulation avec une note (vérification
+  `human`, `approve`). Qui a signalé n'est pas affiché ; l'identifiant reste dans la vérification.
+  Dix signalements par compte et par 24 heures au plus : un seul compte ne peut pas vider la banque.
+- API apprenant : `GET /api/language-exercises`, `GET /api/language-exercises/next?category=…`,
+  `POST /api/language-exercises/answers`, `POST /api/language-exercises/{id}/report`, derrière la
+  connexion (comme `/api/language-drill`, ajouté à la même liste à cette occasion).
+
+Limites : une série n'est pas enregistrée comme telle (le créneau compte les réponses par paquets de
+5) ; un apprenant qui a tout fait à son niveau n'a plus rien sur cette catégorie jusqu'au prochain
+lot ; les réponses et les signalements portent l'identifiant de l'apprenant, l'effacement RGPD
+(action 12) doit couvrir `language_drills` et les vérifications `learner_report`.

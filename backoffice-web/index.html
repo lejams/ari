@@ -206,6 +206,13 @@
         <h2>Explication affichée à l’apprenant</h2><p id="exercise-explanation"></p>
       </article>
       <article class="card"><h2>Vérifications</h2><p class="help">Les décisions de chaque étape, dans l’ordre. Un retrait y laisse sa trace.</p><div class="tablewrap"><table id="exercise-reviews" class="table"></table></div>
+        <div id="exercise-reinstate" class="availability" hidden>
+          <p><strong>Signalé par un apprenant.</strong> L’exercice n’est plus proposé à personne tant qu’il n’est pas remis en circulation ou retiré.</p>
+          <form id="exercise-reinstate-form" novalidate>
+            <label for="exercise-reinstate-note">Pourquoi l’exercice est juste (obligatoire)</label><textarea id="exercise-reinstate-note" rows="2" minlength="3" maxlength="500" required></textarea>
+            <div class="form-actions"><button class="primary">Remettre en circulation</button></div>
+          </form>
+        </div>
         <div id="exercise-withdraw" hidden>
           <form id="exercise-withdraw-form" novalidate>
             <label for="exercise-withdraw-reason">Motif du retrait (obligatoire, définitif)</label><textarea id="exercise-withdraw-reason" rows="2" minlength="3" maxlength="500" required></textarea>
@@ -241,6 +248,6 @@
     <div class="tablewrap"><table id="accounts-table" class="table"></table></div>
   </section>
 </main>
-<script type="module" src="/app.mjs?v=20261103-exercises"></script>
+<script type="module" src="/app.mjs?v=20261106-reports"></script>
 </body>
 </html>

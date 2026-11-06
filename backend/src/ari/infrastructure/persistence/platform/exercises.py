@@ -156,6 +156,7 @@ class SqlExerciseBank:
         category: str | None = None,
         skill: str | None = None,
         format: str | None = None,
+        ids: frozenset[str] | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> tuple[tuple[StoredExercise, ...], int]:
@@ -171,6 +172,8 @@ class SqlExerciseBank:
             )
             if value is not None
         ]
+        if ids is not None:
+            filters.append(LanguageExerciseRow.id.in_(sorted(ids)))
         with Session(self.engine) as db:
             total = db.scalar(select(func.count()).select_from(LanguageExerciseRow).where(*filters))
             rows = db.scalars(
@@ -247,6 +250,44 @@ class SqlExerciseBank:
     def dedup_keys(self) -> frozenset[str]:
         with Session(self.engine) as db:
             return frozenset(db.scalars(select(LanguageExerciseRow.dedup_key)))
+
+    def reviews_by(self, reviewer_name: str, *, since: datetime) -> int:
+        """How many checks this reviewer left since `since` (a learner's reports, for a cap)."""
+        with Session(self.engine) as db:
+            count = db.scalar(
+                select(func.count())
+                .select_from(LanguageExerciseReviewRow)
+                .where(
+                    LanguageExerciseReviewRow.reviewer_name == reviewer_name,
+                    LanguageExerciseReviewRow.created_at >= since,
+                )
+            )
+        return int(count or 0)
+
+    def held_for_review(self) -> frozenset[str]:
+        """Active exercises whose last word is a learner's report: no person has looked since.
+
+        A person's review after the report (put back in circulation, or withdrawn) settles it.
+        """
+        with Session(self.engine) as db:
+            rows = db.execute(
+                select(
+                    LanguageExerciseReviewRow.exercise_id, LanguageExerciseReviewRow.reviewer_kind
+                )
+                .join(
+                    LanguageExerciseRow,
+                    LanguageExerciseRow.id == LanguageExerciseReviewRow.exercise_id,
+                )
+                .where(
+                    LanguageExerciseRow.status == "active",
+                    LanguageExerciseReviewRow.reviewer_kind.in_(("learner_report", "human")),
+                )
+                .order_by(LanguageExerciseReviewRow.sequence)
+            )
+            last: dict[str, str] = {}
+            for exercise_id, kind in rows:
+                last[exercise_id] = kind
+        return frozenset(e for e, kind in last.items() if kind == "learner_report")
 
 
 class SqlDrillStore:

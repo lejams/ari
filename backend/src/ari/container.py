@@ -17,6 +17,7 @@ from ari.application.services.accounts import LearnerAuth
 from ari.application.services.conversation import ConversationOrchestrator
 from ari.application.services.evaluation import LLMBackedEvaluator
 from ari.application.services.exam_session import CHAIN_EXAM_STACK_ID, ExamPatient, ExamVoices
+from ari.application.services.exercise_practice import ExercisePracticeService
 from ari.application.services.language_drill import LanguageDrillService
 from ari.application.services.lexicon import LexiconService
 from ari.application.services.patient import PatientSimulator
@@ -34,6 +35,7 @@ from ari.infrastructure.cases.clinical_store import ClinicalStore
 from ari.infrastructure.cases.placement_store import PlacementStore
 from ari.infrastructure.cases.practice_catalog import PublishedPracticeCatalog
 from ari.infrastructure.persistence.platform.accounts import SqlLearnerAccountStore
+from ari.infrastructure.persistence.platform.exercises import SqlDrillStore, SqlExerciseBank
 from ari.infrastructure.persistence.platform.language_drill import SqlLanguageDrillRepository
 from ari.infrastructure.persistence.platform.lexicon import SqlLexiconRepository
 from ari.infrastructure.persistence.platform.placement import SqlPlacementRepository
@@ -73,6 +75,8 @@ class Container:
     lexicon: LexiconService
     placement: PlacementService
     language_drills: LanguageDrillService
+    # The bank of language exercises, drawn at the learner's working level (read only here).
+    exercise_practice: ExercisePracticeService
     email: EmailSender
     auth: LearnerAuth
     usage_guard: UsageGuard
@@ -485,6 +489,12 @@ def build_container(settings: Settings) -> Container:
         placement=placement,
         language_drills=LanguageDrillService(
             SqlLanguageDrillRepository(repository.engine), repository
+        ),
+        exercise_practice=ExercisePracticeService(
+            SqlExerciseBank(repository.engine),
+            SqlDrillStore(repository.engine),
+            repository,
+            placement.attempts,
         ),
         email=email,
         auth=auth,

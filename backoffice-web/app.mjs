@@ -1,5 +1,5 @@
 import {ProtocolReview} from './protocol-review.mjs?v=20261015-costs';
-import {BackofficeApi, EXERCISE_LABELS, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LABELS, statusLabel, statusTone} from './api.mjs?v=20261103-exercises';
+import {BackofficeApi, EXERCISE_LABELS, PERSONA_LABELS, PHASE_LABELS, REVIEW_TYPE_LABELS, ROLE_LABELS, statusLabel, statusTone} from './api.mjs?v=20261106-reports';
 
 const client = new BackofficeApi();
 const $ = id => document.getElementById(id);
@@ -307,7 +307,7 @@ async function showExercises() {
     if (asked === JSON.stringify([exerciseFilters(), exerciseOffset])) break;
   }
   for (const [kind, allLabel] of EXERCISE_FILTERS) fillExerciseFilter(kind, allLabel, data.counts[kind] || {});
-  table($('exercises-table'), ['Type', 'Niveau', 'Catégorie', 'Compétence', 'Énoncé', 'Statut', ''], data.items.map(item => [exerciseLabel('type', item.type), item.level || '—', item.category ? exerciseLabel('category', item.category) : '—', item.skill ? exerciseLabel('skill', item.skill) : '—', item.stem, badge(item.status), button('Ouvrir', () => { location.hash = item.kind === 'medical' ? `#/registry/${item.id}/${item.version}` : `#/exercises/${item.id}`; })]));
+  table($('exercises-table'), ['Type', 'Niveau', 'Catégorie', 'Compétence', 'Énoncé', 'Statut', ''], data.items.map(item => [exerciseLabel('type', item.type), item.level || '—', item.category ? exerciseLabel('category', item.category) : '—', item.skill ? exerciseLabel('skill', item.skill) : '—', item.stem, badge(item.reported ? 'reported' : item.status), button('Ouvrir', () => { location.hash = item.kind === 'medical' ? `#/registry/${item.id}/${item.version}` : `#/exercises/${item.id}`; })]));
   const first = data.total ? data.offset + 1 : 0, last = data.offset + data.items.length;
   $('exercises-total').textContent = `${data.total} exercice(s) correspondent aux filtres${data.total ? ` (affichés : ${first} à ${last})` : ''}.`;
   $('exercises-empty').hidden = data.total > 0;
@@ -324,7 +324,7 @@ async function showExercise(id) {
   current.exercise = item.id;
   $('exercise-eyebrow').textContent = `${item.level} · ${exerciseLabel('category', item.category)} · ${exerciseLabel('skill', item.skill)} · ${exerciseLabel('type', item.type)}`;
   $('exercise-title').textContent = item.id;
-  $('exercise-meta').textContent = `Décor : ${item.setting} · lot ${item.batch_id} · ajouté le ${formatDate(item.created_at)}${item.status === 'withdrawn' ? ` · RETIRÉ : ${item.withdrawn_reason}` : ''}`;
+  $('exercise-meta').textContent = `Décor : ${item.setting} · lot ${item.batch_id} · ajouté le ${formatDate(item.created_at)}${item.status === 'withdrawn' ? ` · RETIRÉ : ${item.withdrawn_reason}` : ''}${item.reported ? ' · SIGNALÉ par un apprenant, retenu' : ''}`;
   $('exercise-context').textContent = item.context_fr;
   $('exercise-instruction').textContent = item.instruction_fr;
   $('exercise-stem').replaceChildren(node('strong', item.stem));
@@ -334,9 +334,18 @@ async function showExercise(id) {
   table($('exercise-reviews'), ['Quand', 'Étape', 'Par', 'Décision', 'Détail'], item.reviews.map(r => [formatDate(r.created_at), REVIEW_KIND_LABELS[r.kind] || r.kind, r.name, REVIEW_DECISION_LABELS[r.decision] || r.decision, JSON.stringify(r.payload).slice(0, 300)]));
   $('exercise-provenance').textContent = JSON.stringify(item.provenance, null, 2);
   $('exercise-withdraw').hidden = !(client.has('owner') && item.status === 'active');
+  $('exercise-reinstate').hidden = !item.reported;
+  $('exercise-reinstate-form').hidden = !client.has('owner');
+  $('exercise-reinstate-note').value = '';
   $('exercise-withdraw-reason').value = '';
   view('exercise');
 }
+$('exercise-reinstate-form').onsubmit = event => { event.preventDefault(); perform(async () => {
+  const note = $('exercise-reinstate-note').value.trim();
+  if (note.length < 3) { notice('Dites en quelques mots pourquoi l’exercice est juste.'); return; }
+  await client.reinstateExercise(current.exercise, note);
+  notice('Exercice remis en circulation.'); await showExercise(current.exercise);
+}); };
 $('exercise-withdraw-form').onsubmit = event => { event.preventDefault(); perform(async () => {
   const reason = $('exercise-withdraw-reason').value.trim();
   if (reason.length < 3) throw new Error('Donnez le motif du retrait (3 caractères au moins).');

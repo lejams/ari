@@ -7,6 +7,9 @@ withdraw it here, which is final and leaves a trace in its reviews. A medical sc
 humans in the registry; the list only points to its registry page, where it is reviewed, published
 and withdrawn. Nothing here writes content: a language exercise enters the bank through
 `python -m ari.exercises_cli import`, after a passing gate report (docs/LANGUAGE_EXERCISES.md).
+
+A learner's report holds an exercise back from every learner ("reported"). The owner settles it
+here: withdraw it, or put it back in circulation with a note; both are reviews in its history.
 """
 
 from __future__ import annotations
@@ -17,8 +20,9 @@ from fastapi import APIRouter, Depends, Query
 
 from ari.backoffice_api.container import Backoffice
 from ari.backoffice_api.deps import current_account, require_roles
-from ari.backoffice_api.dto import WithdrawExerciseRequest
+from ari.backoffice_api.dto import ReinstateExerciseRequest, WithdrawExerciseRequest
 from ari.content.domain.accounts import AccountContext, Role
+from ari.domain.errors import InvalidStateError
 from ari.domain.language_exercises import (
     ExerciseCategory,
     ExerciseFormat,
@@ -51,7 +55,7 @@ def _cut(text: str) -> str:
     return text if len(text) <= PREVIEW_LENGTH else text[: PREVIEW_LENGTH - 1] + "…"
 
 
-def _summary(stored: StoredExercise) -> dict[str, Any]:
+def _summary(stored: StoredExercise, held: frozenset[str] = frozenset()) -> dict[str, Any]:
     exercise = stored.exercise
     return {
         "kind": "language",
@@ -67,6 +71,7 @@ def _summary(stored: StoredExercise) -> dict[str, Any]:
         "batch_id": stored.batch_id,
         "created_at": stored.created_at.isoformat(),
         "withdrawn_reason": stored.withdrawn_reason,
+        "reported": exercise.exercise_id in held,
     }
 
 
@@ -91,10 +96,20 @@ def _medical_summary(scenario: dict[str, Any]) -> dict[str, Any]:
         "batch_id": None,
         "created_at": None,
         "withdrawn_reason": None,
+        "reported": False,
     }
 
 
 def _review(review: ExerciseReview) -> dict[str, Any]:
+    if review.reviewer_kind == "learner_report":
+        # The reason and the comment are what the owner needs; who reported stays out of view.
+        return {
+            "kind": review.reviewer_kind,
+            "name": "Apprenant",
+            "decision": review.decision,
+            "payload": {k: v for k, v in review.payload.items() if k != "learner_id"},
+            "created_at": review.created_at.isoformat(),
+        }
     return {
         "kind": review.reviewer_kind,
         "name": review.reviewer_name,
@@ -104,10 +119,14 @@ def _review(review: ExerciseReview) -> dict[str, Any]:
     }
 
 
-def _counts(language: dict[str, dict[str, int]], scenarios: list[dict[str, Any]]) -> dict[str, Any]:
+def _counts(
+    language: dict[str, dict[str, int]], scenarios: list[dict[str, Any]], reported: int
+) -> dict[str, Any]:
     """How many exercises each filter value holds, for both kinds together."""
     types = dict(language.get("format", {}))
     statuses = dict(language.get("status", {}))
+    if reported:
+        statuses["reported"] = reported  # Counted within "active" too: still in the bank.
     for scenario in scenarios:
         types[scenario["phase"]] = types.get(scenario["phase"], 0) + 1
         status = _medical_status(scenario)
@@ -147,7 +166,7 @@ def exercises_router(services: Backoffice) -> APIRouter:
     def list_exercises(
         account: Anyone,
         status: Annotated[
-            Literal["active", "draft_unvalidated", "withdrawn"] | None, Query()
+            Literal["active", "reported", "draft_unvalidated", "withdrawn"] | None, Query()
         ] = None,
         level: Annotated[ExerciseLevel | None, Query()] = None,
         category: Annotated[ExerciseCategory | None, Query()] = None,
@@ -162,8 +181,12 @@ def exercises_router(services: Backoffice) -> APIRouter:
             kind=type,
             language_filters=any(value is not None for value in (level, category, skill)),
         )
+        held = bank.held_for_review()
         language_type = None if type in MEDICAL_TYPES else type
-        language_status = None if status == "draft_unvalidated" else status
+        # "reported" is not a column: an active exercise held back by a learner's report.
+        language_status = (
+            None if status == "draft_unvalidated" else "active" if status == "reported" else status
+        )
         if type in MEDICAL_TYPES or status == "draft_unvalidated":
             language_items: tuple[StoredExercise, ...] = ()
             language_total = 0
@@ -174,16 +197,17 @@ def exercises_router(services: Backoffice) -> APIRouter:
                 category=category,
                 skill=skill,
                 format=language_type,
+                ids=held if status == "reported" else None,
                 limit=max(0, limit - max(0, len(scenarios) - offset)),
                 offset=max(0, offset - len(scenarios)),
             )
         page = scenarios[offset : offset + limit]
         return {
-            "items": [*page, *(_summary(stored) for stored in language_items)],
+            "items": [*page, *(_summary(stored, held) for stored in language_items)],
             "total": len(scenarios) + language_total,
             "limit": limit,
             "offset": offset,
-            "counts": _counts(bank.counts(), services.registry.list_scenarios()),
+            "counts": _counts(bank.counts(), services.registry.list_scenarios(), len(held)),
         }
 
     @router.get("/api/exercises/{exercise_id}")
@@ -191,7 +215,7 @@ def exercises_router(services: Backoffice) -> APIRouter:
         stored = bank.get(exercise_id)
         item = stored.exercise
         return {
-            **_summary(stored),
+            **_summary(stored, bank.held_for_review()),
             "stem": item.stem,
             "context_fr": item.context_fr,
             "instruction_fr": item.instruction_fr,
@@ -206,6 +230,21 @@ def exercises_router(services: Backoffice) -> APIRouter:
     @router.post("/api/exercises/{exercise_id}/withdraw")
     def withdraw(exercise_id: str, body: WithdrawExerciseRequest, account: Owner) -> dict[str, Any]:
         bank.withdraw(exercise_id, reason=body.reason, actor=account.display_name)
-        return _summary(bank.get(exercise_id))
+        return _summary(bank.get(exercise_id), bank.held_for_review())
+
+    @router.post("/api/exercises/{exercise_id}/reinstate")
+    def reinstate(
+        exercise_id: str, body: ReinstateExerciseRequest, account: Owner
+    ) -> dict[str, Any]:
+        """The owner read the reported exercise and finds it right: learners get it again."""
+        if exercise_id not in bank.held_for_review():
+            raise InvalidStateError("Cet exercice n'est pas retenu par un signalement")
+        bank.add_review(
+            exercise_id,
+            ExerciseReview(
+                "human", account.display_name, "approve", {"reinstated": body.note.strip()}
+            ),
+        )
+        return _summary(bank.get(exercise_id), bank.held_for_review())
 
     return router

@@ -145,7 +145,7 @@ def test_slot_states_and_done_matching(published_container: Container) -> None:
     assert [s["state"] for s in voice] == ["done", "todo"]
     # Today's slot comes before Tuesday's missed review.
     assert week["next"]["kind"] == "lexicon_review" and week["next"]["state"] == "today"
-    assert week["version"] == PROGRAM_RULES_VERSION == "program-rules-v4"
+    assert week["version"] == PROGRAM_RULES_VERSION == "program-rules-v5"
 
     # A missed slot is still offered once nothing is left today or later.
     sunday = TODAY + timedelta(days=3)
@@ -339,7 +339,7 @@ def test_a_recurring_language_error_plans_a_drill_on_one_axis(
         TODAY,
         completed={},
     )
-    assert week["version"] == PROGRAM_RULES_VERSION == "program-rules-v4"
+    assert week["version"] == PROGRAM_RULES_VERSION == "program-rules-v5"
     drills = [s for s in week["slots"] if s["kind"] == "language_drill"]
     assert [s["day_offset"] for s in drills] == [2, 5]
     assert drills[0]["minutes"] == 10

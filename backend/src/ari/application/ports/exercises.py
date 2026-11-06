@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any, Protocol
 
 from ari.domain.language_exercises import (
@@ -47,6 +48,7 @@ class ExerciseBank(Protocol):
         category: str | None = None,
         skill: str | None = None,
         format: str | None = None,
+        ids: frozenset[str] | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> tuple[tuple[StoredExercise, ...], int]:
@@ -64,6 +66,12 @@ class ExerciseBank(Protocol):
     def reviews(self, exercise_id: str) -> tuple[ExerciseReview, ...]: ...
 
     def dedup_keys(self) -> frozenset[str]: ...
+
+    def reviews_by(self, reviewer_name: str, *, since: datetime) -> int: ...
+
+    def held_for_review(self) -> frozenset[str]:
+        """Active exercises a learner reported and no person has reviewed since: not served."""
+        ...
 
 
 class DrillStore(Protocol):

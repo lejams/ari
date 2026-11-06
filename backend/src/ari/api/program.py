@@ -41,6 +41,9 @@ def completed_since_week_start(
     for drill in services.language_drills.repository.list(learner_id):
         if drill.status == "completed" and drill.ended_at and drill.ended_at >= start:
             completed.setdefault("language_drill", []).append(drill.ended_at)
+    series = services.exercise_practice.completions(learner_id, start)
+    if series:
+        completed["language_exercises"] = series
     for attempt in services.placement.attempts.list(learner_id):
         if attempt.status == "completed" and attempt.ended_at and attempt.ended_at >= start:
             completed.setdefault("placement", []).append(attempt.ended_at)
@@ -64,6 +67,7 @@ def program_router(services: Container) -> APIRouter:
             services.practice.catalog.list(),
             now.date(),
             completed=completed_since_week_start(services, learner_id, now),
+            exercise_focus=services.exercise_practice.focus(learner_id),
         )
         return {"model": model.as_public(), "week": week}
 
